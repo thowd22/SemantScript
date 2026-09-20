@@ -9,6 +9,14 @@ Task tracking: Backlog.md (`backlog board`, `backlog task list --plain`).
 
 ---
 
+## 0. North star
+
+**The goal is a semantic system that lives alongside an application's TypeScript and is trained for that specific application — to the point where much of the application's hand-written logic is replaced by `sema` expressions.**
+
+It is *not* a universal or general-purpose decision model. One application → one compiled artifact (shared encoder + that app's adapter + one head per expression), trained on that app's specs, examples and constraints. Universal encoders, warm starts and external benchmarks appear in this plan only as means to faster compilation or fairer measurement; they are never the deliverable. When a task or experiment starts optimizing for generality, it has drifted.
+
+The measure of success is how much of a real application's behavior can be moved into `sema` expressions at production accuracy and latency — not how many tasks one model can do.
+
 ## 1. The idea in one paragraph
 
 Ordinary TypeScript gains one new primitive: a **typed expression whose implementation is learned from a natural-language specification** rather than written by hand.

@@ -4,7 +4,7 @@ title: 'Investigate: universal encoder + tiny heads for seconds-fast compilation
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-20 19:18'
+updated_date: '2026-09-20 19:30'
 labels:
   - research
 milestone: m-3
@@ -28,4 +28,5 @@ Transcript turn 9 closing question: does every function need separately trained 
 - [ ] #2 Accuracy gap and compile-time difference are recorded
 - [ ] #3 A recommendation is written as a backlog decision
 - [ ] #4 Experiment measures a Laya-style warm start (universal scorer distilled into a fixed head) against head-only and full fine-tuning on time-to-target-accuracy
+- [ ] #5 The recommendation is framed strictly as compile-time reduction for per-application artifacts; no shipped runtime depends on a universal model
 <!-- AC:END -->

@@ -4,7 +4,7 @@ title: Controller abstraction and HTTP runtime
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 19:41'
 labels:
   - runtime
 milestone: m-4
@@ -17,7 +17,7 @@ ordinal: 29000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Transcript turn 9 point 9: @Controller / @Post decorators with sema expressions inside handlers; the runtime batches sema evaluation per request.
+Transcript turn 9 point 9: controller-style handlers with sema expressions inside. Implement as thin integrations (decorators/middleware) for Express, Nest and Next route handlers that batch sema evaluation per request via the execution plan, rather than a standalone HTTP server.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

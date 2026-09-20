@@ -95,15 +95,30 @@ Pin the contract before writing code.
 - Structured-interface outputs as multi-field heads.
 - Benchmark parallel-head scaling and batch scaling.
 
-### Phase 3 — Developer experience
-- `semantscript build | train | test | run` CLI.
-- `withConfidence` / `@confidence` + fallbacks.
-- Build cache: unchanged expressions don't retrain.
-- Investigate: universal encoder + tiny heads → "compilation in seconds" instead of minutes.
+### Phase 3 — Developer experience: drop-in adoption
+The adoption path is an *existing* project, not a new one:
 
-### Phase 4 — Framework layer
-- Controllers / HTTP runtime, persistence & transactions integration, an example application.
-- Only after the primitive is proven.
+```
+npm i @semantscript/core      # one dependency
+npx semantscript init         # detects tsc / Vite / Next / esbuild, wires the plugin, zero config
+# write one sema expression in an existing file
+npx semantscript dev          # retrains changed expressions in the background, hot-swaps heads
+git push                      # CI: semantscript build && test; artifact ships with the app
+```
+
+- Build-tool plugins (tsc transformer, Vite, esbuild) so `sema` compiles wherever TS already compiles.
+- `semantscript init` with zero-config defaults; `build | train | test | run` CLI.
+- `semantscript dev` watch mode: incremental retraining via the content-addressed cache, hot-swap without restart.
+- Editor diagnostics (TS language-service plugin): accuracy, ECE, pair-consistency and guidance at each `sema` site.
+- Runtime packaging for existing deployments (Node, Docker, serverless, Next server bundle).
+- `withConfidence` / `@confidence` + fallbacks.
+- Investigate: universal encoder + tiny heads → "compilation in seconds" (compile-time only; see §0).
+
+### Phase 4 — Framework layer (thin)
+- Thin integrations for Express, Nest and Next route handlers (decorators/middleware that batch `sema` evaluation per request), not a standalone server.
+- Persistence & transaction patterns.
+- Reference application that replaces a meaningful share of hand-written logic with `sema` expressions.
+- Only after the primitive is proven; adoption comes from Phase 3, not from owning the app.
 
 ## 5b. Documentation gate (every phase)
 

@@ -4,6 +4,7 @@ title: 'Docs: Phase 3 — CLI reference, caching behavior and diagnostics catalo
 status: To Do
 assignee: []
 created_date: '2026-09-20 02:47'
+updated_date: '2026-09-20 19:41'
 labels:
   - docs
 milestone: m-3
@@ -28,4 +29,6 @@ Phase 3 is where external developers first touch the tool. The CLI, cache rules 
 - [ ] #3 A diagnostics catalogue lists every compiler and verifier error with its cause and fix
 - [ ] #4 The universal-encoder investigation outcome is written up with its recommendation
 - [ ] #5 The getting-started tutorial is rewritten to use the CLI end to end
+- [ ] #6 The getting-started tutorial starts from an existing Express or Next.js app and adds one sema expression, not from a fresh SemantScript project
+- [ ] #7 A page per supported build tool documents plugin setup and known limitations
 <!-- AC:END -->

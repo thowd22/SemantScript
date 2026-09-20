@@ -4,6 +4,7 @@ title: 'Docs: Phase 1 — end-to-end tutorial and component guides for the primi
 status: To Do
 assignee: []
 created_date: '2026-09-20 02:47'
+updated_date: '2026-09-20 20:05'
 labels:
   - docs
 milestone: m-1
@@ -27,4 +28,5 @@ Phase 1 is the proof that the primitive works. Its documentation is what lets an
 - [ ] #4 The Phase 1 benchmark results and go/no-go are written up with methodology and exact model versions
 - [ ] #5 Every public function or CLI flag introduced in Phase 1 has a docstring or help text
 - [ ] #6 The docs index links every new page
+- [ ] #7 The benchmark write-up includes the encoder size vs latency vs accuracy curve and the per-application sizing rule
 <!-- AC:END -->

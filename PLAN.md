@@ -136,7 +136,9 @@ Each phase ends with a documentation story (TASK-9 through TASK-13) and the phas
 
 Accuracy · calibration error · P50/P95 latency · throughput · memory · batch scaling · parallel-head scaling · training time · adapter size.
 
-Baselines: our ~200M model vs. 1B generative vs. 7B generative vs. traditional LLM structured output.
+Baselines: our ~200M model vs. 1B generative vs. 7B generative vs. traditional LLM structured output vs. Laya.
+
+**Encoder size is a measured per-application knob, not a global choice.** Parallel heads amortize the encoder pass across every decision in a request, so a larger encoder is cheaper per decision here than in one-call-per-decision systems — but the pass itself scales with depth and weight bytes, so size still trades latency for capability. TASK-5.14 sweeps ~150M / ~400M / ~1B and reports accuracy, pair-consistency, ECE and p50/p95 latency (GPU and CPU, 1/10/50 heads). The rule for each application: the largest encoder that fits its latency budget.
 
 ## 7. Decisions
 

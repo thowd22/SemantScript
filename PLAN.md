@@ -17,6 +17,8 @@ It is *not* a universal or general-purpose decision model. One application → o
 
 The measure of success is how much of a real application's behavior can be moved into `sema` expressions at production accuracy and latency — not how many tasks one model can do.
 
+**The picture to build toward:** developers write database interactions, API endpoints and plumbing in TypeScript, and express nearly all business logic as `sema` expressions. Deterministic code handles persistence, routing, validation, transactions and hard constraints; learned code handles everything semantic. The reference application (TASK-8.3) must look like this.
+
 ## 1. The idea in one paragraph
 
 Ordinary TypeScript gains one new primitive: a **typed expression whose implementation is learned from a natural-language specification** rather than written by hand.
@@ -94,6 +96,7 @@ Pin the contract before writing code.
 - Compiler builds the dependency DAG; fuses independent expressions into one pass; emits inference stages for dependent ones.
 - Structured-interface outputs as multi-field heads.
 - Benchmark parallel-head scaling and batch scaling.
+- **Compile-time routed domain adapters (static MoE):** experts are LoRA-sized adapters per domain (controller / file / `@domain`), selected statically by the compiler in the execution plan — no router network. Capacity scales with the app's domains; latency stays that of one adapter (TASK-6.7).
 
 ### Phase 3 — Developer experience: drop-in adoption
 The adoption path is an *existing* project, not a new one:

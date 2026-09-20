@@ -1,9 +1,10 @@
 ---
 id: TASK-3
 title: Decide teacher model and training stack
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 02:43'
 labels:
   - decision
 milestone: m-0
@@ -22,7 +23,13 @@ Two open decisions block the trainer: which model generates synthetic training d
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A backlog decision record states the chosen teacher model and why
-- [ ] #2 A backlog decision record states the chosen language split per component and why
-- [ ] #3 PLAN.md section 7 is updated to reflect both decisions as resolved
+- [x] #1 A backlog decision record states the chosen teacher model and why
+- [x] #2 A backlog decision record states the chosen language split per component and why
+- [x] #3 PLAN.md section 7 is updated to reflect both decisions as resolved
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Recorded decision-1 (teacher: Sonnet 5 reference + Qwen3-14B local candidate), decision-2 (Python/PyTorch training, Node compiler/runtime, ONNX inference), decision-3 (ModernBERT-base encoder). PLAN.md section 7 updated. Verified with backlog decision list and reading PLAN.md.
+<!-- SECTION:FINAL_SUMMARY:END -->

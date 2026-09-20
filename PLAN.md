@@ -103,14 +103,18 @@ Accuracy · calibration error · P50/P95 latency · throughput · memory · batc
 
 Baselines: our ~200M model vs. 1B generative vs. 7B generative vs. traditional LLM structured output.
 
-## 7. Open decisions
+## 7. Decisions
 
-| Decision | Options | Status |
+Recorded in `backlog/decisions/` (`backlog decision list`).
+
+| Decision | Choice | Record |
 |---|---|---|
-| Teacher model for data generation | API model (fast start) vs. local model (cost/privacy) | **open** |
-| Training stack | Python/PyTorch for trainer+model, Node for compiler+runtime *(recommended)* vs. all-TS | **open** |
-| Base encoder for Phase 1 | DeBERTa-v3 / ModernBERT-class, 100–300M | open |
-| Phase 1 benchmark task | Refund decision (transcript example) | proposed |
+| Teacher model for data generation | `claude-sonnet-5` as the **reference** teacher (structured outputs, Batch API for large runs); **Qwen3-14B via Ollama** as the local candidate, measured against the reference (TASK-5.13) | decision-1 |
+| Training stack | Python/PyTorch for `trainer/` + `model/`; Node/TypeScript for `compiler/` + `runtime/` + `cli/`; ONNX Runtime for in-process inference | decision-2 |
+| Base encoder for Phase 1 | ModernBERT-base (~149M); DeBERTa-v3-base fallback | decision-3 |
+| Phase 1 benchmark task | Refund decision (transcript example) | in TASK-5.11 |
+
+Hardware note: dev machine is a Radeon RX 9070 XT (16 GB) under WSL2; ROCm is not currently reachable from WSL. Run Ollama natively on Windows and reach it at `localhost:11434`; CPU fine-tuning of the ~150M encoder is the fallback for training.
 
 ## 8. Naming
 

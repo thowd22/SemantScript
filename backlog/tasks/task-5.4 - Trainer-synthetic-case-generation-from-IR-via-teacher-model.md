@@ -4,12 +4,13 @@ title: 'Trainer: synthetic case generation from IR via teacher model'
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 02:43'
 labels:
   - trainer
 milestone: m-1
 dependencies:
+  - TASK-5.12
   - TASK-2
-  - TASK-3
   - TASK-4
 parent_task_id: TASK-5
 ordinal: 9000

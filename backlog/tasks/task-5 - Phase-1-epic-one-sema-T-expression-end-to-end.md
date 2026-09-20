@@ -4,10 +4,12 @@ title: 'Phase 1 epic: one sema<T> expression end to end'
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 02:47'
 labels:
   - epic
 milestone: m-1
-dependencies: []
+dependencies:
+  - TASK-10
 references:
   - PLAN.md
 priority: high

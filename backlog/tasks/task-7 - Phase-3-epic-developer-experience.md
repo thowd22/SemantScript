@@ -4,11 +4,13 @@ title: 'Phase 3 epic: developer experience'
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 02:47'
 labels:
   - epic
 milestone: m-3
 dependencies:
   - TASK-6
+  - TASK-12
 ordinal: 23000
 ---
 

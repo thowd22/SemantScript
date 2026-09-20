@@ -4,11 +4,13 @@ title: 'Phase 2 epic: shared encoder, many heads, compiler parallelism'
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 02:47'
 labels:
   - epic
 milestone: m-2
 dependencies:
   - TASK-5
+  - TASK-11
 ordinal: 17000
 ---
 

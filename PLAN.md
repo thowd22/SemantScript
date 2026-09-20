@@ -97,6 +97,18 @@ Pin the contract before writing code.
 - Controllers / HTTP runtime, persistence & transactions integration, an example application.
 - Only after the primitive is proven.
 
+## 5b. Documentation gate (every phase)
+
+Each phase ends with a documentation story (TASK-9 through TASK-13) and the phase epic depends on it, so a phase is not done until its docs are. Docs live under `docs/` with a single index; each phase adds pages and revises earlier ones where behavior changed.
+
+| Phase | Docs deliverable |
+|---|---|
+| 0 | Language reference, IR/artifact reference, CONTRIBUTING, docs index |
+| 1 | Getting-started tutorial, component guides, teacher configuration, benchmark write-up |
+| 2 | Execution-plan concepts, multi-head artifact reference, structured outputs |
+| 3 | CLI reference, build-cache behavior, diagnostics catalogue |
+| 4 | Framework guide, reference-app walkthrough, public README, architecture overview |
+
 ## 6. Success metrics (from transcript, turn 9)
 
 Accuracy · calibration error · P50/P95 latency · throughput · memory · batch scaling · parallel-head scaling · training time · adapter size.

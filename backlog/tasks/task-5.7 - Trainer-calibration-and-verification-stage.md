@@ -4,7 +4,7 @@ title: 'Trainer: calibration and verification stage'
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-20 19:18'
+updated_date: '2026-09-20 19:36'
 labels:
   - trainer
 milestone: m-1
@@ -31,4 +31,5 @@ Confidence must mean something for @confidence thresholds to work, and the artif
 - [ ] #4 Verification stats are written into the artifact manifest
 - [ ] #5 A per-function temperature is fitted on a calibration split held out from training and stored in the artifact
 - [ ] #6 ECE and Brier score are reported per function and the build fails above a configured ECE threshold
+- [ ] #7 Pair-consistency accuracy on counterfactual twins is reported per function
 <!-- AC:END -->

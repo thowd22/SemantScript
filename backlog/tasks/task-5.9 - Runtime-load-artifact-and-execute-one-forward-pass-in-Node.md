@@ -4,12 +4,15 @@ title: 'Runtime: load artifact and execute one forward pass in Node'
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 19:18'
 labels:
   - runtime
 milestone: m-1
 dependencies:
   - TASK-2
   - TASK-4
+references:
+  - docs/research/laya-analysis.md
 parent_task_id: TASK-5
 ordinal: 14000
 ---
@@ -26,4 +29,5 @@ ordinal: 14000
 - [ ] #2 Inputs are serialized per the input schema and the head output is mapped back to the TS type value
 - [ ] #3 Calling an unknown function id or malformed inputs throws a typed error
 - [ ] #4 Runtime has no dependency on Python
+- [ ] #5 Inputs are rendered with the canonical serialization from the IR; a test proves key-order invariance
 <!-- AC:END -->

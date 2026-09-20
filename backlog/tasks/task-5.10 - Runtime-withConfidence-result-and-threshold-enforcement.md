@@ -4,12 +4,14 @@ title: 'Runtime: withConfidence result and threshold enforcement'
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-19 18:23'
+updated_date: '2026-09-20 19:18'
 labels:
   - runtime
 milestone: m-1
 dependencies:
   - TASK-5.9
+references:
+  - docs/research/laya-analysis.md
 parent_task_id: TASK-5
 ordinal: 15000
 ---
@@ -25,4 +27,5 @@ Neural values are probabilistic. Confidence must be accessible without contamina
 - [ ] #1 fn.withConfidence(inputs) returns { value, confidence } using calibrated probabilities
 - [ ] #2 A function compiled with @confidence(x) throws or invokes the configured fallback when confidence < x
 - [ ] #3 Plain calls remain unchanged in shape
+- [ ] #4 confidence is the calibrated top-1 probability and uncertainty is normalized entropy, matching SPEC.md
 <!-- AC:END -->

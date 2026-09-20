@@ -4,7 +4,7 @@ title: 'Experiment: local teacher vs Sonnet 5 reference'
 status: To Do
 assignee: []
 created_date: '2026-09-20 02:43'
-updated_date: '2026-09-20 02:43'
+updated_date: '2026-09-20 19:18'
 labels:
   - trainer
   - benchmark
@@ -23,7 +23,7 @@ ordinal: 33000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-We want to iterate locally without paying per build, but only if the local teacher is good enough. Decision-1 makes Sonnet 5 the reference. This experiment defines 'good enough' with numbers instead of a guess. Uses the refund-decision IR from the Phase 1 benchmark.
+We want to iterate locally without paying per build, but only if the local teacher is good enough. Decision-1 makes Sonnet 5 the reference. This experiment defines 'good enough' with numbers instead of a guess. Uses the refund-decision IR from the Phase 1 benchmark. Note from Laya: their fine-tuned student (0.766) exceeded its teacher's ceiling (0.735), so compare students on the held-out set, not teachers on label agreement alone.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

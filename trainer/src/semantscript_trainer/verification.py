@@ -277,7 +277,7 @@ class VerificationResult:
     status: VerificationStatus
     verified_at: str
     metrics: VerificationMetricsV1
-    human_authored_cases: int
+    attested_cases: int
     pair_count: int
     failures: tuple[str, ...]
 
@@ -302,8 +302,8 @@ class VerificationResult:
         if not isinstance(self.metrics, VerificationMetricsV1):
             raise VerificationConfigurationError("verification metrics are invalid")
         _bounded_integer(
-            "human_authored_cases",
-            self.human_authored_cases,
+            "attested_cases",
+            self.attested_cases,
             minimum=1,
             maximum=MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT,
         )
@@ -357,7 +357,7 @@ class VerificationResult:
             "ece": self.metrics.ece,
             "brier": self.metrics.brier,
             "pairConsistency": self.metrics.pair_consistency,
-            "humanAuthoredCases": self.human_authored_cases,
+            "attestedCases": self.attested_cases,
             "exampleFailures": self.metrics.example_failures,
             "constraintViolations": self.metrics.constraint_violations,
             "typeErrors": self.metrics.type_errors,
@@ -384,7 +384,7 @@ def evaluate_training_result(
     /,
     *,
     tokenizer: Any | None = None,
-    human_verification: Sequence[GeneratedCase] = (),
+    attested_verification: Sequence[GeneratedCase] = (),
     config: VerificationConfig | None = None,
     verified_at: str | None = None,
 ) -> VerificationResult:
@@ -408,17 +408,16 @@ def evaluate_training_result(
             "verification batch_size * logit_count exceeds maximum value count "
             f"{MAXIMUM_CALIBRATION_LOGIT_VALUES}"
         )
-    external_human = _validate_human_cases(ir, corpus, human_verification)
+    external_human = _validate_attested_cases(ir, corpus, attested_verification)
     gold_rows = tuple(row for row in corpus.rows if row.origin == "gold")
     human_count = len(gold_rows) + len(external_human)
     if human_count < 1:
         raise VerificationConfigurationError(
-            "verification requires at least one human-authored gold or external case"
+            "verification requires at least one attested gold or external case"
         )
     if human_count > MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT:
         raise VerificationConfigurationError(
-            "human-authored verification cases exceed maximum "
-            f"{MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT}"
+            f"attested verification cases exceed maximum {MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT}"
         )
     _validate_source_examples(ir, base, gold_rows, corpus.head)
 
@@ -504,7 +503,7 @@ def evaluate_training_result(
         status="passed" if not failures else "failed",
         verified_at=_resolved_verified_at(verified_at),
         metrics=metrics,
-        human_authored_cases=human_count,
+        attested_cases=human_count,
         pair_count=pair_count,
         failures=failures,
     )
@@ -748,13 +747,13 @@ def _reconstruct_corpus(
     return corpus
 
 
-def _validate_human_cases(
+def _validate_attested_cases(
     ir: NeuralFunctionIr,
     corpus: TrainingCorpus,
     cases: Sequence[GeneratedCase],
 ) -> tuple[_CaseRecord, ...]:
     if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
-        raise VerificationConfigurationError("human_verification must be a sequence of cases")
+        raise VerificationConfigurationError("attested_verification must be a sequence of cases")
     if len(cases) > _MAXIMUM_EXTERNAL_HUMAN_VERIFICATION_CASE_COUNT:
         raise VerificationConfigurationError(
             "human verification cases exceed maximum "
@@ -778,7 +777,7 @@ def _validate_human_cases(
     for index, case in enumerate(cases):
         if not isinstance(case, GeneratedCase):
             raise VerificationConfigurationError(
-                "human_verification must contain GeneratedCase values"
+                "attested_verification must contain GeneratedCase values"
             )
         try:
             validate_case(ir, case)

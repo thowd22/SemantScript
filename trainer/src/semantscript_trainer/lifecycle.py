@@ -58,7 +58,7 @@ class TrainingProvenanceCounts:
     adversarial: int
     calibration: int
     verification: int
-    human_authored_verification: int
+    attested_verification: int
 
     def __post_init__(self) -> None:
         for name in (
@@ -67,12 +67,10 @@ class TrainingProvenanceCounts:
             "adversarial",
             "calibration",
             "verification",
-            "human_authored_verification",
+            "attested_verification",
         ):
             value = getattr(self, name)
-            minimum = (
-                1 if name in ("calibration", "verification", "human_authored_verification") else 0
-            )
+            minimum = 1 if name in ("calibration", "verification", "attested_verification") else 0
             if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
                 raise VerifiedIrBuildError(
                     f"provenance count {name} must be an integer of at least {minimum}"
@@ -85,7 +83,7 @@ class TrainingProvenanceCounts:
             "adversarial": self.adversarial,
             "calibration": self.calibration,
             "verification": self.verification,
-            "humanAuthoredVerification": self.human_authored_verification,
+            "attestedVerification": self.attested_verification,
         }
 
 
@@ -281,19 +279,19 @@ def _validate_training_provenance(
         raise VerifiedIrBuildError(
             "training gold-row count must equal the compiler source example count"
         )
-    if verification.human_authored_cases < origins["gold"]:
+    if verification.attested_cases < origins["gold"]:
         raise VerifiedIrBuildError(
-            "verification human-authored count cannot be smaller than the training gold count"
+            "verification attested count cannot be smaller than the training gold count"
         )
     calibration_count = len(training.split.evaluation)
-    verification_count = len(rows) + verification.human_authored_cases - origins["gold"]
+    verification_count = len(rows) + verification.attested_cases - origins["gold"]
     expected = TrainingProvenanceCounts(
         examples=expected_examples,
         synthetic=origins["synthetic"],
         adversarial=origins["constraint-boundary"] + origins["counterfactual"],
         calibration=calibration_count,
         verification=verification_count,
-        human_authored_verification=verification.human_authored_cases,
+        attested_verification=verification.attested_cases,
     )
     if provenance.counts != expected:
         raise VerifiedIrBuildError(

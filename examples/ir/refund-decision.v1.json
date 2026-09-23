@@ -221,7 +221,7 @@
       "adversarial": 3000,
       "calibration": 1000,
       "verification": 2000,
-      "humanAuthoredVerification": 200
+      "attestedVerification": 200
     },
     "seed": 42,
     "trainer": {

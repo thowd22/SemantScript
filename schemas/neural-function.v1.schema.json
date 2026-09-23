@@ -909,7 +909,7 @@
             "adversarial",
             "calibration",
             "verification",
-            "humanAuthoredVerification"
+            "attestedVerification"
           ],
           "properties": {
             "examples": {
@@ -932,7 +932,7 @@
               "type": "integer",
               "minimum": 1
             },
-            "humanAuthoredVerification": {
+            "attestedVerification": {
               "type": "integer",
               "minimum": 1
             }

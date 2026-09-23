@@ -248,13 +248,13 @@ head_metadata = verification.to_manifest_head_metadata()
 function_verification = verification.to_manifest_function_verification()
 ```
 
-Any gold or external human-example miss, observed constraint violation, or ECE
+Any gold or external attested-example miss, observed constraint violation, or ECE
 above the configured threshold raises `VerificationGateError` with the complete
 failed result attached. Malformed, non-finite, or incorrectly shaped classifier
 logits abort measurement with `VerificationExecutionError`; predictions decoded
 through a valid scalar head are support members, so completed scalar records have
-zero output type errors. At least one human-authored gold or external case and a
-nonempty held-out calibration partition are required. External human cases must be
+zero output type errors. At least one attested gold or external case and a
+nonempty held-out calibration partition are required. External attested cases must be
 disjoint from training inputs. Failed results can be serialized as IR verification
 diagnostics but cannot be projected into artifact-manifest metadata; TASK-5.8
 consumes the two passing projections during export.
@@ -273,7 +273,7 @@ the same bytes as `semantscript_tokenizer_json`.
 export. It accepts only an exact closed source-stage scalar record with pending
 training and verification fields, a matching `TrainingResult`, passing
 `VerificationResult`, and explicit `VerifiedIrProvenance`. It derives and checks
-the example, synthetic, adversarial, calibration, verification, and human-authored
+the example, synthetic, adversarial, calibration, verification, and attested
 counts against the retained split and verification evidence; it also binds the
 teacher configuration, dataset digest, training seed, immutable encoder revision,
 weights digest, trainer identity, and ordered training/verification timestamps.
@@ -301,7 +301,7 @@ built = build_verified_ir(
             adversarial=adversarial_count,
             calibration=training.held_out_row_count,
             verification=verification_case_count,
-            human_authored_verification=verification.human_authored_cases,
+            attested_verification=verification.attested_cases,
         ),
         seed=training.config.seed,
         trainer_version="0.1.0",

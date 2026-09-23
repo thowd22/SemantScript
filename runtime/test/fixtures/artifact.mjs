@@ -196,7 +196,7 @@ export async function createFixtureArtifact(root, options = {}) {
           ece: 0,
           brier: 0,
           pairConsistency: 1,
-          humanAuthoredCases: 1,
+          attestedCases: 1,
           exampleFailures: 0,
           constraintViolations: 0,
           typeErrors: 0,

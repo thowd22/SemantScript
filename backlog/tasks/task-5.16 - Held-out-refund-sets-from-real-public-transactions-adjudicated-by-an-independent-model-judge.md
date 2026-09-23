@@ -3,10 +3,11 @@ id: TASK-5.16
 title: >-
   Held-out refund sets from real public transactions adjudicated by an
   independent model judge
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-23 21:32'
+updated_date: '2026-09-23 21:49'
 labels:
   - benchmark
   - data
@@ -29,9 +30,27 @@ TASK-5.11 requires two disjoint held-out sets (release verification and final ev
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Dataset and release-verification contracts (TypeScript, JSON Schema, Python) accept an independent-judge case origin with a judgeAttestation that names the judge model, rubric digest, and case IDs, keep human-authored working, and reject a judge attestation whose case IDs do not exactly match the independent-judge cases
-- [ ] #2 A committed extraction script derives de-identified refund inputs from UCI Online Retail II with the mapping documented, records the source archive digest and license, and produces candidate rows reproducibly
-- [ ] #3 A committed adjudication rubric and per-case rationales exist for every held-out label; labels never violate the compiled constraints
-- [ ] #4 A release-verification record and a final evaluation dataset are frozen under benchmarks/refund/data with disjoint inputs, disjoint from the pilot training corpus, and both validate under the updated contracts
-- [ ] #5 TASK-5.11 acceptance criterion 5 is rewritten to the independent-judge slice and the decision record explains the tradeoff
+- [x] #1 Dataset and release-verification contracts (TypeScript, JSON Schema, Python) accept an independent-judge case origin with a judgeAttestation that names the judge model, rubric digest, and case IDs, keep human-authored working, and reject a judge attestation whose case IDs do not exactly match the independent-judge cases
+- [x] #2 A committed extraction script derives de-identified refund inputs from UCI Online Retail II with the mapping documented, records the source archive digest and license, and produces candidate rows reproducibly
+- [x] #3 A committed adjudication rubric and per-case rationales exist for every held-out label; labels never violate the compiled constraints
+- [x] #4 A release-verification record and a final evaluation dataset are frozen under benchmarks/refund/data with disjoint inputs, disjoint from the pilot training corpus, and both validate under the updated contracts
+- [x] #5 TASK-5.11 acceptance criterion 5 is rewritten to the independent-judge slice and the decision record explains the tradeoff
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add independent-judge origin and judgeAttestation to types/contracts/metrics/schemas (TS) and the Python release record, keeping human-authored. 2. Extract real refund inputs from UCI Online Retail II with a documented mapping. 3. Sample two disjoint stratified sets excluding the training corpus; write the rubric; adjudicate every case with a rationale. 4. Freeze both records with judge attestations and validate them with both validators. 5. Rewrite TASK-5.11 criterion 5, write decision-5, run the full gate, commit.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Verification: refund workspace 81/81 Node tests including new judge-attestation contract and metrics tests; Python 429 passed with the new judge release-record test; freeze validated release-verification.json (80 cases: approve 28 / deny 34 / review 18, 13 fraudulent) and final-benchmark-dataset.json (160 cases: approve 57 / deny 67 / review 36, 33 fraudulent) through both the Python parser and the TypeScript validateRefundDataset; sampler reported zero training overlap and zero duplicates; adjudications.json re-derived mechanically from RUBRIC.md with zero mismatches. Source archive sha256 572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb. Commit 'Independent-judge held-out sets from UCI Online Retail II'.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Replaced human authorship with independent-judge adjudication: contracts (TS, JSON Schema, Python) accept an independent-judge origin with a judge attestation; real inputs extracted from UCI Online Retail II cancellations; two disjoint stratified sets (80 release, 160 final) adjudicated by Claude Fable 5.1 under a committed rubric with per-case rationales and frozen with validated attestations. Verified by the full repository check and both dataset validators.
+<!-- SECTION:FINAL_SUMMARY:END -->

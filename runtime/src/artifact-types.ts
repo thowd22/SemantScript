@@ -141,7 +141,7 @@ export interface ArtifactFunctionV1 {
     readonly ece: number;
     readonly brier: number;
     readonly pairConsistency: number;
-    readonly humanAuthoredCases: number;
+    readonly attestedCases: number;
     readonly exampleFailures: 0;
     readonly constraintViolations: 0;
     readonly typeErrors: 0;

@@ -328,7 +328,7 @@ def test_pipeline_keeps_final_benchmark_out_of_release_lifecycle(
 
     def verify(*args, **kwargs):
         events.append("verify")
-        assert kwargs["human_verification"] == release.generated_cases
+        assert kwargs["attested_verification"] == release.generated_cases
         return verification
 
     monkeypatch.setattr(pipeline, "verify_training_result", verify)
@@ -618,7 +618,7 @@ def provenance_fixture(base: TrainingDataset) -> VerifiedIrProvenance:
             adversarial=0,
             calibration=1,
             verification=3,
-            human_authored_verification=1,
+            attested_verification=1,
         ),
         seed=1,
         trainer_version="test",

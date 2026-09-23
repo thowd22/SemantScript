@@ -516,7 +516,7 @@ def fixture() -> tuple[TrainingResult, VerificationResult, dict[str, Any], bytes
         status="passed",
         verified_at="2026-09-23T00:00:00Z",
         metrics=metrics,
-        human_authored_cases=1,
+        attested_cases=1,
         pair_count=0,
         failures=(),
     )
@@ -560,7 +560,7 @@ def fixture() -> tuple[TrainingResult, VerificationResult, dict[str, Any], bytes
                 "adversarial": 0,
                 "calibration": 1,
                 "verification": 2,
-                "humanAuthoredVerification": 1,
+                "attestedVerification": 1,
             },
             "seed": 1,
             "trainer": {"version": "0.0.0", "commit": "abcdef0"},

@@ -557,13 +557,13 @@ def _validate_completed_provenance(value: Any) -> None:
         "adversarial",
         "calibration",
         "verification",
-        "humanAuthoredVerification",
+        "attestedVerification",
     }
     if not isinstance(counts, dict) or set(counts) != count_names:
         raise ArtifactConfigurationError("IR training provenance counts are invalid")
     for name in count_names:
         count = counts.get(name)
-        minimum = 1 if name in ("calibration", "verification", "humanAuthoredVerification") else 0
+        minimum = 1 if name in ("calibration", "verification", "attestedVerification") else 0
         if isinstance(count, bool) or not isinstance(count, int) or count < minimum:
             raise ArtifactConfigurationError(f"IR training provenance count {name} is invalid")
     seed = value.get("seed")

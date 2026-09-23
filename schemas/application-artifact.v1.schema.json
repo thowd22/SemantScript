@@ -770,7 +770,7 @@
         "ece",
         "brier",
         "pairConsistency",
-        "humanAuthoredCases",
+        "attestedCases",
         "exampleFailures",
         "constraintViolations",
         "typeErrors"
@@ -791,7 +791,7 @@
         "pairConsistency": {
           "$ref": "#/$defs/unitInterval"
         },
-        "humanAuthoredCases": {
+        "attestedCases": {
           "type": "integer",
           "minimum": 1
         },

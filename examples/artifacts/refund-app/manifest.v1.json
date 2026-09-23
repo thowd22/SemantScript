@@ -229,7 +229,7 @@
         "ece": 0.021,
         "brier": 0.037,
         "pairConsistency": 0.994,
-        "humanAuthoredCases": 200,
+        "attestedCases": 200,
         "exampleFailures": 0,
         "constraintViolations": 0,
         "typeErrors": 0

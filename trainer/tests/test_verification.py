@@ -141,7 +141,7 @@ def test_passing_binary_flow_emits_exact_ir_and_manifest_projections() -> None:
     }
 
     assert result.status == "passed"
-    assert result.human_authored_cases == 1
+    assert result.attested_cases == 1
     assert result.pair_count == 0
     assert result.metrics.accuracy == 1.0
     assert result.metrics.example_failures == 0
@@ -174,7 +174,7 @@ def test_passing_binary_flow_emits_exact_ir_and_manifest_projections() -> None:
         "ece": result.metrics.ece,
         "brier": result.metrics.brier,
         "pairConsistency": 1.0,
-        "humanAuthoredCases": 1,
+        "attestedCases": 1,
         "exampleFailures": 0,
         "constraintViolations": 0,
         "typeErrors": 0,

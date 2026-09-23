@@ -308,7 +308,7 @@ def fixture() -> tuple[
         status="passed",
         verified_at="2026-09-23T00:00:00Z",
         metrics=metrics,
-        human_authored_cases=1,
+        attested_cases=1,
         pair_count=0,
         failures=(),
     )
@@ -328,7 +328,7 @@ def fixture() -> tuple[
             adversarial=0,
             calibration=1,
             verification=2,
-            human_authored_verification=1,
+            attested_verification=1,
         ),
         seed=1,
         trainer_version="0.1.0",

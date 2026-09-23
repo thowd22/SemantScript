@@ -575,10 +575,10 @@ function validatePolicy(value: unknown, path: string): void {
 
 function validateVerification(value: unknown, path: string): void {
   const verification = object(value, path);
-  exact(verification, ["status", "accuracy", "ece", "brier", "pairConsistency", "humanAuthoredCases", "exampleFailures", "constraintViolations", "typeErrors"], path);
+  exact(verification, ["status", "accuracy", "ece", "brier", "pairConsistency", "attestedCases", "exampleFailures", "constraintViolations", "typeErrors"], path);
   equal(get(verification, "status"), "passed", `${path}.status`);
   for (const key of ["accuracy", "ece", "brier", "pairConsistency"]) unit(get(verification, key), `${path}.${key}`);
-  integer(get(verification, "humanAuthoredCases"), `${path}.humanAuthoredCases`, 1);
+  integer(get(verification, "attestedCases"), `${path}.attestedCases`, 1);
   for (const key of ["exampleFailures", "constraintViolations", "typeErrors"]) equal(get(verification, key), 0, `${path}.${key}`);
 }
 

@@ -682,7 +682,7 @@ def run_refund_pipeline(
         base_dataset,
         adversarial_dataset,
         tokenizer=tokenizer,
-        human_verification=release_verification.generated_cases,
+        attested_verification=release_verification.generated_cases,
         config=verification_config,
         verified_at=verified_at,
     )

@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-23 20:13'
+updated_date: '2026-09-23 20:54'
 labels:
   - benchmark
 milestone: m-1
@@ -98,6 +98,8 @@ Diversity probe (10 live synthetic cases, 52 s sequential, not training data): 8
 2026-09-23 pilot started after TASK-5.15 closed: generate_training_corpus.py --synthetic-count 600 --counterfactual-ratio 0.25 --concurrency 4 --maximum-case-attempts 3 into benchmarks/refund/data/sonnet-pilot-2026-09-23 (synthetic-training-only; boundary pairs for both constraints plus ~150 counterfactuals). Expected roughly 750 Sonnet 5 CLI requests on the Max subscription. Results, manifest and digests will be committed when the run completes.
 
 Pilot run 1 (2026-09-23 13:45-14:10): the 600-case synthetic phase completed and is cached under benchmarks/refund/data/sonnet-pilot-2026-09-23/synthetic (600/600 unique inputs; labels approve 96 / deny 305 / review 199; status paid 402 / fraudulent 198; tier enterprise 308 / standard 292; ageDays 0-214 with 47 at exactly 90 and 204 above; zero constraint violations; 15 approve labels outside the policy window flagged as teacher noise). The adversarial phase then aborted on one transient Claude CLI exit status 1 during a counterfactual request: the trainer adversarial generator re-raises TeacherTransportError without retry and the CLI teacher's boundary/counterfactual paths had no transport retry. A raw CLI request succeeded immediately afterwards. Fix in progress: transport retries with linear backoff in the CLI teacher adversarial paths and a --resume mode in generate_training_corpus.py that reloads the cached synthetic set and its saved run report. The synthetic run report for run 1 was lost with the process, so the pilot manifest will record runReport null for that phase.
+
+Pilot corpus frozen and committed (2026-09-23, benchmarks/refund/data/sonnet-pilot-2026-09-23, manifest.json binds function nf_955824..., compiler bundle digest, teacher provenance claude-sonnet-5 via Claude Code 2.1.281, prompt contract v2, and both dataset digests). Synthetic: 600 cases, 600 unique inputs, labels approve 96 / deny 305 / review 199, zero constraint violations. Adversarial (resumed run, 41 min sequential): 4 constraint-boundary cases and 150 counterfactual pairs (304 cases); changed paths ageDays 121, status 28, priorRefunds 1; flip directions cover all six label transitions. Teacher-noise observations for the verification stage: 15 synthetic approve labels sit outside the policy window, and some fraudulent twins are labeled deny rather than review (constraint-valid, policy-debatable). Handoff step 1 is complete; remaining steps still need the two human-authored attested sets, ANTHROPIC_API_KEY for the structured-API baseline, the ROCm training run, and the benchmark runs.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
@@ -201,5 +203,11 @@ author: @claude
 created: 2026-09-23 19:24
 ---
 Repository Python gate after the CLI teacher fixes: ruff lint/format clean across 64 files; pytest 400 passed, 4 intentionally skipped, 14.6 s. No Node changes were made in this slice. The full task remains In Progress: no training corpus, human sets, benchmark predictions, or go/no-go exist. Pilot count and the synthetic-diversity gap need a user decision before generation starts.
+---
+
+author: @claude
+created: 2026-09-23 20:54
+---
+Handoff step 1 done: approved-by-user pilot corpus generated and frozen after fixing the CLI teacher (version pin, empty argv, envelope protocol, transport retries) and the prompt diversity gap (TASK-5.15). Next steps are user-gated: authoring the two disjoint human-attested sets (release verification and final evaluation) and providing an API key for the traditional structured-output baseline. Training and the benchmark runs can proceed once the release set exists.
 ---
 <!-- COMMENTS:END -->

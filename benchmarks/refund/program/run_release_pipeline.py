@@ -89,6 +89,7 @@ def _teacher_from_manifest(manifest: dict[str, Any]) -> ClaudeCliTrainingTeacher
         concurrency=configuration["generation"]["concurrency"],
         maximum_case_attempts=configuration["generation"]["maximumCaseAttempts"],
         cli_version=configuration["cli"]["requiredVersion"],
+        model=configuration["request"]["model"],
     )
     teacher = ClaudeCliTrainingTeacher(config, process_runner=_refuse_teacher_calls)
     if teacher.descriptor.configuration_sha256 != manifest["teacher"]["configurationSha256"]:

@@ -173,7 +173,9 @@ async function buildAdapter(role, options) {
       checkpointPath: resolve(options["laya-checkpoint"]),
       pythonExecutable: options["python"] ?? "python3",
       device: "cuda",
-      environment: { PYTHONPATH: join(REPOSITORY_ROOT, ".python-packages") },
+      // The user site-packages carries a NumPy-2 SciPy that breaks the project's
+      // NumPy 1.26 through transformers' optional imports; isolate the worker from it.
+      environment: { PYTHONPATH: join(REPOSITORY_ROOT, ".python-packages"), PYTHONNOUSERSITE: "1" },
     });
     const adapter = createLayaAdapter({ model: REFUND_SYSTEM_PINS.laya.model, runner });
     return { ...adapter, close: async () => runner.close() };

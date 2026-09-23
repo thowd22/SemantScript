@@ -16,11 +16,16 @@ export const LAYA_PUBLIC_PROBABILITY_TRANSFORM =
 export const MAXIMUM_LAYA_PROTOCOL_LINE_BYTES = 1_048_576 as const;
 export const MAXIMUM_LAYA_STDERR_BYTES = 65_536 as const;
 export const DEFAULT_LAYA_INITIALIZATION_TIMEOUT_MS = 180_000 as const;
+// Every regular file in Hub snapshot dd079950600224fb459af2a0cb1d74e1e57ee9cf; the
+// worker requires the on-disk file set to match this manifest exactly.
 export const LAYA_CHECKPOINT_FILES_SHA256 = Object.freeze({
+  ".gitattributes": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361",
+  "README.md": "096751822e1e868c4015c8cc8dee39949737d979c17f866505bd4b45f730f407",
   "encoder/config.json": "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d",
   "model.safetensors": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e",
   "rl_agent_config.json": "ebf0cd524d92342a6be5e48e9fca3d7c2babfb5a56ccd79d2171ef5d8c7f7be8",
   "tokenizer/tokenizer.json": "6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30",
+  "tokenizer/tokenizer_config.json": "08d4cf3ac4dca381759441b85b91a6d40e688471dcd33d15d6649eb0a9a854d1",
 } as const);
 
 export type LayaSpawnImplementation = typeof spawn;

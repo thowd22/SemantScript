@@ -40,6 +40,7 @@ from semantscript_trainer.teacher import (
     TeacherDescriptor,
     TeacherResponseError,
 )
+from semantscript_trainer.teacher_prompt import PROMPT_CONTRACT_VERSION
 
 DATASET_KIND = "semantscript.training-dataset"
 DATASET_VERSION = 1
@@ -465,7 +466,7 @@ def _request_digest(
                 "totalCases": total_cases,
                 "datasetFormatVersion": DATASET_VERSION,
                 "generatorContractVersion": 1,
-                "promptContractVersion": 1,
+                "promptContractVersion": PROMPT_CONTRACT_VERSION,
                 "caseContractVersion": 1,
             },
         }

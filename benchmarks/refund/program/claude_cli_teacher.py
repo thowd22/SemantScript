@@ -15,8 +15,10 @@ import selectors
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -36,6 +38,13 @@ from semantscript_trainer.case_contract import (
     parse_case_response,
     validate_case_count,
 )
+from semantscript_trainer.constraints import (
+    CompiledConstraints,
+    ConstraintError,
+    ConstraintEvaluationBudget,
+    ConstraintViolationError,
+    compile_constraints,
+)
 from semantscript_trainer.strict_json import StrictJsonError, StrictJsonLimits, loads_strict_json
 from semantscript_trainer.teacher import (
     MAXIMUM_TEACHER_RESPONSE_BYTES,
@@ -48,21 +57,31 @@ from semantscript_trainer.teacher import (
     TeacherResponseError,
     TeacherTransportError,
 )
-from semantscript_trainer.teacher_prompt import build_case_messages
+from semantscript_trainer.teacher_prompt import RejectionNote, build_case_messages
 
 CLAUDE_CLI_MODEL = "claude-sonnet-5"
-CLAUDE_CLI_VERSION = "2.1.280 (Claude Code)"
+# Version the protocol was last validated against. The teacher records the observed
+# `claude --version` in provenance and only requires an exact string when
+# ``ClaudeCliTeacherConfig.cli_version`` is set, because Claude Code auto-updates.
+CLAUDE_CLI_VERSION = "2.1.281 (Claude Code)"
 CLAUDE_CLI_PROTOCOL = "semantscript.refund-training.claude-cli/v1"
 CLAUDE_CLI_DATA_CLASSIFICATION = "synthetic-training-only"
 
 _PROVIDER = "anthropic-claude-cli-training-only"
-_PROMPT_PROTOCOL = "semantscript-trainer-ir-prompts/v1"
+_PROMPT_PROTOCOL = "semantscript-trainer-ir-prompts/v2"
 _MAXIMUM_STDIN_BYTES = 8 * 1024 * 1024
 _MAXIMUM_STDOUT_BYTES = 8 * 1024 * 1024
 _MAXIMUM_STDERR_BYTES = 64 * 1024
 _MAXIMUM_VERSION_OUTPUT_BYTES = 4 * 1024
+_MAXIMUM_VERSION_CHARACTERS = 128
 _MAXIMUM_TIMEOUT_SECONDS = 3_600.0
 _PROCESS_DRAIN_SECONDS = 1.0
+_MAXIMUM_CONCURRENCY = 8
+_MAXIMUM_CASE_ATTEMPTS = 5
+_MAXIMUM_DUPLICATE_ROUNDS = 2
+_DUPLICATE_REASON = (
+    "these inputs duplicate another case in this corpus; choose materially different values"
+)
 _MCP_CONFIG = '{"mcpServers":{}}'
 # One structured-output exchange is a thinking/text block, a StructuredOutput tool
 # call, and its tool result. The pinned CLI's turn accounting varies with the
@@ -81,12 +100,25 @@ class ClaudeCliTeacherConfig:
     stdout_limit_bytes: int = _MAXIMUM_STDOUT_BYTES
     stderr_limit_bytes: int = _MAXIMUM_STDERR_BYTES
     max_budget_usd: float = 2.0
+    concurrency: int = 1
+    maximum_case_attempts: int = 3
+    cli_version: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.executable, str) or not self.executable.strip():
             raise TeacherConfigurationError("Claude CLI executable must be a nonempty string")
         if "\x00" in self.executable:
             raise TeacherConfigurationError("Claude CLI executable must not contain NUL")
+        if self.cli_version is not None and (
+            not isinstance(self.cli_version, str)
+            or not self.cli_version.strip()
+            or "\x00" in self.cli_version
+            or "\n" in self.cli_version
+            or len(self.cli_version) > _MAXIMUM_VERSION_CHARACTERS
+        ):
+            raise TeacherConfigurationError(
+                "Claude CLI required version must be a nonempty single line when set"
+            )
         if (
             isinstance(self.timeout_seconds, bool)
             or not isinstance(self.timeout_seconds, (int, float))
@@ -119,19 +151,25 @@ class ClaudeCliTeacherConfig:
             raise TeacherConfigurationError(
                 "Claude CLI maximum budget must be finite and between 0 and 100 USD"
             )
+        _bounded_positive_integer(self.concurrency, "Claude CLI concurrency", _MAXIMUM_CONCURRENCY)
+        _bounded_positive_integer(
+            self.maximum_case_attempts,
+            "Claude CLI maximum case attempts",
+            _MAXIMUM_CASE_ATTEMPTS,
+        )
 
     def public_projection(self) -> dict[str, Any]:
         """Return the complete, secret-free protocol record hashed into provenance."""
 
         return {
             "kind": "semantscript.refund-claude-cli-teacher-config",
-            "configVersion": 1,
+            "configVersion": 2,
             "dataClassification": CLAUDE_CLI_DATA_CLASSIFICATION,
             "protocol": CLAUDE_CLI_PROTOCOL,
             "promptProtocol": _PROMPT_PROTOCOL,
             "cli": {
                 "executable": self.executable,
-                "exactVersion": CLAUDE_CLI_VERSION,
+                "requiredVersion": self.cli_version,
             },
             "request": {
                 "model": CLAUDE_CLI_MODEL,
@@ -153,6 +191,11 @@ class ClaudeCliTeacherConfig:
                 "chrome": False,
                 "fallbackModel": None,
                 "maxBudgetUsd": float(self.max_budget_usd),
+            },
+            "generation": {
+                "concurrency": self.concurrency,
+                "maximumCaseAttempts": self.maximum_case_attempts,
+                "duplicateRounds": _MAXIMUM_DUPLICATE_ROUNDS,
             },
             "limits": {
                 "timeoutSeconds": float(self.timeout_seconds),
@@ -188,6 +231,68 @@ class BoundedProcessResult:
     stderr: bytes
 
 
+@dataclass(frozen=True, slots=True)
+class ClaudeCliRunReport:
+    """Request and rejection counts for the most recent ``generate`` call."""
+
+    positions: int
+    requests: int
+    schema_rejections: int
+    constraint_rejections: int
+    transport_failures: int
+    duplicate_retries: int
+    duplicate_rounds: int
+    residual_duplicates: int
+    response_bytes: int
+
+    def document(self) -> dict[str, int]:
+        return {
+            "positions": self.positions,
+            "requests": self.requests,
+            "schemaRejections": self.schema_rejections,
+            "constraintRejections": self.constraint_rejections,
+            "transportFailures": self.transport_failures,
+            "duplicateRetries": self.duplicate_retries,
+            "duplicateRounds": self.duplicate_rounds,
+            "residualDuplicates": self.residual_duplicates,
+            "responseBytes": self.response_bytes,
+        }
+
+
+class _RunCounters:
+    __slots__ = ("_lock", "values")
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.values = {
+            "requests": 0,
+            "schema_rejections": 0,
+            "constraint_rejections": 0,
+            "transport_failures": 0,
+            "duplicate_retries": 0,
+            "response_bytes": 0,
+        }
+
+    def add(self, name: str, amount: int = 1) -> int:
+        with self._lock:
+            self.values[name] += amount
+            return self.values[name]
+
+    def report(self, *, positions: int, rounds: int, residual: int) -> ClaudeCliRunReport:
+        with self._lock:
+            return ClaudeCliRunReport(
+                positions=positions,
+                requests=self.values["requests"],
+                schema_rejections=self.values["schema_rejections"],
+                constraint_rejections=self.values["constraint_rejections"],
+                transport_failures=self.values["transport_failures"],
+                duplicate_retries=self.values["duplicate_retries"],
+                duplicate_rounds=rounds,
+                residual_duplicates=residual,
+                response_bytes=self.values["response_bytes"],
+            )
+
+
 class ClaudeCliProcessRunner(Protocol):
     """Injectable process boundary; test runners must not contact Claude."""
 
@@ -217,6 +322,8 @@ class ClaudeCliTrainingTeacher:
         self._config = config
         self._process_runner = process_runner or run_bounded_process
         self._version_verified = False
+        self._observed_cli_version: str | None = None
+        self._last_run_report: ClaudeCliRunReport | None = None
 
     @property
     def descriptor(self) -> TeacherDescriptor:
@@ -231,7 +338,7 @@ class ClaudeCliTrainingTeacher:
         return ClaudeCliTeacherProvenance(
             provider=_PROVIDER,
             model=CLAUDE_CLI_MODEL,
-            cli_version=CLAUDE_CLI_VERSION,
+            cli_version=self._observed_cli_version or self._config.cli_version or "unverified",
             protocol=CLAUDE_CLI_PROTOCOL,
             data_classification=CLAUDE_CLI_DATA_CLASSIFICATION,
             configuration_sha256=self._config.configuration_sha256,
@@ -243,8 +350,14 @@ class ClaudeCliTrainingTeacher:
 
         return self._config.public_projection()
 
+    @property
+    def last_run_report(self) -> ClaudeCliRunReport | None:
+        """Return counts from the most recent ``generate`` call, if any."""
+
+        return self._last_run_report
+
     def verify_installation(self) -> None:
-        """Verify the exact CLI build without making a model request."""
+        """Record the installed CLI version, enforcing a required pin when configured."""
 
         if self._version_verified:
             return
@@ -264,37 +377,168 @@ class ClaudeCliTrainingTeacher:
             observed = result.stdout.decode("utf-8", errors="strict").strip()
         except UnicodeDecodeError as error:
             raise TeacherConfigurationError("Claude CLI returned a non-UTF-8 version") from error
-        if observed != CLAUDE_CLI_VERSION:
+        if not observed or "\n" in observed or len(observed) > _MAXIMUM_VERSION_CHARACTERS:
+            raise TeacherConfigurationError("Claude CLI returned an unusable version string")
+        required = self._config.cli_version
+        if required is not None and observed != required:
             raise TeacherConfigurationError(
-                "Claude CLI version does not match the benchmark pin "
-                f"{CLAUDE_CLI_VERSION!r}; observed {observed!r}"
+                "Claude CLI version does not match the required version "
+                f"{required!r}; observed {observed!r}"
             )
+        self._observed_cli_version = observed
         self._version_verified = True
 
     def generate(self, ir: NeuralFunctionIr, n: int, /) -> tuple[GeneratedCase, ...]:
+        """Generate ``n`` cases with per-position retries and duplicate avoidance.
+
+        Every position is requested with its own coverage brief. Schema and
+        constraint rejections are fed back to the model as rejection notes;
+        transport failures are retried silently. After the first pass, positions
+        whose inputs duplicate an earlier position are re-requested for a bounded
+        number of rounds. Residual duplicates are kept and counted in
+        :attr:`last_run_report` rather than discarding the run.
+        """
+
         expected = validate_case_count(n)
+        counters = _RunCounters()
         if expected == 0:
+            self._last_run_report = counters.report(positions=0, rounds=0, residual=0)
             return ()
-        result: list[GeneratedCase] = []
-        aggregate_bytes = 0
-        for index in range(expected):
+        try:
+            schema = build_case_schema(ir)
+            constraints = compile_constraints(ir)
+        except TeacherConfigurationError:
+            raise
+        except Exception as error:
+            raise TeacherConfigurationError(
+                f"could not build Claude CLI training request: {error}"
+            ) from error
+        self.verify_installation()
+
+        results = self._run_positions(
+            ir,
+            expected,
+            schema,
+            constraints,
+            {index: () for index in range(expected)},
+            counters,
+        )
+        rounds = 0
+        while rounds < _MAXIMUM_DUPLICATE_ROUNDS:
+            duplicates = _duplicate_positions(results)
+            if not duplicates:
+                break
+            rounds += 1
+            counters.add("duplicate_retries", len(duplicates))
+            retry = {
+                index: (RejectionNote(reason=_DUPLICATE_REASON, inputs=results[index].inputs),)
+                for index in duplicates
+            }
+            results.update(self._run_positions(ir, expected, schema, constraints, retry, counters))
+        residual = len(_duplicate_positions(results))
+        self._last_run_report = counters.report(
+            positions=expected,
+            rounds=rounds,
+            residual=residual,
+        )
+        return tuple(results[index] for index in range(expected))
+
+    def _run_positions(
+        self,
+        ir: NeuralFunctionIr,
+        expected: int,
+        schema: Mapping[str, Any],
+        constraints: CompiledConstraints,
+        work: Mapping[int, tuple[RejectionNote, ...]],
+        counters: _RunCounters,
+    ) -> dict[int, GeneratedCase]:
+        workers = min(self._config.concurrency, len(work))
+        if workers <= 1:
+            return {
+                index: self._produce_case(ir, index, expected, schema, constraints, notes, counters)
+                for index, notes in work.items()
+            }
+        produced: dict[int, GeneratedCase] = {}
+        executor = ThreadPoolExecutor(
+            max_workers=workers,
+            thread_name_prefix="semantscript-claude-cli",
+        )
+        try:
+            futures = {
+                executor.submit(
+                    self._produce_case,
+                    ir,
+                    index,
+                    expected,
+                    schema,
+                    constraints,
+                    notes,
+                    counters,
+                ): index
+                for index, notes in work.items()
+            }
+            for future in as_completed(futures):
+                produced[futures[future]] = future.result()
+        finally:
+            executor.shutdown(wait=True, cancel_futures=True)
+        return produced
+
+    def _produce_case(
+        self,
+        ir: NeuralFunctionIr,
+        index: int,
+        expected: int,
+        schema: Mapping[str, Any],
+        constraints: CompiledConstraints,
+        notes: tuple[RejectionNote, ...],
+        counters: _RunCounters,
+    ) -> GeneratedCase:
+        pending = list(notes)
+        failure: Exception | None = None
+        for _ in range(self._config.maximum_case_attempts):
             try:
-                system, user = build_case_messages(ir, index, expected)
-                schema = build_case_schema(ir)
-            except TeacherConfigurationError:
-                raise
+                system, user = build_case_messages(ir, index, expected, rejected=tuple(pending))
             except Exception as error:
                 raise TeacherConfigurationError(
                     f"could not build Claude CLI training request: {error}"
                 ) from error
-            structured, response_bytes = self._request(system, user, schema, "training case")
-            aggregate_bytes += response_bytes
-            if aggregate_bytes > MAXIMUM_TEACHER_RESPONSE_BYTES:
+            counters.add("requests")
+            try:
+                structured, response_bytes = self._request(system, user, schema, "training case")
+            except TeacherTransportError as error:
+                counters.add("transport_failures")
+                failure = error
+                continue
+            if counters.add("response_bytes", response_bytes) > MAXIMUM_TEACHER_RESPONSE_BYTES:
                 raise TeacherResponseError(
                     "Claude CLI responses exceed the aggregate trainer byte limit"
                 )
-            result.append(parse_case_response(ir, _canonical_json_bytes(structured)))
-        return tuple(result)
+            try:
+                case = parse_case_response(ir, _canonical_json_bytes(structured))
+            except TeacherResponseError as error:
+                counters.add("schema_rejections")
+                failure = error
+                pending.append(
+                    RejectionNote(reason=str(error), inputs=_structured_inputs(structured))
+                )
+                continue
+            try:
+                constraints.validate_case(case, budget=ConstraintEvaluationBudget())
+            except ConstraintViolationError as error:
+                counters.add("constraint_rejections")
+                failure = TeacherResponseError(
+                    f"Claude CLI training case violates a constraint: {error}"
+                )
+                pending.append(RejectionNote(reason=str(error), inputs=case.inputs))
+                continue
+            except ConstraintError as error:
+                raise TeacherResponseError(
+                    f"Claude CLI training case could not be checked against constraints: {error}"
+                ) from error
+            return case
+        if failure is None:  # pragma: no cover - attempts are validated to be >= 1
+            raise TeacherResponseError("Claude CLI training case produced no attempt")
+        raise failure
 
     def generate_boundary_pair(
         self,
@@ -474,6 +718,7 @@ def run_bounded_process(
     environment.update(
         {
             "CLAUDE_CODE_SAFE_MODE": "1",
+            "DISABLE_AUTOUPDATER": "1",
             "NO_COLOR": "1",
         }
     )
@@ -660,6 +905,25 @@ def _parse_cli_result(response: bytes, context: str) -> dict[str, Any]:
     return structured
 
 
+def _duplicate_positions(results: Mapping[int, GeneratedCase]) -> list[int]:
+    """Return positions whose inputs repeat an earlier position's inputs."""
+
+    seen: dict[bytes, int] = {}
+    duplicates: list[int] = []
+    for index in sorted(results):
+        key = _canonical_json_bytes(results[index].inputs)
+        if key in seen:
+            duplicates.append(index)
+        else:
+            seen[key] = index
+    return duplicates
+
+
+def _structured_inputs(structured: Mapping[str, Any]) -> dict[str, Any] | None:
+    inputs = structured.get("inputs")
+    return inputs if isinstance(inputs, dict) else None
+
+
 def _canonical_json_string(value: Mapping[str, Any]) -> str:
     try:
         return json.dumps(
@@ -695,6 +959,7 @@ __all__ = [
     "CLAUDE_CLI_VERSION",
     "BoundedProcessResult",
     "ClaudeCliProcessRunner",
+    "ClaudeCliRunReport",
     "ClaudeCliTeacherConfig",
     "ClaudeCliTeacherProvenance",
     "ClaudeCliTrainingTeacher",

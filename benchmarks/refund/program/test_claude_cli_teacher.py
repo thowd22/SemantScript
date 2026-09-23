@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
+import threading
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -57,22 +59,24 @@ class FakeRunner:
         if tuple(command)[-1] == "--version":
             return BoundedProcessResult(0, f"{CLAUDE_CLI_VERSION}\n".encode(), b"")
         output = self.structured_outputs.pop(0)
-        wrapper = {
-            "type": "result",
-            "subtype": "success",
-            "is_error": False,
-            "num_turns": 3,
-            "stop_reason": "tool_use",
-            "permission_denials": [],
-            "modelUsage": {CLAUDE_CLI_MODEL: {"costUSD": 0.01}},
-            "structured_output": output,
-            "session_id": "not-persisted-and-not-exposed",
-        }
-        return BoundedProcessResult(
-            0,
-            json.dumps(wrapper, separators=(",", ":")).encode(),
-            b"",
-        )
+        return BoundedProcessResult(0, envelope(output), b"")
+
+
+def envelope(output: Any) -> bytes:
+    """Serialize one success envelope in the pinned CLI's shape."""
+
+    wrapper = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "num_turns": 3,
+        "stop_reason": "tool_use",
+        "permission_denials": [],
+        "modelUsage": {CLAUDE_CLI_MODEL: {"costUSD": 0.01}},
+        "structured_output": output,
+        "session_id": "not-persisted-and-not-exposed",
+    }
+    return json.dumps(wrapper, separators=(",", ":")).encode()
 
 
 def test_exact_training_only_identity_and_configuration_digest() -> None:
@@ -82,17 +86,27 @@ def test_exact_training_only_identity_and_configuration_digest() -> None:
     assert isinstance(teacher, AdversarialTeacher)
     assert teacher.descriptor.provider == "anthropic-claude-cli-training-only"
     assert teacher.descriptor.model == "claude-sonnet-5" == CLAUDE_CLI_MODEL
-    assert teacher.provenance.cli_version == "2.1.280 (Claude Code)" == CLAUDE_CLI_VERSION
+    assert teacher.provenance.cli_version == "unverified"
+    teacher.verify_installation()
+    assert teacher.provenance.cli_version == "2.1.281 (Claude Code)" == CLAUDE_CLI_VERSION
+    assert teacher.configuration_projection["cli"]["requiredVersion"] is None
     assert teacher.provenance.protocol == CLAUDE_CLI_PROTOCOL
     assert teacher.provenance.data_classification == "synthetic-training-only"
     assert teacher.provenance.data_classification == CLAUDE_CLI_DATA_CLASSIFICATION
     assert (
         teacher.descriptor.configuration_sha256
-        == "d56782ca2714eef421da23d8b3bca83564dd8d31162111e2655fa55a214df51c"
+        == "f0e5a7236c7607ebbba046bef591ba94765f380670051e976fc920e2e455127a"
     )
     assert teacher.provenance.configuration_sha256 == teacher.descriptor.configuration_sha256
     assert teacher.configuration_projection["request"]["tools"] == []
     assert teacher.configuration_projection["request"]["sessionPersistence"] is False
+    assert teacher.configuration_projection["promptProtocol"].endswith("/v2")
+    assert teacher.configuration_projection["generation"] == {
+        "concurrency": 1,
+        "maximumCaseAttempts": 3,
+        "duplicateRounds": 2,
+    }
+    assert teacher.last_run_report is None
 
 
 def test_generate_uses_exact_safe_one_turn_structured_protocol() -> None:
@@ -206,8 +220,15 @@ def test_version_pin_is_checked_before_generation_and_cached() -> None:
                 return BoundedProcessResult(0, b"2.1.279 (Claude Code)\n", b"")
             raise AssertionError("model request must not run after a version mismatch")
 
+    pinned = ClaudeCliTeacherConfig(cli_version=CLAUDE_CLI_VERSION)
     with pytest.raises(TeacherConfigurationError, match="does not match"):
-        ClaudeCliTrainingTeacher(process_runner=WrongVersionRunner()).generate(refund_ir(), 1)
+        ClaudeCliTrainingTeacher(pinned, process_runner=WrongVersionRunner()).generate(
+            refund_ir(), 1
+        )
+
+    recording = ClaudeCliTrainingTeacher(process_runner=WrongVersionRunner())
+    recording.verify_installation()
+    assert recording.provenance.cli_version == "2.1.279 (Claude Code)"
 
     runner = FakeRunner(
         [
@@ -288,11 +309,168 @@ def test_rejects_unsafe_or_nonstructured_cli_result(
         ClaudeCliTrainingTeacher(process_runner=ResultRunner()).generate(refund_ir(), 1)
 
 
-def test_local_contract_rejects_structured_output_outside_ir() -> None:
-    runner = FakeRunner([{"inputs": {"score": "not-a-number", "note": "bad"}, "output": False}])
+def test_local_contract_rejects_structured_output_outside_ir_after_all_attempts() -> None:
+    bad = {"inputs": {"score": "not-a-number", "note": "bad"}, "output": False}
+    runner = FakeRunner([bad, bad, bad])
+    teacher = ClaudeCliTrainingTeacher(process_runner=runner)
 
     with pytest.raises(TeacherResponseError, match=r"inputs\.score"):
-        ClaudeCliTrainingTeacher(process_runner=runner).generate(refund_ir(), 1)
+        teacher.generate(refund_ir(), 1)
+    assert len(runner.calls) == 4
+    assert b"rejectedAttempts" not in runner.calls[1][1]["stdin"]
+    assert b"rejectedAttempts" in runner.calls[3][1]["stdin"]
+    assert b"not-a-number" in runner.calls[3][1]["stdin"]
+
+
+def test_schema_rejection_is_retried_with_a_rejection_note() -> None:
+    runner = FakeRunner(
+        [
+            {"inputs": {"score": "bad", "note": "x"}, "output": False},
+            {"inputs": {"score": 4, "note": "fixed"}, "output": False},
+        ]
+    )
+    teacher = ClaudeCliTrainingTeacher(process_runner=runner)
+
+    assert teacher.generate(refund_ir(), 1) == (
+        GeneratedCase(inputs={"score": 4, "note": "fixed"}, output=False),
+    )
+    assert len(runner.calls) == 3
+    retry_stdin = runner.calls[2][1]["stdin"]
+    assert b"rejectedAttempts" in retry_stdin
+    assert b'"bad"' in retry_stdin
+    report = teacher.last_run_report
+    assert report is not None
+    assert (report.positions, report.requests, report.schema_rejections) == (1, 2, 1)
+    assert (report.constraint_rejections, report.residual_duplicates) == (0, 0)
+    assert report.document()["schemaRejections"] == 1
+
+
+def test_constraint_violation_is_retried_with_the_violation_reason() -> None:
+    runner = FakeRunner(
+        [
+            {"inputs": {"score": 12, "note": "x"}, "output": False},
+            {"inputs": {"score": 12, "note": "x"}, "output": True},
+        ]
+    )
+    teacher = ClaudeCliTrainingTeacher(process_runner=runner)
+
+    assert teacher.generate(refund_ir(), 1) == (
+        GeneratedCase(inputs={"score": 12, "note": "x"}, output=True),
+    )
+    assert b"always constraint 0" in runner.calls[2][1]["stdin"]
+    assert teacher.last_run_report is not None
+    assert teacher.last_run_report.constraint_rejections == 1
+
+
+def test_duplicate_inputs_are_re_requested_and_residuals_tolerated() -> None:
+    same = {"inputs": {"score": 1, "note": "same"}, "output": False}
+    other = {"inputs": {"score": 2, "note": "other"}, "output": False}
+    runner = FakeRunner([same, same, other])
+    teacher = ClaudeCliTrainingTeacher(process_runner=runner)
+
+    assert teacher.generate(refund_ir(), 2) == (
+        GeneratedCase(inputs={"score": 1, "note": "same"}, output=False),
+        GeneratedCase(inputs={"score": 2, "note": "other"}, output=False),
+    )
+    assert b"duplicate another case" in runner.calls[3][1]["stdin"]
+    report = teacher.last_run_report
+    assert report is not None
+    assert (
+        report.duplicate_retries,
+        report.duplicate_rounds,
+        report.residual_duplicates,
+        report.requests,
+    ) == (1, 1, 0, 3)
+
+    stubborn = FakeRunner([same] * 4)
+    teacher = ClaudeCliTrainingTeacher(process_runner=stubborn)
+    assert (
+        teacher.generate(refund_ir(), 2)
+        == (GeneratedCase(inputs={"score": 1, "note": "same"}, output=False),) * 2
+    )
+    report = teacher.last_run_report
+    assert report is not None
+    assert (
+        report.duplicate_retries,
+        report.duplicate_rounds,
+        report.residual_duplicates,
+        report.requests,
+    ) == (2, 2, 1, 4)
+
+
+class PositionRunner:
+    """Thread-safe runner that answers by case position with shuffled latency."""
+
+    def __init__(self, failing_position: int | None = None) -> None:
+        self.lock = threading.Lock()
+        self.calls = 0
+        self.active = 0
+        self.peak = 0
+        self.failing_position = failing_position
+
+    def __call__(
+        self, command: Sequence[str], *, stdin: bytes, **kwargs: Any
+    ) -> BoundedProcessResult:
+        if tuple(command)[-1] == "--version":
+            return BoundedProcessResult(0, f"{CLAUDE_CLI_VERSION}\n".encode(), b"")
+        match = re.search(rb"Generate case (\d+) of (\d+)", stdin)
+        assert match is not None
+        position = int(match.group(1))
+        with self.lock:
+            self.calls += 1
+            self.active += 1
+            self.peak = max(self.peak, self.active)
+        time.sleep(0.02 * ((position * 3) % 4))
+        with self.lock:
+            self.active -= 1
+        if position == self.failing_position:
+            return BoundedProcessResult(9, b"", b"")
+        output = {"inputs": {"score": position, "note": f"case {position}"}, "output": False}
+        return BoundedProcessResult(0, envelope(output), b"")
+
+
+def test_concurrent_positions_return_in_order() -> None:
+    runner = PositionRunner()
+    teacher = ClaudeCliTrainingTeacher(
+        ClaudeCliTeacherConfig(concurrency=4),
+        process_runner=runner,
+    )
+
+    cases = teacher.generate(refund_ir(), 8)
+
+    assert [case.inputs["score"] for case in cases] == list(range(1, 9))
+    assert runner.calls == 8
+    assert runner.peak > 1
+    assert teacher.last_run_report is not None
+    assert teacher.last_run_report.requests == 8
+
+
+def test_first_failure_stops_concurrent_generation() -> None:
+    runner = PositionRunner(failing_position=3)
+    teacher = ClaudeCliTrainingTeacher(
+        ClaudeCliTeacherConfig(concurrency=3, maximum_case_attempts=2),
+        process_runner=runner,
+    )
+
+    with pytest.raises(TeacherTransportError, match="status 9"):
+        teacher.generate(refund_ir(), 6)
+    assert runner.calls <= 8
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("concurrency", 0),
+        ("concurrency", 9),
+        ("maximum_case_attempts", 0),
+        ("maximum_case_attempts", 6),
+        ("cli_version", ""),
+        ("cli_version", "two\nlines"),
+    ],
+)
+def test_rejects_out_of_range_generation_settings(field: str, value: int) -> None:
+    with pytest.raises(TeacherConfigurationError):
+        ClaudeCliTeacherConfig(**{field: value})
 
 
 def test_transport_errors_do_not_echo_stderr_prompt_or_structured_output() -> None:
@@ -326,6 +504,9 @@ def test_transport_errors_do_not_echo_stderr_prompt_or_structured_output() -> No
         ClaudeCliTeacherConfig(stdout_limit_bytes=1024),
         ClaudeCliTeacherConfig(stderr_limit_bytes=1024),
         ClaudeCliTeacherConfig(max_budget_usd=0.5),
+        ClaudeCliTeacherConfig(concurrency=2),
+        ClaudeCliTeacherConfig(maximum_case_attempts=1),
+        ClaudeCliTeacherConfig(cli_version="9.9.9 (Claude Code)"),
     ],
 )
 def test_behavior_affecting_config_changes_digest(config: ClaudeCliTeacherConfig) -> None:

@@ -8,10 +8,15 @@ release-verification cases or the final held-out benchmark cases.
 The pinned identity is:
 
 - model: `claude-sonnet-5`
-- Claude Code CLI: `2.1.280 (Claude Code)`
+- Claude Code CLI: the observed `claude --version` string is recorded in
+  provenance when the installation is verified. Claude Code auto-updates in the
+  background, so an exact pin is not the default; set
+  `ClaudeCliTeacherConfig.cli_version` to require one. The protocol was last
+  validated against `2.1.281 (Claude Code)`, and child processes run with
+  `DISABLE_AUTOUPDATER=1`.
 - protocol: `semantscript.refund-training.claude-cli/v1`
-- default configuration SHA-256:
-  `d56782ca2714eef421da23d8b3bca83564dd8d31162111e2655fa55a214df51c`
+- prompt protocol: `semantscript-trainer-ir-prompts/v2`
+- default configuration SHA-256: `f0e5a7236c7607ebbba046bef591ba94765f380670051e976fc920e2e455127a`
 - data classification: `synthetic-training-only`
 
 The teacher implements the existing `Teacher` and `AdversarialTeacher`
@@ -28,7 +33,7 @@ passes the trainer's IR-derived JSON Schema, supplies the deterministic trainer
 system prompt, disables session persistence, tools, skills, settings sources,
 MCP servers, Chrome, permission prompts, and prompt suggestions, and enables
 safe and restricted modes. It runs in a new empty temporary working directory.
-The exact CLI version is checked before the first request.
+The installed CLI version is read and recorded before the first request.
 
 Stdout, stderr, stdin, elapsed time, and per-request spend are bounded. On a
 timeout or stream overflow the entire process group is terminated. Error
@@ -44,6 +49,29 @@ shape (two and three observed), so the bound only guards against runaway
 re-prompting. The embedded object is serialized again and validated by the
 existing local case, boundary-pair, or counterfactual parser before it can enter
 a trainer dataset.
+
+## Coverage, retries, duplicates and concurrency
+
+Every case position is requested with the trainer's shared prompt contract
+(`semantscript-trainer-ir-prompts/v2`), whose `coverageBrief` is a pure
+function of the IR and the position: it cycles the target label through the
+output support, cycles a constraint focus through *none*, *satisfy* and
+*near-miss* for each input-dependent constraint, and derives per-leaf
+variation hints from a hash of the function id, position and input path.
+
+`generate` retries each position up to `maximum_case_attempts` times. A
+schema-invalid or constraint-violating answer is fed back to the model as a
+rejection note carrying the refused inputs and the local reason; a transport
+failure is retried without a note. After the first pass, positions whose inputs
+duplicate an earlier position are re-requested for at most two rounds with a
+duplicate note. Residual duplicates are kept rather than discarding the run and
+are counted in `last_run_report`, together with request, rejection and failure
+counts, so the corpus manifest can record them.
+
+Positions run through a bounded thread pool of `concurrency` workers (1 by
+default, 8 at most). Results are returned in position order and the first
+failure cancels the remaining work. Concurrency and the attempt limit are part
+of the configuration projection and therefore of the provenance digest.
 
 ## Intended integration
 

@@ -9,7 +9,7 @@ import math
 import os
 import re
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -514,6 +514,12 @@ class AdversarialDatasetGenerator:
         cases: list[AdversarialCase] = []
         pairs: list[CounterfactualPair] = []
         approximate_bytes = 0
+        # Every lifecycle input keeps one label: a proposal whose inputs repeat a base
+        # or earlier adversarial input under a different label is rejected and retried,
+        # because the training corpus refuses conflicting labels.
+        known_labels: dict[bytes, JsonValue] = {
+            _canonical_json_bytes(case.inputs): case.output for case in request.base.cases
+        }
 
         for constraint_index, constraint in enumerate(request.constraints):
             if not predicate_depends_on_inputs(constraint):
@@ -526,7 +532,7 @@ class AdversarialDatasetGenerator:
                     f"constraint {constraint_index} is constant {str(result).lower()} and has "
                     "no opposite predicate side"
                 )
-            proposal = self._boundary_proposal(request, constraint_index)
+            proposal = self._boundary_proposal(request, constraint_index, known_labels)
             for predicate_result, generated in (
                 (False, proposal.predicate_false),
                 (True, proposal.predicate_true),
@@ -564,6 +570,7 @@ class AdversarialDatasetGenerator:
                 request,
                 source_index,
                 anchor,
+                known_labels,
             )
             pair_id = _pair_id(request.cache_key_sha256, pair_ordinal, source_index)
             anchor_ordinal = len(cases)
@@ -633,6 +640,7 @@ class AdversarialDatasetGenerator:
         self,
         request: _AdversarialRequest,
         constraint_index: int,
+        known_labels: dict[bytes, JsonValue],
     ) -> BoundaryPairProposal:
         last_error: Exception | None = None
         for _ in range(request.config.maximum_attempts):
@@ -649,6 +657,11 @@ class AdversarialDatasetGenerator:
                     constraint_index,
                     proposal,
                     request.constraint_budget,
+                )
+                _reject_label_conflicts(
+                    known_labels,
+                    (proposal.predicate_false, proposal.predicate_true),
+                    context=f"constraint {constraint_index} boundary pair",
                 )
                 return proposal
             except TeacherTransportError:
@@ -673,6 +686,7 @@ class AdversarialDatasetGenerator:
         request: _AdversarialRequest,
         source_index: int,
         anchor: GeneratedCase,
+        known_labels: dict[bytes, JsonValue],
     ) -> tuple[CounterfactualProposal, str]:
         last_error: Exception | None = None
         for _ in range(request.config.maximum_attempts):
@@ -697,6 +711,11 @@ class AdversarialDatasetGenerator:
                     anchor,
                     proposal,
                     request.constraint_budget,
+                )
+                _reject_label_conflicts(
+                    known_labels,
+                    (proposal.twin,),
+                    context=f"base synthetic case {source_index} counterfactual twin",
                 )
                 return proposal, changed_path
             except TeacherTransportError:
@@ -767,6 +786,25 @@ class AdversarialDatasetGenerator:
                     temporary_path.unlink(missing_ok=True)
                 except OSError:
                     pass
+
+
+def _reject_label_conflicts(
+    known_labels: dict[bytes, JsonValue],
+    cases: Sequence[GeneratedCase],
+    *,
+    context: str,
+) -> None:
+    """Reject cases whose inputs already carry a different lifecycle label, then record them."""
+
+    for case in cases:
+        key = _canonical_json_bytes(case.inputs)
+        existing = known_labels.get(key)
+        if existing is not None and not _json_equal(existing, case.output):
+            raise AdversarialGenerationError(
+                f"{context} repeats an existing lifecycle input under a different label"
+            )
+    for case in cases:
+        known_labels.setdefault(_canonical_json_bytes(case.inputs), case.output)
 
 
 def _validate_boundary_proposal(
@@ -961,7 +999,7 @@ def _request_digest(
             "generation": {
                 **config.document(),
                 "datasetFormatVersion": ADVERSARIAL_DATASET_VERSION,
-                "generatorContractVersion": 1,
+                "generatorContractVersion": 2,
                 "promptContractVersion": 1,
                 "pairContractVersion": 1,
                 "constraintEvaluatorVersion": 1,

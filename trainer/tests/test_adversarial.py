@@ -145,6 +145,68 @@ def test_signed_zero_ratio_is_normalized_for_stable_cache_identity(tmp_path: Pat
     assert negative.cache_path(contract, base) == positive.cache_path(contract, base)
 
 
+def test_rejects_twins_that_relabel_an_existing_lifecycle_input(tmp_path: Path) -> None:
+    contract = ir()
+    base = base_dataset(
+        contract,
+        tmp_path / "base",
+        cases=(
+            GeneratedCase(inputs={"score": 0, "note": "x"}, output=False),
+            GeneratedCase(inputs={"score": 0, "note": "y"}, output=False),
+        ),
+        total=2,
+    )
+
+    class CollidingTeacher(FakeAdversarialTeacher):
+        def generate_counterfactual(
+            self,
+            ir: dict[str, Any],
+            anchor: GeneratedCase,
+            /,
+        ) -> CounterfactualProposal:
+            self.counterfactual_calls.append(anchor)
+            if anchor.inputs["note"] == "x" and len(self.counterfactual_calls) == 1:
+                # Same inputs as the other base case, but relabeled: must be rejected.
+                return CounterfactualProposal(
+                    twin=GeneratedCase(inputs={"score": 0, "note": "y"}, output=True),
+                    reason="Changing the note flips the label.",
+                )
+            return CounterfactualProposal(
+                twin=GeneratedCase(inputs={**anchor.inputs, "score": 10}, output=True),
+                reason="Crossing the minimum score changes the required label.",
+            )
+
+    teacher = CollidingTeacher()
+    dataset = AdversarialDatasetGenerator(teacher, tmp_path / "cache").generate(contract, base)
+
+    assert len(teacher.counterfactual_calls) == 3
+    labels: dict[str, set[Any]] = {}
+    for case in list(base.cases) + list(dataset.cases):
+        labels.setdefault(json.dumps(case.inputs, sort_keys=True), set()).add(case.output)
+    assert all(len(values) == 1 for values in labels.values())
+
+    class AlwaysColliding(FakeAdversarialTeacher):
+        def generate_counterfactual(
+            self,
+            ir: dict[str, Any],
+            anchor: GeneratedCase,
+            /,
+        ) -> CounterfactualProposal:
+            self.counterfactual_calls.append(anchor)
+            other = "y" if anchor.inputs["note"] == "x" else "x"
+            return CounterfactualProposal(
+                twin=GeneratedCase(inputs={"score": 0, "note": other}, output=True),
+                reason="Changing the note flips the label.",
+            )
+
+    with pytest.raises(AdversarialGenerationError, match="different label"):
+        AdversarialDatasetGenerator(
+            AlwaysColliding(),
+            tmp_path / "cache-exhausted",
+            config=AdversarialGenerationConfig(maximum_attempts=2),
+        ).generate(contract, base)
+
+
 def test_rejects_boundary_claim_on_wrong_predicate_side(tmp_path: Path) -> None:
     contract = ir()
     base = base_dataset(contract, tmp_path / "base")

@@ -63,6 +63,7 @@ def generate_training_corpus(
     config: ClaudeCliTeacherConfig,
     teacher: ClaudeCliTrainingTeacher | None = None,
     resume: bool = False,
+    adversarial_attempts: int = 3,
 ) -> dict[str, Any]:
     """Compile, generate synthetic and adversarial data, and write the manifest.
 
@@ -107,7 +108,10 @@ def generate_training_corpus(
     else:
         report_document = None
 
-    adversarial_config = AdversarialGenerationConfig(counterfactual_ratio=counterfactual_ratio)
+    adversarial_config = AdversarialGenerationConfig(
+        counterfactual_ratio=counterfactual_ratio,
+        maximum_attempts=adversarial_attempts,
+    )
     adversarial_generator = AdversarialDatasetGenerator(
         teacher,
         output / "adversarial",
@@ -217,6 +221,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--executable", default="claude")
     parser.add_argument("--require-cli-version", default=None)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--adversarial-attempts", type=int, default=3)
     return parser.parse_args(argv)
 
 
@@ -237,6 +242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             counterfactual_ratio=arguments.counterfactual_ratio,
             config=config,
             resume=arguments.resume,
+            adversarial_attempts=arguments.adversarial_attempts,
         )
     except Exception as error:
         sys.stderr.write(f"corpus generation failed: {type(error).__name__}: {error}\n")

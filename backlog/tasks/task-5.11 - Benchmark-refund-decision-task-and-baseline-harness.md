@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-23 19:31'
+updated_date: '2026-09-23 20:13'
 labels:
   - benchmark
 milestone: m-1
@@ -94,6 +94,10 @@ Current status is intentionally In Progress. No real human datasets, benchmark p
 Live Sonnet 5 CLI teacher smoke (2026-09-23, not training data, not committed): after the pin/runner fixes, 3 synthetic cases, boundary pairs for both constraints, and 1 counterfactual all returned schema-valid structured output and passed the local parsers. Envelope facts from the pinned CLI 2.1.280: structured output arrives via a StructuredOutput tool call with stop_reason tool_use; num_turns was 2 or 3 per request, so the old exactly-one-turn check was wrong and now bounds turns at 8 while requiring modelUsage to name exactly claude-sonnet-5. Note the strict JSON loader returns integers as binary64 floats, so envelope checks must not use isinstance(int). Per request: 4-9 s wall, USD 0.015-0.023 list cost (auth is the claude.ai Max subscription, so CLI teacher spend is subscription quota, not API billing; ANTHROPIC_API_KEY remains unset). Quality flag: 2 of 3 synthetic cases were identical and matched the first smoke case (standard tier, 1 prior refund, 120-day paid USD 250 order -> deny); per-case prompting with a fixed system prompt gives low diversity and must be addressed before sizing the pilot.
 
 Diversity probe (10 live synthetic cases, 52 s sequential, not training data): 8 unique inputs but 9 deny / 1 approve / 0 review; 9 of 10 used order.status paid and 8 of 10 used ageDays 120. The per-case prompt (fixed system prompt plus 'case i of N') makes Sonnet return near-mode cases, and _assemble_cases neither dedupes nor rejects duplicates, so a large pilot under the current prompt would yield a degenerate, deny-dominated corpus. This is a trainer prompt-design gap shared by the Anthropic SDK and Ollama teachers (Ollama also samples at temperature 0), outside this task's acceptance criteria; needs a scope decision before the pilot is sized.
+
+2026-09-23 pilot started after TASK-5.15 closed: generate_training_corpus.py --synthetic-count 600 --counterfactual-ratio 0.25 --concurrency 4 --maximum-case-attempts 3 into benchmarks/refund/data/sonnet-pilot-2026-09-23 (synthetic-training-only; boundary pairs for both constraints plus ~150 counterfactuals). Expected roughly 750 Sonnet 5 CLI requests on the Max subscription. Results, manifest and digests will be committed when the run completes.
+
+Pilot run 1 (2026-09-23 13:45-14:10): the 600-case synthetic phase completed and is cached under benchmarks/refund/data/sonnet-pilot-2026-09-23/synthetic (600/600 unique inputs; labels approve 96 / deny 305 / review 199; status paid 402 / fraudulent 198; tier enterprise 308 / standard 292; ageDays 0-214 with 47 at exactly 90 and 204 above; zero constraint violations; 15 approve labels outside the policy window flagged as teacher noise). The adversarial phase then aborted on one transient Claude CLI exit status 1 during a counterfactual request: the trainer adversarial generator re-raises TeacherTransportError without retry and the CLI teacher's boundary/counterfactual paths had no transport retry. A raw CLI request succeeded immediately afterwards. Fix in progress: transport retries with linear backoff in the CLI teacher adversarial paths and a --resume mode in generate_training_corpus.py that reloads the cached synthetic set and its saved run report. The synthetic run report for run 1 was lost with the process, so the pilot manifest will record runReport null for that phase.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

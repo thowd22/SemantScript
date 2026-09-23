@@ -99,6 +99,29 @@ def test_generates_frozen_corpus_with_manifest(tmp_path: Path, stub_cli: Path) -
     assert (output / adversarial["cachePath"]).is_file()
 
 
+def test_resume_reuses_cached_synthetic_dataset_and_run_report(
+    tmp_path: Path, stub_cli: Path
+) -> None:
+    output = tmp_path / "corpus"
+    config = ClaudeCliTeacherConfig(executable=str(stub_cli), timeout_seconds=60)
+    first = generate_training_corpus(
+        output, synthetic_count=3, counterfactual_ratio=0.0, config=config
+    )
+    assert first["synthetic"]["loadedFromCache"] is False
+    assert first["synthetic"]["runReport"]["requests"] == 3
+    assert first["adversarial"]["pairCount"] == 0
+
+    resumed = generate_training_corpus(
+        output, synthetic_count=3, counterfactual_ratio=1.0, config=config, resume=True
+    )
+    assert resumed["resumed"] is True
+    assert resumed["synthetic"]["loadedFromCache"] is True
+    assert resumed["synthetic"]["datasetSha256"] == first["synthetic"]["datasetSha256"]
+    assert resumed["synthetic"]["runReport"] == first["synthetic"]["runReport"]
+    assert resumed["adversarial"]["pairCount"] == 3
+    assert json.loads((output / MANIFEST_NAME).read_text(encoding="utf-8")) == resumed
+
+
 def test_refuses_nonempty_output_directory(tmp_path: Path, stub_cli: Path) -> None:
     output = tmp_path / "corpus"
     output.mkdir()

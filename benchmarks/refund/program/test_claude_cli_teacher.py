@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from benchmarks.refund.program import claude_cli_teacher
 from benchmarks.refund.program.claude_cli_teacher import (
     CLAUDE_CLI_DATA_CLASSIFICATION,
     CLAUDE_CLI_MODEL,
@@ -33,6 +34,11 @@ from semantscript_trainer import (
     TeacherResponseError,
     TeacherTransportError,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_transport_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(claude_cli_teacher, "_TRANSPORT_BACKOFF_SECONDS", 0.0)
 
 
 class FakeRunner:
@@ -204,6 +210,46 @@ def test_adversarial_methods_reuse_local_prompts_schemas_and_parsers() -> None:
     counterfactual_schema = json.loads(option(runner.calls[2][0], "--json-schema"))
     assert set(boundary_schema["properties"]) == {"predicateFalse", "predicateTrue"}
     assert set(counterfactual_schema["properties"]) == {"reason", "twin"}
+
+
+def test_adversarial_requests_retry_transient_transport_failures() -> None:
+    false_case = {"inputs": {"score": 9, "note": "edge"}, "output": False}
+    true_case = {"inputs": {"score": 10, "note": "edge"}, "output": True}
+
+    class FlakyRunner(FakeRunner):
+        def __init__(self) -> None:
+            super().__init__([{"predicateFalse": false_case, "predicateTrue": true_case}])
+            self.failed_once = False
+
+        def __call__(self, command: Sequence[str], **kwargs: Any) -> BoundedProcessResult:
+            if tuple(command)[-1] != "--version" and not self.failed_once:
+                self.failed_once = True
+                self.calls.append((tuple(command), kwargs))
+                return BoundedProcessResult(1, b"", b"rate limited")
+            return super().__call__(command, **kwargs)
+
+    runner = FlakyRunner()
+    teacher = ClaudeCliTrainingTeacher(process_runner=runner)
+
+    assert teacher.generate_boundary_pair(refund_ir(), 0) == BoundaryPairProposal(
+        predicate_false=GeneratedCase(inputs=false_case["inputs"], output=False),
+        predicate_true=GeneratedCase(inputs=true_case["inputs"], output=True),
+    )
+    assert len(runner.calls) == 3
+
+    class AlwaysFailing(FakeRunner):
+        def __call__(self, command: Sequence[str], **kwargs: Any) -> BoundedProcessResult:
+            if tuple(command)[-1] == "--version":
+                return BoundedProcessResult(0, f"{CLAUDE_CLI_VERSION}\n".encode(), b"")
+            self.calls.append((tuple(command), kwargs))
+            return BoundedProcessResult(1, b"", b"")
+
+    failing = AlwaysFailing()
+    with pytest.raises(TeacherTransportError, match="status 1"):
+        ClaudeCliTrainingTeacher(process_runner=failing).generate_counterfactual(
+            refund_ir(), GeneratedCase(inputs=false_case["inputs"], output=False)
+        )
+    assert len(failing.calls) == 3
 
 
 def test_zero_generation_makes_no_process_call() -> None:

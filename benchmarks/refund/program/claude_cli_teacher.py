@@ -79,6 +79,8 @@ _PROCESS_DRAIN_SECONDS = 1.0
 _MAXIMUM_CONCURRENCY = 8
 _MAXIMUM_CASE_ATTEMPTS = 5
 _MAXIMUM_DUPLICATE_ROUNDS = 2
+# Linear backoff between transport retries (rate-limit events, transient CLI exits).
+_TRANSPORT_BACKOFF_SECONDS = 2.0
 _DUPLICATE_REASON = (
     "these inputs duplicate another case in this corpus; choose materially different values"
 )
@@ -495,6 +497,7 @@ class ClaudeCliTrainingTeacher:
     ) -> GeneratedCase:
         pending = list(notes)
         failure: Exception | None = None
+        transport_failures = 0
         for _ in range(self._config.maximum_case_attempts):
             try:
                 system, user = build_case_messages(ir, index, expected, rejected=tuple(pending))
@@ -507,7 +510,9 @@ class ClaudeCliTrainingTeacher:
                 structured, response_bytes = self._request(system, user, schema, "training case")
             except TeacherTransportError as error:
                 counters.add("transport_failures")
+                transport_failures += 1
                 failure = error
+                time.sleep(_TRANSPORT_BACKOFF_SECONDS * transport_failures)
                 continue
             if counters.add("response_bytes", response_bytes) > MAXIMUM_TEACHER_RESPONSE_BYTES:
                 raise TeacherResponseError(
@@ -555,7 +560,7 @@ class ClaudeCliTrainingTeacher:
             raise TeacherConfigurationError(
                 f"could not build Claude CLI boundary request: {error}"
             ) from error
-        structured, _ = self._request(system, user, schema, "boundary pair")
+        structured, _ = self._request_with_transport_retries(system, user, schema, "boundary pair")
         return parse_boundary_pair_response(ir, _canonical_json_bytes(structured))
 
     def generate_counterfactual(
@@ -573,8 +578,29 @@ class ClaudeCliTrainingTeacher:
             raise TeacherConfigurationError(
                 f"could not build Claude CLI counterfactual request: {error}"
             ) from error
-        structured, _ = self._request(system, user, schema, "counterfactual")
+        structured, _ = self._request_with_transport_retries(system, user, schema, "counterfactual")
         return parse_counterfactual_response(ir, _canonical_json_bytes(structured))
+
+    def _request_with_transport_retries(
+        self,
+        system: str,
+        user: str,
+        schema: Mapping[str, Any],
+        context: str,
+    ) -> tuple[dict[str, Any], int]:
+        """Retry only transport failures, with linear backoff, up to the attempt limit."""
+
+        failure: TeacherTransportError | None = None
+        for attempt in range(self._config.maximum_case_attempts):
+            if attempt:
+                time.sleep(_TRANSPORT_BACKOFF_SECONDS * attempt)
+            try:
+                return self._request(system, user, schema, context)
+            except TeacherTransportError as error:
+                failure = error
+        if failure is None:  # pragma: no cover - attempts are validated to be >= 1
+            raise TeacherTransportError(f"Claude CLI {context} made no attempt")
+        raise failure
 
     def _request(
         self,

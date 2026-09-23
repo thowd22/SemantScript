@@ -28,3 +28,6 @@ build/
 # downloaded installers (Ollama bundles live in trainer/ during setup)
 *.tar.zst
 *.tar.gz
+
+# dataset cache lock files are runtime state, never data
+benchmarks/refund/data/**/*.lock

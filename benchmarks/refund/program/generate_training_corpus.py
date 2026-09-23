@@ -20,6 +20,7 @@ import collections
 import hashlib
 import json
 import platform
+import shutil
 import sys
 import time
 from collections.abc import Sequence
@@ -43,6 +44,7 @@ from semantscript_trainer import (
 MANIFEST_KIND = "semantscript.refund-training-corpus-manifest"
 MANIFEST_VERSION = 1
 MANIFEST_NAME = "manifest.json"
+SYNTHETIC_RUN_REPORT_NAME = "run-report.json"
 NOTICE = (
     "Model-generated training data only. Not human-authored, not a benchmark or "
     "release-verification set, and never to be used as an evaluation target."
@@ -60,16 +62,29 @@ def generate_training_corpus(
     counterfactual_ratio: float,
     config: ClaudeCliTeacherConfig,
     teacher: ClaudeCliTrainingTeacher | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
-    """Compile, generate synthetic and adversarial data, and write the manifest."""
+    """Compile, generate synthetic and adversarial data, and write the manifest.
+
+    With ``resume`` the output directory may already hold a partial run: the
+    compiler output is rebuilt deterministically and any dataset whose request
+    digest matches is loaded from its cache instead of being regenerated.
+    """
 
     output = Path(output_directory)
-    if output.exists() and (not output.is_dir() or any(output.iterdir())):
-        raise CorpusGenerationError("output directory must be absent or empty")
+    if output.exists() and not output.is_dir():
+        raise CorpusGenerationError("output directory must be a directory")
+    if output.exists() and any(output.iterdir()) and not resume:
+        raise CorpusGenerationError(
+            "output directory must be absent or empty (use resume to continue a partial run)"
+        )
     output.mkdir(parents=True, exist_ok=True)
     output = output.resolve(strict=True)
 
-    compiled = compile_refund_program(output / "compiler")
+    compiler_directory = output / "compiler"
+    if resume and compiler_directory.exists():
+        shutil.rmtree(compiler_directory)
+    compiled = compile_refund_program(compiler_directory)
     bundle_sha256 = hashlib.sha256(compiled.bundle_path.read_bytes()).hexdigest()
     teacher = teacher if teacher is not None else ClaudeCliTrainingTeacher(config)
     teacher.verify_installation()
@@ -80,6 +95,17 @@ def generate_training_corpus(
     synthetic = synthetic_generator.generate(compiled.source_ir, synthetic_count)
     synthetic_seconds = time.monotonic() - synthetic_started
     synthetic_report = teacher.last_run_report
+    report_path = output / "synthetic" / SYNTHETIC_RUN_REPORT_NAME
+    synthetic_loaded_from_cache = synthetic_report is None or synthetic_report.requests == 0
+    if not synthetic_loaded_from_cache:
+        report_document: dict[str, Any] | None = synthetic_report.document()
+        report_path.write_text(
+            json.dumps(report_document, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    elif report_path.is_file():
+        report_document = json.loads(report_path.read_text(encoding="utf-8"))
+    else:
+        report_document = None
 
     adversarial_config = AdversarialGenerationConfig(counterfactual_ratio=counterfactual_ratio)
     adversarial_generator = AdversarialDatasetGenerator(
@@ -97,6 +123,7 @@ def generate_training_corpus(
         "manifestVersion": MANIFEST_VERSION,
         "dataClassification": CLAUDE_CLI_DATA_CLASSIFICATION,
         "notice": NOTICE,
+        "resumed": resume,
         "startedAt": started_at,
         "completedAt": _utc_now(),
         "function": {
@@ -126,7 +153,8 @@ def generate_training_corpus(
             "datasetSha256": synthetic.dataset_sha256,
             "labelCounts": _label_counts(case.output for case in synthetic.cases),
             "uniqueInputCount": len({_canonical(case.inputs) for case in synthetic.cases}),
-            "runReport": synthetic_report.document() if synthetic_report else None,
+            "loadedFromCache": synthetic_loaded_from_cache,
+            "runReport": report_document,
             "elapsedSeconds": round(synthetic_seconds, 3),
         },
         "adversarial": {
@@ -188,6 +216,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--max-budget-usd", type=float, default=2.0)
     parser.add_argument("--executable", default="claude")
     parser.add_argument("--require-cli-version", default=None)
+    parser.add_argument("--resume", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -207,6 +236,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             synthetic_count=arguments.synthetic_count,
             counterfactual_ratio=arguments.counterfactual_ratio,
             config=config,
+            resume=arguments.resume,
         )
     except Exception as error:
         sys.stderr.write(f"corpus generation failed: {type(error).__name__}: {error}\n")

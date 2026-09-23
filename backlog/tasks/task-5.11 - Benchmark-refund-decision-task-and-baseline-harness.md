@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-23 23:03'
+updated_date: '2026-09-23 23:07'
 labels:
   - benchmark
 milestone: m-1
@@ -110,6 +110,8 @@ Baselines measured on the frozen final set (160 judge-attested cases, shared env
 First complete release-pipeline attempt (2026-09-23 22:44 UTC, 4 epochs, ModernBERT-base on ROCm, 600 synthetic + 304 adversarial rows): training held-out accuracy 0.74 (peaks ~0.77 at 4 epochs over 8), calibration ECE 0.055 (passes the 0.1 gate), temperature 1.20, pair consistency 0.73. Release gate FAILED: 35 of 80 attested release cases mispredicted and 13 constraint violations across the verification records, so no artifact was exported. Root cause is not the model: the policy text is underspecified and the Sonnet 5 teacher resolves it differently from the judge rubric. Teacher agreement with the rubric on its own synthetic data by rule: >90 days deny 204/204; fraud review 85/99; outside tier window deny 87/181 (teacher says review for 79); suspicious history review 33/78 (teacher approves 45); clean approve 36/38. A student trained on those labels cannot pass a zero-miss gate defined by the rubric, and the zero-shot baselines resolve the same ambiguities a third way (Qwen 7B never denies outside-window orders). Decision needed: clarify the policy in the sema source (changes the canonical function and task-spec digests, then regenerate corpus, re-freeze held-out records, retrain, rerun baselines) versus relaxing the release gate contract for the pilot versus reporting the failed gate as the result.
 
 2026-09-23 (decision-6): sema source rewritten to state the complete policy with six constraints; function nf_65e347f7..., semantic f7efe891..., task spec ffc5c594...; held-out records re-frozen (labels unchanged, all satisfy the constraints; release payload d21ab8cc...). Opus 5.5 corpus generation started (1500 synthetic, counterfactual ratio 0.1, concurrency 6, prompt v3) into benchmarks/refund/data/opus-v2-2026-09-23. Sonnet-era baseline prediction sets are superseded by the task-spec change and will be rerun.
+
+Baselines rerun against the explicit-policy final set (results-v2-2026-09-23): Qwen 2.5 1.5B accuracy 0.519 (p50 320 ms; now gets fraud->review 26/26 and clean approvals 57/57 but never denies stale or outside-window orders), Qwen 2.5 7B accuracy 0.537 (p50 570 ms; stale deny 28/28 but fraud->deny 0/26 review, outside-window deny 10/39, suspicious 0/10), Laya 0.225 (review for all). The 7B comparator for the exit criterion is therefore about 54 percent even when every rule is spelled out.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

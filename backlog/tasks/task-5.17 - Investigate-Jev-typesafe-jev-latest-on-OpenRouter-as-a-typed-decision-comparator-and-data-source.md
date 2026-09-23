@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-23 23:26'
+updated_date: '2026-09-23 23:30'
 labels:
   - research
   - benchmark
@@ -13,9 +14,7 @@ milestone: m-1
 dependencies:
   - TASK-5.11
 references:
-  - 'https://openrouter.ai/api/v1/models'
-  - docs/research/laya-analysis.md
-  - benchmarks/refund/src/adapters/laya.ts
+  - 'https://anth.us/blog/distilling-jev-into-a-classifier/'
 parent_task_id: TASK-5
 ordinal: 49000
 ---
@@ -33,3 +32,9 @@ The user has OpenRouter credits and access to Jev, published as ~typesafe/jev-la
 - [ ] #3 Label agreement between Jev and the judge rubric is measured per policy rule and the cost of generating a 10k-case typed corpus through Jev is estimated
 - [ ] #4 A decision record states whether Jev becomes a required benchmark system, a distillation or behavior-data source for Phase 2 and Phase 3, or neither, with the north-star test applied
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Reference read 2026-09-23: Anthus's write-up 'Distilling Jev into a classifier'. Jev is Anthus's hosted model that answers typed questions about text (yes/no, multiple choice, rubric scoring) with a value and a confidence per question, metered per request. They distilled it into a 66M DistilBERT student: 140 human-labeled items calibrated the teacher (a logistic head over Jev's holistic answer plus seven cached answers), the calibrated teacher soft-labeled 5,140 unlabeled items, the student trained 3 epochs on soft targets with cross-entropy against teacher probabilities, and 3,521 held-out items scored it. Teacher 0.890 accuracy vs human labels; soft student 0.912, hard student 0.908, ceiling 0.938; student-teacher agreement 0.940; ECE 0.038 raw to 0.033 calibrated; student latency 5.6 to 15 ms. Lessons they stress: validate teacher calibration before distilling (uncalibrated soft targets teach wrong confidence), gate per slice not on an overall number (one slice failed under one seed while 10 of 11 passed), and a teacher-fallback cascade lost accuracy because the teacher was worse on exactly the items the student deferred. Relevance for us: same recipe as SemantScript's compile path (teacher labels, small encoder, temperature calibration, release gate); worth adopting per-rule gating and soft-target distillation when Jev or Laya act as calibrated teachers. Article gives no request schema, batch option or pricing; get those from the authenticated OpenRouter listing.
+<!-- SECTION:NOTES:END -->

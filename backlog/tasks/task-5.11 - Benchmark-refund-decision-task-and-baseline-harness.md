@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-23 21:41'
+updated_date: '2026-09-23 22:02'
 labels:
   - benchmark
 milestone: m-1
@@ -102,6 +102,8 @@ Pilot run 1 (2026-09-23 13:45-14:10): the 600-case synthetic phase completed and
 Pilot corpus frozen and committed (2026-09-23, benchmarks/refund/data/sonnet-pilot-2026-09-23, manifest.json binds function nf_955824..., compiler bundle digest, teacher provenance claude-sonnet-5 via Claude Code 2.1.281, prompt contract v2, and both dataset digests). Synthetic: 600 cases, 600 unique inputs, labels approve 96 / deny 305 / review 199, zero constraint violations. Adversarial (resumed run, 41 min sequential): 4 constraint-boundary cases and 150 counterfactual pairs (304 cases); changed paths ageDays 121, status 28, priorRefunds 1; flip directions cover all six label transitions. Teacher-noise observations for the verification stage: 15 synthetic approve labels sit outside the policy window, and some fraudulent twins are labeled deny rather than review (constraint-valid, policy-debatable). Handoff step 1 is complete; remaining steps still need the two human-authored attested sets, ANTHROPIC_API_KEY for the structured-API baseline, the ROCm training run, and the benchmark runs.
 
 2026-09-23 user decision (decision-5): human authorship replaced by independent-judge adjudication of real public inputs; acceptance criterion 5 rewritten accordingly (the former criterion 6 on Laya is now criterion 5, the new judge criterion is 6). Contract work tracked in TASK-5.16.
+
+2026-09-23 evening: first two real release-pipeline attempts surfaced trainer defects on real data: (1) the canonical input serializer rejected IR input indices because the strict JSON reader yields binary64 floats (fixed, regression test); (2) the corpus assembler refused the frozen corpus because two counterfactual twins relabeled an existing synthetic input (fixed in the adversarial generator, which now rejects and retries label-conflicting proposals under generator contract v2; the adversarial set is being regenerated with --resume). Provenance field humanAuthoredVerification renamed to attestedVerification across IR/artifact contracts. run_release_pipeline.py (train, verify, bind, ledger, export, runtime smoke) and run-benchmark.mjs (per-system prediction sets with one shared environment and warmup protocol, plus result assembly) are committed. Ollama 1.5B/7B and Laya baselines are running now on the frozen final set; SemantScript runs after training; the structured-API baseline stays absent without ANTHROPIC_API_KEY, so the mechanical decision will read incomplete unless a key is provided.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

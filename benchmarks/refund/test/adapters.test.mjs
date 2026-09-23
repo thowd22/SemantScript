@@ -22,6 +22,7 @@ import {
   createAnthropicSonnetAdapter,
   createLayaAdapter,
   createOllamaQwenAdapter,
+  parseStructuredPrediction,
 } from "../dist/adapters/index.js";
 
 const INPUTS = Object.freeze({
@@ -462,4 +463,25 @@ test("Laya adapter rejects checkpoint drift, non-finite logits, and argmax misma
   extendedLogits.extra = 0;
   response.logits = extendedLogits;
   await assert.rejects(adapter.predict(INPUTS), assertAdapterError("invalid-response"));
+});
+
+
+test("structured probabilities are renormalized within tolerance and rejected beyond it", () => {
+  const rounded = parseStructuredPrediction({
+    decision: "approve",
+    probabilities: { approve: 0.9, deny: 0.05, review: 0.04 },
+  });
+  const total = rounded.distribution.reduce((sum, entry) => sum + entry.probability, 0);
+  assert.ok(Math.abs(total - 1) <= 1e-12);
+  assert.equal(rounded.value, "approve");
+  assert.ok(Math.abs(rounded.distribution[0].probability - 0.9 / 0.99) < 1e-12);
+
+  assert.throws(
+    () =>
+      parseStructuredPrediction({
+        decision: "approve",
+        probabilities: { approve: 0.6, deny: 0.1, review: 0.1 },
+      }),
+    /must sum to 1 within 0\.1/,
+  );
 });

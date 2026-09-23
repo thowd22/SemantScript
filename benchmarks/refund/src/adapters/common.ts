@@ -21,6 +21,12 @@ export const BASELINE_ADAPTER_VERSION = "2" as const;
 export const REFUND_PROMPT_VERSION = "refund-decision.v2" as const;
 export const DEFAULT_BASELINE_TIMEOUT_MS = 120_000 as const;
 export const MAXIMUM_STRUCTURED_RESPONSE_BYTES = 16_384 as const;
+/**
+ * Generative baselines state probabilities as rounded decimals, so sums such as
+ * 0.99 or 1.02 are rounding, not malformed output. Sums inside this tolerance are
+ * renormalized into the sealed distribution; anything further off is invalid.
+ */
+export const PROBABILITY_SUM_TOLERANCE = 0.1 as const;
 
 export const REFUND_OUTPUT_SCHEMA = Object.freeze({
   type: "object",
@@ -134,8 +140,11 @@ export function parseStructuredPrediction(value: unknown): BaselinePrediction {
   if (sum === 0) {
     invalid("response.probabilities", "must assign positive mass to at least one value");
   }
-  if (Math.abs(sum - 1) > 1e-6) {
-    invalid("response.probabilities", "must sum to 1 within 0.000001");
+  if (Math.abs(sum - 1) > PROBABILITY_SUM_TOLERANCE) {
+    invalid(
+      "response.probabilities",
+      `must sum to 1 within ${String(PROBABILITY_SUM_TOLERANCE)}`,
+    );
   }
   return predictionFromWeights(decision, weights);
 }

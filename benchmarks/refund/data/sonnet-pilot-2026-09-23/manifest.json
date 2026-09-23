@@ -1,8 +1,8 @@
 {
   "adversarial": {
     "baseDatasetSha256": "5888fe1a60f994d6077b8864189f2c72d137ce4fce9b147d3e9f2187eab2c89a",
-    "cacheKeySha256": "b2c9ef0bf7053ef70229659988ebd605b8f9c53be407ac9c6d602d1de9008cd0",
-    "cachePath": "adversarial/adversarial-datasets/v1/b2/b2c9ef0bf7053ef70229659988ebd605b8f9c53be407ac9c6d602d1de9008cd0.json",
+    "cacheKeySha256": "0f00cbfdbf721247d88e73c775f346995be62e32c39df98b600b920089c4f38d",
+    "cachePath": "adversarial/adversarial-datasets/v1/0f/0f00cbfdbf721247d88e73c775f346995be62e32c39df98b600b920089c4f38d.json",
     "caseCount": 304,
     "caseCountsByTag": {
       "constraint-boundary": 4,
@@ -10,19 +10,19 @@
     },
     "config": {
       "counterfactualRatio": 0.25,
-      "maximumAttempts": 3
+      "maximumAttempts": 5
     },
-    "datasetSha256": "b34bb09bcdd79ab94d4c23bd815324b92f03b9bde42a75ccbb725746a967230c",
-    "elapsedSeconds": 2468.247,
+    "datasetSha256": "a0c0936682f2de46ca3bd79b09f1272375ecd5780531f14c838dff41d9f11c29",
+    "elapsedSeconds": 2421.662,
     "labelCounts": {
-      "\"approve\"": 91,
-      "\"deny\"": 132,
-      "\"review\"": 81
+      "\"approve\"": 93,
+      "\"deny\"": 133,
+      "\"review\"": 78
     },
     "pairCount": 150,
-    "payloadSha256": "7dc17edbad6475f07e2b6a356c04213b8a10e6225ec1599fe88e05f40c1075ab"
+    "payloadSha256": "aac66c46344927be825d16c3e6faa9291d3659f77bf36b2b2056c4f20fcaccfd"
   },
-  "completedAt": "2026-09-23T20:53:03Z",
+  "completedAt": "2026-09-23T22:38:00Z",
   "dataClassification": "synthetic-training-only",
   "environment": {
     "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
@@ -38,12 +38,12 @@
   "manifestVersion": 1,
   "notice": "Model-generated training data only. Not human-authored, not a benchmark or release-verification set, and never to be used as an evaluation target.",
   "resumed": true,
-  "startedAt": "2026-09-23T20:14:09Z",
+  "startedAt": "2026-09-23T22:00:12Z",
   "synthetic": {
     "cacheKeySha256": "d35bc8b85dd0fadadc74c46e176d666cd325faf18bc0e0e0231076ad07287c05",
     "cachePath": "synthetic/datasets/v1/d3/d35bc8b85dd0fadadc74c46e176d666cd325faf18bc0e0e0231076ad07287c05.json",
     "datasetSha256": "5888fe1a60f994d6077b8864189f2c72d137ce4fce9b147d3e9f2187eab2c89a",
-    "elapsedSeconds": 0.019,
+    "elapsedSeconds": 0.018,
     "goldCount": 0,
     "labelCounts": {
       "\"approve\"": 96,

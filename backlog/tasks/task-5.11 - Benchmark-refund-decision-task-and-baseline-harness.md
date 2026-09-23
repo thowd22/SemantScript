@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-23 22:02'
+updated_date: '2026-09-23 22:15'
 labels:
   - benchmark
 milestone: m-1
@@ -104,6 +104,8 @@ Pilot corpus frozen and committed (2026-09-23, benchmarks/refund/data/sonnet-pil
 2026-09-23 user decision (decision-5): human authorship replaced by independent-judge adjudication of real public inputs; acceptance criterion 5 rewritten accordingly (the former criterion 6 on Laya is now criterion 5, the new judge criterion is 6). Contract work tracked in TASK-5.16.
 
 2026-09-23 evening: first two real release-pipeline attempts surfaced trainer defects on real data: (1) the canonical input serializer rejected IR input indices because the strict JSON reader yields binary64 floats (fixed, regression test); (2) the corpus assembler refused the frozen corpus because two counterfactual twins relabeled an existing synthetic input (fixed in the adversarial generator, which now rejects and retries label-conflicting proposals under generator contract v2; the adversarial set is being regenerated with --resume). Provenance field humanAuthoredVerification renamed to attestedVerification across IR/artifact contracts. run_release_pipeline.py (train, verify, bind, ledger, export, runtime smoke) and run-benchmark.mjs (per-system prediction sets with one shared environment and warmup protocol, plus result assembly) are committed. Ollama 1.5B/7B and Laya baselines are running now on the frozen final set; SemantScript runs after training; the structured-API baseline stays absent without ANTHROPIC_API_KEY, so the mechanical decision will read incomplete unless a key is provided.
+
+Baselines measured on the frozen final set (160 judge-attested cases, shared environment, 10 warmup iterations over 8 synthetic inputs, client-only RSS scope): Qwen 2.5 1.5B Q4_K_M via Ollama 0.34.3 on GPU accuracy 0.369 (approve for 158/160), p50 313 ms; Qwen 2.5 7B Q4_K_M accuracy 0.506 (never answers review), p50 539 ms; Laya typed-decisions on ROCm accuracy 0.225 (review for all 160), p50 19 ms. Two harness fixes were needed on the way: baseline probability sums are renormalized within 0.1 instead of rejected at 1e-6, and the Laya checkpoint manifest now pins all seven snapshot files with the worker isolated from the user site-packages (a NumPy-2 SciPy there broke NumPy 1.26). Prediction sets committed under benchmarks/refund/data/results-2026-09-23.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

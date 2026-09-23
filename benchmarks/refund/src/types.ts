@@ -35,12 +35,19 @@ export interface RefundInputs {
   };
 }
 
+export type RefundCaseOrigin = "human-authored" | "independent-judge" | "other-held-out";
+
+export const ATTESTED_CASE_ORIGINS: ReadonlySet<RefundCaseOrigin> = new Set<RefundCaseOrigin>([
+  "human-authored",
+  "independent-judge",
+]);
+
 export interface RefundBenchmarkCase {
   readonly id: string;
   readonly inputs: RefundInputs;
   readonly inputSha256: string;
   readonly expected: RefundDecision;
-  readonly origin: "human-authored" | "other-held-out";
+  readonly origin: RefundCaseOrigin;
 }
 
 export interface HumanAttestation {
@@ -54,6 +61,25 @@ export interface HumanAttestation {
 export const HUMAN_ATTESTATION_DECLARATION =
   "The listed cases are human-authored, were not generated or rewritten by any model or teacher, and are licensed or de-identified for this benchmark." as const;
 
+export interface JudgeIdentity {
+  readonly provider: string;
+  readonly model: string;
+  readonly interface: string;
+  readonly sessionReference: string;
+}
+
+export interface JudgeAttestation {
+  readonly judge: JudgeIdentity;
+  readonly rubricSha256: string;
+  readonly attestedAt: string;
+  readonly caseIds: readonly string[];
+  readonly declaration: typeof JUDGE_ATTESTATION_DECLARATION;
+  readonly evidenceSha256: string;
+}
+
+export const JUDGE_ATTESTATION_DECLARATION =
+  "The listed cases have expected outputs adjudicated case by case by the named independent model judge under the referenced rubric with a recorded rationale per case; their inputs derive from real, de-identified transactions; neither inputs nor labels were produced by any teacher model used for training, and the judge is not a training teacher for this benchmark." as const;
+
 export interface RefundBenchmarkDatasetV1 {
   readonly kind: "semantscript.refund-benchmark-dataset";
   readonly datasetVersion: 1;
@@ -66,7 +92,8 @@ export interface RefundBenchmarkDatasetV1 {
   };
   readonly support: typeof REFUND_SUPPORT;
   readonly cases: readonly RefundBenchmarkCase[];
-  readonly humanAttestation: HumanAttestation;
+  readonly humanAttestation: HumanAttestation | null;
+  readonly judgeAttestation: JudgeAttestation | null;
   readonly payloadSha256: string;
 }
 
@@ -222,9 +249,9 @@ export interface AccuracyMetrics {
   readonly caseCount: number;
   readonly correctCount: number;
   readonly accuracy: number;
-  readonly humanCaseCount: number;
-  readonly humanCorrectCount: number;
-  readonly humanAccuracy: number;
+  readonly attestedCaseCount: number;
+  readonly attestedCorrectCount: number;
+  readonly attestedAccuracy: number;
 }
 
 export interface CalibrationMetrics {

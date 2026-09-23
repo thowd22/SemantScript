@@ -25,9 +25,9 @@ test("computes exact overall/human accuracy, 15-bin ECE, nearest-rank latency, a
     caseCount: 4,
     correctCount: 2,
     accuracy: 0.5,
-    humanCaseCount: 2,
-    humanCorrectCount: 2,
-    humanAccuracy: 1,
+    attestedCaseCount: 2,
+    attestedCorrectCount: 2,
+    attestedAccuracy: 1,
   });
   assert.equal(metrics.calibration.binCount, 15);
   assert.ok(Math.abs(metrics.calibration.expectedCalibrationError - 0.35) < 1e-12);

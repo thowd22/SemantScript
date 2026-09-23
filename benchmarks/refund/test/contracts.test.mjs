@@ -6,6 +6,7 @@ import { semanticJsonSha256 } from "@semantscript/compiler";
 import {
   BenchmarkContractError,
   HUMAN_ATTESTATION_DECLARATION,
+  evaluatePredictionSet,
   REFUND_FUNCTION_ID,
   REFUND_FUNCTION_SEMANTIC_SHA256,
   REFUND_TASK_SPEC_SHA256,
@@ -18,7 +19,13 @@ import {
   validateRefundDataset,
   validateTrainingLedger,
 } from "../dist/index.js";
-import { clone, makeDataset, makeLedger, makePredictionSet } from "./fixtures.mjs";
+import {
+  clone,
+  makeDataset,
+  makeJudgeDataset,
+  makeLedger,
+  makePredictionSet,
+} from "./fixtures.mjs";
 
 test("seals closed dataset, ledger, and prediction contracts with semantic digests", () => {
   const dataset = makeDataset();
@@ -113,7 +120,7 @@ test("dataset requires a complete explicit non-teacher human attestation", () =>
   noHuman.humanAttestation.caseIds = [];
   noHuman.humanAttestation.declaration = HUMAN_ATTESTATION_DECLARATION;
   noHuman.payloadSha256 = semanticJsonSha256(withoutDigest(noHuman));
-  assert.throws(() => validateRefundDataset(noHuman), /at least one human-authored/);
+  assert.throws(() => validateRefundDataset(noHuman), /at least one attested case/);
 });
 
 test("ledger partitions are fixed and sorted while allowing real lifecycle reuse", () => {
@@ -433,3 +440,53 @@ function oversizedSparseArray(length, onRead = () => {}) {
   });
   return values;
 }
+
+
+test("independent-judge cases require a matching judge attestation", () => {
+  const dataset = makeJudgeDataset();
+  assert.equal(dataset.humanAttestation, null);
+  assert.equal(dataset.judgeAttestation.caseIds.length, 4);
+  assert.equal(dataset.cases.every((entry) => entry.origin === "independent-judge"), true);
+
+  const missingAttestation = clone(dataset);
+  missingAttestation.judgeAttestation = null;
+  assert.throws(
+    () => validateRefundDataset(missingAttestation),
+    /judgeAttestation.*must attest the independent-judge cases/,
+  );
+
+  const partial = clone(dataset);
+  partial.judgeAttestation.caseIds = ["case-01", "case-02"];
+  assert.throws(
+    () => validateRefundDataset(partial),
+    /every and only independent-judge case/,
+  );
+
+  const wrongDeclaration = clone(dataset);
+  wrongDeclaration.judgeAttestation.declaration = HUMAN_ATTESTATION_DECLARATION;
+  assert.throws(() => validateRefundDataset(wrongDeclaration), /judgeAttestation\.declaration/);
+
+  const lateAttestation = clone(dataset);
+  lateAttestation.judgeAttestation.attestedAt = "2026-09-23T12:00:01Z";
+  assert.throws(() => validateRefundDataset(lateAttestation), /not be later than dataset creation/);
+
+  const emptyJudge = clone(dataset);
+  emptyJudge.judgeAttestation.judge.model = "";
+  assert.throws(() => validateRefundDataset(emptyJudge), /judgeAttestation\.judge\.model/);
+
+  const humanWithoutAttestation = clone(dataset);
+  humanWithoutAttestation.cases[0].origin = "human-authored";
+  humanWithoutAttestation.judgeAttestation.caseIds = ["case-02", "case-03", "case-04"];
+  assert.throws(
+    () => validateRefundDataset(humanWithoutAttestation),
+    /humanAttestation.*must attest the human-authored cases/,
+  );
+});
+
+test("judge-attested datasets report the attested slice in metrics", () => {
+  const dataset = makeJudgeDataset();
+  const metrics = evaluatePredictionSet(dataset, makePredictionSet(dataset));
+  assert.equal(metrics.accuracy.attestedCaseCount, 4);
+  assert.equal(metrics.accuracy.caseCount, 4);
+  assert.equal(metrics.accuracy.attestedCorrectCount, metrics.accuracy.correctCount);
+});

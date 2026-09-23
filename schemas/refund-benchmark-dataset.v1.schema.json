@@ -14,6 +14,7 @@
     "support",
     "cases",
     "humanAttestation",
+    "judgeAttestation",
     "payloadSha256"
   ],
   "properties": {
@@ -39,7 +40,17 @@
       }
     },
     "humanAttestation": {
-      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/humanAttestation"
+      "oneOf": [
+        { "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/humanAttestation" },
+        { "type": "null" }
+      ],
+      "$comment": "Runtime validation requires the attestation exactly when human-authored cases are present, and at least one attested (human-authored or independent-judge) case overall."
+    },
+    "judgeAttestation": {
+      "oneOf": [
+        { "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/judgeAttestation" },
+        { "type": "null" }
+      ]
     },
     "payloadSha256": {
       "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"

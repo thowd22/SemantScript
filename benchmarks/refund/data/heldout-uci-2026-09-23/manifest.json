@@ -1,0 +1,79 @@
+{
+ "createdAt": "2026-09-23T21:46:25Z",
+ "derivation": {
+  "ageDays": "whole days from the customer's latest earlier positive invoice to the cancellation invoice",
+  "key": "sha256 of a fixed salt plus the cancellation invoice number, first 24 hex characters",
+  "priorRefunds": "the customer's cancellation invoices strictly before this one",
+  "status": "paid for every extracted row",
+  "tier": "enterprise when total positive spend is at or above the 0.8 customer quantile (2957.47)",
+  "total": "that earlier positive invoice's quantity times price, rounded to cents"
+ },
+ "final": {
+  "caseCount": 160,
+  "fraudulentCount": 33,
+  "labelCounts": {
+   "approve": 57,
+   "deny": 67,
+   "review": 36
+  },
+  "payloadSha256": "a8b7baa03ddde46fcbef3aa591d142ea6bf84b4abad7655c044015b666deb382"
+ },
+ "function": {
+  "id": "nf_955824a910df4df5cc32a079555fe109919c41492697d9a1cc507decc5afba20",
+  "semanticSha256": "29b03f7d9ec695eb4178e6c4320b6094f7d1c37bc6bfca3516e983e93a0dc1f1"
+ },
+ "judge": {
+  "adjudicatedAt": "2026-09-23T21:45:49Z",
+  "evidenceSha256": "00c5c9a2ac2fc97daf95fddb74ba7c38d382f5b8d12508e97b31a35d6652fcd4",
+  "interface": "claude-code-interactive-session",
+  "model": "claude-fable-5-1",
+  "provider": "anthropic",
+  "rubricSha256": "267a20360abf270a45d00ee3714a46feaf7653d55f0975d128474a25a14bf60b",
+  "sessionReference": "https://claude.ai/code/session_01MF8RYpTTnEuxTuG71hkJPx"
+ },
+ "kind": "semantscript.refund-benchmark-uci-heldout-manifest",
+ "manifestVersion": 1,
+ "release": {
+  "attestationSha256": "52e9794d629193098e2dd001347f7d58281b2aa7439201471ec96ef4fc9c5324",
+  "caseCount": 80,
+  "fraudulentCount": 13,
+  "labelCounts": {
+   "approve": 28,
+   "deny": 34,
+   "review": 18
+  },
+  "payloadSha256": "0ca3593c617a966257966bd650c22179837a7204dbba047b814a8dbd480df43b"
+ },
+ "sampling": {
+  "excludedTrainingInputCount": 749,
+  "fraudPercent": 15,
+  "quotas": {
+   "final": {
+    "0-30": 64,
+    "31-60": 40,
+    "61-90": 28,
+    "91+": 28
+   },
+   "release": {
+    "0-30": 32,
+    "31-60": 20,
+    "61-90": 14,
+    "91+": 14
+   }
+  },
+  "samplingVersion": 1,
+  "skipped": {
+   "duplicateInputs": 0,
+   "trainingOverlap": 0
+  }
+ },
+ "source": {
+  "archiveBytes": 45622418,
+  "archiveSha256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb",
+  "citation": "Chen, D. (2019). Online Retail II [Dataset]. UCI Machine Learning Repository.",
+  "license": "CC BY 4.0",
+  "name": "Online Retail II",
+  "publisher": "UCI Machine Learning Repository",
+  "url": "https://archive.ics.uci.edu/dataset/502/online+retail+ii"
+ }
+}

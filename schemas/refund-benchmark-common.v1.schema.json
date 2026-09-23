@@ -104,7 +104,7 @@
         "inputSha256": { "$ref": "#/$defs/sha256" },
         "expected": { "$ref": "#/$defs/refundDecision" },
         "origin": {
-          "enum": ["human-authored", "other-held-out"]
+          "enum": ["human-authored", "independent-judge", "other-held-out"]
         }
       }
     },
@@ -124,6 +124,38 @@
         },
         "declaration": {
           "const": "The listed cases are human-authored, were not generated or rewritten by any model or teacher, and are licensed or de-identified for this benchmark."
+        },
+        "evidenceSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "judgeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "interface", "sessionReference"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/nonEmptyString" },
+        "model": { "$ref": "#/$defs/nonEmptyString" },
+        "interface": { "$ref": "#/$defs/nonEmptyString" },
+        "sessionReference": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "judgeAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["judge", "rubricSha256", "attestedAt", "caseIds", "declaration", "evidenceSha256"],
+      "properties": {
+        "judge": { "$ref": "#/$defs/judgeIdentity" },
+        "rubricSha256": { "$ref": "#/$defs/sha256" },
+        "attestedAt": { "$ref": "#/$defs/timestamp" },
+        "caseIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/recordId" }
+        },
+        "declaration": {
+          "const": "The listed cases have expected outputs adjudicated case by case by the named independent model judge under the referenced rubric with a recorded rationale per case; their inputs derive from real, de-identified transactions; neither inputs nor labels were produced by any teacher model used for training, and the judge is not a training teacher for this benchmark."
         },
         "evidenceSha256": { "$ref": "#/$defs/sha256" }
       }
@@ -506,18 +538,19 @@
         "caseCount",
         "correctCount",
         "accuracy",
-        "humanCaseCount",
-        "humanCorrectCount",
-        "humanAccuracy"
+        "attestedCaseCount",
+        "attestedCorrectCount",
+        "attestedAccuracy"
       ],
       "properties": {
         "caseCount": { "type": "integer", "minimum": 1 },
         "correctCount": { "type": "integer", "minimum": 0 },
         "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
-        "humanCaseCount": { "type": "integer", "minimum": 1 },
-        "humanCorrectCount": { "type": "integer", "minimum": 0 },
-        "humanAccuracy": { "type": "number", "minimum": 0, "maximum": 1 }
-      }
+        "attestedCaseCount": { "type": "integer", "minimum": 1 },
+        "attestedCorrectCount": { "type": "integer", "minimum": 0 },
+        "attestedAccuracy": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "$comment": "The attested slice is every case whose origin is human-authored or independent-judge."
     },
     "systemMetrics": {
       "type": "object",

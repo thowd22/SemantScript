@@ -1,0 +1,4845 @@
+{
+ "derivation": {
+  "ageDays": "whole days from the customer's latest earlier positive invoice to the cancellation invoice",
+  "key": "sha256 of a fixed salt plus the cancellation invoice number, first 24 hex characters",
+  "priorRefunds": "the customer's cancellation invoices strictly before this one",
+  "status": "paid for every extracted row",
+  "tier": "enterprise when total positive spend is at or above the 0.8 customer quantile (2957.47)",
+  "total": "that earlier positive invoice's quantity times price, rounded to cents"
+ },
+ "excludedTrainingInputCount": 749,
+ "final": [
+  {
+   "derivation": {
+    "refundedAmount": 15.0,
+    "sourceKey": "00ced06ee96dca7aff053020",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-00ced06ee96dca7aff053020",
+   "inputSha256": "513ab496209654506b02905c767e018402fd24f05bef8340c0c4eb008a5f2da0",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 18,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 127.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 27.35,
+    "sourceKey": "00f90a697560793ca6c4e126",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-00f90a697560793ca6c4e126",
+   "inputSha256": "49f96cd2786d1b9ea78f5d26aac7e8b75f78d25b56e390275e2168e9229d33d8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 471.98
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 247.9,
+    "sourceKey": "00fcd08ec3a811cccf2e6b44",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-00fcd08ec3a811cccf2e6b44",
+   "inputSha256": "eab3f1ec6ebebe728ed900cfdade5d042fd41c5430912fffc0b0e0fc157f2c26",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 247.9
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.9,
+    "sourceKey": "0102fb5e23908862425679ea",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0102fb5e23908862425679ea",
+   "inputSha256": "236e76c92fed4dafbe8e641e24e8c58d111a9954b8e303ca763b5e2bba091b7a",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 167.75
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 20.99,
+    "sourceKey": "01063b311d731718d913c1b0",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01063b311d731718d913c1b0",
+   "inputSha256": "f3fc397d2882bd2409c52316dbb69e4523ca82e7876fa3566131962c6d5cfac2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 1733.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 19.2,
+    "sourceKey": "0118a559d24e7365d2350114",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-0118a559d24e7365d2350114",
+   "inputSha256": "eff6c1d81fc0a0d38bd6e6353ead4f457b6d305b1ac01aa51efbd4ac73ac679c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 19,
+     "status": "fraudulent",
+     "total": 403.2
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 14.95,
+    "sourceKey": "011a27d0d8b3340153ed477c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-011a27d0d8b3340153ed477c",
+   "inputSha256": "e8fbb6a60b72b23a47a4a66ee0d2c5b23d073cb5aef6c2987cc3b7a34a818f99",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 310.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 3.73,
+    "sourceKey": "012d6274ca6f5c44406fe126",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-012d6274ca6f5c44406fe126",
+   "inputSha256": "60fd6770ec117e45d1f54daeafc0defd5008290d65e7a60d6b7a5316f6cbffad",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 518.12
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 29.49,
+    "sourceKey": "01631f04a0019d26be94b989",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01631f04a0019d26be94b989",
+   "inputSha256": "070c8c60f1dc3b1a06d8852b4a9f5fbe3240ed35922908e3d850229b18b4c7bb",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 20,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 5162.74
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 208.8,
+    "sourceKey": "0166247a8c5ce3c9f1f3f5a6",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0166247a8c5ce3c9f1f3f5a6",
+   "inputSha256": "963be37a52ce34d2d77d6ea36dac80ababe60705f8d513fbfac6cef0136378e2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 14,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 262.55
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 63.79,
+    "sourceKey": "01685d20435a4f5ee616d554",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-01685d20435a4f5ee616d554",
+   "inputSha256": "b2f8e999d2e695bf1d90f09aea7082f3a2a3b8830e5e70c59d9c2199d215c286",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "fraudulent",
+     "total": 233.39
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 6.9,
+    "sourceKey": "0171730cb5e4b26315e24113",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0171730cb5e4b26315e24113",
+   "inputSha256": "2bb0f11531e983988970dc844d349e2076c0960f73aa8dffa71697bc04b8a4db",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 112.47
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.65,
+    "sourceKey": "0188600670e922271ff24bff",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0188600670e922271ff24bff",
+   "inputSha256": "27c6ef9453e4f322a645146bd6d1a4232eef45ec47e21ae5d3be0651eb173539",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 6.75
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.95,
+    "sourceKey": "019c369052343383753f41e3",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-019c369052343383753f41e3",
+   "inputSha256": "692c528262762d5bd514814d6132e678398e69e7b62aab2087f1dd02c7d2bb82",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "fraudulent",
+     "total": 686.22
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.0,
+    "sourceKey": "01a9fa0e614e8339bc9a94b2",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-01a9fa0e614e8339bc9a94b2",
+   "inputSha256": "832d3272d711475a0d511566d704903ad051f83fb99c8f645e47f17a5e49decc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "fraudulent",
+     "total": 122.46
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.3,
+    "sourceKey": "01b2ae27093874a818dbd562",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-01b2ae27093874a818dbd562",
+   "inputSha256": "48f4741ac6386ff73a473c5e7b04551858a484575a331281dfcbb2fe08692edd",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "fraudulent",
+     "total": 342.09
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 56.15,
+    "sourceKey": "01c7cb21db260d2652d9972d",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01c7cb21db260d2652d9972d",
+   "inputSha256": "56453b9a2555231ff9eb0f000e8cf0768e0329c053d9ae1f7add6ea9d446a48f",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 405.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.9,
+    "sourceKey": "01d66e9fc04b26273cf5adea",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01d66e9fc04b26273cf5adea",
+   "inputSha256": "292d563bb5541a864900938ba4762edbae52410a1ee2a2055f6da120d0118972",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 3.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.75,
+    "sourceKey": "01d6ceba63dc300d37e05e30",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01d6ceba63dc300d37e05e30",
+   "inputSha256": "ca657c02c08845184119f23fbbb44690bb923f52fd67854034c3682f72dad9a4",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 332.16
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.95,
+    "sourceKey": "01ddaafe017dab8679c0460e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01ddaafe017dab8679c0460e",
+   "inputSha256": "12a1e801bc39d2c726d8da905120b58a2a8ba0f56fb413095cc61e3c6a7f251e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 472.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 21.2,
+    "sourceKey": "01dea008892f99df3e6ab78e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01dea008892f99df3e6ab78e",
+   "inputSha256": "9146715890e44bff0dcdba40344b4ed2d5902347322c1175dc42d7aedc6cfe6a",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 558.59
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 12.45,
+    "sourceKey": "01e2fd58f9a32aac0ef31259",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-01e2fd58f9a32aac0ef31259",
+   "inputSha256": "229fd55010d222dbc6cc4450932f140a0b23db379d8c1d8d84336a1e79663323",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "fraudulent",
+     "total": 541.71
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 107.52,
+    "sourceKey": "01f0f7b47af89245c9b06bb4",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-01f0f7b47af89245c9b06bb4",
+   "inputSha256": "d173de3de40ff9ea538da6ab4f499b88100a2b573badc6527d793effdde1d626",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 534.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 3.18,
+    "sourceKey": "01fce4fd296a3034e5aabe57",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-01fce4fd296a3034e5aabe57",
+   "inputSha256": "b1d3516d19d9f5ecc61edbeb9592c87cb0911dbe2c92aad52d32e589def16d5b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "fraudulent",
+     "total": 251.68
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 11.8,
+    "sourceKey": "0205a39d0072b5866469cf0f",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0205a39d0072b5866469cf0f",
+   "inputSha256": "bf65fdf7038e354211929cc561f272e9890f6ba3df54fe820c47056c91db21f7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 203.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.95,
+    "sourceKey": "021367bb085f1f87da34e6ce",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-021367bb085f1f87da34e6ce",
+   "inputSha256": "20eb2ea97f26897f08ac74c99019eb70d4ec99a04041ab5d92a49a6eafe3f1cc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 19.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.05,
+    "sourceKey": "0217a0b63f35e7f1a593c157",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-0217a0b63f35e7f1a593c157",
+   "inputSha256": "30c0a06e0a488f0cf2796451bf039d7ec161494cd9763ebcba56ecaedec22625",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "fraudulent",
+     "total": 734.24
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 52.0,
+    "sourceKey": "021a74f715673e8b5053bf46",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-021a74f715673e8b5053bf46",
+   "inputSha256": "9fb834e06af4bc82d6618e6f61d99508cb8f1d32117593ec391ae1da8d3b1c8d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "fraudulent",
+     "total": 185.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 5.9,
+    "sourceKey": "021b6423a4921c4c32c320e4",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-021b6423a4921c4c32c320e4",
+   "inputSha256": "adf65c08381ef60499b7be80bd28508ce30e37675ecf9bf74d05592d6b970a7b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 670.88
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.9,
+    "sourceKey": "0225d683d03dff4b960ca42b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0225d683d03dff4b960ca42b",
+   "inputSha256": "064b43fea3ff7d35d02801770ecc5c2c74995e0a9bf24fb50af61767cb9ab722",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 99.75
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.95,
+    "sourceKey": "0226fa46c3e44a5654311aa0",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0226fa46c3e44a5654311aa0",
+   "inputSha256": "13bcd0e8bbf46a5d17dada8ce9c910615134c74ff3ffcb1fd028afbd610a092c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 17,
+     "status": "paid",
+     "total": 320.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 5.95,
+    "sourceKey": "02371921ebaad9b931502f20",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-02371921ebaad9b931502f20",
+   "inputSha256": "6606a4283ad37cc5898f20291109cc54bf13547830ee1add68cba3f416996fec",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 122.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 90.75,
+    "sourceKey": "0248c4d6af775b0a46e6de62",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-0248c4d6af775b0a46e6de62",
+   "inputSha256": "44082e4717f098bce1fd55de0d0c1913f516972d1257355552645068edb755d4",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 23,
+     "status": "fraudulent",
+     "total": 292.75
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 52.46,
+    "sourceKey": "025fbcafff5fa15ab99ba59a",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-025fbcafff5fa15ab99ba59a",
+   "inputSha256": "94c2f58a37fa0b2cc44ac58505ba4bc4eda405661ed83ec443a267e505557841",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 115.6
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 65.47,
+    "sourceKey": "026079261afef39580bd9e01",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-026079261afef39580bd9e01",
+   "inputSha256": "2f5c3832831c2cdd9a8bcd54ad6b56c048d6d2850db2ed4bc762890e59127925",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "fraudulent",
+     "total": 381.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.5,
+    "sourceKey": "026cdcd2f219b2ae0665dd45",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-026cdcd2f219b2ae0665dd45",
+   "inputSha256": "e22aecd136bf71ba3e7addbc7d135c1aa7db67cde991ad84aac62ab3389382a0",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 301.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.95,
+    "sourceKey": "027e155e451dcfd4c885ce12",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-027e155e451dcfd4c885ce12",
+   "inputSha256": "fd1d2ae0b54767fa4a392ce7f74be6922d249ec551de5215b9d20ef6b1bc7b5f",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 42,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 187.11
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 330.34,
+    "sourceKey": "027ea86591891b492b8824d2",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-027ea86591891b492b8824d2",
+   "inputSha256": "858eb1be60f6358957c7834b9c549207b8aa94fbb75c5b280f1edcd9fdaabce8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 103.25
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 16.9,
+    "sourceKey": "0290300d787bf733592d576c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0290300d787bf733592d576c",
+   "inputSha256": "536e067442d4bec563f41792769b014b2b8e16552f6c7d2a45d7f7f86c35c6a9",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 243.35
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 9.9,
+    "sourceKey": "02cd367c3f4aa5ee319cfb6e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-02cd367c3f4aa5ee319cfb6e",
+   "inputSha256": "f0da5188c2475ad866191f02bafea27e85fa06ba3b4cd4245206e7602c3bfe0b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 109.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 38.6,
+    "sourceKey": "03083fcebbb2369853f47c84",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-03083fcebbb2369853f47c84",
+   "inputSha256": "afdf2e44c24991e5d79c4efbce0d795851f1d3b810eb691cd2de7841be56bbb7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 332.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 67.35,
+    "sourceKey": "0358634d8bc9f3cd2cc0790f",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0358634d8bc9f3cd2cc0790f",
+   "inputSha256": "1b08a24d8f04f672c9d482ee931ef652f7efd1e1a0765a0b33e4dbef882f5915",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 474.9
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.0,
+    "sourceKey": "035b35cccb6a9a11bbbe08e1",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-035b35cccb6a9a11bbbe08e1",
+   "inputSha256": "95f8d8747e663f4c8f2fff2880dffb3d24d1c3e1e231b25f9ee4b11633a38010",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 164.25
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 23.7,
+    "sourceKey": "03686059189dd3c37955693e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-03686059189dd3c37955693e",
+   "inputSha256": "19a2a905760784bf11d0fad9b007f18dce45aad039538c99cad5a781ed7e0cb7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 336.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 11.9,
+    "sourceKey": "036b8a01d6dcc16fd834bc70",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-036b8a01d6dcc16fd834bc70",
+   "inputSha256": "62fd94adfbb0eb58f32968135f12090cb1678f01127b3b2cc44d49c00b6a30c5",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 389.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 19.8,
+    "sourceKey": "037237a6e2b90a9d6005e390",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-037237a6e2b90a9d6005e390",
+   "inputSha256": "2af27cce8a9803449f3b916c5198739db5a91b1b8d0b464daf4465bd34650c0e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 338.98
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.7,
+    "sourceKey": "037d724ccdb0bfbef49585d0",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-037d724ccdb0bfbef49585d0",
+   "inputSha256": "53f8be6efab60e6e9fa29bda4177103e5b7a231bf6c894fa15ed0a0512664818",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "fraudulent",
+     "total": 304.3
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 22.0,
+    "sourceKey": "03a4a146d26607928aa9f933",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-03a4a146d26607928aa9f933",
+   "inputSha256": "c590c495fe9fb657c915b3624de63853f493e8d153f7f2277d1f5ce9bc709a4b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 222.53
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 5.95,
+    "sourceKey": "03c770f2098b0f7b2c7d2890",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-03c770f2098b0f7b2c7d2890",
+   "inputSha256": "1e4659540c2711a57e1e1f1781e6af6e39e97f2c94c25a7d49ed67dcda91efc2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 450.52
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.95,
+    "sourceKey": "03d1cf6ff84054ff8c14c05c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-03d1cf6ff84054ff8c14c05c",
+   "inputSha256": "3d58b767b7b9175e334c54762633b5813e33ec7bebe1f1513a443b0650356f9d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 352.53
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 33.8,
+    "sourceKey": "03d22980410563b2f25ff245",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-03d22980410563b2f25ff245",
+   "inputSha256": "10e3354ebdb334b8e1d8fc16d634d1c522f7403fcd6df9bd7519ee13927a5840",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 16,
+     "status": "paid",
+     "total": 762.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.59,
+    "sourceKey": "03e5a5913441a7e76250396b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-03e5a5913441a7e76250396b",
+   "inputSha256": "5a8dcb6a22866d79bec594b7c4074c9d8c9fb2f28bc7b9d79e43ff6ab129507d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 477.32
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.3,
+    "sourceKey": "04b640e4835756b7325b9343",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-04b640e4835756b7325b9343",
+   "inputSha256": "87e85bbafc6a4a41427d6ba6d596a5a839d1bc507584aff9d60881420508590a",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 16,
+     "status": "paid",
+     "total": 306.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 6.35,
+    "sourceKey": "04c04493e2b3a80e6336890e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-04c04493e2b3a80e6336890e",
+   "inputSha256": "c0d4d75688912620347a04abf06081f56949bbebb5fa7941e62ba04bca1bdebc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 124.6
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 21.25,
+    "sourceKey": "04c29b6c5f83126dcb8c5224",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-04c29b6c5f83126dcb8c5224",
+   "inputSha256": "220d409586aefbd17b87e33e6971671a9bbb4553e634d2c635932df55fe710d7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 21.25
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.03,
+    "sourceKey": "04d46fa7f704e931f450ba0b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-04d46fa7f704e931f450ba0b",
+   "inputSha256": "01e7b20e0f4a0c211060cfda05b80afc47a2c18ef35b1eb9555da48a72ba8ea9",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 351.64
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 14.85,
+    "sourceKey": "04dbd3652ad134d52e193283",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-04dbd3652ad134d52e193283",
+   "inputSha256": "cff833f29b407e7a2c5ce0dce3d47e8c0bd171e4a6cf68687ed4dbe90e8fc885",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 161.28
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.95,
+    "sourceKey": "0500114ce75171f1c3b394b3",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-0500114ce75171f1c3b394b3",
+   "inputSha256": "28db270ee72a9866d4c29f5282723c1cbd230d6447f41d3c2874e3d07ae30d65",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "fraudulent",
+     "total": 416.69
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.95,
+    "sourceKey": "0512c7cf78c937d0401138f5",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0512c7cf78c937d0401138f5",
+   "inputSha256": "3ee9468dfd9dfa0febb3b7ce69c53e930d3b09dd5a028aa74d75b388cf352997",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 270.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.7,
+    "sourceKey": "05586df563bd0466b8b7eec2",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-05586df563bd0466b8b7eec2",
+   "inputSha256": "5f16a978a809cc96b052e0e0ee6d5c56432b6251ef0116f30e620acf7fbb250e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 100.16
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 30.75,
+    "sourceKey": "058968f126b1f6da385144ab",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-058968f126b1f6da385144ab",
+   "inputSha256": "8bd1c29f7faffeaf6649437340c63ea616d07bbe011923c649fadebc05973a1c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 1244.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.9,
+    "sourceKey": "061838f180e9e4242313cbb8",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-061838f180e9e4242313cbb8",
+   "inputSha256": "2be99a24e4ceda8ca6a606df7657515d7c4f5c3cfb6cbe1d2a2b0733cd7d88ad",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 217.2
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 8.3,
+    "sourceKey": "0618eab7514707346f179e92",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0618eab7514707346f179e92",
+   "inputSha256": "dfd002d3f6086b4ad7afb2656c6b6d58fa598658e5d17ea80a6383364f067248",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 274.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 100.0,
+    "sourceKey": "061f957d2f26db1288884907",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-061f957d2f26db1288884907",
+   "inputSha256": "eb6fc650d52d578d9ab434702baefad1e322e50869cd057ae9585d47624e047d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 100.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 381.95,
+    "sourceKey": "0bf8565c078ed547d3780b94",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-0bf8565c078ed547d3780b94",
+   "inputSha256": "4b17901552d30051fd64e0b98c57e7fb46910dedfe8b94f933e5dc77f9d51b84",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 12,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 39,
+     "status": "fraudulent",
+     "total": 381.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.2,
+    "sourceKey": "0c2a30fed85e975e3a89b28f",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0c2a30fed85e975e3a89b28f",
+   "inputSha256": "5f0f6e7a7895379669c371a2cc940a2d1388e157a5173409bdcab53cdddf414e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 49,
+     "status": "paid",
+     "total": 1189.94
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 17.9,
+    "sourceKey": "0ce48a1152b196f59c5fb9b6",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0ce48a1152b196f59c5fb9b6",
+   "inputSha256": "17e7588a2b5f0177f0f87188f5b74421df8dbb02940e723db26ce97861727bf2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 18,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 37,
+     "status": "paid",
+     "total": 513.64
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 44.85,
+    "sourceKey": "0e26732c71727a4d946acb31",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0e26732c71727a4d946acb31",
+   "inputSha256": "f9ec5959b4ae76d017c96730685356e1e08f182d8bb7684b70fc215cef266cf7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 44,
+     "status": "paid",
+     "total": 59.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 5.1,
+    "sourceKey": "0e4d774010a318205a4302a7",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0e4d774010a318205a4302a7",
+   "inputSha256": "a9eff2933fe28eb6646ccc8729d4af72b5ea7cc06a91dcca7bdf79b56a5e1d1c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 34,
+     "status": "paid",
+     "total": 252.2
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 20.25,
+    "sourceKey": "0e5d5e5cd821bcb998522692",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0e5d5e5cd821bcb998522692",
+   "inputSha256": "f3fd8dcaaa07285d4aa40ba3a483deec810c262241194839640c8ebcde226907",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 56,
+     "status": "paid",
+     "total": 877.14
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.5,
+    "sourceKey": "0e7fc1eff02d22c5b7906c11",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0e7fc1eff02d22c5b7906c11",
+   "inputSha256": "7a607099ab3467dd5455aa900f75d0ccd61b86b2a54ccdb8d949274ac0002d55",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 35,
+     "status": "paid",
+     "total": 676.36
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 8.5,
+    "sourceKey": "0e90540c65e4e8944cfbd2fd",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0e90540c65e4e8944cfbd2fd",
+   "inputSha256": "ec9b44275aa92d17b0d9c59ab8a09c8a5773101422241cb2ebf431ee6ca3e0ed",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 48,
+     "status": "paid",
+     "total": 125.94
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 48.0,
+    "sourceKey": "0ec427f564a1b5f658504777",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-0ec427f564a1b5f658504777",
+   "inputSha256": "3dfd00f47e31de88f7add3bb5e9618a2b7c92a9e711413deafd5b212cc5f56b6",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 40,
+     "status": "fraudulent",
+     "total": 600.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 51.0,
+    "sourceKey": "0eee2a0a1b03aa51c4582a10",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0eee2a0a1b03aa51c4582a10",
+   "inputSha256": "00b5c44692e5fbd9cf3be16336e65253a8cf179b391ce2fa1205bb02862b0c6e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 576.1
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 16.1,
+    "sourceKey": "0f07f120d7c10bf586e5379a",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-0f07f120d7c10bf586e5379a",
+   "inputSha256": "30291a22cefb9da39658f8ab6944970df68d43d90a55f869f221f638639a8b4c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 34,
+     "status": "paid",
+     "total": 534.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 4.6,
+    "sourceKey": "100c932c6d1b4a7d245a852a",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-100c932c6d1b4a7d245a852a",
+   "inputSha256": "6e9242e51a070725d5edf33905a511e62f3d3bcd968fba588f819e6362277adc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 56,
+     "status": "paid",
+     "total": 327.19
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 8.5,
+    "sourceKey": "1075ace4a56fc4f48ba7f716",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1075ace4a56fc4f48ba7f716",
+   "inputSha256": "0ba4abe6987ecc5485a5c330dbaa917a018dc246079dc37baea622811081950f",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 31,
+     "status": "paid",
+     "total": 7.9
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 9.95,
+    "sourceKey": "10a4eed50177a091e721d4e1",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-10a4eed50177a091e721d4e1",
+   "inputSha256": "4ce711b4d5bdcf8520d9e456d4df414a5d2f1914b01d368b50c256c5d24cb990",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 48,
+     "status": "fraudulent",
+     "total": 394.88
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 25.5,
+    "sourceKey": "10dd931432096eee4ac26610",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-10dd931432096eee4ac26610",
+   "inputSha256": "fd844b3b9ce810f6b883dd79e7e5b9ca4fff8a6999e96f5a8213224cb56ac047",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 1588.16
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 12.75,
+    "sourceKey": "1193f080e526201f563fa8b3",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1193f080e526201f563fa8b3",
+   "inputSha256": "cfb40da03ec3d06afda7c0ee5664679bc26e2f9bb72750c1c54c1df3063f7d4f",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 38,
+     "status": "paid",
+     "total": 2366.12
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 33.9,
+    "sourceKey": "119994e63a7b596bfd4c8a25",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-119994e63a7b596bfd4c8a25",
+   "inputSha256": "8f08adb624a6511c20fb8babce6bcd3faf973358492ecf2bb5d8b2a2df27e39d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 59,
+     "status": "paid",
+     "total": 532.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.95,
+    "sourceKey": "126a534154c27fe2d1425986",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-126a534154c27fe2d1425986",
+   "inputSha256": "e219e77d71981281185bfaa537b47b646f3abe6315fd7c29efb675716fbb180c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 308.3
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 12.75,
+    "sourceKey": "13138bf424bc059f9c77031c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-13138bf424bc059f9c77031c",
+   "inputSha256": "f3dadb5f1a0717e232c52d28beef7e7c3cec01c44ccc86735546e38858bcbdee",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 304.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 102.58,
+    "sourceKey": "134ef7890f84be9d5cefa844",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-134ef7890f84be9d5cefa844",
+   "inputSha256": "e3c1e58c9d241ecdad7f3592e4032d6612dbc3666624c1a3feaff684de3ca5c6",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 69,
+     "status": "paid",
+     "total": 88.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 50.7,
+    "sourceKey": "136f7c293b199bb422da76a8",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-136f7c293b199bb422da76a8",
+   "inputSha256": "66fa1a2e86d8bc243c46fbcbc4d37e9ba45374439df5391c7323315df357cc92",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 55,
+     "status": "paid",
+     "total": 969.74
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 11.6,
+    "sourceKey": "14b381c19dd3f934f7c310fc",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-14b381c19dd3f934f7c310fc",
+   "inputSha256": "f6d8d1b085b20caebdc9bf0abf33db750d313c067ed8811b1ca0cd234358d966",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 150,
+     "status": "paid",
+     "total": 160.08
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.2,
+    "sourceKey": "153e6c30219c6fdf1c76f45a",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-153e6c30219c6fdf1c76f45a",
+   "inputSha256": "99548f85eec0a799ffe4f3bbe500c3782dc13313934156af46c684bdfa6b193a",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 35,
+     "status": "paid",
+     "total": 700.31
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.25,
+    "sourceKey": "154fed5cd52c6bc22825b735",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-154fed5cd52c6bc22825b735",
+   "inputSha256": "e66a7c8b2c78edd90153be9cef00030d65e3abd420022374e7d294429dc6b5fd",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 32,
+     "status": "paid",
+     "total": 962.97
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 23.85,
+    "sourceKey": "1598112fd9c755d08a2b5ad6",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-1598112fd9c755d08a2b5ad6",
+   "inputSha256": "e81d6624a5f69e86ffdb3e67b6a382bf752e91b6e25787bc339e82e9d24d5372",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 34,
+     "status": "fraudulent",
+     "total": 108.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.95,
+    "sourceKey": "15acc94d299558e93355492c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-15acc94d299558e93355492c",
+   "inputSha256": "d202fe529855af3b669ac9fc7ae2f70ba3940b80e66c9aeaeeee0a1bad6d4798",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 40,
+     "status": "paid",
+     "total": 310.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.6,
+    "sourceKey": "1701ff28fcccaf3ca4ebf797",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1701ff28fcccaf3ca4ebf797",
+   "inputSha256": "a31ff6619248db3115f54bee8346bd22fb21a5f69bcd237afad3c59e90241f53",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 67,
+     "status": "paid",
+     "total": 731.6
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.95,
+    "sourceKey": "174ea22fd662cee0f531a91c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-174ea22fd662cee0f531a91c",
+   "inputSha256": "bc6db3f30920252da6f54331763892d2581dd2f3e3a990d0bd23a350c1f64c53",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 76,
+     "status": "paid",
+     "total": 345.99
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.65,
+    "sourceKey": "18366c93d8837200e095fc3d",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-18366c93d8837200e095fc3d",
+   "inputSha256": "f89bcc3fcedbf03c0397cf5ee89f676766b015145945969f11fd63030206157c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 69,
+     "status": "paid",
+     "total": 656.85
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 22.7,
+    "sourceKey": "184fa8420c18bbcdb622def3",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-184fa8420c18bbcdb622def3",
+   "inputSha256": "808cdc3a84b07f057c4f11ddcdedd2f2327726ffd9d5ff455e7af60095e257a0",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 50,
+     "status": "fraudulent",
+     "total": 612.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 27.0,
+    "sourceKey": "18dccc2d6ae10f1399683427",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-18dccc2d6ae10f1399683427",
+   "inputSha256": "6d509bd34646fd3be5df670bd20326ceb43d95b45f4db29718e12c266c161942",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 57,
+     "status": "paid",
+     "total": 291.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 5.9,
+    "sourceKey": "194b4ff63060aae693a02631",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-194b4ff63060aae693a02631",
+   "inputSha256": "6c7993685886c2731485318d939051ace31da367d00060dbd4f42a973431df5e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 45,
+     "status": "paid",
+     "total": 272.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 3.75,
+    "sourceKey": "1a9b44f14069de0852896504",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1a9b44f14069de0852896504",
+   "inputSha256": "2e6f260d2e8ea4915635567227f212ac89d8f0acf2ffc3412d47ee251c1f28da",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 80,
+     "status": "paid",
+     "total": 393.65
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.55,
+    "sourceKey": "1abf7af2deed194bf9ded2db",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1abf7af2deed194bf9ded2db",
+   "inputSha256": "3333d3e7b2b974fa0778599d9a6b101a36fda353922e4e1e4bf6d9ee25cde85e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 43,
+     "status": "paid",
+     "total": 190.9
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 224.7,
+    "sourceKey": "1ae9f2ddb6ad7ae7acae081b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1ae9f2ddb6ad7ae7acae081b",
+   "inputSha256": "363173d5321d143943e722669e6a0fc1de99bde4f6ee35c1af766280b56b1486",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 36,
+     "status": "paid",
+     "total": 635.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 807.02,
+    "sourceKey": "1bab6d43d2ba1d9d7738a6b7",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1bab6d43d2ba1d9d7738a6b7",
+   "inputSha256": "b5e906bddf6c078bc4767f696484b6b439f8a6b3ff0fd896ab76ef804e895c05",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 51,
+     "status": "paid",
+     "total": 807.02
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 128.25,
+    "sourceKey": "1c262e1ecb4ac3b16eac3d99",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1c262e1ecb4ac3b16eac3d99",
+   "inputSha256": "6c72b159d8c95d3635f50debd680665d0b9a7f299ab157914a422ea17f3a4fbc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 32,
+     "status": "paid",
+     "total": 421.26
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 25.5,
+    "sourceKey": "1c7474986a81ca8a5f1bd32a",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1c7474986a81ca8a5f1bd32a",
+   "inputSha256": "6f5783b525935710242ee2a598ce95f98e947da5983e4b26877c89a2b72df6be",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 456,
+     "status": "paid",
+     "total": 217.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 8.5,
+    "sourceKey": "1cd303024d0c864bc28e0414",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-1cd303024d0c864bc28e0414",
+   "inputSha256": "b189771da6fd21771f842703279d0b5fe5832099a22833e85917810ae14bef66",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 167,
+     "status": "fraudulent",
+     "total": 953.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 135.0,
+    "sourceKey": "1d863769726def26d66716a9",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1d863769726def26d66716a9",
+   "inputSha256": "784b717b880ce1a135eefdd11572f5975011a9ed5ab13801e3631cc19be4876c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 61,
+     "status": "paid",
+     "total": 39.12
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 152.64,
+    "sourceKey": "1dd725bffd73453dfe5cb870",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1dd725bffd73453dfe5cb870",
+   "inputSha256": "a498190697ea50da328ca66df8b5d3f68bba91a3397644c250aba3967a97d1b0",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 61,
+     "status": "paid",
+     "total": 465.84
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 5.1,
+    "sourceKey": "1e6c9eebc450a11faee8c405",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1e6c9eebc450a11faee8c405",
+   "inputSha256": "42684a2508251f8c4edb918b559933fca0513e5320931c0c88880296da90370d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 41,
+     "status": "paid",
+     "total": 190.35
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 41.25,
+    "sourceKey": "1ece4ed72ce2e3d9e73caf1c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1ece4ed72ce2e3d9e73caf1c",
+   "inputSha256": "cf6c5a0b5d8d8cc6ef00c3299e623354b8966f43515d1e22761c3575889ba7b2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 83,
+     "status": "paid",
+     "total": 428.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 51.0,
+    "sourceKey": "1f855ce5179407c5b6ba8d06",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1f855ce5179407c5b6ba8d06",
+   "inputSha256": "86c7a5fd789e6945e54a4f4743d83dd4e3b2b82dac69f88a727c0d5c3e4a55f4",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 45,
+     "status": "paid",
+     "total": 309.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 32.1,
+    "sourceKey": "1fa902f87bf5f9aa53812950",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1fa902f87bf5f9aa53812950",
+   "inputSha256": "ea22497ab6e2135f4cf4895258787f116d3ced5972e9075d90d4653ab774960d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 34,
+     "status": "paid",
+     "total": 254.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 148.69,
+    "sourceKey": "1fadde6e8b73f9c09b0bf37a",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1fadde6e8b73f9c09b0bf37a",
+   "inputSha256": "b7e38aeef7534cac9880ab2471a283f3f33b004d5a3d0d08d66f19efadf40cab",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 78,
+     "status": "paid",
+     "total": 48.96
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 21.85,
+    "sourceKey": "1fb5ef521513d1473c0d00fe",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1fb5ef521513d1473c0d00fe",
+   "inputSha256": "186c51ad2941903cd469b468831f84f5a27b20cc8937fcd83beb47de3c37e755",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 67,
+     "status": "paid",
+     "total": 462.75
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 39.2,
+    "sourceKey": "1ffc9860576eee5413488f59",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-1ffc9860576eee5413488f59",
+   "inputSha256": "ddaefbf767359cd3443e8bfcfb893217e5b205aeaa312cef7bfb270fb711cf18",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 59,
+     "status": "paid",
+     "total": 1026.72
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 6.75,
+    "sourceKey": "202f701e31a45f7d3c55fd20",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-202f701e31a45f7d3c55fd20",
+   "inputSha256": "bced73a244db7be9d5b15d7978aa6dd429e0822922341cc5d1bece64dea9ea90",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 46,
+     "status": "fraudulent",
+     "total": 143.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.65,
+    "sourceKey": "205e1f2c23378d3bf4c4185f",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-205e1f2c23378d3bf4c4185f",
+   "inputSha256": "d225cb6c34a1e0d5ad0605d602ba6f1028e9cd1e1848a79d8e03a7e75e5cec8b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 40,
+     "status": "paid",
+     "total": 610.25
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.9,
+    "sourceKey": "2084785ec71772c6ef314bf0",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2084785ec71772c6ef314bf0",
+   "inputSha256": "16af21a2c4542038f90863b66064811490216fa0032a2e715a72b94911630603",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 131,
+     "status": "paid",
+     "total": 137.1
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 11.75,
+    "sourceKey": "221f2748fb79ddf299b5f2d0",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-221f2748fb79ddf299b5f2d0",
+   "inputSha256": "d06a2362e9a10cfac39d7073af6d91058e011a9e2c0aab76d1aba0eb2472c3a1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 149,
+     "status": "paid",
+     "total": 17.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 34.65,
+    "sourceKey": "222f8a57d63472160f4bd457",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-222f8a57d63472160f4bd457",
+   "inputSha256": "e96d124e26b293075671dbf96199c5bed7aa534b65641e397c8b02cf15267762",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 132,
+     "status": "paid",
+     "total": 474.54
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 20.55,
+    "sourceKey": "225039bcd93269bb3e3cefaa",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-225039bcd93269bb3e3cefaa",
+   "inputSha256": "b1e355f6e8f2a729be2f2f6f12140cda0585631e07b06ecf1bdd09ffeff0d588",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 73,
+     "status": "fraudulent",
+     "total": 354.29
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 125.0,
+    "sourceKey": "229b6e067e270a96e89dc3e6",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-229b6e067e270a96e89dc3e6",
+   "inputSha256": "27204993568fef6fe2d5ff39de633f9fd6e49db9ca994b972c49aab17f11c0a1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 107,
+     "status": "paid",
+     "total": 250.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 40.5,
+    "sourceKey": "22a0855e8d103d51c2faffee",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-22a0855e8d103d51c2faffee",
+   "inputSha256": "71df8f39df059b192cec8c503b54625d423fd35f5106e951974a4668cab81257",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 114,
+     "status": "paid",
+     "total": 818.29
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.0,
+    "sourceKey": "22c4bb7b0e25dfc9cd404e66",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-22c4bb7b0e25dfc9cd404e66",
+   "inputSha256": "2239352fe1b0ba35a9496e7ddbd84345b834508a8ce67479911f409f373e4f7f",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 97,
+     "status": "paid",
+     "total": 142.31
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.25,
+    "sourceKey": "22e5d93dfe8e5cbb6af6b098",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-22e5d93dfe8e5cbb6af6b098",
+   "inputSha256": "caa1d0dba1d289b2ec42b53231587795548b26e7d3e8e23aa8301295130be92f",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 62,
+     "status": "fraudulent",
+     "total": 105.08
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 104.85,
+    "sourceKey": "24af59a1a0b19387c706584c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-24af59a1a0b19387c706584c",
+   "inputSha256": "80c1857093c14d73d0e3ed689d1edffee8dc1d30a29b70fddafaf43b6d435887",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 80,
+     "status": "paid",
+     "total": 180.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 20.4,
+    "sourceKey": "24fb10c0add9c7c996dc85f8",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-24fb10c0add9c7c996dc85f8",
+   "inputSha256": "5021fab2926d9ae10e206ad5783b0abe86952e477e7c4416cf0d10000e9244d2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 70,
+     "status": "fraudulent",
+     "total": 897.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.5,
+    "sourceKey": "25bc9796bd3954353c2453c7",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-25bc9796bd3954353c2453c7",
+   "inputSha256": "6ea7b0c52732b9e660a117d0a919e45da4f5c8d110e390b74219a9b6faffbb19",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 34,
+     "status": "paid",
+     "total": 272.76
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.95,
+    "sourceKey": "25e9be56eb8294f523438942",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-25e9be56eb8294f523438942",
+   "inputSha256": "86e2765894664e7e19320269fd0a5ed42d64a1f78c741df340428bedc23621e9",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 130,
+     "status": "fraudulent",
+     "total": 615.64
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 9.95,
+    "sourceKey": "26249e0f630cbd8e9a673581",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-26249e0f630cbd8e9a673581",
+   "inputSha256": "08db9563d64b0704d9a125f64a70f078c8672b718b883b710e2933e9ba79c0ad",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 66,
+     "status": "paid",
+     "total": 847.04
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.95,
+    "sourceKey": "263176e7e69115f86171e640",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-263176e7e69115f86171e640",
+   "inputSha256": "97808f7715e66c25ed4fcb4724277e00b9159d66311063c2a88f58c7a0e24ce2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 66,
+     "status": "fraudulent",
+     "total": 1870.11
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 29.85,
+    "sourceKey": "26a6e69ed54a5f04eb48f1da",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-26a6e69ed54a5f04eb48f1da",
+   "inputSha256": "97ccda7912c32ec2ef2e694418d38a7d104d486339e37d8d2fe722f63f1307d8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 45,
+     "status": "paid",
+     "total": 1340.32
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 5843.7,
+    "sourceKey": "26a99b885175e506ac51129c",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-26a99b885175e506ac51129c",
+   "inputSha256": "6a364804f8db7af6c3cd9475f30ea235e271b73330cd950c3deef5aa79d8002b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 133,
+     "status": "fraudulent",
+     "total": 277.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.25,
+    "sourceKey": "26e7d9e1d520da1c91be7e75",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-26e7d9e1d520da1c91be7e75",
+   "inputSha256": "b4f8f269dfbf143d01f0bbec19da83f21dff9eea9ef856e76560d30588bcf4de",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 93,
+     "status": "fraudulent",
+     "total": 809.58
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 20.25,
+    "sourceKey": "27f8192e79cd2211d5f825f6",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-27f8192e79cd2211d5f825f6",
+   "inputSha256": "8b8fd684d22dd679078b5fa1fbc260430695b696edd2f6b71dbef95fb87fb3ce",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 37,
+     "status": "paid",
+     "total": 382.2
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 8.5,
+    "sourceKey": "29c6d243681ec523260b2be9",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-29c6d243681ec523260b2be9",
+   "inputSha256": "1f7d7475dca3bd2dd90eea32e8820748f194e185afd55039c8e243251045f95c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 105,
+     "status": "fraudulent",
+     "total": 128.13
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 44.65,
+    "sourceKey": "2a22dd6d63d109821991dce0",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2a22dd6d63d109821991dce0",
+   "inputSha256": "0c6e913fb99801457080d5122f0548939b08347291a14025d2cd34129ae7d23e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 61,
+     "status": "paid",
+     "total": 487.3
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 27.0,
+    "sourceKey": "2a3bae163270731adf7c2d80",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2a3bae163270731adf7c2d80",
+   "inputSha256": "fc655825392df05218bda3146dfb69a1d085a1c566388fdecbbb9e95b052bac1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 98,
+     "status": "paid",
+     "total": 287.26
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 20.14,
+    "sourceKey": "2a7b07a644b51f571d5c51b6",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2a7b07a644b51f571d5c51b6",
+   "inputSha256": "12c8cf8346e17399555dbc8b6ae0496af0d2855536ca840999ca733a3b4b76e6",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 141,
+     "status": "paid",
+     "total": 663.96
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 11.75,
+    "sourceKey": "2ac883b3d953961f3fb72cda",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2ac883b3d953961f3fb72cda",
+   "inputSha256": "1b89830cafb7c44e74576e4244f5578fe5168e5e262aa4d2ebf43fdc11153274",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 168,
+     "status": "paid",
+     "total": 183.25
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 59.7,
+    "sourceKey": "2c8deaae7648775f3e77157c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2c8deaae7648775f3e77157c",
+   "inputSha256": "34841c426c3d5f44ee69a7d2e94f7a0f01e8d5684bcc6cff3832c467143f9131",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 64,
+     "status": "paid",
+     "total": 401.49
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.1,
+    "sourceKey": "2ce03cc5ba40ad33b9462446",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2ce03cc5ba40ad33b9462446",
+   "inputSha256": "7f3829bf4bea58ef351b0ae9d7c4eec69bfd5bc66b790d5bc7a2e52e87468eb8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 182,
+     "status": "paid",
+     "total": 183.56
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 8.5,
+    "sourceKey": "2e2c11f18c38f227c58a65b3",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-2e2c11f18c38f227c58a65b3",
+   "inputSha256": "68d229e503fb5f3d393aabc1c9495b13836cbaa35430b299dd2ff9b2f432ed1a",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 259,
+     "status": "fraudulent",
+     "total": 306.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 17.85,
+    "sourceKey": "2ecee0473c722b138fbfe53e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2ecee0473c722b138fbfe53e",
+   "inputSha256": "5e8a6a72df4ed55364ccded6ad642660b274e6278347f9a3f3c7302e711b9c70",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 87,
+     "status": "paid",
+     "total": 326.3
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.75,
+    "sourceKey": "2efce0200dbf6202e3d13bec",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-2efce0200dbf6202e3d13bec",
+   "inputSha256": "9418f5eba91e26fc831a3ec2e56ea6080045bb4ac5801a8f1201cacdb9b472f2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 259,
+     "status": "paid",
+     "total": 4376.25
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 108.0,
+    "sourceKey": "31d03d166cb5f438a5084fa0",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-31d03d166cb5f438a5084fa0",
+   "inputSha256": "96ae3db42d96d0ae437667cbe249e7073b632faa0c2e3659158025d0abc50f8d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 68,
+     "status": "fraudulent",
+     "total": 286.35
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 4.6,
+    "sourceKey": "3217839269c56cde7085cce7",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-3217839269c56cde7085cce7",
+   "inputSha256": "fe4195cbf54b544238db48c28b98d8e89822812e94676e5a59cd9453cafb65c9",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 64,
+     "status": "fraudulent",
+     "total": 224.98
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 152.6,
+    "sourceKey": "3233ca4fa86126d59e2a17d9",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-3233ca4fa86126d59e2a17d9",
+   "inputSha256": "e0143573078a92c14bf12aded66130696d1a2d5db27856dfe20e8f66afb60ff9",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 101,
+     "status": "paid",
+     "total": 514.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1126.0,
+    "sourceKey": "32a0d084c3faad7749a2cc5d",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-32a0d084c3faad7749a2cc5d",
+   "inputSha256": "56d1418c92dd414b040b268774d34a8e8d00a8037f77fe02498603116b645b5a",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 246,
+     "status": "paid",
+     "total": 1126.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 105.42,
+    "sourceKey": "338ed71e031da9b298a0bad9",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-338ed71e031da9b298a0bad9",
+   "inputSha256": "b685821e9f863859c349497c101bbcf3f67df72ccbcfa557e052acf2289218cb",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 92,
+     "status": "paid",
+     "total": 313.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 12.75,
+    "sourceKey": "34a3549aa0b9fa306d79eea8",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-34a3549aa0b9fa306d79eea8",
+   "inputSha256": "96da939baf61793b441d789f513aeb59b20916e21907587dad4af157988fb4b7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 287,
+     "status": "paid",
+     "total": 10.08
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 117.0,
+    "sourceKey": "36ba02d01770745b0a2d9d4d",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-36ba02d01770745b0a2d9d4d",
+   "inputSha256": "cd83e0016b0d9513f554a9df5ee0d7f7c32dc79a43107171f3918db5a91ceecc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 61,
+     "status": "paid",
+     "total": 325.44
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.75,
+    "sourceKey": "36dcaf115805b76b69225072",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-36dcaf115805b76b69225072",
+   "inputSha256": "10a10aa067a4c11e8c561598068c05647e300aac66ea64943a12218afbd3679b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 73,
+     "status": "fraudulent",
+     "total": 169.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2285.31,
+    "sourceKey": "36f27f09f926efd99e831b2b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-36f27f09f926efd99e831b2b",
+   "inputSha256": "c08e2573c2cbe33949366f6278cd2b676adfc64c934df835c4a8bea677678698",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 261,
+     "status": "paid",
+     "total": 1568.87
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 28.75,
+    "sourceKey": "39cdd5b6c1ba3e428bd9d256",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-f-39cdd5b6c1ba3e428bd9d256",
+   "inputSha256": "b7a2462e8d2bd65ddd589cd58e1633a08bcff07f37168862092e98e4dd5b68b0",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 160,
+     "status": "fraudulent",
+     "total": 421.26
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 74.25,
+    "sourceKey": "3a0aa42fca44acb02277d26c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-3a0aa42fca44acb02277d26c",
+   "inputSha256": "d61966e02da2bce64fddcb3140042a8e283b1abdacc725eb0d5cae278d6a2178",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 176,
+     "status": "paid",
+     "total": 299.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 41.35,
+    "sourceKey": "3dcce8ab51036156d4057495",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-3dcce8ab51036156d4057495",
+   "inputSha256": "9b01d431a517645e90b9991309b6fa2ad3ba268767d5626846462b6257b934d1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 102,
+     "status": "paid",
+     "total": 324.05
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 25.15,
+    "sourceKey": "3eaefbb2dae949c0ddf897fd",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-3eaefbb2dae949c0ddf897fd",
+   "inputSha256": "232d59a00cdfa6c54b09b903785304bb57ce36142aacf3b9428609c76969af2c",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 87,
+     "status": "paid",
+     "total": 402.5
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 12.75,
+    "sourceKey": "40934c610ef75a65b05c7bd9",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-40934c610ef75a65b05c7bd9",
+   "inputSha256": "fdc93124bf17019ad6b842937250db0a7ca97e554f9503444b0beb51219f549d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 75,
+     "status": "paid",
+     "total": 97.25
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 14.85,
+    "sourceKey": "45983a264e9b1c67be82b936",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-45983a264e9b1c67be82b936",
+   "inputSha256": "abc9c22350ad95218314618f1911719c0c499f50c934b05ff0f9b98be0d93ead",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 151,
+     "status": "paid",
+     "total": 1552.9
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 3.75,
+    "sourceKey": "486a33a313310600e180e2c5",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-486a33a313310600e180e2c5",
+   "inputSha256": "579bab3bc6b9fe2d58264f0b01d42e5120bca522bba9a413e06a4316d7a1c104",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 63,
+     "status": "paid",
+     "total": 141.36
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 46.2,
+    "sourceKey": "491f176e31a21adcdc81ce26",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-491f176e31a21adcdc81ce26",
+   "inputSha256": "d13703db95bf55226accddb8c0be06d93ae2136d34907713b35c83f35e489ba3",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 65,
+     "status": "paid",
+     "total": 75.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 225.72,
+    "sourceKey": "4aaaacfd62574a23b8503d4b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-f-4aaaacfd62574a23b8503d4b",
+   "inputSha256": "ed0dc788f63f61d66aaac9d9f1c6eaac2a537994e2bf3e774b27e6d20fcfcd13",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 65,
+     "status": "paid",
+     "total": 75.8
+    }
+   }
+  }
+ ],
+ "fraudPercent": 15,
+ "kind": "semantscript.refund-benchmark-uci-heldout-sample",
+ "quotas": {
+  "final": {
+   "0-30": 64,
+   "31-60": 40,
+   "61-90": 28,
+   "91+": 28
+  },
+  "release": {
+   "0-30": 32,
+   "31-60": 20,
+   "61-90": 14,
+   "91+": 14
+  }
+ },
+ "release": [
+  {
+   "derivation": {
+    "refundedAmount": 10.2,
+    "sourceKey": "00074fea52e6a782def50163",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-00074fea52e6a782def50163",
+   "inputSha256": "75bc46f8a5a9c39f618c1dc7962d73b9540b09cd68596a565fd8ba3397886787",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "fraudulent",
+     "total": 802.65
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 16.95,
+    "sourceKey": "000e8068b8939db75015ca02",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-000e8068b8939db75015ca02",
+   "inputSha256": "f96a042de7aa0243b089d8a44d455ebfbfc356073edad09276a164697648bdd8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 143.6
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 35.4,
+    "sourceKey": "001e81f76b95ebb4a35899c7",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-001e81f76b95ebb4a35899c7",
+   "inputSha256": "f867cccd0fb5573f4d50f14543ea4dd8524e0b375cb49afe94e4884a9f2248a4",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 608.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 67.2,
+    "sourceKey": "002f0c98015aae2dc6b39307",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-002f0c98015aae2dc6b39307",
+   "inputSha256": "bf1ddd6daa3da0275d72998f6682675d18ffb719ccc6c10c88a00d05e8d40c55",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 665.1
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 39.5,
+    "sourceKey": "002fb2b242180399ecd58371",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-002fb2b242180399ecd58371",
+   "inputSha256": "7000f20b2aad33166a1792101ca07c0676a1d1489dd7bb0562b8e2602cdc6d05",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 219.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 37.35,
+    "sourceKey": "0045cb1c20890453d04e1b9d",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0045cb1c20890453d04e1b9d",
+   "inputSha256": "e8b1280a803197911dfd484baa618261112ead5c22af9b386a88d4f1d452ac3b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 418.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 12.54,
+    "sourceKey": "004a35e4bc697d35beb3731b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-004a35e4bc697d35beb3731b",
+   "inputSha256": "0cb714451ba91a52dba521e9263069d8910d4c55f3324999f45753941d2350ce",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 223,
+     "status": "paid",
+     "total": 251.56
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 16.95,
+    "sourceKey": "00508328548089a7f9386d60",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00508328548089a7f9386d60",
+   "inputSha256": "9c9fb61144364c9ca160fc27815e89f6cca82d3135589b4b2fcfa5475ae05ec7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 23,
+     "status": "paid",
+     "total": 380.98
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.95,
+    "sourceKey": "005d4ab58ccd73f354865e89",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-005d4ab58ccd73f354865e89",
+   "inputSha256": "058fa46b3b60291aa71ca7fbc2c969bc4294fc4eb82434b52fadeee856afd6dd",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 822.93
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.15,
+    "sourceKey": "006406ac479b5b59e10eab3b",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-006406ac479b5b59e10eab3b",
+   "inputSha256": "ee36ea0eb346fc7dafe9aa66bdec978a3723aed6cc1e2291f03f4154edabef02",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "fraudulent",
+     "total": 379.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2945.38,
+    "sourceKey": "006af9fc661dc40fbd551a98",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-006af9fc661dc40fbd551a98",
+   "inputSha256": "a30a2f642b3d20759d73b02b734d11910c2480a8d7205d94b8117a97da0ae19d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 117,
+     "status": "fraudulent",
+     "total": 613.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 9.9,
+    "sourceKey": "007172d77d7bea5392d99906",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-007172d77d7bea5392d99906",
+   "inputSha256": "d4ab2ebcb8f791ee2f5e0a25d2fb9b4fe4df7e749e900ce74f566dabb60cfa39",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 463.63
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 555.9,
+    "sourceKey": "0072d8634f437539221dbda2",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0072d8634f437539221dbda2",
+   "inputSha256": "4bc7cb7b5a4a08dee6bedb90b5b57ebd298d54290ff663aa9c184307f130b31e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 350,
+     "status": "paid",
+     "total": 326.65
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 8.25,
+    "sourceKey": "00792268e806358913c6d554",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00792268e806358913c6d554",
+   "inputSha256": "29ea5cc3e48fc4d523d07571e58fe6228469d19c25efdb04cfb75b8afaffbb7d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 442.59
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1269.51,
+    "sourceKey": "007f52c77c645b29f45bc6ae",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-007f52c77c645b29f45bc6ae",
+   "inputSha256": "54b2d40bf9f41cd67dc40d1e46b24f756bd950c789e814863a54991c3f94b496",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 621.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 4.95,
+    "sourceKey": "008d1f193b2e403c897360ba",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-008d1f193b2e403c897360ba",
+   "inputSha256": "f99d443a01a22a9b986b2ad95b30d6f73f7c269e3b1c3ce421dfba9a0392e351",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 782.26
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 136.85,
+    "sourceKey": "009394f20bc49b4462bfd97e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-009394f20bc49b4462bfd97e",
+   "inputSha256": "e0598c67b82dd6d6c4d3b2d98409f3029f37eed3c1ece5038592e513a1dbfdd7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 76,
+     "status": "paid",
+     "total": 4.11
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 70.8,
+    "sourceKey": "009acc7fedd80bb78fbac5e0",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-009acc7fedd80bb78fbac5e0",
+   "inputSha256": "2aa55a5e8eecf562dbf8c2e19dd470bff4a55a1f68f6029f53bbccb2c0fc35a1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 610.77
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.56,
+    "sourceKey": "00a5230273df5a4cadc20af0",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-00a5230273df5a4cadc20af0",
+   "inputSha256": "2f7250325273d7350d699bd32976ceda365daf754b446ed37e8e3a27c0ea0b05",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "fraudulent",
+     "total": 388.46
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 608.66,
+    "sourceKey": "00acf18d5add1dd211f6ddb1",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00acf18d5add1dd211f6ddb1",
+   "inputSha256": "38727c0272aa54bbe3e896a1abeea74e37f9f5d3f233188154dc43294a660972",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 4936.65
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 17.4,
+    "sourceKey": "00af89b8edc95ad81142671b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00af89b8edc95ad81142671b",
+   "inputSha256": "4134e0b96f8d8fec6ec10eb5b243a6b22e3fbfd466ece613958049625ad4761d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 14,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 441.18
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.9,
+    "sourceKey": "00afc9a56c293041aeff2abd",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00afc9a56c293041aeff2abd",
+   "inputSha256": "acc60f3b79beecb935223813a13d1533a0b22f8d0c5d0dd0103303d174363502",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 36,
+     "status": "paid",
+     "total": 494.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 29.0,
+    "sourceKey": "00b7fed5e028eba507b116d3",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00b7fed5e028eba507b116d3",
+   "inputSha256": "38a7f2c37a993c565d6516ede34006b65a6a83de0111499f38b29a227f7f35e8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 43,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 213.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 142.2,
+    "sourceKey": "00c03e9400e32e7031f159e3",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00c03e9400e32e7031f159e3",
+   "inputSha256": "7b56d65f09df4df83c0b598f9ffc3e5a29642dc02919d2918d691ed546736fe4",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 263.24
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 152.64,
+    "sourceKey": "00c2adcb07d9dbe42e54b7f7",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-00c2adcb07d9dbe42e54b7f7",
+   "inputSha256": "ddeb88856c8c925bb9a7e299394fe598710e86c069fd0faaff8a6b308afb92dc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 6549.12
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 11.7,
+    "sourceKey": "00c424f0ffcc740ca5779659",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-00c424f0ffcc740ca5779659",
+   "inputSha256": "7ce9196faa3232c7323512cf8e9d2ca57cdbdfe56008e3c338564127c897b468",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "fraudulent",
+     "total": 382.91
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.3,
+    "sourceKey": "0106070f6344d86ccfb61662",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0106070f6344d86ccfb61662",
+   "inputSha256": "9cb3f9a7843564b166d5d12f07c6acade757a6a6e8e33bb9c0a46f03d99858d1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 147.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 7.55,
+    "sourceKey": "01394d55b90fca333b2453fc",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01394d55b90fca333b2453fc",
+   "inputSha256": "9faac40a55dab79d4d5b8e12f9e0b1e3704b178f5736c79255ac1fca3c1675e1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 435.6
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 120.0,
+    "sourceKey": "013a6ea8ef5520b7207e9082",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-013a6ea8ef5520b7207e9082",
+   "inputSha256": "f4fe9ef5497d43255a554bbc694945381add47364348b91cefc59cd7beabce08",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 264.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 20.16,
+    "sourceKey": "01513789339ae3aa50838a15",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01513789339ae3aa50838a15",
+   "inputSha256": "3db55cb8d75854ad57884971229f9fce60bf84f6d85251d9de2d360922a316f2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 145.64
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 30.0,
+    "sourceKey": "01660048e1fdc4810d4fefbc",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01660048e1fdc4810d4fefbc",
+   "inputSha256": "906352f3ca813dd2dbbf45220b1bba62c4419fbbf20c0ae347c385907fee0465",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 27,
+     "status": "paid",
+     "total": 238.65
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 25.5,
+    "sourceKey": "016dac94cb6359e6cb24fbdd",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-016dac94cb6359e6cb24fbdd",
+   "inputSha256": "5ea31751e1d990e33b5f3b6e3ee55409bc25710ff8baa9c5fd6afe6d2bd9bde9",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 267.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 79.6,
+    "sourceKey": "01837c94bd8ea1c7dc90aa4a",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01837c94bd8ea1c7dc90aa4a",
+   "inputSha256": "20b09a9abd96ef2888b67a4b36a96c40d01986bcdb5e13bf641fc729dd3ea84d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 228.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 80.0,
+    "sourceKey": "0189f293863aeb9b6297806e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0189f293863aeb9b6297806e",
+   "inputSha256": "a50e95489bd443ca6046644dc40cfbdba7af2b1ac407a34f84e1a774eb75ac69",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 35,
+     "status": "paid",
+     "total": 1002.26
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 39.6,
+    "sourceKey": "01a43dce4b2f8e1d759b5f18",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01a43dce4b2f8e1d759b5f18",
+   "inputSha256": "b8f35fa54932f9e42e3140062881e9f3e0df34879f2d07e9432958885a4227fe",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 29,
+     "status": "paid",
+     "total": 395.2
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 18.1,
+    "sourceKey": "01aeb192f77cbb080df5942c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01aeb192f77cbb080df5942c",
+   "inputSha256": "58fe573e39396343106acad89208f902a6fd611c2eb06aa5483d51d831682c83",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 305.55
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 14.45,
+    "sourceKey": "01b684ff632337943b5748c5",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01b684ff632337943b5748c5",
+   "inputSha256": "9f3fdd50b42207f7f8d246b3afaa4a1eca2d1bab44cb038c3d7f70a4e3d4111f",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 243.69
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 61.2,
+    "sourceKey": "01b82fbb9251a65d02c9e3e6",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-01b82fbb9251a65d02c9e3e6",
+   "inputSha256": "0f93a4985dffc77ead858b420e9e3181dc93541a7274673966ee3c0b740fed88",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 190.48
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 108.0,
+    "sourceKey": "0258175b52d11a8a8def8058",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0258175b52d11a8a8def8058",
+   "inputSha256": "38291eb219b026d0c803a5ec931e9cc8e78da780128cae4de95cf01fee0c67c3",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 190,
+     "status": "paid",
+     "total": 462.95
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.2,
+    "sourceKey": "02a1cf6b8e57ab59bdf49abe",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-02a1cf6b8e57ab59bdf49abe",
+   "inputSha256": "a7e332f0fe6206e7dc7aa45a7387be2fb8fe87e259f8961bdf8d6a9123ae202b",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 668.65
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.74,
+    "sourceKey": "02afa08bab98b15fd1684411",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-02afa08bab98b15fd1684411",
+   "inputSha256": "22ec1ce27af30fd7fa8ed68df7ee034c665d245315ca81bb78ac7ee22491fce1",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 48,
+     "status": "paid",
+     "total": 179.85
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 54.0,
+    "sourceKey": "02cc4e07043d9f4d940ec165",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-02cc4e07043d9f4d940ec165",
+   "inputSha256": "6446f59442ed4b225a4ffdfe54e4f2a97f3e276ad5119aa37a5aa3ac40f654d7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 77,
+     "status": "paid",
+     "total": 158.79
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 4.95,
+    "sourceKey": "03f3b8e4c8384f83335cc0db",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-03f3b8e4c8384f83335cc0db",
+   "inputSha256": "bb9efe9607fd37dd3033e550160ff28cffc175810cd7ef840b5b6da9aa9b3aa4",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 58,
+     "status": "paid",
+     "total": 125.73
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 79.92,
+    "sourceKey": "0412ac81f095bf5670c337c9",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0412ac81f095bf5670c337c9",
+   "inputSha256": "4c0e13af8b9140a1235053cf06deaccbab1f16e1b7b8a75138b4b4c18ffc5523",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 49,
+     "status": "paid",
+     "total": 237.36
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.3,
+    "sourceKey": "044cc3a952e2a5f4097d5d25",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-044cc3a952e2a5f4097d5d25",
+   "inputSha256": "a64085ca42aaa78b8d09b1fecc0507ba43065ae8fb9edcab41a39d833e25f0c8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 44,
+     "status": "paid",
+     "total": 1943.13
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 10.0,
+    "sourceKey": "0466c9577efe9eb25fa56920",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0466c9577efe9eb25fa56920",
+   "inputSha256": "304f212445edf4465a98e13fa43be0c8ad27b1f082d65bd8923ddb91bcbc5b44",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 42,
+     "status": "paid",
+     "total": 415.94
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.65,
+    "sourceKey": "049484933577f548bd3222f6",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-049484933577f548bd3222f6",
+   "inputSha256": "61c5af9d4b739df51208dd91423b676b010e89ba5fe6b6168557648dbc4eb582",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 61,
+     "status": "paid",
+     "total": 1290.7
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 51.0,
+    "sourceKey": "052cabe9e06fea35bd0c0ba0",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-052cabe9e06fea35bd0c0ba0",
+   "inputSha256": "343e470217e509b150116fa1651e627708e69ead184cf40ebf1c4c867c5d3568",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 85,
+     "status": "paid",
+     "total": 51.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 46.65,
+    "sourceKey": "054585a8164e1ffa09d4e98d",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-054585a8164e1ffa09d4e98d",
+   "inputSha256": "97ab63965968ea49fcce9a92a4eb81e3ac7f35aa09d49bbe2f87dabb3b952c65",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 64,
+     "status": "paid",
+     "total": 524.21
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 24.85,
+    "sourceKey": "0588daec104b8803b0ddb3d8",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0588daec104b8803b0ddb3d8",
+   "inputSha256": "987291126acd2cbf682c516c36551bf3b07186e1ab980871d6ad3f33d5a6e0b4",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 119,
+     "status": "paid",
+     "total": 319.6
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 4.95,
+    "sourceKey": "05f1534987c299465ed65093",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-05f1534987c299465ed65093",
+   "inputSha256": "43c4885f95e51f36649bdd64456aac6e9650014988619b678a4d81a713dcf267",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 37,
+     "status": "paid",
+     "total": 316.73
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 413.4,
+    "sourceKey": "063c0c6a43366cb51e0f774e",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-063c0c6a43366cb51e0f774e",
+   "inputSha256": "8d7bdf4dd67970c089fd9514da4813928594634dd309caa15d74a3838bdb0d51",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 155,
+     "status": "paid",
+     "total": 457.33
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 389.4,
+    "sourceKey": "06e00e4ae078ff91617d1e66",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-06e00e4ae078ff91617d1e66",
+   "inputSha256": "370752ea1d4113638bd0e7d0e2547e5c894b4816344ca0ded84e45bd379ea8f7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 37,
+     "status": "paid",
+     "total": 389.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 17.0,
+    "sourceKey": "06eafb952408987923479e6b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-06eafb952408987923479e6b",
+   "inputSha256": "550eec24b10376b217ca6aa2a3a2f9af80d45dcf1763e4507f01a73f6c70a6a3",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 42,
+     "status": "paid",
+     "total": 369.33
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 3.3,
+    "sourceKey": "0748541420dcca55c567d30b",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0748541420dcca55c567d30b",
+   "inputSha256": "1d1c5946daab84d5da12408464e22611cc55f060dc81203c67531d85c70f4470",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 54,
+     "status": "paid",
+     "total": 308.52
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 411.75,
+    "sourceKey": "082075ef21b179f0786f1552",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-082075ef21b179f0786f1552",
+   "inputSha256": "dca354aa9143ec5bdd5db942d30eeaf3007072a337e55ac705c92833bc054220",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 37,
+     "status": "paid",
+     "total": 225.1
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 17.0,
+    "sourceKey": "083235d72e7dd64393eebbeb",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-083235d72e7dd64393eebbeb",
+   "inputSha256": "aac8cdbba42a4dde9d95fe67a76fe21458a9e18b10e982dcb89dfc768b6d1750",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 179,
+     "status": "fraudulent",
+     "total": 584.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.95,
+    "sourceKey": "086db01f31e5afba6bdc6420",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-086db01f31e5afba6bdc6420",
+   "inputSha256": "986abd170a4b5e14e012b23e1e2353b1dc5f5991ef1914730f805afb6389d8bb",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 85,
+     "status": "paid",
+     "total": 218.45
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 23.4,
+    "sourceKey": "0913bd576d6d258fccb16cc3",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0913bd576d6d258fccb16cc3",
+   "inputSha256": "9015e939ba8ae1874509af1aa5ee300c1a4ab72a76d178122c90bcab0ba655ff",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 126,
+     "status": "paid",
+     "total": 165.78
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 4.95,
+    "sourceKey": "093eb827d042b5521707cd73",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-093eb827d042b5521707cd73",
+   "inputSha256": "04209fa5bf3384aa57a32802c7eeaef41e9d07e23404f544d367f556d671ddc9",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 254.54
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 75.19,
+    "sourceKey": "0986a43881997b63bceef8db",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-0986a43881997b63bceef8db",
+   "inputSha256": "03cbd292f097b95045754c7927d79e1633a7f57a590610402bde1e675b358e35",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 126,
+     "status": "fraudulent",
+     "total": 120.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 40.8,
+    "sourceKey": "09cbce354bfb9c47fa0a0e63",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-09cbce354bfb9c47fa0a0e63",
+   "inputSha256": "f5a3e5964f71cad9fc7cfff17e41890917c601d9ecc6a923602dd0d19f664d55",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 100.8
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 6.75,
+    "sourceKey": "0a4ad370cac07c6c5b452ce4",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0a4ad370cac07c6c5b452ce4",
+   "inputSha256": "9694ce7000c19faeb131f87ee5ed7237bfa099b54e0e0d7dc9347c0345ee6706",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 71,
+     "status": "paid",
+     "total": 498.67
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 256.7,
+    "sourceKey": "0a897360b60d9ee85e6695ea",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0a897360b60d9ee85e6695ea",
+   "inputSha256": "81f1fababe7c50c364e94c252c49830088e5d98110cc2dc96d923e3c99022482",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 67,
+     "status": "paid",
+     "total": 1444.05
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.3,
+    "sourceKey": "0ab550feca4d0d140817cb01",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-0ab550feca4d0d140817cb01",
+   "inputSha256": "c9c3f2f6227a8db86e419cf0380b69e5b7810895a5eea457f6673172882648e7",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 68,
+     "status": "fraudulent",
+     "total": 613.91
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 52.45,
+    "sourceKey": "0ad3ffecaba8e03835db59c8",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0ad3ffecaba8e03835db59c8",
+   "inputSha256": "2ac189ed85764c38e67867116d1849fa8ed6cb7800624c0867e96e0969a513d2",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 57,
+     "status": "paid",
+     "total": 315.72
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.95,
+    "sourceKey": "0b1db3bbc2ba7f7383a2b1b2",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0b1db3bbc2ba7f7383a2b1b2",
+   "inputSha256": "84af76ce790a1964f00f0048bff0ebf5483d17aa6c835e72e898348ffe57c4dd",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 38,
+     "status": "paid",
+     "total": 1554.6
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 38.6,
+    "sourceKey": "0c092e4dde61ddb545c9536c",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0c092e4dde61ddb545c9536c",
+   "inputSha256": "51dc556be72b5fac2fa520bea2bc6406e5c0c1bbfaf03fdcd74080e431dfce32",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 67,
+     "status": "paid",
+     "total": 854.72
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.55,
+    "sourceKey": "0c7b389d6defe6fd8b9a9441",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-0c7b389d6defe6fd8b9a9441",
+   "inputSha256": "d251d26a055c76163c29bfb48e4e2167946dd6863d62e70149309e8998ab8989",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 41,
+     "status": "fraudulent",
+     "total": 189.31
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 35.4,
+    "sourceKey": "0cd1ecdc8d4aec117b060763",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0cd1ecdc8d4aec117b060763",
+   "inputSha256": "534d77f353c86cdafe8bad98d5a13b9b0851e47ee2154d33ddf952bffe060eee",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 62,
+     "status": "paid",
+     "total": 743.79
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 33.2,
+    "sourceKey": "0d330ffbf5acedf489ec3daa",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0d330ffbf5acedf489ec3daa",
+   "inputSha256": "9b7d2dc76d05337e5191cc28371adb8fefd61b2f5c13486df92fe3f24080cba8",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 48,
+     "status": "paid",
+     "total": 1090.14
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 13.41,
+    "sourceKey": "0d3a01979bd1a2e640194381",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-0d3a01979bd1a2e640194381",
+   "inputSha256": "6724a6cb4d855a70ed07a697ee79d7a7dc84e62a2ec2983b8a2845d3ae1c0a7d",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 87,
+     "status": "fraudulent",
+     "total": 304.53
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 15.0,
+    "sourceKey": "0db9a757628906dc0959eeda",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-0db9a757628906dc0959eeda",
+   "inputSha256": "f3f73793740dedacd21ebcce000a591350a41bcc0d5601504c07f22939ddd72e",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 99,
+     "status": "fraudulent",
+     "total": 15.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1.45,
+    "sourceKey": "0dd952aee22ee9c203c7770f",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0dd952aee22ee9c203c7770f",
+   "inputSha256": "218eff005293c0b6f52aadd9a3b2aae043506053b4512c01ed7404c3a0e66fbc",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 64,
+     "status": "paid",
+     "total": 15.0
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 1700.4,
+    "sourceKey": "0dec991022284c2277d38304",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-0dec991022284c2277d38304",
+   "inputSha256": "2d83d17df1bcd13a86bd6364a4079853008014dfb1264a9aeb75f61f95c10094",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 51,
+     "status": "paid",
+     "total": 2300.4
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 66.27,
+    "sourceKey": "0f28edfc32827a50a2c848c6",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-0f28edfc32827a50a2c848c6",
+   "inputSha256": "3c763210b2cb93f0f526bd10f114fa0c358146144c7d6fd2877da24cf6e25985",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 75,
+     "status": "fraudulent",
+     "total": 549.77
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 2.95,
+    "sourceKey": "0f9607aac476fbca55f3609b",
+    "statusSetToFraudulentByJudge": true
+   },
+   "id": "uci-r-0f9607aac476fbca55f3609b",
+   "inputSha256": "3df62bd8447d320bcbf1dd28a5b090992a6f054e6f2308b675c5d98719690f56",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 147,
+     "status": "fraudulent",
+     "total": 302.67
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 17.37,
+    "sourceKey": "105fed8f5775116a42fa5498",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-105fed8f5775116a42fa5498",
+   "inputSha256": "6926d732e034d2a8bbb18cd899f12ef7bb8c2acea579752aa1e58bd410804059",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 127,
+     "status": "paid",
+     "total": 453.59
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 32.75,
+    "sourceKey": "149546bdae47dfad7e710245",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-149546bdae47dfad7e710245",
+   "inputSha256": "82527ca50b07e599bc9d7ff93e873139dbb20565e679b0f744637d8f544488e6",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 123,
+     "status": "paid",
+     "total": 313.59
+    }
+   }
+  },
+  {
+   "derivation": {
+    "refundedAmount": 12.75,
+    "sourceKey": "21df64e5c5d4d97a5d5cccc5",
+    "statusSetToFraudulentByJudge": false
+   },
+   "id": "uci-r-21df64e5c5d4d97a5d5cccc5",
+   "inputSha256": "a378c01810de001c2e6f3940a01d4f3c6835ed8040e763a71e371a6aefddc496",
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 141,
+     "status": "paid",
+     "total": 622.81
+    }
+   }
+  }
+ ],
+ "samplingVersion": 1,
+ "skipped": {
+  "duplicateInputs": 0,
+  "trainingOverlap": 0
+ },
+ "source": {
+  "archiveBytes": 45622418,
+  "archiveSha256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb",
+  "citation": "Chen, D. (2019). Online Retail II [Dataset]. UCI Machine Learning Repository.",
+  "license": "CC BY 4.0",
+  "name": "Online Retail II",
+  "publisher": "UCI Machine Learning Repository",
+  "url": "https://archive.ics.uci.edu/dataset/502/online+retail+ii"
+ }
+}

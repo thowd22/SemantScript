@@ -1,0 +1,1227 @@
+{
+ "adjudicatedAt": "2026-09-23T21:45:49Z",
+ "adjudicationVersion": 1,
+ "cases": {
+  "uci-f-00ced06ee96dca7aff053020": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 18 >= 5)",
+   "step": 4
+  },
+  "uci-f-00f90a697560793ca6c4e126": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 1 days inside the enterprise window of 60, priorRefunds 3, total 471.98, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-00fcd08ec3a811cccf2e6b44": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 7 days inside the enterprise window of 60, priorRefunds 0, total 247.9, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0102fb5e23908862425679ea": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 12 days inside the enterprise window of 60, priorRefunds 0, total 167.75, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-01063b311d731718d913c1b0": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 6 >= 5; priorRefunds 6 >= 3 on total 1733.5 >= 1000)",
+   "step": 4
+  },
+  "uci-f-0118a559d24e7365d2350114": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 19 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-011a27d0d8b3340153ed477c": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 3 days inside the enterprise window of 60, priorRefunds 2, total 310.48, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-012d6274ca6f5c44406fe126": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 15 days inside the enterprise window of 60, priorRefunds 4, total 518.12, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-01631f04a0019d26be94b989": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 20 >= 5; priorRefunds 20 >= 3 on total 5162.74 >= 1000; total 5162.74 >= 5000)",
+   "step": 4
+  },
+  "uci-f-0166247a8c5ce3c9f1f3f5a6": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 14 >= 5)",
+   "step": 4
+  },
+  "uci-f-01685d20435a4f5ee616d554": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 1 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-0171730cb5e4b26315e24113": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the enterprise window of 60, priorRefunds 1, total 112.47, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0188600670e922271ff24bff": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 9 days inside the enterprise window of 60, priorRefunds 1, total 6.75, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-019c369052343383753f41e3": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 0 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-01a9fa0e614e8339bc9a94b2": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 3 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-01b2ae27093874a818dbd562": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 3 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-01c7cb21db260d2652d9972d": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 4 days inside the standard window of 30, priorRefunds 0, total 405.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-01d66e9fc04b26273cf5adea": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the enterprise window of 60, priorRefunds 1, total 3.95, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-01d6ceba63dc300d37e05e30": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 6 days inside the standard window of 30, priorRefunds 1, total 332.16, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-01ddaafe017dab8679c0460e": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 5 >= 5)",
+   "step": 4
+  },
+  "uci-f-01dea008892f99df3e6ab78e": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 9 days inside the enterprise window of 60, priorRefunds 1, total 558.59, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-01e2fd58f9a32aac0ef31259": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 6 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-01f0f7b47af89245c9b06bb4": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the enterprise window of 60, priorRefunds 2, total 534.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-01fce4fd296a3034e5aabe57": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 0 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-0205a39d0072b5866469cf0f": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 4 days inside the enterprise window of 60, priorRefunds 2, total 203.8, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-021367bb085f1f87da34e6ce": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 22 days inside the enterprise window of 60, priorRefunds 2, total 19.95, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0217a0b63f35e7f1a593c157": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 5 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-021a74f715673e8b5053bf46": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 6 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-021b6423a4921c4c32c320e4": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 6 days inside the standard window of 30, priorRefunds 0, total 670.88, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0225d683d03dff4b960ca42b": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 6 days inside the enterprise window of 60, priorRefunds 4, total 99.75, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0226fa46c3e44a5654311aa0": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 17 days inside the standard window of 30, priorRefunds 0, total 320.95, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-02371921ebaad9b931502f20": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 4 days inside the standard window of 30, priorRefunds 0, total 122.4, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0248c4d6af775b0a46e6de62": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 23 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-025fbcafff5fa15ab99ba59a": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 21 days inside the enterprise window of 60, priorRefunds 2, total 115.6, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-026079261afef39580bd9e01": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 8 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-026cdcd2f219b2ae0665dd45": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 1 days inside the standard window of 30, priorRefunds 0, total 301.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-027e155e451dcfd4c885ce12": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 42 >= 5)",
+   "step": 4
+  },
+  "uci-f-027ea86591891b492b8824d2": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the enterprise window of 60, priorRefunds 1, total 103.25, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0290300d787bf733592d576c": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 8 days inside the standard window of 30, priorRefunds 0, total 243.35, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-02cd367c3f4aa5ee319cfb6e": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 9 days inside the standard window of 30, priorRefunds 1, total 109.4, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-03083fcebbb2369853f47c84": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 13 days inside the standard window of 30, priorRefunds 0, total 332.7, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0358634d8bc9f3cd2cc0790f": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 3 days inside the standard window of 30, priorRefunds 0, total 474.9, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-035b35cccb6a9a11bbbe08e1": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 6 days inside the standard window of 30, priorRefunds 2, total 164.25, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-03686059189dd3c37955693e": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 21 days inside the standard window of 30, priorRefunds 3, total 336.4, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-036b8a01d6dcc16fd834bc70": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 10 days inside the standard window of 30, priorRefunds 0, total 389.5, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-037237a6e2b90a9d6005e390": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 2 days inside the standard window of 30, priorRefunds 0, total 338.98, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-037d724ccdb0bfbef49585d0": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 6 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-03a4a146d26607928aa9f933": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 7 days inside the standard window of 30, priorRefunds 2, total 222.53, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-03c770f2098b0f7b2c7d2890": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 7 days inside the standard window of 30, priorRefunds 1, total 450.52, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-03d1cf6ff84054ff8c14c05c": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 1 days inside the standard window of 30, priorRefunds 0, total 352.53, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-03d22980410563b2f25ff245": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 16 days inside the standard window of 30, priorRefunds 0, total 762.48, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-03e5a5913441a7e76250396b": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 4 days inside the standard window of 30, priorRefunds 0, total 477.32, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-04b640e4835756b7325b9343": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 16 days inside the standard window of 30, priorRefunds 2, total 306.95, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-04c04493e2b3a80e6336890e": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 4 days inside the standard window of 30, priorRefunds 2, total 124.6, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-04c29b6c5f83126dcb8c5224": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the standard window of 30, priorRefunds 4, total 21.25, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-04d46fa7f704e931f450ba0b": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 7 days inside the standard window of 30, priorRefunds 4, total 351.64, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-04dbd3652ad134d52e193283": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 2 days inside the standard window of 30, priorRefunds 0, total 161.28, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0500114ce75171f1c3b394b3": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 8 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-0512c7cf78c937d0401138f5": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 1 days inside the standard window of 30, priorRefunds 0, total 270.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-05586df563bd0466b8b7eec2": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 2 days inside the standard window of 30, priorRefunds 0, total 100.16, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-058968f126b1f6da385144ab": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 7 days inside the standard window of 30, priorRefunds 1, total 1244.7, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-061838f180e9e4242313cbb8": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 5 days inside the standard window of 30, priorRefunds 0, total 217.2, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0618eab7514707346f179e92": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 15 days inside the standard window of 30, priorRefunds 2, total 274.4, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-061f957d2f26db1288884907": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the standard window of 30, priorRefunds 0, total 100.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0bf8565c078ed547d3780b94": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 39 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-0c2a30fed85e975e3a89b28f": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 49 days inside the enterprise window of 60, priorRefunds 1, total 1189.94, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0ce48a1152b196f59c5fb9b6": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 18 >= 5)",
+   "step": 4
+  },
+  "uci-f-0e26732c71727a4d946acb31": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 7 >= 5)",
+   "step": 4
+  },
+  "uci-f-0e4d774010a318205a4302a7": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 34 days inside the enterprise window of 60, priorRefunds 0, total 252.2, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0e5d5e5cd821bcb998522692": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 56 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-0e7fc1eff02d22c5b7906c11": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 5 >= 5)",
+   "step": 4
+  },
+  "uci-f-0e90540c65e4e8944cfbd2fd": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 48 days inside the enterprise window of 60, priorRefunds 1, total 125.94, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0ec427f564a1b5f658504777": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 40 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-0eee2a0a1b03aa51c4582a10": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 33 days inside the enterprise window of 60, priorRefunds 2, total 576.1, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-0f07f120d7c10bf586e5379a": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 34 days inside the enterprise window of 60, priorRefunds 0, total 534.7, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-100c932c6d1b4a7d245a852a": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 56 days inside the enterprise window of 60, priorRefunds 0, total 327.19, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-1075ace4a56fc4f48ba7f716": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 31 days inside the enterprise window of 60, priorRefunds 4, total 7.9, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-10a4eed50177a091e721d4e1": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 48 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-10dd931432096eee4ac26610": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 4 >= 3 on total 1588.16 >= 1000)",
+   "step": 4
+  },
+  "uci-f-1193f080e526201f563fa8b3": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 38 days inside the enterprise window of 60, priorRefunds 1, total 2366.12, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-119994e63a7b596bfd4c8a25": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 59 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-126a534154c27fe2d1425986": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 33 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-13138bf424bc059f9c77031c": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 33 days inside the enterprise window of 60, priorRefunds 3, total 304.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-134ef7890f84be9d5cefa844": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 69 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-136f7c293b199bb422da76a8": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 55 days inside the enterprise window of 60, priorRefunds 3, total 969.74, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-14b381c19dd3f934f7c310fc": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 150 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-153e6c30219c6fdf1c76f45a": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 35 days inside the enterprise window of 60, priorRefunds 3, total 700.31, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-154fed5cd52c6bc22825b735": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 32 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1598112fd9c755d08a2b5ad6": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 34 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-15acc94d299558e93355492c": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 40 days inside the enterprise window of 60, priorRefunds 2, total 310.8, no suspicious signal",
+   "step": 5
+  },
+  "uci-f-1701ff28fcccaf3ca4ebf797": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 67 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-174ea22fd662cee0f531a91c": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 76 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-18366c93d8837200e095fc3d": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 69 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-184fa8420c18bbcdb622def3": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 50 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-18dccc2d6ae10f1399683427": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 57 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-194b4ff63060aae693a02631": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 45 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1a9b44f14069de0852896504": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 80 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-1abf7af2deed194bf9ded2db": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 43 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1ae9f2ddb6ad7ae7acae081b": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 36 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1bab6d43d2ba1d9d7738a6b7": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 51 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1c262e1ecb4ac3b16eac3d99": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 32 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1c7474986a81ca8a5f1bd32a": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 456 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-1cd303024d0c864bc28e0414": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 167 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-1d863769726def26d66716a9": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 61 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1dd725bffd73453dfe5cb870": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 61 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-1e6c9eebc450a11faee8c405": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 41 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1ece4ed72ce2e3d9e73caf1c": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 83 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1f855ce5179407c5b6ba8d06": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 45 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1fa902f87bf5f9aa53812950": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 34 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1fadde6e8b73f9c09b0bf37a": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 78 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1fb5ef521513d1473c0d00fe": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 67 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-1ffc9860576eee5413488f59": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 59 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-202f701e31a45f7d3c55fd20": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 46 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-205e1f2c23378d3bf4c4185f": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 40 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-2084785ec71772c6ef314bf0": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 131 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-221f2748fb79ddf299b5f2d0": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 149 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-222f8a57d63472160f4bd457": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 132 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-225039bcd93269bb3e3cefaa": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 73 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-229b6e067e270a96e89dc3e6": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 107 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-22a0855e8d103d51c2faffee": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 114 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-22c4bb7b0e25dfc9cd404e66": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 97 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-22e5d93dfe8e5cbb6af6b098": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 62 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-24af59a1a0b19387c706584c": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 80 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-24fb10c0add9c7c996dc85f8": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 70 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-25bc9796bd3954353c2453c7": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 34 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-25e9be56eb8294f523438942": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 130 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-26249e0f630cbd8e9a673581": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 66 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-263176e7e69115f86171e640": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 66 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-26a6e69ed54a5f04eb48f1da": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 45 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-26a99b885175e506ac51129c": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 133 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-26e7d9e1d520da1c91be7e75": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 93 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-27f8192e79cd2211d5f825f6": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 37 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-29c6d243681ec523260b2be9": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 105 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-2a22dd6d63d109821991dce0": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 61 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-2a3bae163270731adf7c2d80": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 98 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-2a7b07a644b51f571d5c51b6": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 141 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-2ac883b3d953961f3fb72cda": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 168 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-2c8deaae7648775f3e77157c": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 64 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-2ce03cc5ba40ad33b9462446": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 182 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-2e2c11f18c38f227c58a65b3": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 259 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-2ecee0473c722b138fbfe53e": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 87 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-f-2efce0200dbf6202e3d13bec": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 259 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-31d03d166cb5f438a5084fa0": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 68 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-3217839269c56cde7085cce7": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 64 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-3233ca4fa86126d59e2a17d9": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 101 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-32a0d084c3faad7749a2cc5d": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 246 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-338ed71e031da9b298a0bad9": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 92 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-34a3549aa0b9fa306d79eea8": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 287 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-36ba02d01770745b0a2d9d4d": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 61 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-36dcaf115805b76b69225072": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 73 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-f-36f27f09f926efd99e831b2b": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 261 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-39cdd5b6c1ba3e428bd9d256": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 160 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-3a0aa42fca44acb02277d26c": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 176 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-3dcce8ab51036156d4057495": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 102 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-3eaefbb2dae949c0ddf897fd": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 87 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-40934c610ef75a65b05c7bd9": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 75 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-45983a264e9b1c67be82b936": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 151 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-f-486a33a313310600e180e2c5": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 63 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-491f176e31a21adcdc81ce26": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 65 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-f-4aaaacfd62574a23b8503d4b": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 65 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-00074fea52e6a782def50163": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 3 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-000e8068b8939db75015ca02": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 9 days inside the standard window of 30, priorRefunds 0, total 143.6, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-001e81f76b95ebb4a35899c7": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 5 >= 5)",
+   "step": 4
+  },
+  "uci-r-002f0c98015aae2dc6b39307": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 2 days inside the enterprise window of 60, priorRefunds 0, total 665.1, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-002fb2b242180399ecd58371": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the enterprise window of 60, priorRefunds 3, total 219.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-0045cb1c20890453d04e1b9d": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 13 days inside the standard window of 30, priorRefunds 0, total 418.7, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-004a35e4bc697d35beb3731b": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 223 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-00508328548089a7f9386d60": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 23 days inside the enterprise window of 60, priorRefunds 2, total 380.98, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-005d4ab58ccd73f354865e89": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 7 days inside the enterprise window of 60, priorRefunds 1, total 822.93, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-006406ac479b5b59e10eab3b": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 6 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-006af9fc661dc40fbd551a98": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 117 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-007172d77d7bea5392d99906": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 9 days inside the standard window of 30, priorRefunds 0, total 463.63, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-0072d8634f437539221dbda2": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 350 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-00792268e806358913c6d554": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 15 days inside the enterprise window of 60, priorRefunds 0, total 442.59, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-007f52c77c645b29f45bc6ae": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 13 days inside the enterprise window of 60, priorRefunds 1, total 621.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-008d1f193b2e403c897360ba": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 6 days inside the standard window of 30, priorRefunds 1, total 782.26, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-009394f20bc49b4462bfd97e": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 76 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-009acc7fedd80bb78fbac5e0": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 8 >= 5)",
+   "step": 4
+  },
+  "uci-r-00a5230273df5a4cadc20af0": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 0 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-00acf18d5add1dd211f6ddb1": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 5 >= 5; priorRefunds 5 >= 3 on total 4936.65 >= 1000; same-day cancellation of total 4936.65 with priorRefunds 5)",
+   "step": 4
+  },
+  "uci-r-00af89b8edc95ad81142671b": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 14 >= 5)",
+   "step": 4
+  },
+  "uci-r-00afc9a56c293041aeff2abd": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 36 days inside the enterprise window of 60, priorRefunds 0, total 494.48, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-00b7fed5e028eba507b116d3": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 43 >= 5)",
+   "step": 4
+  },
+  "uci-r-00c03e9400e32e7031f159e3": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the enterprise window of 60, priorRefunds 1, total 263.24, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-00c2adcb07d9dbe42e54b7f7": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 7 >= 5; priorRefunds 7 >= 3 on total 6549.12 >= 1000; total 6549.12 >= 5000)",
+   "step": 4
+  },
+  "uci-r-00c424f0ffcc740ca5779659": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 2 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-0106070f6344d86ccfb61662": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 9 days inside the standard window of 30, priorRefunds 3, total 147.4, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-01394d55b90fca333b2453fc": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 5 days inside the standard window of 30, priorRefunds 0, total 435.6, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-013a6ea8ef5520b7207e9082": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 2 days inside the standard window of 30, priorRefunds 0, total 264.0, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-01513789339ae3aa50838a15": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the standard window of 30, priorRefunds 0, total 145.64, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-01660048e1fdc4810d4fefbc": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 27 days inside the standard window of 30, priorRefunds 0, total 238.65, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-016dac94cb6359e6cb24fbdd": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 9 days inside the standard window of 30, priorRefunds 0, total 267.8, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-01837c94bd8ea1c7dc90aa4a": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 6 days inside the standard window of 30, priorRefunds 2, total 228.7, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-0189f293863aeb9b6297806e": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 35 days inside the enterprise window of 60, priorRefunds 1, total 1002.26, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-01a43dce4b2f8e1d759b5f18": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 29 days inside the standard window of 30, priorRefunds 2, total 395.2, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-01aeb192f77cbb080df5942c": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 5 >= 5)",
+   "step": 4
+  },
+  "uci-r-01b684ff632337943b5748c5": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 8 days inside the standard window of 30, priorRefunds 0, total 243.69, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-01b82fbb9251a65d02c9e3e6": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 0 days inside the standard window of 30, priorRefunds 0, total 190.48, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-0258175b52d11a8a8def8058": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 190 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-02a1cf6b8e57ab59bdf49abe": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 33 days inside the enterprise window of 60, priorRefunds 3, total 668.65, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-02afa08bab98b15fd1684411": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 48 days inside the enterprise window of 60, priorRefunds 1, total 179.85, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-02cc4e07043d9f4d940ec165": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 77 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-03f3b8e4c8384f83335cc0db": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 58 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0412ac81f095bf5670c337c9": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 49 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-044cc3a952e2a5f4097d5d25": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 44 days inside the enterprise window of 60, priorRefunds 2, total 1943.13, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-0466c9577efe9eb25fa56920": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 42 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-049484933577f548bd3222f6": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 61 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-r-052cabe9e06fea35bd0c0ba0": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 85 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-054585a8164e1ffa09d4e98d": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 64 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-r-0588daec104b8803b0ddb3d8": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 119 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-05f1534987c299465ed65093": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 37 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-063c0c6a43366cb51e0f774e": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 155 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-06e00e4ae078ff91617d1e66": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 37 days inside the enterprise window of 60, priorRefunds 3, total 389.4, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-06eafb952408987923479e6b": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 8 >= 5)",
+   "step": 4
+  },
+  "uci-r-0748541420dcca55c567d30b": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 54 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-082075ef21b179f0786f1552": {
+   "expected": "approve",
+   "rationale": "step 5: paid, aged 37 days inside the enterprise window of 60, priorRefunds 0, total 225.1, no suspicious signal",
+   "step": 5
+  },
+  "uci-r-083235d72e7dd64393eebbeb": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 179 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-086db01f31e5afba6bdc6420": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 85 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0913bd576d6d258fccb16cc3": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 126 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-093eb827d042b5521707cd73": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 5 >= 5)",
+   "step": 4
+  },
+  "uci-r-0986a43881997b63bceef8db": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 126 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-09cbce354bfb9c47fa0a0e63": {
+   "expected": "review",
+   "rationale": "step 4: inside the window but suspicious (priorRefunds 5 >= 5)",
+   "step": 4
+  },
+  "uci-r-0a4ad370cac07c6c5b452ce4": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 71 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0a897360b60d9ee85e6695ea": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 67 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-r-0ab550feca4d0d140817cb01": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 68 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-0ad3ffecaba8e03835db59c8": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 57 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0b1db3bbc2ba7f7383a2b1b2": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 38 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0c092e4dde61ddb545c9536c": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 67 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-r-0c7b389d6defe6fd8b9a9441": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 41 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-0cd1ecdc8d4aec117b060763": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 62 days is outside the enterprise window of 60",
+   "step": 3
+  },
+  "uci-r-0d330ffbf5acedf489ec3daa": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 48 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0d3a01979bd1a2e640194381": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 87 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-0db9a757628906dc0959eeda": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 99 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-0dd952aee22ee9c203c7770f": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 64 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0dec991022284c2277d38304": {
+   "expected": "deny",
+   "rationale": "step 3: paid order aged 51 days is outside the standard window of 30",
+   "step": 3
+  },
+  "uci-r-0f28edfc32827a50a2c848c6": {
+   "expected": "review",
+   "rationale": "step 2: fraudulent status with ageDays 75 <= 90 is a suspicious circumstance, never approve",
+   "step": 2
+  },
+  "uci-r-0f9607aac476fbca55f3609b": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 147 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-105fed8f5775116a42fa5498": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 127 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-149546bdae47dfad7e710245": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 123 > 90, always-deny constraint decides",
+   "step": 1
+  },
+  "uci-r-21df64e5c5d4d97a5d5cccc5": {
+   "expected": "deny",
+   "rationale": "step 1: ageDays 141 > 90, always-deny constraint decides",
+   "step": 1
+  }
+ },
+ "counts": {
+  "final": {
+   "approve": 57,
+   "deny": 67,
+   "review": 36
+  },
+  "release": {
+   "approve": 28,
+   "deny": 34,
+   "review": 18
+  }
+ },
+ "judge": {
+  "interface": "claude-code-interactive-session",
+  "model": "claude-fable-5-1",
+  "provider": "anthropic",
+  "sessionReference": "https://claude.ai/code/session_01MF8RYpTTnEuxTuG71hkJPx"
+ },
+ "kind": "semantscript.refund-benchmark-judge-adjudications",
+ "method": "Each sampled case was read and decided by the judge against RUBRIC.md in order of its steps; the recorded step is the first rubric step that fired and the rationale names the decisive values. The verdicts were then re-derived mechanically from the rubric to confirm every recorded label is rubric-consistent.",
+ "rubricSha256": "267a20360abf270a45d00ee3714a46feaf7653d55f0975d128474a25a14bf60b"
+}

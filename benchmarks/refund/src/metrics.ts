@@ -13,6 +13,7 @@ import {
   deriveRefundArtifactTrainingKeySha256,
 } from "./policy.js";
 import {
+  ATTESTED_CASE_ORIGINS,
   REQUIRED_SYSTEM_ROLES,
   type BenchmarkSystemResult,
   type BenchmarkSystemRole,
@@ -35,9 +36,9 @@ export function evaluatePredictionSet(
 
   const casesById = new Map(dataset.cases.map((entry) => [entry.id, entry]));
   let correctCount = 0;
-  let humanCorrectCount = 0;
-  const humanCaseCount = dataset.cases.filter(
-    (entry) => entry.origin === "human-authored",
+  let attestedCorrectCount = 0;
+  const attestedCaseCount = dataset.cases.filter((entry) =>
+    ATTESTED_CASE_ORIGINS.has(entry.origin),
   ).length;
   const binCounts = Array<number>(ECE_BIN_COUNT).fill(0);
   const binCorrect = Array<number>(ECE_BIN_COUNT).fill(0);
@@ -54,8 +55,8 @@ export function evaluatePredictionSet(
     const correct = prediction.value === benchmarkCase.expected;
     if (correct) {
       correctCount += 1;
-      if (benchmarkCase.origin === "human-authored") {
-        humanCorrectCount += 1;
+      if (ATTESTED_CASE_ORIGINS.has(benchmarkCase.origin)) {
+        attestedCorrectCount += 1;
       }
     }
     const confidence = Math.max(...prediction.distribution.map((entry) => entry.probability));
@@ -85,9 +86,9 @@ export function evaluatePredictionSet(
       caseCount: dataset.cases.length,
       correctCount,
       accuracy: correctCount / dataset.cases.length,
-      humanCaseCount,
-      humanCorrectCount,
-      humanAccuracy: humanCorrectCount / humanCaseCount,
+      attestedCaseCount,
+      attestedCorrectCount,
+      attestedAccuracy: attestedCorrectCount / attestedCaseCount,
     },
     calibration: {
       binCount: ECE_BIN_COUNT,
@@ -364,9 +365,9 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
       "caseCount",
       "correctCount",
       "accuracy",
-      "humanCaseCount",
-      "humanCorrectCount",
-      "humanAccuracy",
+      "attestedCaseCount",
+      "attestedCorrectCount",
+      "attestedAccuracy",
     ]);
     if (accuracy.caseCount !== caseCount) {
       fail(`${path}.accuracy.caseCount`, "must match leakage audit evaluationCaseCount");
@@ -381,24 +382,24 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
     if (accuracy.accuracy !== correctCount / caseCount) {
       fail(`${path}.accuracy.accuracy`, "must equal correctCount divided by caseCount");
     }
-    const humanCaseCount = nonNegativeSafeInteger(
-      accuracy.humanCaseCount,
-      `${path}.accuracy.humanCaseCount`,
+    const attestedCaseCount = nonNegativeSafeInteger(
+      accuracy.attestedCaseCount,
+      `${path}.accuracy.attestedCaseCount`,
     );
-    if (humanCaseCount === 0 || humanCaseCount > caseCount) {
-      fail(`${path}.accuracy.humanCaseCount`, "must be from one through caseCount");
+    if (attestedCaseCount === 0 || attestedCaseCount > caseCount) {
+      fail(`${path}.accuracy.attestedCaseCount`, "must be from one through caseCount");
     }
-    const humanCorrectCount = nonNegativeSafeInteger(
-      accuracy.humanCorrectCount,
-      `${path}.accuracy.humanCorrectCount`,
+    const attestedCorrectCount = nonNegativeSafeInteger(
+      accuracy.attestedCorrectCount,
+      `${path}.accuracy.attestedCorrectCount`,
     );
-    if (humanCorrectCount > humanCaseCount) {
-      fail(`${path}.accuracy.humanCorrectCount`, "must not exceed humanCaseCount");
+    if (attestedCorrectCount > attestedCaseCount) {
+      fail(`${path}.accuracy.attestedCorrectCount`, "must not exceed attestedCaseCount");
     }
-    if (accuracy.humanAccuracy !== humanCorrectCount / humanCaseCount) {
+    if (accuracy.attestedAccuracy !== attestedCorrectCount / attestedCaseCount) {
       fail(
-        `${path}.accuracy.humanAccuracy`,
-        "must equal humanCorrectCount divided by humanCaseCount",
+        `${path}.accuracy.attestedAccuracy`,
+        "must equal attestedCorrectCount divided by attestedCaseCount",
       );
     }
 

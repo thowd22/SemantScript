@@ -2,6 +2,7 @@ import { semanticJsonSha256 } from "@semantscript/compiler";
 
 import {
   HUMAN_ATTESTATION_DECLARATION,
+  JUDGE_ATTESTATION_DECLARATION,
   REFUND_SUPPORT,
   REQUIRED_SYSTEM_ROLES,
   sealPredictionSet,
@@ -66,6 +67,41 @@ export function makeDataset() {
       caseIds: ["case-01", "case-03"],
       declaration: HUMAN_ATTESTATION_DECLARATION,
       evidenceSha256: "3".repeat(64),
+    },
+    judgeAttestation: null,
+  });
+}
+
+export function makeJudgeDataset() {
+  const expected = ["approve", "deny", "review", "approve"];
+  return sealRefundDataset({
+    kind: "semantscript.refund-benchmark-dataset",
+    datasetVersion: 1,
+    benchmark: "refund-decision",
+    split: "evaluation-only",
+    createdAt: "2026-09-23T12:00:00Z",
+    function: functionBinding,
+    support: REFUND_SUPPORT,
+    cases: inputs.map((entry, index) => ({
+      id: `case-${String(index + 1).padStart(2, "0")}`,
+      inputs: entry,
+      inputSha256: semanticJsonSha256(entry),
+      expected: expected[index],
+      origin: "independent-judge",
+    })),
+    humanAttestation: null,
+    judgeAttestation: {
+      judge: {
+        provider: "unit-test",
+        model: "fixture-judge-not-a-real-model",
+        interface: "unit-test",
+        sessionReference: "unit-test-session",
+      },
+      rubricSha256: "5".repeat(64),
+      attestedAt: "2026-09-23T11:00:00Z",
+      caseIds: ["case-01", "case-02", "case-03", "case-04"],
+      declaration: JUDGE_ATTESTATION_DECLARATION,
+      evidenceSha256: "6".repeat(64),
     },
   });
 }

@@ -15,9 +15,11 @@ The version-1 JSON Schemas are in the repository `schemas/` directory:
 
 Runtime validation is stricter than JSON Schema where relationships are involved.
 It requires evaluation-only cases in stable ID order, a semantic-JSON digest for
-every input and payload, at least one explicitly attested non-teacher human case,
-and exact separation from the union of examples, synthetic, adversarial,
-calibration, and release-verification inputs. Calibration entries may repeat in
+every input and payload, at least one attested non-teacher case (either
+`human-authored` under a human attestation, or `independent-judge` under a judge
+attestation that names the judge model, session and rubric digest), and exact
+separation from the union of examples, synthetic, adversarial, calibration, and
+release-verification inputs. Calibration entries may repeat in
 their originating synthetic/adversarial partition; this is recorded lifecycle
 reuse, not duplicate training data. Predictions must cover the frozen dataset exactly once and
 carry all three probabilities in `approve`, `deny`, `review` support order. The
@@ -41,7 +43,7 @@ capture times, measured duration, and observed peak bytes remain per-system.
 
 Metrics are computed without rounding:
 
-- overall and human-slice exact accuracy;
+- overall and attested-slice (human-authored or independent-judge) exact accuracy;
 - 15 equal-width bins of top-1 expected calibration error;
 - nearest-rank p50 and p95 latency;
 - concurrency-one throughput from the measured wall duration; and

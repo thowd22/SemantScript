@@ -85,6 +85,68 @@ def test_release_record_builder_derives_cases_and_every_digest(
     assert parsed.generated_cases[0].inputs["order"]["total"] == 75
 
 
+def test_release_record_accepts_an_independent_judge_attestation(
+    compiled_program: pipeline.CompiledRefundProgram,
+) -> None:
+    judge = pipeline.JudgeAttestationInputs(
+        provider="unit-test",
+        model="fixture-judge-not-a-real-model",
+        interface="unit-test",
+        session_reference="unit-test-session",
+        rubric_sha256="5" * 64,
+    )
+    record = pipeline.build_release_verification_record(
+        compiled_program.source_ir,
+        (("release-01", GeneratedCase(inputs=refund_inputs(3, 14, 75), output="review")),),
+        created_at="2026-09-23T11:00:00Z",
+        attested_at="2026-09-23T10:59:00Z",
+        evidence_sha256="6" * 64,
+        judge=judge,
+    )
+    document = record.document
+    assert document["humanAttestation"] is None
+    assert document["judgeAttestation"]["judge"]["model"] == "fixture-judge-not-a-real-model"
+    assert document["judgeAttestation"]["rubricSha256"] == "5" * 64
+    assert document["judgeAttestation"]["caseIds"] == ["release-01"]
+    assert record.attestation_sha256 == semantic_json_sha256(document["judgeAttestation"])
+    assert (
+        pipeline.parse_release_verification_record(
+            json.dumps(document).encode("utf-8"), compiled_program.source_ir
+        ).payload_sha256
+        == record.payload_sha256
+    )
+
+    with pytest.raises(pipeline.RefundPipelineError, match="exactly one of"):
+        pipeline.build_release_verification_record(
+            compiled_program.source_ir,
+            (("release-01", GeneratedCase(inputs=refund_inputs(3, 14, 75), output="review")),),
+            created_at="2026-09-23T11:00:00Z",
+            attested_at="2026-09-23T10:59:00Z",
+            evidence_sha256="6" * 64,
+            attestor="someone",
+            judge=judge,
+        )
+
+    both = dict(document)
+    both["humanAttestation"] = {
+        "attestor": "someone",
+        "attestedAt": "2026-09-23T10:59:00Z",
+        "caseIds": ["release-01"],
+        "declaration": pipeline._HUMAN_ATTESTATION_DECLARATION,
+        "evidenceSha256": "6" * 64,
+    }
+    with pytest.raises(pipeline.RefundPipelineError, match="exactly one attestation"):
+        pipeline.ReleaseVerificationRecord(both)
+
+    wrong_declaration = json.loads(json.dumps(document))
+    wrong_declaration["judgeAttestation"]["declaration"] = pipeline._HUMAN_ATTESTATION_DECLARATION
+    wrong_declaration["attestationSha256"] = semantic_json_sha256(
+        wrong_declaration["judgeAttestation"]
+    )
+    with pytest.raises(pipeline.RefundPipelineError, match="declaration is invalid"):
+        pipeline.ReleaseVerificationRecord(wrong_declaration)
+
+
 def test_release_record_rejects_tampering_and_wrong_function(
     compiled_program: pipeline.CompiledRefundProgram,
 ) -> None:

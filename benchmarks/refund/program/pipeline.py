@@ -71,6 +71,14 @@ _HUMAN_ATTESTATION_DECLARATION = (
     "The listed cases are human-authored, were not generated or rewritten by any model or "
     "teacher, and are licensed or de-identified for this benchmark."
 )
+_JUDGE_ATTESTATION_DECLARATION = (
+    "The listed cases have expected outputs adjudicated case by case by the named independent "
+    "model judge under the referenced rubric with a recorded rationale per case; their inputs "
+    "derive from real, de-identified transactions; neither inputs nor labels were produced by "
+    "any teacher model used for training, and the judge is not a training teacher for this "
+    "benchmark."
+)
+_MAXIMUM_ATTESTATION_TEXT = 500
 _RELEASE_RECORD_LIMITS = StrictJsonLimits(
     maximum_bytes=_MAXIMUM_RELEASE_RECORD_BYTES,
     maximum_depth=64,
@@ -115,9 +123,35 @@ class FinalBenchmarkDatasetIdentity:
                 raise RefundPipelineError(f"final benchmark {name} is invalid")
 
 
+@dataclass(frozen=True, slots=True)
+class JudgeAttestationInputs:
+    """Identity of an independent model judge that adjudicated release cases."""
+
+    provider: str
+    model: str
+    interface: str
+    session_reference: str
+    rubric_sha256: str
+
+    def __post_init__(self) -> None:
+        for name in ("provider", "model", "interface", "session_reference"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not 1 <= len(value) <= _MAXIMUM_ATTESTATION_TEXT:
+                raise RefundPipelineError(f"judge {name} must be 1 through 500 characters")
+        _require_sha256(self.rubric_sha256, "judge rubric digest")
+
+    def document(self) -> dict[str, str]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "interface": self.interface,
+            "sessionReference": self.session_reference,
+        }
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class ReleaseVerificationRecord:
-    """Closed human release-gate record parsed from semantic-JSON-compatible data."""
+    """Closed attested release-gate record parsed from semantic-JSON-compatible data."""
 
     function_id: str
     semantic_sha256: str
@@ -284,11 +318,24 @@ def build_release_verification_record(
     /,
     *,
     created_at: str,
-    attestor: str,
     attested_at: str,
     evidence_sha256: str,
+    attestor: str | None = None,
+    judge: JudgeAttestationInputs | None = None,
 ) -> ReleaseVerificationRecord:
-    """Build and re-parse one closed release-only human verification record."""
+    """Build and re-parse one closed release-only attested verification record.
+
+    Exactly one of ``attestor`` (a human) or ``judge`` (an independent model
+    judge) must be given; the record then carries that attestation and ``null``
+    for the other.
+    """
+
+    if (attestor is None) == (judge is None):
+        raise RefundPipelineError(
+            "release verification needs exactly one of a human attestor or a judge"
+        )
+    if judge is not None and not isinstance(judge, JudgeAttestationInputs):
+        raise RefundPipelineError("release verification judge must be JudgeAttestationInputs")
 
     if not isinstance(source_ir, dict):
         raise RefundPipelineError("release verification source IR must be an object")
@@ -334,13 +381,29 @@ def build_release_verification_record(
             }
         )
     case_documents.sort(key=lambda value: cast(str, value["id"]).encode("utf-8"))
-    attestation: dict[str, Any] = {
-        "attestor": attestor,
-        "attestedAt": attested_at,
-        "caseIds": [case["id"] for case in case_documents],
-        "declaration": _HUMAN_ATTESTATION_DECLARATION,
-        "evidenceSha256": evidence_sha256,
-    }
+    case_ids = [case["id"] for case in case_documents]
+    human_attestation: dict[str, Any] | None = None
+    judge_attestation: dict[str, Any] | None = None
+    if attestor is not None:
+        human_attestation = {
+            "attestor": attestor,
+            "attestedAt": attested_at,
+            "caseIds": case_ids,
+            "declaration": _HUMAN_ATTESTATION_DECLARATION,
+            "evidenceSha256": evidence_sha256,
+        }
+        attestation: dict[str, Any] = human_attestation
+    else:
+        assert judge is not None
+        judge_attestation = {
+            "judge": judge.document(),
+            "rubricSha256": judge.rubric_sha256,
+            "attestedAt": attested_at,
+            "caseIds": case_ids,
+            "declaration": _JUDGE_ATTESTATION_DECLARATION,
+            "evidenceSha256": evidence_sha256,
+        }
+        attestation = judge_attestation
     payload: dict[str, Any] = {
         "kind": "semantscript.refund-release-verification-record",
         "recordVersion": 1,
@@ -350,7 +413,8 @@ def build_release_verification_record(
         "function": {"id": function_id, "semanticSha256": semantic_sha256},
         "support": list(_REFUND_SUPPORT),
         "cases": case_documents,
-        "humanAttestation": attestation,
+        "humanAttestation": human_attestation,
+        "judgeAttestation": judge_attestation,
         "attestationSha256": semantic_json_sha256(attestation),
     }
     record = ReleaseVerificationRecord({**payload, "payloadSha256": semantic_json_sha256(payload)})
@@ -766,6 +830,7 @@ def _validate_release_verification_document(document: dict[str, Any]) -> dict[st
             "support",
             "cases",
             "humanAttestation",
+            "judgeAttestation",
             "attestationSha256",
             "payloadSha256",
         },
@@ -830,25 +895,16 @@ def _validate_release_verification_document(document: dict[str, Any]) -> dict[st
     if len(set(input_sha256s)) != len(input_sha256s):
         raise RefundPipelineError("release verification inputs must be unique")
 
-    attestation = document["humanAttestation"]
-    if not isinstance(attestation, dict):
-        raise RefundPipelineError("release verification attestation must be an object")
-    _require_exact_keys(
-        attestation,
-        {"attestor", "attestedAt", "caseIds", "declaration", "evidenceSha256"},
-        "release verification attestation",
-    )
-    attestor = attestation["attestor"]
-    if not isinstance(attestor, str) or not 1 <= len(attestor) <= 500:
-        raise RefundPipelineError("release verification attestor must be 1 through 500 characters")
-    attested_at = _validate_rfc3339(attestation["attestedAt"], "release verification attestedAt")
-    if _parse_rfc3339(attested_at) > _parse_rfc3339(created_at):
-        raise RefundPipelineError("release verification attestation cannot postdate the record")
-    if attestation["caseIds"] != case_ids:
-        raise RefundPipelineError("release verification attestation must list every case ID")
-    if attestation["declaration"] != _HUMAN_ATTESTATION_DECLARATION:
-        raise RefundPipelineError("release verification attestation declaration is invalid")
-    _require_sha256(attestation["evidenceSha256"], "release verification evidence digest")
+    human = document["humanAttestation"]
+    judge = document["judgeAttestation"]
+    if (human is None) == (judge is None):
+        raise RefundPipelineError("release verification must carry exactly one attestation")
+    if human is not None:
+        attestation = _validate_human_attestation(human, case_ids, created_at)
+        attestation_kind = "human-authored"
+    else:
+        attestation = _validate_judge_attestation(judge, case_ids, created_at)
+        attestation_kind = "independent-judge"
     attestation_sha256 = _require_sha256(
         document["attestationSha256"], "release verification attestation digest"
     )
@@ -868,7 +924,74 @@ def _validate_release_verification_document(document: dict[str, Any]) -> dict[st
         "attestation_sha256": attestation_sha256,
         "case_ids": tuple(case_ids),
         "input_sha256s": tuple(input_sha256s),
+        "attestation_kind": attestation_kind,
     }
+
+
+def _validate_attestation_common(
+    attestation: Any,
+    case_ids: Sequence[str],
+    created_at: str,
+    declaration: str,
+    keys: set[str],
+) -> dict[str, Any]:
+    if not isinstance(attestation, dict):
+        raise RefundPipelineError("release verification attestation must be an object")
+    _require_exact_keys(attestation, keys, "release verification attestation")
+    attested_at = _validate_rfc3339(attestation["attestedAt"], "release verification attestedAt")
+    if _parse_rfc3339(attested_at) > _parse_rfc3339(created_at):
+        raise RefundPipelineError("release verification attestation cannot postdate the record")
+    if attestation["caseIds"] != list(case_ids):
+        raise RefundPipelineError("release verification attestation must list every case ID")
+    if attestation["declaration"] != declaration:
+        raise RefundPipelineError("release verification attestation declaration is invalid")
+    _require_sha256(attestation["evidenceSha256"], "release verification evidence digest")
+    return attestation
+
+
+def _validate_human_attestation(
+    attestation: Any,
+    case_ids: Sequence[str],
+    created_at: str,
+) -> dict[str, Any]:
+    validated = _validate_attestation_common(
+        attestation,
+        case_ids,
+        created_at,
+        _HUMAN_ATTESTATION_DECLARATION,
+        {"attestor", "attestedAt", "caseIds", "declaration", "evidenceSha256"},
+    )
+    attestor = validated["attestor"]
+    if not isinstance(attestor, str) or not 1 <= len(attestor) <= _MAXIMUM_ATTESTATION_TEXT:
+        raise RefundPipelineError("release verification attestor must be 1 through 500 characters")
+    return validated
+
+
+def _validate_judge_attestation(
+    attestation: Any,
+    case_ids: Sequence[str],
+    created_at: str,
+) -> dict[str, Any]:
+    validated = _validate_attestation_common(
+        attestation,
+        case_ids,
+        created_at,
+        _JUDGE_ATTESTATION_DECLARATION,
+        {"judge", "rubricSha256", "attestedAt", "caseIds", "declaration", "evidenceSha256"},
+    )
+    judge = validated["judge"]
+    if not isinstance(judge, dict):
+        raise RefundPipelineError("release verification judge must be an object")
+    _require_exact_keys(
+        judge, {"provider", "model", "interface", "sessionReference"}, "release verification judge"
+    )
+    for name, value in judge.items():
+        if not isinstance(value, str) or not 1 <= len(value) <= _MAXIMUM_ATTESTATION_TEXT:
+            raise RefundPipelineError(
+                f"release verification judge {name} must be 1 through 500 characters"
+            )
+    _require_sha256(validated["rubricSha256"], "release verification rubric digest")
+    return validated
 
 
 def _ledger_partition(name: str, inputs: Sequence[dict[str, Any]]) -> dict[str, Any]:

@@ -57,7 +57,9 @@ export {
   type SemantScriptRefundAdapterOptions,
 } from "./semantscript-adapter.js";
 export {
+  ATTESTED_CASE_ORIGINS,
   HUMAN_ATTESTATION_DECLARATION,
+  JUDGE_ATTESTATION_DECLARATION,
   REFUND_SUPPORT,
   REQUIRED_SYSTEM_ROLES,
   TRAINING_PARTITIONS,

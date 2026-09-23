@@ -9,6 +9,7 @@ import {
 
 import {
   HUMAN_ATTESTATION_DECLARATION,
+  JUDGE_ATTESTATION_DECLARATION,
   REFUND_SUPPORT,
   TRAINING_PARTITIONS,
   type AdapterProvenance,
@@ -17,6 +18,7 @@ import {
   type MeasurementProtocol,
   type ModelProvenance,
   type RefundBenchmarkDatasetV1,
+  type RefundCaseOrigin,
   type RefundInputs,
   type RefundPrediction,
   type RefundPredictionSetV1,
@@ -71,6 +73,7 @@ export function sealRefundDataset(value: UnsignedDataset): RefundBenchmarkDatase
     "support",
     "cases",
     "humanAttestation",
+    "judgeAttestation",
   ]);
   validateRefundDatasetRecord({ ...value, payloadSha256: PLACEHOLDER_SHA256 }, false);
   return validateRefundDataset({ ...value, payloadSha256: semanticJsonSha256(value) });
@@ -124,6 +127,7 @@ function validateRefundDatasetRecord(
     "support",
     "cases",
     "humanAttestation",
+    "judgeAttestation",
     "payloadSha256",
   ]);
 
@@ -146,7 +150,11 @@ function validateRefundDatasetRecord(
 
   const caseIds: string[] = [];
   const caseInputDigests = new Set<string>();
-  const humanCaseIds: string[] = [];
+  const caseIdsByOrigin: Record<RefundCaseOrigin, string[]> = {
+    "human-authored": [],
+    "independent-judge": [],
+    "other-held-out": [],
+  };
   for (const [index, entry] of cases.entries()) {
     const parsed = validateCase(entry, `$.cases[${String(index)}]`);
     caseIds.push(parsed.id);
@@ -154,47 +162,25 @@ function validateRefundDatasetRecord(
       fail(`$.cases[${String(index)}].inputSha256`, "duplicates another held-out input");
     }
     caseInputDigests.add(parsed.inputSha256);
-    if (parsed.origin === "human-authored") {
-      humanCaseIds.push(parsed.id);
-    }
+    caseIdsByOrigin[parsed.origin].push(parsed.id);
   }
   sortedUnique(caseIds, "$.cases", "case ids");
-  if (humanCaseIds.length === 0) {
-    fail("$.cases", "must contain at least one human-authored case");
+  if (
+    caseIdsByOrigin["human-authored"].length + caseIdsByOrigin["independent-judge"].length ===
+    0
+  ) {
+    fail("$.cases", "must contain at least one attested case (human-authored or independent-judge)");
   }
-
-  const attestation = exactObject(root.humanAttestation, "$.humanAttestation", [
-    "attestor",
-    "attestedAt",
-    "caseIds",
-    "declaration",
-    "evidenceSha256",
-  ]);
-  boundedString(attestation.attestor, "$.humanAttestation.attestor");
-  rfc3339(attestation.attestedAt, "$.humanAttestation.attestedAt");
-  if (Date.parse(attestation.attestedAt as string) > Date.parse(root.createdAt as string)) {
-    fail("$.humanAttestation.attestedAt", "must not be later than dataset creation");
-  }
-  literal(
-    attestation.declaration,
-    HUMAN_ATTESTATION_DECLARATION,
-    "$.humanAttestation.declaration",
+  validateHumanAttestation(
+    root.humanAttestation,
+    root.createdAt as string,
+    caseIdsByOrigin["human-authored"],
   );
-  sha256(attestation.evidenceSha256, "$.humanAttestation.evidenceSha256");
-  const attestedCaseIds = denseArray(
-    attestation.caseIds,
-    "$.humanAttestation.caseIds",
-    MAXIMUM_BENCHMARK_CASE_COUNT,
-  ).map((caseId, index) =>
-    recordId(caseId, `$.humanAttestation.caseIds[${String(index)}]`),
+  validateJudgeAttestation(
+    root.judgeAttestation,
+    root.createdAt as string,
+    caseIdsByOrigin["independent-judge"],
   );
-  sortedUnique(attestedCaseIds, "$.humanAttestation.caseIds", "case ids");
-  if (!sameStrings(attestedCaseIds, humanCaseIds)) {
-    fail(
-      "$.humanAttestation.caseIds",
-      "must exactly list every and only human-authored case",
-    );
-  }
 
   if (finalize) {
     validatePayloadDigest(root, "payloadSha256", "$", root.payloadSha256);
@@ -367,10 +353,105 @@ export function auditDatasetSeparation(
   });
 }
 
+function validateHumanAttestation(
+  value: unknown,
+  createdAt: string,
+  humanCaseIds: readonly string[],
+): void {
+  if (value === null) {
+    if (humanCaseIds.length > 0) {
+      fail("$.humanAttestation", "must attest the human-authored cases");
+    }
+    return;
+  }
+  const attestation = exactObject(value, "$.humanAttestation", [
+    "attestor",
+    "attestedAt",
+    "caseIds",
+    "declaration",
+    "evidenceSha256",
+  ]);
+  boundedString(attestation.attestor, "$.humanAttestation.attestor");
+  rfc3339(attestation.attestedAt, "$.humanAttestation.attestedAt");
+  if (Date.parse(attestation.attestedAt as string) > Date.parse(createdAt)) {
+    fail("$.humanAttestation.attestedAt", "must not be later than dataset creation");
+  }
+  literal(
+    attestation.declaration,
+    HUMAN_ATTESTATION_DECLARATION,
+    "$.humanAttestation.declaration",
+  );
+  sha256(attestation.evidenceSha256, "$.humanAttestation.evidenceSha256");
+  const attestedCaseIds = attestedCaseIdList(attestation.caseIds, "$.humanAttestation.caseIds");
+  if (!sameStrings(attestedCaseIds, humanCaseIds)) {
+    fail(
+      "$.humanAttestation.caseIds",
+      "must exactly list every and only human-authored case",
+    );
+  }
+}
+
+function validateJudgeAttestation(
+  value: unknown,
+  createdAt: string,
+  judgeCaseIds: readonly string[],
+): void {
+  if (value === null) {
+    if (judgeCaseIds.length > 0) {
+      fail("$.judgeAttestation", "must attest the independent-judge cases");
+    }
+    return;
+  }
+  const attestation = exactObject(value, "$.judgeAttestation", [
+    "judge",
+    "rubricSha256",
+    "attestedAt",
+    "caseIds",
+    "declaration",
+    "evidenceSha256",
+  ]);
+  const judge = exactObject(attestation.judge, "$.judgeAttestation.judge", [
+    "provider",
+    "model",
+    "interface",
+    "sessionReference",
+  ]);
+  boundedString(judge.provider, "$.judgeAttestation.judge.provider");
+  boundedString(judge.model, "$.judgeAttestation.judge.model");
+  boundedString(judge.interface, "$.judgeAttestation.judge.interface");
+  boundedString(judge.sessionReference, "$.judgeAttestation.judge.sessionReference");
+  sha256(attestation.rubricSha256, "$.judgeAttestation.rubricSha256");
+  rfc3339(attestation.attestedAt, "$.judgeAttestation.attestedAt");
+  if (Date.parse(attestation.attestedAt as string) > Date.parse(createdAt)) {
+    fail("$.judgeAttestation.attestedAt", "must not be later than dataset creation");
+  }
+  literal(
+    attestation.declaration,
+    JUDGE_ATTESTATION_DECLARATION,
+    "$.judgeAttestation.declaration",
+  );
+  sha256(attestation.evidenceSha256, "$.judgeAttestation.evidenceSha256");
+  const attestedCaseIds = attestedCaseIdList(attestation.caseIds, "$.judgeAttestation.caseIds");
+  if (!sameStrings(attestedCaseIds, judgeCaseIds)) {
+    fail(
+      "$.judgeAttestation.caseIds",
+      "must exactly list every and only independent-judge case",
+    );
+  }
+}
+
+function attestedCaseIdList(value: unknown, path: string): string[] {
+  const caseIds = denseArray(value, path, MAXIMUM_BENCHMARK_CASE_COUNT).map((caseId, index) =>
+    recordId(caseId, `${path}[${String(index)}]`),
+  );
+  sortedUnique(caseIds, path, "case ids");
+  return caseIds;
+}
+
 function validateCase(
   value: unknown,
   path: string,
-): { readonly id: string; readonly inputSha256: string; readonly origin: string } {
+): { readonly id: string; readonly inputSha256: string; readonly origin: RefundCaseOrigin } {
   const entry = exactObject(value, path, ["id", "inputs", "inputSha256", "expected", "origin"]);
   const id = recordId(entry.id, `${path}.id`);
   validateRefundInputs(entry.inputs, `${path}.inputs`);
@@ -380,8 +461,12 @@ function validateCase(
     fail(`${path}.inputSha256`, "does not match semantic JSON of inputs");
   }
   refundDecision(entry.expected, `${path}.expected`);
-  if (entry.origin !== "human-authored" && entry.origin !== "other-held-out") {
-    fail(`${path}.origin`, 'must be "human-authored" or "other-held-out"');
+  if (
+    entry.origin !== "human-authored" &&
+    entry.origin !== "independent-judge" &&
+    entry.origin !== "other-held-out"
+  ) {
+    fail(`${path}.origin`, 'must be "human-authored", "independent-judge" or "other-held-out"');
   }
   return { id, inputSha256, origin: entry.origin };
 }

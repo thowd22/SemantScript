@@ -1,19 +1,20 @@
 # Adjudication rubric: refund decision held-out sets
 
-Version 1, 2026-09-23. Judge: Claude Fable 5.1 (`claude-fable-5-1`), acting in
+Version 1.1, 2026-09-23. Judge: Claude Fable 5.1 (`claude-fable-5-1`), acting in
 an interactive Claude Code session. This rubric is the judge's committed reading
-of the compiled refund function. It is never shown to the student model or to
-the Sonnet 5 training teacher.
+of the compiled refund function. Version 1 was written against the short policy
+text; after the first release run showed the teacher, the judge and the
+baselines reading that text three ways, the sema source was rewritten to state
+this rubric's rules explicitly and to carry each of them as a deterministic
+constraint. The decision procedure and every adjudicated label are unchanged.
 
 ## The function under test
 
-Behavior text: "Apply our refund policy. Enterprise customers get 60 days;
-everyone else gets 30. Suspicious circumstances go to review."
+Behavior text (version 1.1 source): the complete policy below, stated in prose.
 
-Compiled constraints:
-
-1. `never` approve when `order.status === "fraudulent"`.
-2. `always` deny when `order.ageDays > 90`.
+Compiled constraints: every rule below is also an `always` or `never`
+constraint over the same inputs, so any generated or attested case is checked
+against them mechanically.
 
 Inputs: `customer.priorRefunds` (count), `customer.tier` (`enterprise` or
 `standard`), `order.ageDays`, `order.status` (`paid` or `fraudulent`),

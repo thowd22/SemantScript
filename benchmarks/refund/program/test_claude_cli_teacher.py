@@ -553,6 +553,7 @@ def test_transport_errors_do_not_echo_stderr_prompt_or_structured_output() -> No
         ClaudeCliTeacherConfig(concurrency=2),
         ClaudeCliTeacherConfig(maximum_case_attempts=1),
         ClaudeCliTeacherConfig(cli_version="9.9.9 (Claude Code)"),
+        ClaudeCliTeacherConfig(model="claude-opus-5-5"),
     ],
 )
 def test_behavior_affecting_config_changes_digest(config: ClaudeCliTeacherConfig) -> None:
@@ -726,3 +727,39 @@ def refund_ir() -> dict[str, Any]:
             },
         },
     }
+
+
+def test_configured_model_is_requested_recorded_and_enforced() -> None:
+    config = ClaudeCliTeacherConfig(model="claude-opus-5-5")
+
+    class OpusRunner(FakeRunner):
+        def __call__(self, command: Sequence[str], **kwargs: Any) -> BoundedProcessResult:
+            if tuple(command)[-1] == "--version":
+                return BoundedProcessResult(0, f"{CLAUDE_CLI_VERSION}\n".encode(), b"")
+            self.calls.append((tuple(command), kwargs))
+            wrapper = json.loads(
+                envelope({"inputs": {"score": 2, "note": "opus"}, "output": False})
+            )
+            wrapper["modelUsage"] = {"claude-opus-5-5": {}}
+            return BoundedProcessResult(0, json.dumps(wrapper).encode(), b"")
+
+    runner = OpusRunner()
+    teacher = ClaudeCliTrainingTeacher(config, process_runner=runner)
+    assert teacher.descriptor.model == "claude-opus-5-5"
+    assert teacher.provenance.model == "claude-opus-5-5"
+    assert teacher.configuration_projection["request"]["model"] == "claude-opus-5-5"
+    assert teacher.generate(refund_ir(), 1) == (
+        GeneratedCase(inputs={"score": 2, "note": "opus"}, output=False),
+    )
+    assert option(runner.calls[0][0], "--model") == "claude-opus-5-5"
+
+    # A Sonnet-served answer is rejected when Opus was configured.
+    with pytest.raises(TeacherResponseError, match="pinned model"):
+        ClaudeCliTrainingTeacher(
+            config,
+            process_runner=FakeRunner([{"inputs": {"score": 2, "note": "x"}, "output": False}]),
+        ).generate(refund_ir(), 1)
+
+    for invalid in ("", "gpt-4", "claude-sonnet-latest"):
+        with pytest.raises(TeacherConfigurationError):
+            ClaudeCliTeacherConfig(model=invalid)

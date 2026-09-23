@@ -1223,5 +1223,5 @@
  },
  "kind": "semantscript.refund-benchmark-judge-adjudications",
  "method": "Each sampled case was read and decided by the judge against RUBRIC.md in order of its steps; the recorded step is the first rubric step that fired and the rationale names the decisive values. The verdicts were then re-derived mechanically from the rubric to confirm every recorded label is rubric-consistent.",
- "rubricSha256": "267a20360abf270a45d00ee3714a46feaf7653d55f0975d128474a25a14bf60b"
+ "rubricSha256": "e135ca262919e45a16d5938521579278e1040eeef2cd5462cdd5325f95182919"
 }

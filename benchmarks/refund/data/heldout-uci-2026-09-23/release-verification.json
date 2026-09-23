@@ -1,5 +1,5 @@
 {
- "attestationSha256": "52e9794d629193098e2dd001347f7d58281b2aa7439201471ec96ef4fc9c5324",
+ "attestationSha256": "1427262d6c360f58e35da74a7baac4a4a76da7d874d710c4658fc7667a2ca88d",
  "benchmark": "refund-decision",
  "cases": [
   {
@@ -1283,10 +1283,10 @@
    }
   }
  ],
- "createdAt": "2026-09-23T21:46:25Z",
+ "createdAt": "2026-09-23T22:57:31Z",
  "function": {
-  "id": "nf_955824a910df4df5cc32a079555fe109919c41492697d9a1cc507decc5afba20",
-  "semanticSha256": "29b03f7d9ec695eb4178e6c4320b6094f7d1c37bc6bfca3516e983e93a0dc1f1"
+  "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+  "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
  },
  "humanAttestation": null,
  "judgeAttestation": {
@@ -1374,17 +1374,17 @@
    "uci-r-21df64e5c5d4d97a5d5cccc5"
   ],
   "declaration": "The listed cases have expected outputs adjudicated case by case by the named independent model judge under the referenced rubric with a recorded rationale per case; their inputs derive from real, de-identified transactions; neither inputs nor labels were produced by any teacher model used for training, and the judge is not a training teacher for this benchmark.",
-  "evidenceSha256": "00c5c9a2ac2fc97daf95fddb74ba7c38d382f5b8d12508e97b31a35d6652fcd4",
+  "evidenceSha256": "074f240e77119ccf3d1a35b93ae3358fab5765928be1fff7b6b15c835c4bb7f7",
   "judge": {
    "interface": "claude-code-interactive-session",
    "model": "claude-fable-5-1",
    "provider": "anthropic",
    "sessionReference": "https://claude.ai/code/session_01MF8RYpTTnEuxTuG71hkJPx"
   },
-  "rubricSha256": "267a20360abf270a45d00ee3714a46feaf7653d55f0975d128474a25a14bf60b"
+  "rubricSha256": "e135ca262919e45a16d5938521579278e1040eeef2cd5462cdd5325f95182919"
  },
  "kind": "semantscript.refund-release-verification-record",
- "payloadSha256": "0ca3593c617a966257966bd650c22179837a7204dbba047b814a8dbd480df43b",
+ "payloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2",
  "recordVersion": 1.0,
  "split": "release-verification-only",
  "support": [

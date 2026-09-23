@@ -30,10 +30,10 @@
       "properties": {
         "id": {
           "type": "string",
-          "const": "nf_955824a910df4df5cc32a079555fe109919c41492697d9a1cc507decc5afba20"
+          "const": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c"
         },
         "semanticSha256": {
-          "const": "29b03f7d9ec695eb4178e6c4320b6094f7d1c37bc6bfca3516e983e93a0dc1f1"
+          "const": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
         }
       }
     },
@@ -270,7 +270,7 @@
       "properties": {
         "role": { "$ref": "#/$defs/systemRole" },
         "taskSpecSha256": {
-          "const": "bca8f0972254a19f32eed81e66adf79f22603d6f119dc5f06448c3851db7c163"
+          "const": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c"
         },
         "model": { "$ref": "#/$defs/modelProvenance" },
         "adapter": { "$ref": "#/$defs/adapterProvenance" },
@@ -616,7 +616,7 @@
         "role": { "$ref": "#/$defs/systemRole" },
         "predictionSha256": { "$ref": "#/$defs/sha256" },
         "taskSpecSha256": {
-          "const": "bca8f0972254a19f32eed81e66adf79f22603d6f119dc5f06448c3851db7c163"
+          "const": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c"
         },
         "model": { "$ref": "#/$defs/modelProvenance" },
         "adapter": { "$ref": "#/$defs/adapterProvenance" },

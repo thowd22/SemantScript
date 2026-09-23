@@ -25,7 +25,7 @@ from semantscript_trainer.constraints import (
 )
 from semantscript_trainer.teacher import JsonValue
 
-PROMPT_CONTRACT_VERSION = 2
+PROMPT_CONTRACT_VERSION = 3
 
 SYSTEM_PROMPT = """You generate one labeled training case for a typed SemantScript function.
 Return only the JSON object required by the supplied response schema. The output must always be
@@ -43,7 +43,15 @@ MAXIMUM_VARIATION_HINTS = 64
 MAXIMUM_REJECTION_NOTES = 8
 MAXIMUM_REJECTION_REASON_CHARACTERS = 512
 
-_NUMBER_HINTS = ("small", "typical", "large", "unusual but valid")
+_NUMBER_HINTS = (
+    "small",
+    "typical",
+    "large",
+    "unusual but valid",
+    "exactly at a threshold named in the behavior or constraints",
+    "just inside a threshold named in the behavior or constraints",
+    "just outside a threshold named in the behavior or constraints",
+)
 _STRING_HINTS = ("short", "long", "unusual but realistic")
 _BOOLEAN_HINTS = ("false", "true")
 _ARRAY_HINTS = ("empty", "one item", "several items")

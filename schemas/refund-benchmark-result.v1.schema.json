@@ -25,7 +25,7 @@
       "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/timestamp"
     },
     "taskSpecSha256": {
-      "const": "bca8f0972254a19f32eed81e66adf79f22603d6f119dc5f06448c3851db7c163"
+      "const": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c"
     },
     "datasetSha256": {
       "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"

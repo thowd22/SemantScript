@@ -26,7 +26,7 @@ carry all three probabilities in `approve`, `deny`, `review` support order. The
 probabilities must sum to one within `1e-12`; ties use the first support value.
 
 Datasets and training ledgers are accepted only for the canonical compiled refund
-function (`nf_955824…`, semantic SHA-256 `29b03f7d…`). Every prediction and
+function (`nf_65e347…`, semantic SHA-256 `f7efe891…`). Every prediction and
 result binds the canonical task-spec digest and a role-specific immutable
 model/adapter identity. SemantScript records additionally bind the exact training
 ledger, the loaded artifact function's training-dataset digest to the ledger's

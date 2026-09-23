@@ -80,7 +80,7 @@ test("artifact training key is closed and release-evidence sensitive", () => {
       releaseVerificationPayloadSha256: "c".repeat(64),
       releaseVerificationAttestationSha256: "d".repeat(64),
     }),
-    "04f065ef6bdd717115ec6179da818f42c73d17ca37b24ad30e33ad885ac212b0",
+    "2f6f0be82235b4f2b4dea9bf7365319e4b0024ed797cc47d0265edc460199dca",
   );
 });
 

@@ -37,7 +37,7 @@ def test_builds_deterministic_provider_neutral_prompt() -> None:
     first = build_case_messages(ir, 1, 3)
     second = build_case_messages(ir, 1, 3)
 
-    assert PROMPT_CONTRACT_VERSION == 2
+    assert PROMPT_CONTRACT_VERSION == 3
     assert first == second
     assert first[0] == SYSTEM_PROMPT
     assert first[1].startswith("Generate case 2 of 3 from this contract:\n")
@@ -92,9 +92,17 @@ def test_variation_hints_cover_every_leaf_and_vary_by_position() -> None:
         hint["customer.tier"] in {'prefer "enterprise"', 'prefer "standard"'} for hint in hints
     )
     assert all(hint["order.status"] in {'prefer "fraudulent"', 'prefer "paid"'} for hint in hints)
-    assert all(
-        hint["order.total"] in {"small", "typical", "large", "unusual but valid"} for hint in hints
-    )
+    number_hints = {
+        "small",
+        "typical",
+        "large",
+        "unusual but valid",
+        "exactly at a threshold named in the behavior or constraints",
+        "just inside a threshold named in the behavior or constraints",
+        "just outside a threshold named in the behavior or constraints",
+    }
+    assert all(hint["order.total"] in number_hints for hint in hints)
+    assert any("threshold" in hint["order.ageDays"] for hint in hints)
     assert build_coverage_brief(ir, 7) == build_coverage_brief(ir, 7)
 
 

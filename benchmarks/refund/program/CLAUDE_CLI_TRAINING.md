@@ -7,7 +7,9 @@ release-verification cases or the final held-out benchmark cases.
 
 The pinned identity is:
 
-- model: `claude-sonnet-5`
+- model: `claude-sonnet-5` by default; `ClaudeCliTeacherConfig.model` selects another
+  immutable Claude model id (the Opus 5.5 corpus uses `claude-opus-5-5`) and the
+  envelope's `modelUsage` must name exactly that model
 - Claude Code CLI: the observed `claude --version` string is recorded in
   provenance when the installation is verified. Claude Code auto-updates in the
   background, so an exact pin is not the default; set

@@ -21,11 +21,11 @@ test("refund benchmark package exposes the complete benchmark harness", async ()
   assert.match(benchmark.REFUND_TASK_SPEC_SHA256, /^[a-f0-9]{64}$/u);
   assert.equal(
     benchmark.REFUND_FUNCTION_ID,
-    "nf_955824a910df4df5cc32a079555fe109919c41492697d9a1cc507decc5afba20",
+    "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
   );
   assert.equal(
     benchmark.REFUND_FUNCTION_SEMANTIC_SHA256,
-    "29b03f7d9ec695eb4178e6c4320b6094f7d1c37bc6bfca3516e983e93a0dc1f1",
+    "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f",
   );
   assert.equal(benchmark.REFUND_SUPPORT.join(","), "approve,deny,review");
 });

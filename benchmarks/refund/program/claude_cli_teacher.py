@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import selectors
 import signal
 import subprocess
@@ -85,6 +86,7 @@ _DUPLICATE_REASON = (
     "these inputs duplicate another case in this corpus; choose materially different values"
 )
 _MCP_CONFIG = '{"mcpServers":{}}'
+_MODEL_ID = re.compile(r"^claude-[a-z0-9-]{1,80}$")
 # One structured-output exchange is a thinking/text block, a StructuredOutput tool
 # call, and its tool result. The pinned CLI's turn accounting varies with the
 # response shape (2 and 3 observed for a single exchange), so this bound is only a
@@ -105,10 +107,19 @@ class ClaudeCliTeacherConfig:
     concurrency: int = 1
     maximum_case_attempts: int = 3
     cli_version: str | None = None
+    model: str = CLAUDE_CLI_MODEL
 
     def __post_init__(self) -> None:
         if not isinstance(self.executable, str) or not self.executable.strip():
             raise TeacherConfigurationError("Claude CLI executable must be a nonempty string")
+        if (
+            not isinstance(self.model, str)
+            or _MODEL_ID.fullmatch(self.model) is None
+            or self.model.endswith("latest")
+        ):
+            raise TeacherConfigurationError(
+                "Claude CLI model must be an immutable Claude model identifier"
+            )
         if "\x00" in self.executable:
             raise TeacherConfigurationError("Claude CLI executable must not contain NUL")
         if self.cli_version is not None and (
@@ -174,7 +185,7 @@ class ClaudeCliTeacherConfig:
                 "requiredVersion": self.cli_version,
             },
             "request": {
-                "model": CLAUDE_CLI_MODEL,
+                "model": self.model,
                 "effort": "high",
                 "print": True,
                 "inputFormat": "text",
@@ -331,7 +342,7 @@ class ClaudeCliTrainingTeacher:
     def descriptor(self) -> TeacherDescriptor:
         return TeacherDescriptor(
             provider=_PROVIDER,
-            model=CLAUDE_CLI_MODEL,
+            model=self._config.model,
             configuration_sha256=self._config.configuration_sha256,
         )
 
@@ -339,7 +350,7 @@ class ClaudeCliTrainingTeacher:
     def provenance(self) -> ClaudeCliTeacherProvenance:
         return ClaudeCliTeacherProvenance(
             provider=_PROVIDER,
-            model=CLAUDE_CLI_MODEL,
+            model=self._config.model,
             cli_version=self._observed_cli_version or self._config.cli_version or "unverified",
             protocol=CLAUDE_CLI_PROTOCOL,
             data_classification=CLAUDE_CLI_DATA_CLASSIFICATION,
@@ -630,14 +641,17 @@ class ClaudeCliTrainingTeacher:
             raise TeacherTransportError(
                 f"Claude CLI {context} exited with status {completed.returncode}"
             )
-        return _parse_cli_result(completed.stdout, context), len(completed.stdout)
+        return (
+            _parse_cli_result(completed.stdout, context, self._config.model),
+            len(completed.stdout),
+        )
 
     def _command(self, system: str, schema_json: str) -> tuple[str, ...]:
         return (
             self._config.executable,
             "--print",
             "--model",
-            CLAUDE_CLI_MODEL,
+            self._config.model,
             "--effort",
             "high",
             "--input-format",
@@ -893,7 +907,7 @@ def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
             process.wait(timeout=_PROCESS_DRAIN_SECONDS)
 
 
-def _parse_cli_result(response: bytes, context: str) -> dict[str, Any]:
+def _parse_cli_result(response: bytes, context: str, model: str) -> dict[str, Any]:
     limits = StrictJsonLimits(
         maximum_bytes=_MAXIMUM_STDOUT_BYTES,
         maximum_depth=64,
@@ -923,7 +937,7 @@ def _parse_cli_result(response: bytes, context: str) -> dict[str, Any]:
     if permission_denials not in (None, []):
         raise TeacherResponseError(f"Claude CLI {context} attempted a denied capability")
     model_usage = value.get("modelUsage")
-    if not isinstance(model_usage, dict) or set(model_usage) != {CLAUDE_CLI_MODEL}:
+    if not isinstance(model_usage, dict) or set(model_usage) != {model}:
         raise TeacherResponseError(f"Claude CLI {context} was not served by the pinned model")
     structured = value.get("structured_output")
     if not isinstance(structured, dict):

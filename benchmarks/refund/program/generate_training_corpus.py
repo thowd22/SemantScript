@@ -220,6 +220,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--max-budget-usd", type=float, default=2.0)
     parser.add_argument("--executable", default="claude")
     parser.add_argument("--require-cli-version", default=None)
+    parser.add_argument("--model", default="claude-sonnet-5")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--adversarial-attempts", type=int, default=3)
     return parser.parse_args(argv)
@@ -234,6 +235,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         concurrency=arguments.concurrency,
         maximum_case_attempts=arguments.maximum_case_attempts,
         cli_version=arguments.require_cli_version,
+        model=arguments.model,
     )
     try:
         manifest = generate_training_corpus(

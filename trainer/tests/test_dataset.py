@@ -394,13 +394,13 @@ def test_v1_empty_dataset_matches_pinned_golden_bytes_and_digests(tmp_path: Path
 
     assert generator.cache_path(contract, 0).read_bytes() == expected
     assert dataset.cache_key_sha256 == (
-        "eb1dce2a2f1e95f073367dadabc96f456a290cffd30a24594d09ac9ca0c6def0"
+        "e9e5480283a3c92999c93511b2499ef0ce63c87a27c7fb9f66c6d8caa2fbf1e2"
     )
     assert dataset.payload_sha256 == (
-        "26a5ac6b4cf37c182f71497c7a9fb8c8ac2b0de31fd8f7f6b15106f74257b4f6"
+        "b7f30f2e6cc2256ef2be14d68f9a8d72c0adb6f16d86377a92a89dc15d631197"
     )
     assert dataset.dataset_sha256 == (
-        "c3500884ca074b8d0924608c7976be6704777c38bd36b197cf0d7fc59afadf20"
+        "1ac2c055c250b4b31c6ed8ce1b5fa3ae97686cf38740dff324419869f4014179"
     )
 
 

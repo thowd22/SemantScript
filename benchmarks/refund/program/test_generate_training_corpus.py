@@ -32,14 +32,29 @@ def case(position, age=None):
         "output": "approve" if (10 + position if age is None else age) <= 90 else "deny",
     }}
 
+def variant(position, *, age=None, status=None, prior=None, output):
+    value = case(position, age=age)
+    if status is not None:
+        value["inputs"]["order"]["status"] = status
+    if prior is not None:
+        value["inputs"]["customer"]["priorRefunds"] = prior
+    value["output"] = output
+    return value
+
 properties = schema["properties"]
 if "predicateFalse" in properties:
     index = payload["selectedConstraint"]["index"]
-    if index == 0:
-        true_side = case(0); true_side["inputs"]["order"]["status"] = "fraudulent"; true_side["output"] = "review"
-        out = {{"predicateFalse": case(0), "predicateTrue": true_side}}
-    else:
-        out = {{"predicateFalse": case(1, age=30), "predicateTrue": case(1, age=91)}}
+    # One boundary pair per compiled constraint, each differing in exactly one path.
+    pairs = {{
+        0: (variant(0, output="approve"), variant(0, status="fraudulent", output="review")),
+        1: (variant(1, age=30, output="approve"), variant(1, age=91, output="deny")),
+        2: (variant(0, output="approve"), variant(0, status="fraudulent", output="review")),
+        3: (variant(1, age=30, output="approve"), variant(1, age=31, output="deny")),
+        4: (variant(1, prior=4, output="approve"), variant(1, prior=5, output="review")),
+        5: (variant(1, prior=5, output="review"), variant(1, prior=4, output="approve")),
+    }}
+    false_side, true_side = pairs[index]
+    out = {{"predicateFalse": false_side, "predicateTrue": true_side}}
 elif "twin" in properties:
     anchor = payload["anchor"]
     twin = json.loads(json.dumps(anchor))
@@ -79,7 +94,7 @@ def test_generates_frozen_corpus_with_manifest(tmp_path: Path, stub_cli: Path) -
     assert manifest["teacher"]["provider"] == "anthropic-claude-cli-training-only"
     assert manifest["teacher"]["cliVersion"] == CLAUDE_CLI_VERSION
     assert manifest["teacher"]["configuration"]["generation"]["concurrency"] == 2
-    assert manifest["function"]["id"].startswith("nf_955824")
+    assert manifest["function"]["id"].startswith("nf_65e347")
     assert (output / manifest["function"]["bundlePath"]).is_file()
 
     synthetic = manifest["synthetic"]
@@ -93,7 +108,7 @@ def test_generates_frozen_corpus_with_manifest(tmp_path: Path, stub_cli: Path) -
 
     adversarial = manifest["adversarial"]
     assert adversarial["config"] == {"counterfactualRatio": 0.5, "maximumAttempts": 3}
-    assert adversarial["caseCountsByTag"]["constraint-boundary"] == 4
+    assert adversarial["caseCountsByTag"]["constraint-boundary"] == 12
     assert adversarial["pairCount"] == 2
     assert adversarial["baseDatasetSha256"] == synthetic["datasetSha256"]
     assert (output / adversarial["cachePath"]).is_file()

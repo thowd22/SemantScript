@@ -25,16 +25,28 @@ export const REFUND_TASK_SPEC = Object.freeze({
   }),
   outputSupport: Object.freeze([...REFUND_SUPPORT]),
   policy:
-    "Enterprise customers get 60 days; everyone else gets 30; suspicious circumstances go to review",
+    "An order older than 90 days is always denied. A fraudulent order that is 90 days old or younger goes to review. A paid order outside its refund window is denied: enterprise customers get 60 days and everyone else gets 30, counting the window as inclusive. A paid order inside its window goes to review when the circumstances are suspicious, meaning five or more prior refunds, three or more prior refunds on an order of at least 1000, an order total of at least 5000, or a same-day cancellation (age at most 1 day) of an order of at least 2000 by a customer with two or more prior refunds. Otherwise a paid order inside its window is approved",
   template: Object.freeze([
     Object.freeze({
       kind: "text",
-      text: "Apply our refund policy. Enterprise customers get 60 days; everyone else gets 30. Suspicious circumstances go to review.\nCustomer: ",
+      text: "Apply our refund policy. An order older than 90 days is always denied. A fraudulent order that is 90 days old or younger goes to review. A paid order outside its refund window is denied: enterprise customers get 60 days and everyone else gets 30, counting the window as inclusive. A paid order inside its window goes to review when the circumstances are suspicious, meaning five or more prior refunds, three or more prior refunds on an order of at least 1000, an order total of at least 5000, or a same-day cancellation (age at most 1 day) of an order of at least 2000 by a customer with two or more prior refunds. Otherwise a paid order inside its window is approved.\nCustomer: ",
     }),
-    Object.freeze({ kind: "input", name: "customer" }),
-    Object.freeze({ kind: "text", text: "\nOrder: " }),
-    Object.freeze({ kind: "input", name: "order" }),
-    Object.freeze({ kind: "text", text: "\n" }),
+    Object.freeze({
+      kind: "input",
+      name: "customer",
+    }),
+    Object.freeze({
+      kind: "text",
+      text: "\nOrder: ",
+    }),
+    Object.freeze({
+      kind: "input",
+      name: "order",
+    }),
+    Object.freeze({
+      kind: "text",
+      text: "\n",
+    }),
   ]),
   hardConstraints: Object.freeze([
     Object.freeze({
@@ -43,12 +55,18 @@ export const REFUND_TASK_SPEC = Object.freeze({
       predicate: Object.freeze({
         left: Object.freeze({
           node: "property",
-          object: Object.freeze({ name: "order", node: "input" }),
+          object: Object.freeze({
+            name: "order",
+            node: "input",
+          }),
           property: "status",
         }),
         node: "binary",
         operator: "===",
-        right: Object.freeze({ node: "literal", value: "fraudulent" }),
+        right: Object.freeze({
+          node: "literal",
+          value: "fraudulent",
+        }),
       }),
       source: 'order.status === "fraudulent"',
     }),
@@ -58,14 +76,671 @@ export const REFUND_TASK_SPEC = Object.freeze({
       predicate: Object.freeze({
         left: Object.freeze({
           node: "property",
-          object: Object.freeze({ name: "order", node: "input" }),
+          object: Object.freeze({
+            name: "order",
+            node: "input",
+          }),
           property: "ageDays",
         }),
         node: "binary",
         operator: ">",
-        right: Object.freeze({ node: "literal", value: 90 }),
+        right: Object.freeze({
+          node: "literal",
+          value: 90,
+        }),
       }),
       source: "order.ageDays > 90",
+    }),
+    Object.freeze({
+      kind: "always",
+      output: "review",
+      predicate: Object.freeze({
+        left: Object.freeze({
+          left: Object.freeze({
+            node: "property",
+            object: Object.freeze({
+              name: "order",
+              node: "input",
+            }),
+            property: "ageDays",
+          }),
+          node: "binary",
+          operator: "<=",
+          right: Object.freeze({
+            node: "literal",
+            value: 90,
+          }),
+        }),
+        node: "binary",
+        operator: "&&",
+        right: Object.freeze({
+          left: Object.freeze({
+            node: "property",
+            object: Object.freeze({
+              name: "order",
+              node: "input",
+            }),
+            property: "status",
+          }),
+          node: "binary",
+          operator: "===",
+          right: Object.freeze({
+            node: "literal",
+            value: "fraudulent",
+          }),
+        }),
+      }),
+      source: 'order.ageDays <= 90 && order.status === "fraudulent"',
+    }),
+    Object.freeze({
+      kind: "always",
+      output: "deny",
+      predicate: Object.freeze({
+        left: Object.freeze({
+          left: Object.freeze({
+            left: Object.freeze({
+              node: "property",
+              object: Object.freeze({
+                name: "order",
+                node: "input",
+              }),
+              property: "ageDays",
+            }),
+            node: "binary",
+            operator: "<=",
+            right: Object.freeze({
+              node: "literal",
+              value: 90,
+            }),
+          }),
+          node: "binary",
+          operator: "&&",
+          right: Object.freeze({
+            left: Object.freeze({
+              node: "property",
+              object: Object.freeze({
+                name: "order",
+                node: "input",
+              }),
+              property: "status",
+            }),
+            node: "binary",
+            operator: "===",
+            right: Object.freeze({
+              node: "literal",
+              value: "paid",
+            }),
+          }),
+        }),
+        node: "binary",
+        operator: "&&",
+        right: Object.freeze({
+          left: Object.freeze({
+            left: Object.freeze({
+              left: Object.freeze({
+                node: "property",
+                object: Object.freeze({
+                  name: "customer",
+                  node: "input",
+                }),
+                property: "tier",
+              }),
+              node: "binary",
+              operator: "===",
+              right: Object.freeze({
+                node: "literal",
+                value: "standard",
+              }),
+            }),
+            node: "binary",
+            operator: "&&",
+            right: Object.freeze({
+              left: Object.freeze({
+                node: "property",
+                object: Object.freeze({
+                  name: "order",
+                  node: "input",
+                }),
+                property: "ageDays",
+              }),
+              node: "binary",
+              operator: ">",
+              right: Object.freeze({
+                node: "literal",
+                value: 30,
+              }),
+            }),
+          }),
+          node: "binary",
+          operator: "||",
+          right: Object.freeze({
+            left: Object.freeze({
+              left: Object.freeze({
+                node: "property",
+                object: Object.freeze({
+                  name: "customer",
+                  node: "input",
+                }),
+                property: "tier",
+              }),
+              node: "binary",
+              operator: "===",
+              right: Object.freeze({
+                node: "literal",
+                value: "enterprise",
+              }),
+            }),
+            node: "binary",
+            operator: "&&",
+            right: Object.freeze({
+              left: Object.freeze({
+                node: "property",
+                object: Object.freeze({
+                  name: "order",
+                  node: "input",
+                }),
+                property: "ageDays",
+              }),
+              node: "binary",
+              operator: ">",
+              right: Object.freeze({
+                node: "literal",
+                value: 60,
+              }),
+            }),
+          }),
+        }),
+      }),
+      source:
+        'order.ageDays <= 90 &&\n          order.status === "paid" &&\n          ((customer.tier === "standard" && order.ageDays > 30) ||\n            (customer.tier === "enterprise" && order.ageDays > 60))',
+    }),
+    Object.freeze({
+      kind: "always",
+      output: "review",
+      predicate: Object.freeze({
+        left: Object.freeze({
+          left: Object.freeze({
+            left: Object.freeze({
+              node: "property",
+              object: Object.freeze({
+                name: "order",
+                node: "input",
+              }),
+              property: "status",
+            }),
+            node: "binary",
+            operator: "===",
+            right: Object.freeze({
+              node: "literal",
+              value: "paid",
+            }),
+          }),
+          node: "binary",
+          operator: "&&",
+          right: Object.freeze({
+            left: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "customer",
+                    node: "input",
+                  }),
+                  property: "tier",
+                }),
+                node: "binary",
+                operator: "===",
+                right: Object.freeze({
+                  node: "literal",
+                  value: "standard",
+                }),
+              }),
+              node: "binary",
+              operator: "&&",
+              right: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "order",
+                    node: "input",
+                  }),
+                  property: "ageDays",
+                }),
+                node: "binary",
+                operator: "<=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 30,
+                }),
+              }),
+            }),
+            node: "binary",
+            operator: "||",
+            right: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "customer",
+                    node: "input",
+                  }),
+                  property: "tier",
+                }),
+                node: "binary",
+                operator: "===",
+                right: Object.freeze({
+                  node: "literal",
+                  value: "enterprise",
+                }),
+              }),
+              node: "binary",
+              operator: "&&",
+              right: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "order",
+                    node: "input",
+                  }),
+                  property: "ageDays",
+                }),
+                node: "binary",
+                operator: "<=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 60,
+                }),
+              }),
+            }),
+          }),
+        }),
+        node: "binary",
+        operator: "&&",
+        right: Object.freeze({
+          left: Object.freeze({
+            left: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "customer",
+                    node: "input",
+                  }),
+                  property: "priorRefunds",
+                }),
+                node: "binary",
+                operator: ">=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 5,
+                }),
+              }),
+              node: "binary",
+              operator: "||",
+              right: Object.freeze({
+                left: Object.freeze({
+                  left: Object.freeze({
+                    node: "property",
+                    object: Object.freeze({
+                      name: "customer",
+                      node: "input",
+                    }),
+                    property: "priorRefunds",
+                  }),
+                  node: "binary",
+                  operator: ">=",
+                  right: Object.freeze({
+                    node: "literal",
+                    value: 3,
+                  }),
+                }),
+                node: "binary",
+                operator: "&&",
+                right: Object.freeze({
+                  left: Object.freeze({
+                    node: "property",
+                    object: Object.freeze({
+                      name: "order",
+                      node: "input",
+                    }),
+                    property: "total",
+                  }),
+                  node: "binary",
+                  operator: ">=",
+                  right: Object.freeze({
+                    node: "literal",
+                    value: 1000,
+                  }),
+                }),
+              }),
+            }),
+            node: "binary",
+            operator: "||",
+            right: Object.freeze({
+              left: Object.freeze({
+                node: "property",
+                object: Object.freeze({
+                  name: "order",
+                  node: "input",
+                }),
+                property: "total",
+              }),
+              node: "binary",
+              operator: ">=",
+              right: Object.freeze({
+                node: "literal",
+                value: 5000,
+              }),
+            }),
+          }),
+          node: "binary",
+          operator: "||",
+          right: Object.freeze({
+            left: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "order",
+                    node: "input",
+                  }),
+                  property: "ageDays",
+                }),
+                node: "binary",
+                operator: "<=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 1,
+                }),
+              }),
+              node: "binary",
+              operator: "&&",
+              right: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "order",
+                    node: "input",
+                  }),
+                  property: "total",
+                }),
+                node: "binary",
+                operator: ">=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 2000,
+                }),
+              }),
+            }),
+            node: "binary",
+            operator: "&&",
+            right: Object.freeze({
+              left: Object.freeze({
+                node: "property",
+                object: Object.freeze({
+                  name: "customer",
+                  node: "input",
+                }),
+                property: "priorRefunds",
+              }),
+              node: "binary",
+              operator: ">=",
+              right: Object.freeze({
+                node: "literal",
+                value: 2,
+              }),
+            }),
+          }),
+        }),
+      }),
+      source:
+        'order.status === "paid" &&\n          ((customer.tier === "standard" && order.ageDays <= 30) ||\n            (customer.tier === "enterprise" && order.ageDays <= 60)) &&\n          (customer.priorRefunds >= 5 ||\n            (customer.priorRefunds >= 3 && order.total >= 1000) ||\n            order.total >= 5000 ||\n            (order.ageDays <= 1 && order.total >= 2000 && customer.priorRefunds >= 2))',
+    }),
+    Object.freeze({
+      kind: "always",
+      output: "approve",
+      predicate: Object.freeze({
+        left: Object.freeze({
+          left: Object.freeze({
+            left: Object.freeze({
+              node: "property",
+              object: Object.freeze({
+                name: "order",
+                node: "input",
+              }),
+              property: "status",
+            }),
+            node: "binary",
+            operator: "===",
+            right: Object.freeze({
+              node: "literal",
+              value: "paid",
+            }),
+          }),
+          node: "binary",
+          operator: "&&",
+          right: Object.freeze({
+            left: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "customer",
+                    node: "input",
+                  }),
+                  property: "tier",
+                }),
+                node: "binary",
+                operator: "===",
+                right: Object.freeze({
+                  node: "literal",
+                  value: "standard",
+                }),
+              }),
+              node: "binary",
+              operator: "&&",
+              right: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "order",
+                    node: "input",
+                  }),
+                  property: "ageDays",
+                }),
+                node: "binary",
+                operator: "<=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 30,
+                }),
+              }),
+            }),
+            node: "binary",
+            operator: "||",
+            right: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "customer",
+                    node: "input",
+                  }),
+                  property: "tier",
+                }),
+                node: "binary",
+                operator: "===",
+                right: Object.freeze({
+                  node: "literal",
+                  value: "enterprise",
+                }),
+              }),
+              node: "binary",
+              operator: "&&",
+              right: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "order",
+                    node: "input",
+                  }),
+                  property: "ageDays",
+                }),
+                node: "binary",
+                operator: "<=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 60,
+                }),
+              }),
+            }),
+          }),
+        }),
+        node: "binary",
+        operator: "&&",
+        right: Object.freeze({
+          node: "unary",
+          operand: Object.freeze({
+            left: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  left: Object.freeze({
+                    node: "property",
+                    object: Object.freeze({
+                      name: "customer",
+                      node: "input",
+                    }),
+                    property: "priorRefunds",
+                  }),
+                  node: "binary",
+                  operator: ">=",
+                  right: Object.freeze({
+                    node: "literal",
+                    value: 5,
+                  }),
+                }),
+                node: "binary",
+                operator: "||",
+                right: Object.freeze({
+                  left: Object.freeze({
+                    left: Object.freeze({
+                      node: "property",
+                      object: Object.freeze({
+                        name: "customer",
+                        node: "input",
+                      }),
+                      property: "priorRefunds",
+                    }),
+                    node: "binary",
+                    operator: ">=",
+                    right: Object.freeze({
+                      node: "literal",
+                      value: 3,
+                    }),
+                  }),
+                  node: "binary",
+                  operator: "&&",
+                  right: Object.freeze({
+                    left: Object.freeze({
+                      node: "property",
+                      object: Object.freeze({
+                        name: "order",
+                        node: "input",
+                      }),
+                      property: "total",
+                    }),
+                    node: "binary",
+                    operator: ">=",
+                    right: Object.freeze({
+                      node: "literal",
+                      value: 1000,
+                    }),
+                  }),
+                }),
+              }),
+              node: "binary",
+              operator: "||",
+              right: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "order",
+                    node: "input",
+                  }),
+                  property: "total",
+                }),
+                node: "binary",
+                operator: ">=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 5000,
+                }),
+              }),
+            }),
+            node: "binary",
+            operator: "||",
+            right: Object.freeze({
+              left: Object.freeze({
+                left: Object.freeze({
+                  left: Object.freeze({
+                    node: "property",
+                    object: Object.freeze({
+                      name: "order",
+                      node: "input",
+                    }),
+                    property: "ageDays",
+                  }),
+                  node: "binary",
+                  operator: "<=",
+                  right: Object.freeze({
+                    node: "literal",
+                    value: 1,
+                  }),
+                }),
+                node: "binary",
+                operator: "&&",
+                right: Object.freeze({
+                  left: Object.freeze({
+                    node: "property",
+                    object: Object.freeze({
+                      name: "order",
+                      node: "input",
+                    }),
+                    property: "total",
+                  }),
+                  node: "binary",
+                  operator: ">=",
+                  right: Object.freeze({
+                    node: "literal",
+                    value: 2000,
+                  }),
+                }),
+              }),
+              node: "binary",
+              operator: "&&",
+              right: Object.freeze({
+                left: Object.freeze({
+                  node: "property",
+                  object: Object.freeze({
+                    name: "customer",
+                    node: "input",
+                  }),
+                  property: "priorRefunds",
+                }),
+                node: "binary",
+                operator: ">=",
+                right: Object.freeze({
+                  node: "literal",
+                  value: 2,
+                }),
+              }),
+            }),
+          }),
+          operator: "!",
+        }),
+      }),
+      source:
+        'order.status === "paid" &&\n          ((customer.tier === "standard" && order.ageDays <= 30) ||\n            (customer.tier === "enterprise" && order.ageDays <= 60)) &&\n          !(\n            customer.priorRefunds >= 5 ||\n            (customer.priorRefunds >= 3 && order.total >= 1000) ||\n            order.total >= 5000 ||\n            (order.ageDays <= 1 && order.total >= 2000 && customer.priorRefunds >= 2)\n          )',
     }),
   ]),
 } as const);
@@ -73,9 +748,9 @@ export const REFUND_TASK_SPEC = Object.freeze({
 export const REFUND_TASK_SPEC_SHA256 = semanticJsonSha256(REFUND_TASK_SPEC);
 
 export const REFUND_FUNCTION_ID =
-  "nf_955824a910df4df5cc32a079555fe109919c41492697d9a1cc507decc5afba20" as const;
+  "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c" as const;
 export const REFUND_FUNCTION_SEMANTIC_SHA256 =
-  "29b03f7d9ec695eb4178e6c4320b6094f7d1c37bc6bfca3516e983e93a0dc1f1" as const;
+  "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f" as const;
 export const REFUND_FUNCTION_BINDING = Object.freeze({
   id: REFUND_FUNCTION_ID,
   semanticSha256: REFUND_FUNCTION_SEMANTIC_SHA256,
@@ -97,7 +772,9 @@ export function deriveRefundArtifactTrainingKeySha256(
 ): string;
 export function deriveRefundArtifactTrainingKeySha256(value: unknown): string {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new TypeError("refund artifact training-key sources must be an object");
+    throw new TypeError(
+      "refund artifact training-key sources must be an object",
+    );
   }
   const sources = value as unknown as Record<string, unknown>;
   const keys = [
@@ -107,7 +784,10 @@ export function deriveRefundArtifactTrainingKeySha256(value: unknown): string {
     "releaseVerificationAttestationSha256",
   ] as const;
   const names = Object.keys(sources);
-  if (names.length !== keys.length || keys.some((key) => !names.includes(key))) {
+  if (
+    names.length !== keys.length ||
+    keys.some((key) => !names.includes(key))
+  ) {
     throw new TypeError(
       `refund artifact training-key sources must contain exactly ${keys.join(", ")}`,
     );
@@ -169,7 +849,8 @@ export const REFUND_SYSTEM_PINS = Object.freeze({
       provider: "ollama",
       name: "qwen2.5:1.5b-instruct-q4_K_M",
       version: "qwen2.5",
-      revision: "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+      revision:
+        "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
       artifactSha256:
         "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4",
     }),
@@ -180,7 +861,8 @@ export const REFUND_SYSTEM_PINS = Object.freeze({
       provider: "ollama",
       name: "qwen2.5:7b-instruct-q4_K_M",
       version: "qwen2.5",
-      revision: "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+      revision:
+        "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
       artifactSha256:
         "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730",
     }),
@@ -208,7 +890,10 @@ export const REFUND_SYSTEM_PINS = Object.freeze({
       artifactSha256:
         "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e",
     }),
-    adapter: Object.freeze({ name: "refund-laya-typed-decisions", version: "2" }),
+    adapter: Object.freeze({
+      name: "refund-laya-typed-decisions",
+      version: "2",
+    }),
   }),
 } as const);
 
@@ -217,5 +902,9 @@ export const REFUND_BASELINE_POLICY = Object.freeze({
   hardConstraints: Object.freeze([
     'An order whose status is "fraudulent" must never be classified as "approve".',
     'An order whose ageDays is greater than 90 must always be classified as "deny".',
+    'An order whose ageDays is at most 90 and whose status is "fraudulent" must always be classified as "review".',
+    'A "paid" order whose ageDays is at most 90 and outside its window (standard tier: ageDays greater than 30; enterprise tier: ageDays greater than 60) must always be classified as "deny".',
+    'A "paid" order inside its window (standard tier: ageDays at most 30; enterprise tier: ageDays at most 60) must always be classified as "review" when priorRefunds is at least 5, or priorRefunds is at least 3 and total is at least 1000, or total is at least 5000, or ageDays is at most 1 and total is at least 2000 and priorRefunds is at least 2.',
+    'A "paid" order inside its window that meets none of those suspicious conditions must always be classified as "approve".',
   ] as const),
 });

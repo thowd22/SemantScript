@@ -107,10 +107,14 @@ test("baseline prompt is a readable field-ordered snapshot of the complete task"
     user: [
       "Prompt protocol: refund-decision.v2",
       `Task specification SHA-256: ${REFUND_TASK_SPEC_SHA256}`,
-      "Policy: Enterprise customers get 60 days; everyone else gets 30; suspicious circumstances go to review.",
+      "Policy: An order older than 90 days is always denied. A fraudulent order that is 90 days old or younger goes to review. A paid order outside its refund window is denied: enterprise customers get 60 days and everyone else gets 30, counting the window as inclusive. A paid order inside its window goes to review when the circumstances are suspicious, meaning five or more prior refunds, three or more prior refunds on an order of at least 1000, an order total of at least 5000, or a same-day cancellation (age at most 1 day) of an order of at least 2000 by a customer with two or more prior refunds. Otherwise a paid order inside its window is approved.",
       "Hard constraints:",
-      '1. An order whose status is "fraudulent" must never be classified as "approve".',
-      '2. An order whose ageDays is greater than 90 must always be classified as "deny".',
+      "1. An order whose status is \"fraudulent\" must never be classified as \"approve\".",
+      "2. An order whose ageDays is greater than 90 must always be classified as \"deny\".",
+      "3. An order whose ageDays is at most 90 and whose status is \"fraudulent\" must always be classified as \"review\".",
+      "4. A \"paid\" order whose ageDays is at most 90 and outside its window (standard tier: ageDays greater than 30; enterprise tier: ageDays greater than 60) must always be classified as \"deny\".",
+      "5. A \"paid\" order inside its window (standard tier: ageDays at most 30; enterprise tier: ageDays at most 60) must always be classified as \"review\" when priorRefunds is at least 5, or priorRefunds is at least 3 and total is at least 1000, or total is at least 5000, or ageDays is at most 1 and total is at least 2000 and priorRefunds is at least 2.",
+      "6. A \"paid\" order inside its window that meets none of those suspicious conditions must always be classified as \"approve\".",
       'Input domain: order.status is exactly "paid" or "fraudulent".',
       "Support order: approve, deny, review",
       'Refund input (canonical refund JSON): {"customer":{"priorRefunds":1,"tier":"standard"},"order":{"ageDays":8,"status":"paid","total":49.95}}',
@@ -129,10 +133,8 @@ test("canonical task specification is deeply immutable and digest bound", () => 
   visit(REFUND_BASELINE_POLICY);
   assert.match(REFUND_TASK_SPEC_SHA256, /^[a-f0-9]{64}$/u);
   assert.deepEqual(REFUND_TASK_SPEC.inputDomain.order.status, ["fraudulent", "paid"]);
-  assert.equal(
-    REFUND_TASK_SPEC.policy,
-    "Enterprise customers get 60 days; everyone else gets 30; suspicious circumstances go to review",
-  );
+  assert.equal(REFUND_TASK_SPEC.policy, "An order older than 90 days is always denied. A fraudulent order that is 90 days old or younger goes to review. A paid order outside its refund window is denied: enterprise customers get 60 days and everyone else gets 30, counting the window as inclusive. A paid order inside its window goes to review when the circumstances are suspicious, meaning five or more prior refunds, three or more prior refunds on an order of at least 1000, an order total of at least 5000, or a same-day cancellation (age at most 1 day) of an order of at least 2000 by a customer with two or more prior refunds. Otherwise a paid order inside its window is approved");
+  assert.equal(REFUND_TASK_SPEC.hardConstraints.length, 6);
 });
 
 test("Ollama Qwen adapter fixes decoding, schema, input, and provenance", async () => {
@@ -192,7 +194,7 @@ test("Ollama Qwen adapter fixes decoding, schema, input, and provenance", async 
   assert.deepEqual(request.options, { temperature: 0, seed: 0, num_predict: 256 });
   assert.strictEqual(request.format, REFUND_OUTPUT_SCHEMA);
   assert.ok(request.prompt.includes(canonicalRefundInput(INPUTS)));
-  assert.match(request.prompt, /Enterprise customers get 60 days; everyone else gets 30/u);
+  assert.match(request.prompt, /enterprise customers get 60 days and everyone else gets 30/u);
   assert.match(request.prompt, /fraudulent.+never.+approve/u);
   assert.match(request.prompt, /ageDays.+greater than 90.+always.+deny/u);
   assert.ok(request.prompt.includes(REFUND_TASK_SPEC_SHA256));

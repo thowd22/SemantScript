@@ -111,13 +111,15 @@ def test_assembles_identity_bound_rows_and_groups_counterfactual_source() -> Non
 
     assert len(corpus.rows) == 5
     assert [row.label_index for row in corpus.rows] == [0, 0, 1, 0, 1]
-    pair_group = sidecar.pairs[0].pair_id
+    # The twin repeats base case 2's inputs, so the whole counterfactual component
+    # merges with that base row under the smallest member id: identical inputs
+    # must never straddle the held-out split.
     assert [row.group_id for row in corpus.rows] == [
         "base:0",
-        pair_group,
         "base:2",
-        pair_group,
-        pair_group,
+        "base:2",
+        "base:2",
+        "base:2",
     ]
     exposed = corpus.rows[0].inputs
     exposed["score"] = 999
@@ -154,7 +156,9 @@ def test_constraint_boundary_sides_share_one_split_group() -> None:
     boundary_rows = [row for row in corpus.rows if row.origin == "constraint-boundary"]
 
     assert len(boundary_rows) == 2
-    assert {row.group_id for row in boundary_rows} == {"boundary:0"}
+    # One boundary side repeats the gold base input, so the boundary group merges
+    # into that mandatory-training group.
+    assert {row.group_id for row in boundary_rows} == {"base:0"}
 
 
 def test_split_is_deterministic_group_aware_and_nonempty() -> None:
@@ -351,3 +355,29 @@ def boundary_dataset(base: TrainingDataset) -> AdversarialDataset:
         payload_sha256="d" * 64,
         dataset_sha256="e" * 64,
     )
+
+
+def test_identical_synthetic_inputs_share_one_group_and_one_split_side() -> None:
+    contract = ir(boolean_head())
+    base = replace(
+        base_dataset(),
+        requested_case_count=6,
+        cases=(
+            DatasetCase({"score": 0}, False, "gold"),
+            DatasetCase({"score": 1}, False, "synthetic"),
+            DatasetCase({"score": 2}, True, "synthetic"),
+            DatasetCase({"score": 3}, True, "synthetic"),
+            DatasetCase({"score": 1}, False, "synthetic"),
+            DatasetCase({"score": 4}, True, "synthetic"),
+        ),
+    )
+
+    corpus = assemble_training_corpus(contract, base)
+
+    groups = [row.group_id for row in corpus.rows]
+    assert groups[1] == groups[4] == "base:1"
+    assert len(set(groups)) == 5
+    for seed in range(1, 6):
+        split = split_training_corpus(corpus, HeldOutSplitConfig(evaluation_ratio=0.5, seed=seed))
+        sides = {row.row_id: (row in split.evaluation) for row in corpus.rows}
+        assert sides["base:1"] == sides["base:4"]

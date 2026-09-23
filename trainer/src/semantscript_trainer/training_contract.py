@@ -334,6 +334,7 @@ def assemble_training_corpus(
         raise TrainingContractError(
             f"training corpus exceeds maximum row count {MAXIMUM_TRAINING_ROW_COUNT}"
         )
+    rows = _merge_duplicate_input_groups(rows)
     return TrainingCorpus(
         function_id=base.function_id,
         semantic_sha256=base.semantic_sha256,
@@ -342,6 +343,59 @@ def assemble_training_corpus(
         head=head,
         rows=tuple(rows),
     )
+
+
+def _merge_duplicate_input_groups(rows: list[TrainingRow]) -> list[TrainingRow]:
+    """Give rows with identical canonical inputs one split group.
+
+    Generated corpora may legitimately repeat an input (a residual duplicate, or
+    a counterfactual anchor that copies a base case). The held-out split moves
+    whole groups, so identical inputs must share a group or the same input could
+    land in both the training and the calibration partitions. Merged groups take
+    the lexicographically smallest member id so the result is deterministic.
+    """
+
+    parent: dict[str, str] = {}
+
+    def find(group: str) -> str:
+        parent.setdefault(group, group)
+        while parent[group] != group:
+            parent[group] = parent[parent[group]]
+            group = parent[group]
+        return group
+
+    merged = False
+    first_group_by_input: dict[bytes, str] = {}
+    for row in rows:
+        key = _canonical_json_bytes(row.inputs)
+        existing = first_group_by_input.setdefault(key, row.group_id)
+        if existing != row.group_id:
+            left, right = find(existing), find(row.group_id)
+            if left != right:
+                parent[max(left, right)] = min(left, right)
+                merged = True
+    if not merged:
+        return rows
+    representative: dict[str, str] = {}
+    for row in rows:
+        root = find(row.group_id)
+        representative[root] = min(representative.get(root, row.group_id), row.group_id)
+    result: list[TrainingRow] = []
+    for row in rows:
+        group_id = representative[find(row.group_id)]
+        if group_id == row.group_id:
+            result.append(row)
+        else:
+            result.append(
+                TrainingRow(
+                    row_id=row.row_id,
+                    group_id=group_id,
+                    origin=row.origin,
+                    inputs=row.inputs,
+                    label_index=row.label_index,
+                )
+            )
+    return result
 
 
 def split_training_corpus(

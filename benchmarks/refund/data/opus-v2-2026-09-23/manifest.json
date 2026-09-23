@@ -1,0 +1,121 @@
+{
+  "adversarial": {
+    "baseDatasetSha256": "d599df4f325fbc447d5081f71b85ab096a07ddf95244d2543f3003583a940e40",
+    "cacheKeySha256": "09fc649cc61a9a89c307c2aaa1f691341514f53333e47fe2e2b0859dc42ebb85",
+    "cachePath": "adversarial/adversarial-datasets/v1/09/09fc649cc61a9a89c307c2aaa1f691341514f53333e47fe2e2b0859dc42ebb85.json",
+    "caseCount": 312,
+    "caseCountsByTag": {
+      "constraint-boundary": 12,
+      "counterfactual": 300
+    },
+    "config": {
+      "counterfactualRatio": 0.1,
+      "maximumAttempts": 5
+    },
+    "datasetSha256": "f8c8426c767bc39a26696c37b7bae620c6e33923d57f0372408c76f5cb878831",
+    "elapsedSeconds": 979.996,
+    "labelCounts": {
+      "\"approve\"": 78,
+      "\"deny\"": 98,
+      "\"review\"": 136
+    },
+    "pairCount": 150,
+    "payloadSha256": "517193ca64931999cfb831d6513a83101bf79a156de720f6c5a10389dc1a8746"
+  },
+  "completedAt": "2026-09-23T23:32:00Z",
+  "dataClassification": "synthetic-training-only",
+  "environment": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "function": {
+    "bundlePath": "compiler/semantscript.ir.v1.json",
+    "bundleSha256": "4bd6a4f90d19f56983b199c421efd23430c648008ec3f5919946f24707671b39",
+    "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+    "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
+  },
+  "kind": "semantscript.refund-training-corpus-manifest",
+  "manifestVersion": 1,
+  "notice": "Model-generated training data only. Not human-authored, not a benchmark or release-verification set, and never to be used as an evaluation target.",
+  "resumed": false,
+  "startedAt": "2026-09-23T22:57:39Z",
+  "synthetic": {
+    "cacheKeySha256": "b38026977e4867a53e0073c7ac2773e465b2660bf0c994eaa4337cec2a6c8f63",
+    "cachePath": "synthetic/datasets/v1/b3/b38026977e4867a53e0073c7ac2773e465b2660bf0c994eaa4337cec2a6c8f63.json",
+    "datasetSha256": "d599df4f325fbc447d5081f71b85ab096a07ddf95244d2543f3003583a940e40",
+    "elapsedSeconds": 1228.054,
+    "goldCount": 0,
+    "labelCounts": {
+      "\"approve\"": 310,
+      "\"deny\"": 583,
+      "\"review\"": 607
+    },
+    "loadedFromCache": false,
+    "payloadSha256": "ffaad9a80e73e7274f817eefaacace8351a8d78ea3676d772295a643b92f0017",
+    "requestedCaseCount": 1500,
+    "runReport": {
+      "constraintRejections": 0,
+      "duplicateRetries": 147,
+      "duplicateRounds": 2,
+      "positions": 1500,
+      "requests": 1647,
+      "residualDuplicates": 8,
+      "responseBytes": 3440970,
+      "schemaRejections": 0,
+      "transportFailures": 0
+    },
+    "syntheticCount": 1500,
+    "uniqueInputCount": 1492
+  },
+  "teacher": {
+    "cliVersion": "2.1.281 (Claude Code)",
+    "configuration": {
+      "cli": {
+        "executable": "claude",
+        "requiredVersion": null
+      },
+      "configVersion": 2,
+      "dataClassification": "synthetic-training-only",
+      "generation": {
+        "concurrency": 6,
+        "duplicateRounds": 2,
+        "maximumCaseAttempts": 4
+      },
+      "kind": "semantscript.refund-claude-cli-teacher-config",
+      "limits": {
+        "stderrBytes": 65536,
+        "stdinBytes": 8388608,
+        "stdoutBytes": 8388608,
+        "timeoutSeconds": 600.0
+      },
+      "promptProtocol": "semantscript-trainer-ir-prompts/v2",
+      "protocol": "semantscript.refund-training.claude-cli/v1",
+      "request": {
+        "chrome": false,
+        "effort": "high",
+        "fallbackModel": null,
+        "inputFormat": "text",
+        "maxBudgetUsd": 2.0,
+        "mcpServers": {},
+        "model": "claude-opus-5-5",
+        "outputFormat": "json",
+        "permissionMode": "dontAsk",
+        "permissionPrompts": "none",
+        "print": true,
+        "promptSuggestions": false,
+        "restrictedMode": true,
+        "safeMode": true,
+        "sessionPersistence": false,
+        "settingSources": [],
+        "skills": false,
+        "structuredOutput": "ir-derived-json-schema",
+        "tools": []
+      }
+    },
+    "configurationSha256": "46743b0126de519249c013f8aff8fbee2fb8830bab0d42ed038a626917549b15",
+    "dataClassification": "synthetic-training-only",
+    "model": "claude-opus-5-5",
+    "protocol": "semantscript.refund-training.claude-cli/v1",
+    "provider": "anthropic-claude-cli-training-only"
+  }
+}

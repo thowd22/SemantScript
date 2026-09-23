@@ -1,0 +1,11 @@
+{
+  "constraintRejections": 0,
+  "duplicateRetries": 147,
+  "duplicateRounds": 2,
+  "positions": 1500,
+  "requests": 1647,
+  "residualDuplicates": 8,
+  "responseBytes": 3440970,
+  "schemaRejections": 0,
+  "transportFailures": 0
+}

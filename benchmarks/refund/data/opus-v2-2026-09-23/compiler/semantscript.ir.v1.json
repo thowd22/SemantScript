@@ -1,0 +1,861 @@
+{
+  "bundleVersion": 1,
+  "executionPlan": {
+    "dependencies": [],
+    "stages": [
+      {
+        "functionIds": [
+          "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c"
+        ],
+        "index": 0
+      }
+    ]
+  },
+  "functions": [
+    {
+      "definition": {
+        "constraints": [
+          {
+            "kind": "never",
+            "output": "approve",
+            "predicate": {
+              "left": {
+                "node": "property",
+                "object": {
+                  "name": "order",
+                  "node": "input"
+                },
+                "property": "status"
+              },
+              "node": "binary",
+              "operator": "===",
+              "right": {
+                "node": "literal",
+                "value": "fraudulent"
+              }
+            },
+            "source": "order.status === \"fraudulent\""
+          },
+          {
+            "kind": "always",
+            "output": "deny",
+            "predicate": {
+              "left": {
+                "node": "property",
+                "object": {
+                  "name": "order",
+                  "node": "input"
+                },
+                "property": "ageDays"
+              },
+              "node": "binary",
+              "operator": ">",
+              "right": {
+                "node": "literal",
+                "value": 90
+              }
+            },
+            "source": "order.ageDays > 90"
+          },
+          {
+            "kind": "always",
+            "output": "review",
+            "predicate": {
+              "left": {
+                "left": {
+                  "node": "property",
+                  "object": {
+                    "name": "order",
+                    "node": "input"
+                  },
+                  "property": "ageDays"
+                },
+                "node": "binary",
+                "operator": "<=",
+                "right": {
+                  "node": "literal",
+                  "value": 90
+                }
+              },
+              "node": "binary",
+              "operator": "&&",
+              "right": {
+                "left": {
+                  "node": "property",
+                  "object": {
+                    "name": "order",
+                    "node": "input"
+                  },
+                  "property": "status"
+                },
+                "node": "binary",
+                "operator": "===",
+                "right": {
+                  "node": "literal",
+                  "value": "fraudulent"
+                }
+              }
+            },
+            "source": "order.ageDays <= 90 && order.status === \"fraudulent\""
+          },
+          {
+            "kind": "always",
+            "output": "deny",
+            "predicate": {
+              "left": {
+                "left": {
+                  "left": {
+                    "node": "property",
+                    "object": {
+                      "name": "order",
+                      "node": "input"
+                    },
+                    "property": "ageDays"
+                  },
+                  "node": "binary",
+                  "operator": "<=",
+                  "right": {
+                    "node": "literal",
+                    "value": 90
+                  }
+                },
+                "node": "binary",
+                "operator": "&&",
+                "right": {
+                  "left": {
+                    "node": "property",
+                    "object": {
+                      "name": "order",
+                      "node": "input"
+                    },
+                    "property": "status"
+                  },
+                  "node": "binary",
+                  "operator": "===",
+                  "right": {
+                    "node": "literal",
+                    "value": "paid"
+                  }
+                }
+              },
+              "node": "binary",
+              "operator": "&&",
+              "right": {
+                "left": {
+                  "left": {
+                    "left": {
+                      "node": "property",
+                      "object": {
+                        "name": "customer",
+                        "node": "input"
+                      },
+                      "property": "tier"
+                    },
+                    "node": "binary",
+                    "operator": "===",
+                    "right": {
+                      "node": "literal",
+                      "value": "standard"
+                    }
+                  },
+                  "node": "binary",
+                  "operator": "&&",
+                  "right": {
+                    "left": {
+                      "node": "property",
+                      "object": {
+                        "name": "order",
+                        "node": "input"
+                      },
+                      "property": "ageDays"
+                    },
+                    "node": "binary",
+                    "operator": ">",
+                    "right": {
+                      "node": "literal",
+                      "value": 30
+                    }
+                  }
+                },
+                "node": "binary",
+                "operator": "||",
+                "right": {
+                  "left": {
+                    "left": {
+                      "node": "property",
+                      "object": {
+                        "name": "customer",
+                        "node": "input"
+                      },
+                      "property": "tier"
+                    },
+                    "node": "binary",
+                    "operator": "===",
+                    "right": {
+                      "node": "literal",
+                      "value": "enterprise"
+                    }
+                  },
+                  "node": "binary",
+                  "operator": "&&",
+                  "right": {
+                    "left": {
+                      "node": "property",
+                      "object": {
+                        "name": "order",
+                        "node": "input"
+                      },
+                      "property": "ageDays"
+                    },
+                    "node": "binary",
+                    "operator": ">",
+                    "right": {
+                      "node": "literal",
+                      "value": 60
+                    }
+                  }
+                }
+              }
+            },
+            "source": "order.ageDays <= 90 &&\n          order.status === \"paid\" &&\n          ((customer.tier === \"standard\" && order.ageDays > 30) ||\n            (customer.tier === \"enterprise\" && order.ageDays > 60))"
+          },
+          {
+            "kind": "always",
+            "output": "review",
+            "predicate": {
+              "left": {
+                "left": {
+                  "left": {
+                    "node": "property",
+                    "object": {
+                      "name": "order",
+                      "node": "input"
+                    },
+                    "property": "status"
+                  },
+                  "node": "binary",
+                  "operator": "===",
+                  "right": {
+                    "node": "literal",
+                    "value": "paid"
+                  }
+                },
+                "node": "binary",
+                "operator": "&&",
+                "right": {
+                  "left": {
+                    "left": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "customer",
+                          "node": "input"
+                        },
+                        "property": "tier"
+                      },
+                      "node": "binary",
+                      "operator": "===",
+                      "right": {
+                        "node": "literal",
+                        "value": "standard"
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "&&",
+                    "right": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "order",
+                          "node": "input"
+                        },
+                        "property": "ageDays"
+                      },
+                      "node": "binary",
+                      "operator": "<=",
+                      "right": {
+                        "node": "literal",
+                        "value": 30
+                      }
+                    }
+                  },
+                  "node": "binary",
+                  "operator": "||",
+                  "right": {
+                    "left": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "customer",
+                          "node": "input"
+                        },
+                        "property": "tier"
+                      },
+                      "node": "binary",
+                      "operator": "===",
+                      "right": {
+                        "node": "literal",
+                        "value": "enterprise"
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "&&",
+                    "right": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "order",
+                          "node": "input"
+                        },
+                        "property": "ageDays"
+                      },
+                      "node": "binary",
+                      "operator": "<=",
+                      "right": {
+                        "node": "literal",
+                        "value": 60
+                      }
+                    }
+                  }
+                }
+              },
+              "node": "binary",
+              "operator": "&&",
+              "right": {
+                "left": {
+                  "left": {
+                    "left": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "customer",
+                          "node": "input"
+                        },
+                        "property": "priorRefunds"
+                      },
+                      "node": "binary",
+                      "operator": ">=",
+                      "right": {
+                        "node": "literal",
+                        "value": 5
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "||",
+                    "right": {
+                      "left": {
+                        "left": {
+                          "node": "property",
+                          "object": {
+                            "name": "customer",
+                            "node": "input"
+                          },
+                          "property": "priorRefunds"
+                        },
+                        "node": "binary",
+                        "operator": ">=",
+                        "right": {
+                          "node": "literal",
+                          "value": 3
+                        }
+                      },
+                      "node": "binary",
+                      "operator": "&&",
+                      "right": {
+                        "left": {
+                          "node": "property",
+                          "object": {
+                            "name": "order",
+                            "node": "input"
+                          },
+                          "property": "total"
+                        },
+                        "node": "binary",
+                        "operator": ">=",
+                        "right": {
+                          "node": "literal",
+                          "value": 1000
+                        }
+                      }
+                    }
+                  },
+                  "node": "binary",
+                  "operator": "||",
+                  "right": {
+                    "left": {
+                      "node": "property",
+                      "object": {
+                        "name": "order",
+                        "node": "input"
+                      },
+                      "property": "total"
+                    },
+                    "node": "binary",
+                    "operator": ">=",
+                    "right": {
+                      "node": "literal",
+                      "value": 5000
+                    }
+                  }
+                },
+                "node": "binary",
+                "operator": "||",
+                "right": {
+                  "left": {
+                    "left": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "order",
+                          "node": "input"
+                        },
+                        "property": "ageDays"
+                      },
+                      "node": "binary",
+                      "operator": "<=",
+                      "right": {
+                        "node": "literal",
+                        "value": 1
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "&&",
+                    "right": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "order",
+                          "node": "input"
+                        },
+                        "property": "total"
+                      },
+                      "node": "binary",
+                      "operator": ">=",
+                      "right": {
+                        "node": "literal",
+                        "value": 2000
+                      }
+                    }
+                  },
+                  "node": "binary",
+                  "operator": "&&",
+                  "right": {
+                    "left": {
+                      "node": "property",
+                      "object": {
+                        "name": "customer",
+                        "node": "input"
+                      },
+                      "property": "priorRefunds"
+                    },
+                    "node": "binary",
+                    "operator": ">=",
+                    "right": {
+                      "node": "literal",
+                      "value": 2
+                    }
+                  }
+                }
+              }
+            },
+            "source": "order.status === \"paid\" &&\n          ((customer.tier === \"standard\" && order.ageDays <= 30) ||\n            (customer.tier === \"enterprise\" && order.ageDays <= 60)) &&\n          (customer.priorRefunds >= 5 ||\n            (customer.priorRefunds >= 3 && order.total >= 1000) ||\n            order.total >= 5000 ||\n            (order.ageDays <= 1 && order.total >= 2000 && customer.priorRefunds >= 2))"
+          },
+          {
+            "kind": "always",
+            "output": "approve",
+            "predicate": {
+              "left": {
+                "left": {
+                  "left": {
+                    "node": "property",
+                    "object": {
+                      "name": "order",
+                      "node": "input"
+                    },
+                    "property": "status"
+                  },
+                  "node": "binary",
+                  "operator": "===",
+                  "right": {
+                    "node": "literal",
+                    "value": "paid"
+                  }
+                },
+                "node": "binary",
+                "operator": "&&",
+                "right": {
+                  "left": {
+                    "left": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "customer",
+                          "node": "input"
+                        },
+                        "property": "tier"
+                      },
+                      "node": "binary",
+                      "operator": "===",
+                      "right": {
+                        "node": "literal",
+                        "value": "standard"
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "&&",
+                    "right": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "order",
+                          "node": "input"
+                        },
+                        "property": "ageDays"
+                      },
+                      "node": "binary",
+                      "operator": "<=",
+                      "right": {
+                        "node": "literal",
+                        "value": 30
+                      }
+                    }
+                  },
+                  "node": "binary",
+                  "operator": "||",
+                  "right": {
+                    "left": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "customer",
+                          "node": "input"
+                        },
+                        "property": "tier"
+                      },
+                      "node": "binary",
+                      "operator": "===",
+                      "right": {
+                        "node": "literal",
+                        "value": "enterprise"
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "&&",
+                    "right": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "order",
+                          "node": "input"
+                        },
+                        "property": "ageDays"
+                      },
+                      "node": "binary",
+                      "operator": "<=",
+                      "right": {
+                        "node": "literal",
+                        "value": 60
+                      }
+                    }
+                  }
+                }
+              },
+              "node": "binary",
+              "operator": "&&",
+              "right": {
+                "node": "unary",
+                "operand": {
+                  "left": {
+                    "left": {
+                      "left": {
+                        "left": {
+                          "node": "property",
+                          "object": {
+                            "name": "customer",
+                            "node": "input"
+                          },
+                          "property": "priorRefunds"
+                        },
+                        "node": "binary",
+                        "operator": ">=",
+                        "right": {
+                          "node": "literal",
+                          "value": 5
+                        }
+                      },
+                      "node": "binary",
+                      "operator": "||",
+                      "right": {
+                        "left": {
+                          "left": {
+                            "node": "property",
+                            "object": {
+                              "name": "customer",
+                              "node": "input"
+                            },
+                            "property": "priorRefunds"
+                          },
+                          "node": "binary",
+                          "operator": ">=",
+                          "right": {
+                            "node": "literal",
+                            "value": 3
+                          }
+                        },
+                        "node": "binary",
+                        "operator": "&&",
+                        "right": {
+                          "left": {
+                            "node": "property",
+                            "object": {
+                              "name": "order",
+                              "node": "input"
+                            },
+                            "property": "total"
+                          },
+                          "node": "binary",
+                          "operator": ">=",
+                          "right": {
+                            "node": "literal",
+                            "value": 1000
+                          }
+                        }
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "||",
+                    "right": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "order",
+                          "node": "input"
+                        },
+                        "property": "total"
+                      },
+                      "node": "binary",
+                      "operator": ">=",
+                      "right": {
+                        "node": "literal",
+                        "value": 5000
+                      }
+                    }
+                  },
+                  "node": "binary",
+                  "operator": "||",
+                  "right": {
+                    "left": {
+                      "left": {
+                        "left": {
+                          "node": "property",
+                          "object": {
+                            "name": "order",
+                            "node": "input"
+                          },
+                          "property": "ageDays"
+                        },
+                        "node": "binary",
+                        "operator": "<=",
+                        "right": {
+                          "node": "literal",
+                          "value": 1
+                        }
+                      },
+                      "node": "binary",
+                      "operator": "&&",
+                      "right": {
+                        "left": {
+                          "node": "property",
+                          "object": {
+                            "name": "order",
+                            "node": "input"
+                          },
+                          "property": "total"
+                        },
+                        "node": "binary",
+                        "operator": ">=",
+                        "right": {
+                          "node": "literal",
+                          "value": 2000
+                        }
+                      }
+                    },
+                    "node": "binary",
+                    "operator": "&&",
+                    "right": {
+                      "left": {
+                        "node": "property",
+                        "object": {
+                          "name": "customer",
+                          "node": "input"
+                        },
+                        "property": "priorRefunds"
+                      },
+                      "node": "binary",
+                      "operator": ">=",
+                      "right": {
+                        "node": "literal",
+                        "value": 2
+                      }
+                    }
+                  }
+                },
+                "operator": "!"
+              }
+            },
+            "source": "order.status === \"paid\" &&\n          ((customer.tier === \"standard\" && order.ageDays <= 30) ||\n            (customer.tier === \"enterprise\" && order.ageDays <= 60)) &&\n          !(\n            customer.priorRefunds >= 5 ||\n            (customer.priorRefunds >= 3 && order.total >= 1000) ||\n            order.total >= 5000 ||\n            (order.ageDays <= 1 && order.total >= 2000 && customer.priorRefunds >= 2)\n          )"
+          }
+        ],
+        "examples": [],
+        "template": [
+          {
+            "kind": "text",
+            "text": "Apply our refund policy. An order older than 90 days is always denied. A fraudulent order that is 90 days old or younger goes to review. A paid order outside its refund window is denied: enterprise customers get 60 days and everyone else gets 30, counting the window as inclusive. A paid order inside its window goes to review when the circumstances are suspicious, meaning five or more prior refunds, three or more prior refunds on an order of at least 1000, an order total of at least 5000, or a same-day cancellation (age at most 1 day) of an order of at least 2000 by a customer with two or more prior refunds. Otherwise a paid order inside its window is approved.\nCustomer: "
+          },
+          {
+            "kind": "input",
+            "name": "customer"
+          },
+          {
+            "kind": "text",
+            "text": "\nOrder: "
+          },
+          {
+            "kind": "input",
+            "name": "order"
+          },
+          {
+            "kind": "text",
+            "text": "\n"
+          }
+        ]
+      },
+      "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "customer",
+          "tsType": "Customer",
+          "type": {
+            "fields": [
+              {
+                "name": "priorRefunds",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "tier",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    {
+                      "kind": "literal",
+                      "value": "enterprise"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "standard"
+                    }
+                  ]
+                }
+              }
+            ],
+            "kind": "object",
+            "name": "Customer"
+          }
+        },
+        {
+          "index": 1,
+          "name": "order",
+          "tsType": "Order",
+          "type": {
+            "fields": [
+              {
+                "name": "ageDays",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "status",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    {
+                      "kind": "literal",
+                      "value": "fraudulent"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "paid"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "total",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              }
+            ],
+            "kind": "object",
+            "name": "Order"
+          }
+        }
+      ],
+      "irVersion": 1,
+      "kind": "semantscript.neural-function",
+      "model": {
+        "adapter": "adapter.refund-benchmark",
+        "encoder": "encoder.refund-benchmark",
+        "heads": [
+          {
+            "outputPath": "",
+            "ref": "head.65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c.000"
+          }
+        ]
+      },
+      "output": {
+        "head": {
+          "kind": "nominal",
+          "sourceKind": "string-union",
+          "support": [
+            "approve",
+            "deny",
+            "review"
+          ]
+        },
+        "kind": "scalar",
+        "tsType": "RefundDecision"
+      },
+      "runtime": {
+        "confidenceThreshold": null,
+        "fallbackRef": null,
+        "resultMode": "diagnostic",
+        "synchronous": true
+      },
+      "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f",
+      "source": {
+        "column": 10,
+        "line": 36,
+        "path": "refund-with-confidence.sem.ts",
+        "sourceSha256": "cb727d2aa2f07b154feb8c61ded9d2c6a98252c72438f6ea1a3ea30257a0f870"
+      },
+      "stage": "source",
+      "trainingProvenance": {
+        "status": "pending"
+      },
+      "verification": {
+        "status": "pending"
+      }
+    }
+  ],
+  "kind": "semantscript.ir-bundle"
+}

@@ -1,0 +1,262 @@
+{
+  "kind": "semantscript.neural-function",
+  "irVersion": 1,
+  "stage": "verified",
+  "id": "nf_5abdc7d0cbfc5e129dd6b94add4e12a9cc3047e7fb7f6bebaf62c33108ea9222",
+  "semanticSha256": "5e4d51edec329295a35965f8d6759f5638ae0570f328f9e15a04904a7191ec92",
+  "source": {
+    "path": "examples/refund.sem.ts",
+    "line": 17,
+    "column": 10,
+    "sourceSha256": "8e428e302206d3effdf2b510215e9a267d0cb5975561cea5430e712e9e00338d"
+  },
+  "definition": {
+    "template": [
+      {
+        "kind": "text",
+        "text": "Apply our refund policy. Enterprise customers get 60 days; everyone else gets 30. Suspicious circumstances go to review.\nCustomer: "
+      },
+      {
+        "kind": "input",
+        "name": "customer"
+      },
+      {
+        "kind": "text",
+        "text": "\nOrder: "
+      },
+      {
+        "kind": "input",
+        "name": "order"
+      },
+      {
+        "kind": "text",
+        "text": "\n"
+      }
+    ],
+    "examples": [
+      {
+        "inputs": {
+          "customer": {
+            "priorRefunds": 0,
+            "tier": "enterprise"
+          },
+          "order": {
+            "ageDays": 45,
+            "status": "paid",
+            "total": 129
+          }
+        },
+        "output": "approve"
+      }
+    ],
+    "constraints": [
+      {
+        "kind": "never",
+        "source": "order.status === \"fraudulent\"",
+        "predicate": {
+          "node": "binary",
+          "operator": "===",
+          "left": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "status"
+          },
+          "right": {
+            "node": "literal",
+            "value": "fraudulent"
+          }
+        },
+        "output": "approve"
+      },
+      {
+        "kind": "always",
+        "source": "order.ageDays > 90",
+        "predicate": {
+          "node": "binary",
+          "operator": ">",
+          "left": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          },
+          "right": {
+            "node": "literal",
+            "value": 90
+          }
+        },
+        "output": "deny"
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "name": "customer",
+      "index": 0,
+      "tsType": "Customer",
+      "type": {
+        "kind": "object",
+        "name": "Customer",
+        "fields": [
+          {
+            "name": "priorRefunds",
+            "optional": false,
+            "type": {
+              "kind": "number"
+            }
+          },
+          {
+            "name": "tier",
+            "optional": false,
+            "type": {
+              "kind": "union",
+              "variants": [
+                {
+                  "kind": "literal",
+                  "value": "enterprise"
+                },
+                {
+                  "kind": "literal",
+                  "value": "standard"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "order",
+      "index": 1,
+      "tsType": "Order",
+      "type": {
+        "kind": "object",
+        "name": "Order",
+        "fields": [
+          {
+            "name": "ageDays",
+            "optional": false,
+            "type": {
+              "kind": "number"
+            }
+          },
+          {
+            "name": "status",
+            "optional": false,
+            "type": {
+              "kind": "union",
+              "variants": [
+                {
+                  "kind": "literal",
+                  "value": "fraudulent"
+                },
+                {
+                  "kind": "literal",
+                  "value": "paid"
+                }
+              ]
+            }
+          },
+          {
+            "name": "total",
+            "optional": false,
+            "type": {
+              "kind": "number"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "output": {
+    "kind": "scalar",
+    "tsType": "RefundDecision",
+    "head": {
+      "kind": "nominal",
+      "sourceKind": "string-union",
+      "support": [
+        "approve",
+        "deny",
+        "review"
+      ]
+    }
+  },
+  "model": {
+    "encoder": "encoder.main",
+    "adapter": "adapter.application",
+    "heads": [
+      {
+        "outputPath": "",
+        "ref": "head.refund-decision.value"
+      }
+    ]
+  },
+  "runtime": {
+    "resultMode": "value",
+    "confidenceThreshold": 0.99,
+    "fallbackRef": "refund.manual-review",
+    "synchronous": true
+  },
+  "trainingProvenance": {
+    "status": "complete",
+    "teacher": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "configurationSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "baseModel": {
+      "name": "answerdotai/ModernBERT-base",
+      "revision": "main",
+      "weightsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "datasetSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "counts": {
+      "examples": 1,
+      "synthetic": 12000,
+      "adversarial": 3000,
+      "calibration": 1000,
+      "verification": 2000,
+      "humanAuthoredVerification": 200
+    },
+    "seed": 42,
+    "trainer": {
+      "version": "0.1.0",
+      "commit": "1234abc"
+    },
+    "trainedAt": "2026-09-21T20:00:00Z"
+  },
+  "verification": {
+    "status": "passed",
+    "verifiedAt": "2026-09-21T21:00:00Z",
+    "metrics": {
+      "accuracy": 0.982,
+      "ece": 0.021,
+      "brier": 0.037,
+      "pairConsistency": 0.994,
+      "heads": [
+        {
+          "outputPath": "",
+          "accuracy": 0.982,
+          "pairConsistency": 0.994,
+          "calibration": {
+            "method": "temperature-scaling",
+            "temperature": 1.137,
+            "ece": 0.021,
+            "brier": 0.037,
+            "sampleCount": 1000,
+            "splitSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "eceBins": 15
+          }
+        }
+      ],
+      "exampleFailures": 0,
+      "constraintViolations": 0,
+      "typeErrors": 0
+    }
+  }
+}

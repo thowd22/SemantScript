@@ -4,7 +4,7 @@ title: Structured interface outputs as multi-field heads
 status: To Do
 assignee: []
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-19 18:23'
+updated_date: '2026-09-22 02:37'
 labels:
   - compiler
   - model
@@ -28,3 +28,13 @@ Flat interface outputs (e.g. ClaimAssessment with category, severity, fraudRisk,
 - [ ] #2 Runtime assembles the typed object from head outputs with no JSON step
 - [ ] #3 Per-field accuracy is reported by the verifier
 <!-- AC:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: @codex
+created: 2026-09-22 02:37
+---
+TASK-1 flat-output contract: one independent scalar head per required field; diagnostic results expose fields[k] plus conservative minimumFieldConfidence and maximumFieldUncertainty. @confidence(q) passes only when every field confidence is >= q; no joint distribution is implied.
+---
+<!-- COMMENTS:END -->

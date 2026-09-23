@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [],
+  "normalizer": null,
+  "pre_tokenizer": {
+    "type": "Whitespace"
+  },
+  "post_processor": null,
+  "decoder": null,
+  "model": {
+    "type": "WordLevel",
+    "vocab": {
+      "[UNK]": 0,
+      "semantscript": 1,
+      "input": 2,
+      "true": 3,
+      "false": 4,
+      "string": 5,
+      "number": 6,
+      "object": 7
+    },
+    "unk_token": "[UNK]"
+  }
+}

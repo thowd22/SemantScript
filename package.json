@@ -1,0 +1,36 @@
+{
+  "name": "semantscript-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "packageManager": "npm@10.9.4",
+  "workspaces": [
+    "compiler",
+    "runtime",
+    "cli",
+    "benchmarks/refund"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "lint": "node scripts/check.mjs lint",
+    "lint:node": "eslint eslint.config.js scripts compiler runtime cli benchmarks/refund --max-warnings=0",
+    "lint:python": "node scripts/check-python.mjs lint",
+    "test": "node scripts/check.mjs test",
+    "test:node": "npm run test --workspaces --if-present",
+    "test:python": "node scripts/check-python.mjs test",
+    "check": "node scripts/check.mjs check"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.4",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1"
+  }
+}

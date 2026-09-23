@@ -1,0 +1,26 @@
+{
+  "name": "@semantscript/refund-benchmark",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "clean": "tsc -b tsconfig.json --clean",
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.mjs program/program.test.mjs"
+  },
+  "dependencies": {
+    "@semantscript/compiler": "0.0.0",
+    "@semantscript/core": "0.0.0"
+  }
+}

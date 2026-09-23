@@ -1,0 +1,6 @@
+{
+  "kind": "semantscript.artifact-pointer",
+  "pointerVersion": 1,
+  "release": "releases/sha256-adc53802d0c5c5a29ab8a3d59b2d47d5c4a33351cfb8886adfea377cae8d38c3",
+  "manifestSha256": "adc53802d0c5c5a29ab8a3d59b2d47d5c4a33351cfb8886adfea377cae8d38c3"
+}

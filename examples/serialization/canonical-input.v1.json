@@ -1,0 +1,35 @@
+{
+  "encoding": "semantscript.canonical-input/v1",
+  "input": {
+    "name": "obj",
+    "index": 0,
+    "tsType": "Example",
+    "type": {
+      "kind": "object",
+      "name": "Example",
+      "fields": [
+        { "name": "b", "optional": false, "type": { "kind": "number" } },
+        { "name": "zero", "optional": false, "type": { "kind": "number" } },
+        { "name": "text", "optional": false, "type": { "kind": "string" } },
+        { "name": "a", "optional": false, "type": { "kind": "number" } }
+      ]
+    }
+  },
+  "equivalentValues": [
+    {
+      "b": 2,
+      "zero": -0.0,
+      "text": "a\n\"é",
+      "a": 1
+    },
+    {
+      "a": 1,
+      "text": "a\n\"é",
+      "zero": -0.0,
+      "b": 2
+    }
+  ],
+  "note": "The zero field is IEEE-754 negative zero; a test harness must preserve its sign when parsing this fixture.",
+  "canonicalUtf8": "[\"semantscript-input\",1,[[\"obj\",[\"object\",[[\"a\",[\"number\",\"3ff0000000000000\"]],[\"b\",[\"number\",\"4000000000000000\"]],[\"text\",[\"string\",\"a\\n\\\"é\"]],[\"zero\",[\"number\",\"8000000000000000\"]]]]]]]",
+  "sha256": "3273c3e7b704fce97a131fbdf1c3cd2bef0cd3896c1f4ebbc6857921b534a162"
+}

@@ -1,0 +1,703 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import replace
+from typing import Any
+
+import pytest
+
+torch = pytest.importorskip("torch")
+
+from semantscript_trainer.adversarial import (  # noqa: E402
+    AdversarialCase,
+    AdversarialDataset,
+    AdversarialGenerationConfig,
+    CounterfactualPair,
+)
+from semantscript_trainer.canonical_input import (  # noqa: E402
+    serialize_canonical_inputs_string,
+)
+from semantscript_trainer.dataset import DatasetCase, TrainingDataset  # noqa: E402
+from semantscript_trainer.teacher import TeacherDescriptor  # noqa: E402
+from semantscript_trainer.training import (  # noqa: E402
+    EpochMetrics,
+    TrainingConfig,
+    TrainingResult,
+)
+from semantscript_trainer.training_contract import (  # noqa: E402
+    MAXIMUM_TRAINING_ROW_COUNT,
+    HeldOutSplitConfig,
+    TrainingCorpus,
+    TrainingRow,
+    TrainingSplit,
+    assemble_training_corpus,
+    split_training_corpus,
+)
+from semantscript_trainer.verification import (  # noqa: E402
+    VerificationConfig,
+    VerificationConfigurationError,
+    VerificationExecutionError,
+    VerificationGateError,
+    calibration_split_sha256,
+    evaluate_training_result,
+    model_state_sha256,
+    tokenizer_json_bytes,
+    verify_training_result,
+)
+
+VERIFIED_AT = "2026-09-22T12:34:56Z"
+
+
+class FixedTokenizer:
+    def __init__(self, token_by_text: dict[str, int]) -> None:
+        self._token_by_text = token_by_text
+        self.semantscript_tokenizer_json = json.dumps(
+            {"kind": "semantscript-test-tokenizer", "tokens": token_by_text},
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+    def __call__(
+        self,
+        texts: list[str],
+        *,
+        add_special_tokens: bool,
+        padding: bool,
+        truncation: bool,
+        max_length: int,
+        return_tensors: str,
+    ) -> dict[str, Any]:
+        assert add_special_tokens is True
+        assert padding is True
+        assert truncation is True
+        assert max_length >= 1
+        assert return_tensors == "pt"
+        return {
+            "input_ids": torch.tensor(
+                [[self._token_by_text[text]] for text in texts],
+                dtype=torch.long,
+            ),
+            "attention_mask": torch.ones((len(texts), 1), dtype=torch.long),
+        }
+
+
+class FixedBinaryModel(torch.nn.Module):
+    def __init__(self, logits: list[float]) -> None:
+        super().__init__()
+        self.register_buffer("logits", torch.tensor(logits, dtype=torch.float32)[:, None])
+
+    def forward(self, *, input_ids, attention_mask):
+        del attention_mask
+        return self.logits[input_ids[:, 0]]
+
+
+class EvalFailureModel(torch.nn.Module):
+    def eval(self) -> None:
+        raise RuntimeError("injected eval failure")
+
+
+class MutatingBinaryModel(FixedBinaryModel):
+    def forward(self, *, input_ids, attention_mask):
+        result = super().forward(input_ids=input_ids, attention_mask=attention_mask)
+        self.logits.add_(0.25)
+        return result
+
+
+class MutatingTokenizer(FixedTokenizer):
+    def __call__(self, *args, **kwargs):
+        result = super().__call__(*args, **kwargs)
+        self.semantscript_tokenizer_json = b'{"kind":"mutated-during-verification"}'
+        return result
+
+
+def test_passing_binary_flow_emits_exact_ir_and_manifest_projections() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+
+    result = verify_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+
+    calibration = result.metrics.heads[0].calibration
+    expected_calibration = {
+        "method": "temperature-scaling",
+        "temperature": calibration.temperature,
+        "ece": calibration.ece,
+        "brier": calibration.brier,
+        "sampleCount": 1,
+        "splitSha256": calibration_split_sha256(training, training.split.evaluation),
+        "eceBins": 15,
+    }
+    expected_head = {
+        "outputPath": "",
+        "accuracy": 1.0,
+        "pairConsistency": 1.0,
+        "calibration": expected_calibration,
+    }
+
+    assert result.status == "passed"
+    assert result.human_authored_cases == 1
+    assert result.pair_count == 0
+    assert result.metrics.accuracy == 1.0
+    assert result.metrics.example_failures == 0
+    assert result.metrics.constraint_violations == 0
+    assert len(result.model_state_sha256) == 64
+    assert (
+        result.tokenizer_sha256 == hashlib.sha256(tokenizer.semantscript_tokenizer_json).hexdigest()
+    )
+    assert result.to_ir_document() == {
+        "status": "passed",
+        "verifiedAt": VERIFIED_AT,
+        "metrics": {
+            "accuracy": 1.0,
+            "ece": result.metrics.ece,
+            "brier": result.metrics.brier,
+            "pairConsistency": 1.0,
+            "heads": [expected_head],
+            "exampleFailures": 0,
+            "constraintViolations": 0,
+            "typeErrors": 0,
+        },
+    }
+    assert result.to_manifest_head_metadata() == {
+        "calibration": expected_calibration,
+        "verification": {"accuracy": 1.0, "pairConsistency": 1.0},
+    }
+    assert result.to_manifest_function_verification() == {
+        "status": "passed",
+        "accuracy": 1.0,
+        "ece": result.metrics.ece,
+        "brier": result.metrics.brier,
+        "pairConsistency": 1.0,
+        "humanAuthoredCases": 1,
+        "exampleFailures": 0,
+        "constraintViolations": 0,
+        "typeErrors": 0,
+    }
+    assert len(training.split.evaluation) == 1
+    assert training.split.evaluation[0].origin != "gold"
+
+
+def test_gold_miss_fails_build_and_retains_typed_report() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: 12.0, 1: 12.0, 2: 12.0})
+
+    result = evaluate_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+
+    assert result.status == "failed"
+    assert result.metrics.example_failures == 1
+    assert any("gold/human" in failure for failure in result.failures)
+    with pytest.raises(VerificationGateError) as caught:
+        verify_training_result(
+            contract,
+            training,
+            base,
+            tokenizer=tokenizer,
+            verified_at=VERIFIED_AT,
+        )
+    assert caught.value.result.status == "failed"
+    assert caught.value.result.metrics.example_failures == 1
+    with pytest.raises(VerificationGateError):
+        result.to_manifest_function_verification()
+    with pytest.raises(VerificationConfigurationError, match="passing verification"):
+        replace(result, status="passed", failures=())
+
+
+def test_verification_result_rejects_noncanonical_function_identity() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+    result = verify_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+
+    with pytest.raises(VerificationConfigurationError, match="function_id"):
+        replace(result, function_id="nf_bad")
+    with pytest.raises(VerificationConfigurationError, match="model_state_sha256"):
+        replace(result, model_state_sha256="bad")
+    with pytest.raises(VerificationConfigurationError, match="tokenizer_sha256"):
+        replace(result, tokenizer_sha256="bad")
+
+
+def test_evidence_fingerprints_are_deterministic_and_bind_exact_state() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+
+    first = verify_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+    second = verify_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+
+    assert first.model_state_sha256 == second.model_state_sha256
+    assert first.model_state_sha256 == model_state_sha256(training.model)
+    assert first.tokenizer_sha256 == second.tokenizer_sha256
+    assert tokenizer_json_bytes(tokenizer) == tokenizer.semantscript_tokenizer_json
+    assert "modelStateSha256" not in first.to_ir_document()
+    assert "tokenizerSha256" not in first.to_ir_document()
+    assert "modelStateSha256" not in first.to_manifest_function_verification()
+    assert "tokenizerSha256" not in first.to_manifest_function_verification()
+
+    with torch.no_grad():
+        training.model.logits.add_(0.25)
+    mutated_model = verify_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+    assert mutated_model.model_state_sha256 != first.model_state_sha256
+    assert mutated_model.tokenizer_sha256 == first.tokenizer_sha256
+
+    tokenizer.semantscript_tokenizer_json = b'{"kind":"different-test-tokenizer"}'
+    mutated_tokenizer = verify_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+    assert mutated_tokenizer.model_state_sha256 == mutated_model.model_state_sha256
+    assert mutated_tokenizer.tokenizer_sha256 != first.tokenizer_sha256
+
+
+def test_hugging_face_tokenizer_json_protocol_returns_exact_bytes() -> None:
+    class Backend:
+        def to_str(self, *, pretty: bool) -> str:
+            assert pretty is False
+            return '{"model":{"type":"WordLevel"},"version":"1.0"}'
+
+    class Tokenizer:
+        backend_tokenizer = Backend()
+
+    expected = b'{"model":{"type":"WordLevel"},"version":"1.0"}'
+    assert tokenizer_json_bytes(Tokenizer()) == expected
+
+
+@pytest.mark.parametrize(
+    "tokenizer",
+    (object(), type("InvalidJsonTokenizer", (), {"semantscript_tokenizer_json": b"{"})()),
+)
+def test_verification_fails_closed_without_valid_tokenizer_json(tokenizer: object) -> None:
+    contract, base, _, training, _ = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+
+    with pytest.raises(VerificationExecutionError, match="tokenizer JSON"):
+        evaluate_training_result(
+            contract,
+            training,
+            base,
+            tokenizer=tokenizer,
+            verified_at=VERIFIED_AT,
+        )
+
+
+def test_state_or_tokenizer_mutation_during_verification_is_rejected() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+    mutating_model = MutatingBinaryModel([-12.0, 12.0, 12.0])
+
+    with pytest.raises(VerificationExecutionError, match="state changed"):
+        evaluate_training_result(
+            contract,
+            replace(training, model=mutating_model),
+            base,
+            tokenizer=tokenizer,
+            verified_at=VERIFIED_AT,
+        )
+
+    with pytest.raises(VerificationExecutionError, match="tokenizer JSON changed"):
+        evaluate_training_result(
+            contract,
+            training,
+            base,
+            tokenizer=MutatingTokenizer(tokenizer._token_by_text),
+            verified_at=VERIFIED_AT,
+        )
+
+
+def test_typed_verification_records_reject_contradictory_scalar_evidence() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+    result = verify_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+
+    with pytest.raises(VerificationConfigurationError, match="sole head metrics"):
+        replace(result.metrics, accuracy=0.5)
+
+    inconsistent_head = replace(result.metrics.heads[0], pair_consistency=0.5)
+    inconsistent_metrics = replace(
+        result.metrics,
+        pair_consistency=0.5,
+        heads=(inconsistent_head,),
+    )
+    with pytest.raises(VerificationConfigurationError, match="without counterfactual pairs"):
+        replace(result, metrics=inconsistent_metrics)
+
+
+def test_constraint_violation_and_counterfactual_pair_failure_are_measured() -> None:
+    contract, base, adversarial, training, tokenizer = constrained_fixture()
+
+    result = evaluate_training_result(
+        contract,
+        training,
+        base,
+        adversarial,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+
+    assert result.status == "failed"
+    assert result.metrics.constraint_violations == 3
+    assert result.metrics.pair_consistency == 0.0
+    assert result.metrics.heads[0].pair_consistency == 0.0
+    assert result.pair_count == 1
+    assert any("adversarial constraint" in failure for failure in result.failures)
+
+
+def test_ece_above_configured_gate_fails_even_without_gold_miss() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 0.0, 2: 12.0})
+
+    result = evaluate_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        config=VerificationConfig(ece_threshold=0.1, ece_bins=2),
+        verified_at=VERIFIED_AT,
+    )
+
+    assert result.status == "failed"
+    assert result.metrics.example_failures == 0
+    assert result.metrics.ece == pytest.approx(0.5)
+    assert result.metrics.brier == pytest.approx(0.25)
+    assert result.failures == ("ECE 0.5 exceeds configured threshold 0.1",)
+
+
+def test_calibration_split_digest_changes_on_bound_row_or_provenance_mutation() -> None:
+    _, _, _, training, _ = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+    row = training.split.evaluation[0]
+    mutated_row = TrainingRow(
+        row_id=row.row_id,
+        group_id=row.group_id,
+        origin=row.origin,
+        inputs=row.inputs,
+        label_index=0,
+    )
+
+    original = calibration_split_sha256(training, training.split.evaluation)
+
+    assert calibration_split_sha256(training, (mutated_row,)) != original
+    assert (
+        calibration_split_sha256(
+            replace(training, base_dataset_sha256="8" * 64),
+            training.split.evaluation,
+        )
+        != original
+    )
+    with pytest.raises(VerificationConfigurationError, match="maximum row count"):
+        calibration_split_sha256(
+            training,
+            (row,) * (MAXIMUM_TRAINING_ROW_COUNT + 1),
+        )
+
+
+def test_verifier_rejects_a_tampered_held_out_partition() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+    held_out = training.split.evaluation[0]
+    replacement = next(
+        row
+        for row in training.split.training
+        if row.origin != "gold" and row.group_id != held_out.group_id
+    )
+    tampered_training_rows = tuple(
+        held_out if row.row_id == replacement.row_id else row for row in training.split.training
+    )
+    tampered = replace(
+        training,
+        split=TrainingSplit(training=tampered_training_rows, evaluation=(replacement,)),
+    )
+
+    with pytest.raises(VerificationConfigurationError, match="deterministic corpus split"):
+        evaluate_training_result(
+            contract,
+            tampered,
+            base,
+            tokenizer=tokenizer,
+            verified_at=VERIFIED_AT,
+        )
+
+
+def test_verification_inference_respects_the_training_token_cap() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+    oversized = replace(
+        training,
+        config=replace(training.config, maximum_sequence_length=8192),
+    )
+
+    with pytest.raises(VerificationConfigurationError, match="maximum token count"):
+        evaluate_training_result(
+            contract,
+            oversized,
+            base,
+            tokenizer=tokenizer,
+            config=VerificationConfig(batch_size=9),
+            verified_at=VERIFIED_AT,
+        )
+
+
+def test_verification_config_rejects_temperature_bounds_outside_model_contract() -> None:
+    with pytest.raises(VerificationConfigurationError, match="temperature bounds"):
+        VerificationConfig(minimum_temperature=0.0001)
+    with pytest.raises(VerificationConfigurationError, match="temperature bounds"):
+        VerificationConfig(maximum_temperature=1001.0)
+
+
+def test_model_eval_failure_is_normalized() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+
+    with pytest.raises(VerificationExecutionError, match="evaluation mode"):
+        evaluate_training_result(
+            contract,
+            replace(training, model=EvalFailureModel()),
+            base,
+            tokenizer=tokenizer,
+            verified_at=VERIFIED_AT,
+        )
+
+
+def test_zero_counterfactual_pairs_are_vacuously_consistent() -> None:
+    contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 12.0, 2: 12.0})
+
+    result = evaluate_training_result(
+        contract,
+        training,
+        base,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+    )
+
+    assert result.pair_count == 0
+    assert result.metrics.pair_consistency == 1.0
+    assert result.metrics.heads[0].pair_consistency == 1.0
+
+
+def binary_fixture(
+    logits_by_score: dict[int, float],
+) -> tuple[dict[str, Any], TrainingDataset, TrainingCorpus, TrainingResult, FixedTokenizer]:
+    contract = boolean_ir()
+    base = training_dataset(
+        (
+            DatasetCase({"score": 0}, False, "gold"),
+            DatasetCase({"score": 1}, True, "synthetic"),
+            DatasetCase({"score": 2}, True, "synthetic"),
+        )
+    )
+    corpus = assemble_training_corpus(contract, base)
+    training, tokenizer = training_result(contract, base, corpus, None, logits_by_score)
+    return contract, base, corpus, training, tokenizer
+
+
+def constrained_fixture() -> tuple[
+    dict[str, Any],
+    TrainingDataset,
+    AdversarialDataset,
+    TrainingResult,
+    FixedTokenizer,
+]:
+    contract = boolean_ir(constraints=[minimum_constraint()])
+    base = training_dataset(
+        (
+            DatasetCase({"score": 0}, False, "gold"),
+            DatasetCase({"score": 1}, False, "synthetic"),
+            DatasetCase({"score": 20}, True, "synthetic"),
+        )
+    )
+    pair_id = "cf_" + "8" * 64
+    anchor_id = "ac_" + "9" * 64
+    twin_id = "ac_" + "a" * 64
+    adversarial = AdversarialDataset(
+        function_id=base.function_id,
+        base_dataset_sha256=base.dataset_sha256,
+        teacher=TeacherDescriptor("fake", "adversarial", "b" * 64),
+        config=AdversarialGenerationConfig(),
+        cases=(
+            AdversarialCase(
+                case_id="ac_" + "c" * 64,
+                inputs={"score": 9},
+                output=False,
+                tag="constraint-boundary",
+                constraint_index=0,
+                predicate_result=False,
+            ),
+            AdversarialCase(
+                case_id="ac_" + "d" * 64,
+                inputs={"score": 10},
+                output=True,
+                tag="constraint-boundary",
+                constraint_index=0,
+                predicate_result=True,
+            ),
+            AdversarialCase(
+                case_id=anchor_id,
+                inputs={"score": 1},
+                output=False,
+                tag="counterfactual",
+                pair_id=pair_id,
+                pair_role="anchor",
+            ),
+            AdversarialCase(
+                case_id=twin_id,
+                inputs={"score": 11},
+                output=True,
+                tag="counterfactual",
+                pair_id=pair_id,
+                pair_role="twin",
+            ),
+        ),
+        pairs=(
+            CounterfactualPair(
+                pair_id=pair_id,
+                anchor_case_id=anchor_id,
+                twin_case_id=twin_id,
+                source_case_index=1,
+                changed_path="/score",
+                reason="Crossing the minimum changes the required label.",
+            ),
+        ),
+        cache_key_sha256="c" * 64,
+        payload_sha256="d" * 64,
+        dataset_sha256="e" * 64,
+    )
+    corpus = assemble_training_corpus(contract, base, adversarial)
+    training, tokenizer = training_result(
+        contract,
+        base,
+        corpus,
+        adversarial,
+        {0: -12.0, 1: -12.0, 20: -12.0, 9: -12.0, 10: -12.0, 11: -12.0},
+    )
+    return contract, base, adversarial, training, tokenizer
+
+
+def training_result(
+    contract: dict[str, Any],
+    base: TrainingDataset,
+    corpus: TrainingCorpus,
+    adversarial: AdversarialDataset | None,
+    logits_by_score: dict[int, float],
+) -> tuple[TrainingResult, FixedTokenizer]:
+    schema = contract["inputs"]
+    texts = {
+        serialize_canonical_inputs_string(schema, {"score": score}): logit
+        for score, logit in logits_by_score.items()
+    }
+    token_by_text = {text: index for index, text in enumerate(texts)}
+    model = FixedBinaryModel([texts[text] for text in token_by_text])
+    config = TrainingConfig(
+        epochs=1,
+        batch_size=4,
+        maximum_sequence_length=8,
+        device="cpu",
+    )
+    split = split_training_corpus(
+        corpus,
+        HeldOutSplitConfig(
+            evaluation_ratio=config.evaluation_ratio,
+            seed=config.seed,
+        ),
+    )
+    result = TrainingResult(
+        model=model,
+        head=corpus.head,
+        split=split,
+        config=config,
+        device="cpu",
+        metrics=(EpochMetrics(epoch=1, mean_training_loss=0.0, held_out_accuracy=1.0),),
+        function_id=corpus.function_id,
+        semantic_sha256=corpus.semantic_sha256,
+        base_dataset_sha256=base.dataset_sha256,
+        adversarial_dataset_sha256=(None if adversarial is None else adversarial.dataset_sha256),
+    )
+    return result, FixedTokenizer(token_by_text)
+
+
+def training_dataset(cases: tuple[DatasetCase, ...]) -> TrainingDataset:
+    return TrainingDataset(
+        function_id="nf_" + "1" * 64,
+        semantic_sha256="2" * 64,
+        requested_case_count=len(cases),
+        teacher=TeacherDescriptor("fake", "base", "4" * 64),
+        cases=cases,
+        cache_key_sha256="5" * 64,
+        payload_sha256="6" * 64,
+        dataset_sha256="7" * 64,
+    )
+
+
+def boolean_ir(*, constraints: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    return {
+        "kind": "semantscript.neural-function",
+        "irVersion": 1,
+        "stage": "lowered",
+        "id": "nf_" + "1" * 64,
+        "semanticSha256": "2" * 64,
+        "source": {
+            "path": "verification.sem.ts",
+            "line": 1,
+            "column": 1,
+            "sourceSha256": "3" * 64,
+        },
+        "definition": {
+            "template": [{"kind": "text", "text": "Classify score."}],
+            "examples": [{"inputs": {"score": 0}, "output": False}],
+            "constraints": constraints or [],
+        },
+        "inputs": [{"name": "score", "index": 0, "tsType": "number", "type": {"kind": "number"}}],
+        "output": {
+            "kind": "scalar",
+            "tsType": "boolean",
+            "head": {
+                "kind": "nominal",
+                "sourceKind": "boolean",
+                "support": [False, True],
+            },
+        },
+    }
+
+
+def minimum_constraint() -> dict[str, Any]:
+    return {
+        "kind": "always",
+        "source": "score >= 10",
+        "predicate": {
+            "node": "binary",
+            "operator": ">=",
+            "left": {"node": "input", "name": "score"},
+            "right": {"node": "literal", "value": 10},
+        },
+        "output": True,
+    }

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "semantscript-python"
+version = "0.0.0"
+description = "Training and model tooling for SemantScript"
+requires-python = ">=3.12"
+dependencies = [
+  "anthropic==1.7.0",
+  "openai>=2.0.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.1.1",
+  "ruff==0.16.8",
+]
+training = [
+  "onnx==1.23.0",
+  "onnxruntime==1.30.0",
+  "tokenizers==0.23.2",
+  "torch==2.9.1",
+  "transformers==5.17.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["trainer/src", "model/src"]
+include = ["semantscript_trainer*", "semantscript_model*"]
+namespaces = false
+
+[tool.pytest.ini_options]
+minversion = "9.1"
+testpaths = ["trainer/tests", "model/tests", "benchmarks/refund/program"]
+addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers", "-ra"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["trainer/src", "model/src", "benchmarks/refund/program", "benchmarks/refund/live"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["semantscript_model", "semantscript_trainer"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

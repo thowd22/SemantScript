@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantscript.dev/schemas/artifact-pointer.v1.schema.json",
+  "title": "SemantScript Active Artifact Pointer v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "pointerVersion", "release", "manifestSha256"],
+  "properties": {
+    "kind": {
+      "const": "semantscript.artifact-pointer"
+    },
+    "pointerVersion": {
+      "const": 1
+    },
+    "release": {
+      "type": "string",
+      "pattern": "^releases/sha256-[a-f0-9]{64}$"
+    },
+    "manifestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

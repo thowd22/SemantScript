@@ -1,0 +1,831 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantscript.dev/schemas/application-artifact.v1.schema.json",
+  "title": "SemantScript Application Artifact Manifest v1",
+  "description": "Runtime manifest for one immutable SemantScript application artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "artifactVersion",
+    "irVersion",
+    "compatibility",
+    "application",
+    "build",
+    "resources",
+    "model",
+    "functions"
+  ],
+  "properties": {
+    "kind": {
+      "const": "semantscript.application-artifact"
+    },
+    "artifactVersion": {
+      "const": 1
+    },
+    "irVersion": {
+      "const": 1
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    },
+    "application": {
+      "$ref": "#/$defs/application"
+    },
+    "build": {
+      "$ref": "#/$defs/build"
+    },
+    "resources": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "$ref": "#/$defs/resource"
+      }
+    },
+    "model": {
+      "$ref": "#/$defs/model"
+    },
+    "functions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/function"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "functionId": {
+      "type": "string",
+      "pattern": "^nf_[a-f0-9]{64}$"
+    },
+    "logicalRef": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+      "maxLength": 200
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*(?:/[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*)*$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "unitInterval": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeAbiVersion",
+        "modelAbiVersion",
+        "canonicalInput",
+        "minimumRuntimeVersion",
+        "requiredCapabilities"
+      ],
+      "properties": {
+        "runtimeAbiVersion": {
+          "const": 1
+        },
+        "modelAbiVersion": {
+          "const": 1
+        },
+        "canonicalInput": {
+          "const": "semantscript.canonical-input/v1"
+        },
+        "minimumRuntimeVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "requiredCapabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]{1,127}$"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "createdAt",
+        "compilerVersion",
+        "trainerVersion",
+        "sourceIrSha256"
+      ],
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "compilerVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "trainerVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "sourceIrSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "resource": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/onnxResource"
+        },
+        {
+          "$ref": "#/$defs/tokenizerResource"
+        }
+      ]
+    },
+    "onnxResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "role",
+        "format",
+        "formatVersion",
+        "path",
+        "byteLength",
+        "sha256",
+        "onnx"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "role": {
+          "enum": ["encoder", "adapter", "head"]
+        },
+        "format": {
+          "const": "onnx"
+        },
+        "formatVersion": {
+          "const": 1
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "onnx": {
+          "$ref": "#/$defs/onnxAbi"
+        }
+      }
+    },
+    "tokenizerResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "role",
+        "format",
+        "formatVersion",
+        "maximumSequenceLength",
+        "path",
+        "byteLength",
+        "sha256"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "role": {
+          "const": "tokenizer"
+        },
+        "format": {
+          "const": "tokenizer-json"
+        },
+        "formatVersion": {
+          "const": 1
+        },
+        "maximumSequenceLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "onnxAbi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opset", "inputs", "outputs", "externalData"],
+      "properties": {
+        "opset": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/tensor"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/tensor"
+          }
+        },
+        "externalData": {
+          "const": false
+        }
+      }
+    },
+    "tensor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "dtype", "shape"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dtype": {
+          "enum": ["int64", "float16", "float32"]
+        },
+        "shape": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokenizerRef", "encoderRef", "adapterRef"],
+      "properties": {
+        "tokenizerRef": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "encoderRef": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "adapterRef": {
+          "$ref": "#/$defs/logicalRef"
+        }
+      }
+    },
+    "inputEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "index", "tsType", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tsType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "$ref": "#/$defs/inputType"
+        }
+      }
+    },
+    "inputType": {
+      "oneOf": [
+        { "$ref": "#/$defs/primitiveInputType" },
+        { "$ref": "#/$defs/literalInputType" },
+        { "$ref": "#/$defs/enumInputType" },
+        { "$ref": "#/$defs/arrayInputType" },
+        { "$ref": "#/$defs/tupleInputType" },
+        { "$ref": "#/$defs/objectInputType" },
+        { "$ref": "#/$defs/unionInputType" }
+      ]
+    },
+    "primitiveInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["string", "boolean", "number", "null"]
+        }
+      }
+    },
+    "literalInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "const": "literal"
+        },
+        "value": {
+          "type": ["string", "number", "boolean", "null"]
+        }
+      }
+    },
+    "enumInputType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "base", "values"],
+          "properties": {
+            "kind": { "const": "enum" },
+            "name": { "type": "string", "minLength": 1 },
+            "base": { "const": "string" },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "base", "values"],
+          "properties": {
+            "kind": { "const": "enum" },
+            "name": { "type": "string", "minLength": 1 },
+            "base": { "const": "number" },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "number" }
+            }
+          }
+        }
+      ]
+    },
+    "arrayInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "array" },
+        "items": { "$ref": "#/$defs/inputType" }
+      }
+    },
+    "tupleInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "const": "tuple" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/inputType" }
+        }
+      }
+    },
+    "objectInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "fields"],
+      "properties": {
+        "kind": { "const": "object" },
+        "name": { "type": "string", "minLength": 1 },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/inputField" }
+        }
+      }
+    },
+    "inputField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "optional", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "optional": { "type": "boolean" },
+        "type": { "$ref": "#/$defs/inputType" }
+      }
+    },
+    "unionInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "variants"],
+      "properties": {
+        "kind": { "const": "union" },
+        "variants": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/inputType" }
+        }
+      }
+    },
+    "function": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "semanticSha256",
+        "inputs",
+        "inputSchemaSha256",
+        "outputSchemaSha256",
+        "adapterRef",
+        "heads",
+        "runtime",
+        "verification",
+        "trainingProvenance"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/functionId"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputEntry"
+          }
+        },
+        "inputSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "outputSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adapterRef": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "heads": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/headBinding"
+          }
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtimePolicy"
+        },
+        "verification": {
+          "$ref": "#/$defs/verification"
+        },
+        "trainingProvenance": {
+          "$ref": "#/$defs/functionProvenance"
+        }
+      }
+    },
+    "headBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "headRef",
+        "type",
+        "parameterization",
+        "calibration",
+        "verification"
+      ],
+      "properties": {
+        "outputPath": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "headRef": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "type": {
+          "$ref": "#/$defs/runtimeHeadType"
+        },
+        "parameterization": {
+          "enum": ["binary-sigmoid", "categorical-softmax"]
+        },
+        "calibration": {
+          "$ref": "#/$defs/calibration"
+        },
+        "verification": {
+          "$ref": "#/$defs/headVerification"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "object",
+                "properties": {
+                  "kind": { "const": "boolean" }
+                },
+                "required": ["kind"]
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "parameterization": { "const": "binary-sigmoid" }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "parameterization": { "const": "categorical-softmax" }
+            }
+          }
+        }
+      ]
+    },
+    "runtimeHeadType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "support"],
+          "properties": {
+            "kind": {
+              "const": "boolean"
+            },
+            "support": {
+              "const": [false, true]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "support"],
+          "properties": {
+            "kind": {
+              "enum": ["nominal-string", "ordinal-string"]
+            },
+            "support": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "support"],
+          "properties": {
+            "kind": {
+              "const": "nominal-number"
+            },
+            "support": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "sourceKind",
+            "minimum",
+            "maximum",
+            "step",
+            "supportDecimal"
+          ],
+          "properties": {
+            "kind": {
+              "const": "ordinal-number"
+            },
+            "sourceKind": {
+              "enum": ["bounded-int", "bounded-number"]
+            },
+            "minimum": {
+              "$ref": "#/$defs/canonicalDecimal"
+            },
+            "maximum": {
+              "$ref": "#/$defs/canonicalDecimal"
+            },
+            "step": {
+              "$ref": "#/$defs/canonicalDecimal"
+            },
+            "supportDecimal": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/canonicalDecimal"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "canonicalDecimal": {
+      "type": "string",
+      "pattern": "^(?!-0$)-?(?:0|[1-9][0-9]*)(?:\\.[0-9]*[1-9])?$"
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "temperature",
+        "ece",
+        "brier",
+        "sampleCount",
+        "splitSha256",
+        "eceBins"
+      ],
+      "properties": {
+        "method": {
+          "const": "temperature-scaling"
+        },
+        "temperature": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ece": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "brier": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "sampleCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "splitSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "eceBins": {
+          "type": "integer",
+          "minimum": 2
+        }
+      }
+    },
+    "headVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accuracy", "pairConsistency"],
+      "properties": {
+        "accuracy": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "pairConsistency": {
+          "$ref": "#/$defs/unitInterval"
+        }
+      }
+    },
+    "runtimePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resultMode", "confidenceThreshold", "policy", "fallbackRef"],
+      "properties": {
+        "resultMode": {
+          "enum": ["value", "diagnostic"]
+        },
+        "confidenceThreshold": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "policy": {
+          "enum": ["none", "scalar-top1", "all-fields"]
+        },
+        "fallbackRef": {
+          "type": ["string", "null"],
+          "minLength": 1
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "accuracy",
+        "ece",
+        "brier",
+        "pairConsistency",
+        "humanAuthoredCases",
+        "exampleFailures",
+        "constraintViolations",
+        "typeErrors"
+      ],
+      "properties": {
+        "status": {
+          "const": "passed"
+        },
+        "accuracy": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "ece": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "brier": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "pairConsistency": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "humanAuthoredCases": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exampleFailures": {
+          "const": 0
+        },
+        "constraintViolations": {
+          "const": 0
+        },
+        "typeErrors": {
+          "const": 0
+        }
+      }
+    },
+    "functionProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["datasetSha256", "trainingKeySha256", "teacher", "baseModel"],
+      "properties": {
+        "datasetSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "trainingKeySha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "teacher": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseModel": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

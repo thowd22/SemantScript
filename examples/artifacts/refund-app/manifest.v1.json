@@ -1,0 +1,245 @@
+{
+  "kind": "semantscript.application-artifact",
+  "artifactVersion": 1,
+  "irVersion": 1,
+  "compatibility": {
+    "runtimeAbiVersion": 1,
+    "modelAbiVersion": 1,
+    "canonicalInput": "semantscript.canonical-input/v1",
+    "minimumRuntimeVersion": "0.1.0",
+    "requiredCapabilities": [
+      "per-head-temperature/v1",
+      "single-file-onnx/v1"
+    ]
+  },
+  "application": {
+    "id": "refund-demo",
+    "version": "0.1.0"
+  },
+  "build": {
+    "createdAt": "2026-09-21T21:15:00Z",
+    "compilerVersion": "0.1.0",
+    "trainerVersion": "0.1.0",
+    "sourceIrSha256": "5509d95b6c7731ed350cdc404679d3d081d7af3ae042b6c5f54661cc29ba7478"
+  },
+  "resources": [
+    {
+      "ref": "tokenizer.main",
+      "role": "tokenizer",
+      "format": "tokenizer-json",
+      "formatVersion": 1,
+      "maximumSequenceLength": 512,
+      "path": "tokenizer/tokenizer.json",
+      "byteLength": 842931,
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "ref": "encoder.main",
+      "role": "encoder",
+      "format": "onnx",
+      "formatVersion": 1,
+      "path": "models/encoder/model.onnx",
+      "byteLength": 586000000,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "onnx": {
+        "opset": 18,
+        "inputs": [
+          {
+            "name": "input_ids",
+            "dtype": "int64",
+            "shape": ["BATCH", "SEQUENCE"]
+          },
+          {
+            "name": "attention_mask",
+            "dtype": "int64",
+            "shape": ["BATCH", "SEQUENCE"]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "sentence_embedding",
+            "dtype": "float32",
+            "shape": ["BATCH", "HIDDEN"]
+          }
+        ],
+        "externalData": false
+      }
+    },
+    {
+      "ref": "adapter.application",
+      "role": "adapter",
+      "format": "onnx",
+      "formatVersion": 1,
+      "path": "models/adapters/application.onnx",
+      "byteLength": 12582912,
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "onnx": {
+        "opset": 18,
+        "inputs": [
+          {
+            "name": "sentence_embedding",
+            "dtype": "float32",
+            "shape": ["BATCH", "HIDDEN"]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "function_embedding",
+            "dtype": "float32",
+            "shape": ["BATCH", "HIDDEN"]
+          }
+        ],
+        "externalData": false
+      }
+    },
+    {
+      "ref": "head.refund-decision.value",
+      "role": "head",
+      "format": "onnx",
+      "formatVersion": 1,
+      "path": "models/heads/nf_5abdc7d0cbfc5e129dd6b94add4e12a9cc3047e7fb7f6bebaf62c33108ea9222/head-000.onnx",
+      "byteLength": 9216,
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "onnx": {
+        "opset": 18,
+        "inputs": [
+          {
+            "name": "function_embedding",
+            "dtype": "float32",
+            "shape": ["BATCH", "HIDDEN"]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "logits",
+            "dtype": "float32",
+            "shape": ["BATCH", 3]
+          }
+        ],
+        "externalData": false
+      }
+    }
+  ],
+  "model": {
+    "tokenizerRef": "tokenizer.main",
+    "encoderRef": "encoder.main",
+    "adapterRef": "adapter.application"
+  },
+  "functions": [
+    {
+      "id": "nf_5abdc7d0cbfc5e129dd6b94add4e12a9cc3047e7fb7f6bebaf62c33108ea9222",
+      "semanticSha256": "5e4d51edec329295a35965f8d6759f5638ae0570f328f9e15a04904a7191ec92",
+      "inputs": [
+        {
+          "name": "customer",
+          "index": 0,
+          "tsType": "Customer",
+          "type": {
+            "kind": "object",
+            "name": "Customer",
+            "fields": [
+              {
+                "name": "priorRefunds",
+                "optional": false,
+                "type": { "kind": "number" }
+              },
+              {
+                "name": "tier",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    { "kind": "literal", "value": "enterprise" },
+                    { "kind": "literal", "value": "standard" }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "order",
+          "index": 1,
+          "tsType": "Order",
+          "type": {
+            "kind": "object",
+            "name": "Order",
+            "fields": [
+              {
+                "name": "ageDays",
+                "optional": false,
+                "type": { "kind": "number" }
+              },
+              {
+                "name": "status",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    { "kind": "literal", "value": "fraudulent" },
+                    { "kind": "literal", "value": "paid" }
+                  ]
+                }
+              },
+              {
+                "name": "total",
+                "optional": false,
+                "type": { "kind": "number" }
+              }
+            ]
+          }
+        }
+      ],
+      "inputSchemaSha256": "b4c50afcb7aa0fddb32c3ee764b6d742a230b04d3a24d13a44d2d34749018141",
+      "outputSchemaSha256": "addc5af59b865d18d2a034f292be27cd0f10d40ef3db5ff5ca268fce4fde28ae",
+      "adapterRef": "adapter.application",
+      "heads": [
+        {
+          "outputPath": [],
+          "headRef": "head.refund-decision.value",
+          "type": {
+            "kind": "nominal-string",
+            "support": ["approve", "deny", "review"]
+          },
+          "parameterization": "categorical-softmax",
+          "calibration": {
+            "method": "temperature-scaling",
+            "temperature": 1.137,
+            "ece": 0.021,
+            "brier": 0.037,
+            "sampleCount": 1000,
+            "splitSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "eceBins": 15
+          },
+          "verification": {
+            "accuracy": 0.982,
+            "pairConsistency": 0.994
+          }
+        }
+      ],
+      "runtime": {
+        "resultMode": "value",
+        "confidenceThreshold": 0.99,
+        "policy": "scalar-top1",
+        "fallbackRef": "refund.manual-review"
+      },
+      "verification": {
+        "status": "passed",
+        "accuracy": 0.982,
+        "ece": 0.021,
+        "brier": 0.037,
+        "pairConsistency": 0.994,
+        "humanAuthoredCases": 200,
+        "exampleFailures": 0,
+        "constraintViolations": 0,
+        "typeErrors": 0
+      },
+      "trainingProvenance": {
+        "datasetSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "trainingKeySha256": "9999999999999999999999999999999999999999999999999999999999999999",
+        "teacher": "anthropic/claude-sonnet-5",
+        "baseModel": "answerdotai/ModernBERT-base@main"
+      }
+    }
+  ]
+}

@@ -1,0 +1,812 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json",
+  "title": "SemantScript refund benchmark common contracts v1",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "recordId": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,198}[a-z0-9])?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,3})?Z$"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "functionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "semanticSha256"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "const": "nf_955824a910df4df5cc32a079555fe109919c41492697d9a1cc507decc5afba20"
+        },
+        "semanticSha256": {
+          "const": "29b03f7d9ec695eb4178e6c4320b6094f7d1c37bc6bfca3516e983e93a0dc1f1"
+        }
+      }
+    },
+    "refundSupport": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "approve" },
+        { "const": "deny" },
+        { "const": "review" }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "refundDecision": {
+      "enum": ["approve", "deny", "review"]
+    },
+    "refundInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["customer", "order"],
+      "properties": {
+        "customer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["priorRefunds", "tier"],
+          "properties": {
+            "priorRefunds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "$comment": "Runtime validation additionally rejects IEEE-754 negative zero, which JSON Schema numeric equality cannot distinguish from zero."
+            },
+            "tier": {
+              "enum": ["enterprise", "standard"]
+            }
+          }
+        },
+        "order": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ageDays", "status", "total"],
+          "properties": {
+            "ageDays": {
+              "type": "number",
+              "minimum": 0,
+              "$comment": "Runtime validation additionally rejects IEEE-754 negative zero, which JSON Schema numeric equality cannot distinguish from zero."
+            },
+            "status": {
+              "enum": ["fraudulent", "paid"]
+            },
+            "total": {
+              "type": "number",
+              "minimum": 0,
+              "$comment": "Runtime validation additionally rejects IEEE-754 negative zero, which JSON Schema numeric equality cannot distinguish from zero."
+            }
+          }
+        }
+      }
+    },
+    "refundCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "inputs", "inputSha256", "expected", "origin"],
+      "properties": {
+        "id": { "$ref": "#/$defs/recordId" },
+        "inputs": { "$ref": "#/$defs/refundInputs" },
+        "inputSha256": { "$ref": "#/$defs/sha256" },
+        "expected": { "$ref": "#/$defs/refundDecision" },
+        "origin": {
+          "enum": ["human-authored", "other-held-out"]
+        }
+      }
+    },
+    "humanAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attestor", "attestedAt", "caseIds", "declaration", "evidenceSha256"],
+      "properties": {
+        "attestor": { "$ref": "#/$defs/nonEmptyString" },
+        "attestedAt": { "$ref": "#/$defs/timestamp" },
+        "caseIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/recordId" }
+        },
+        "declaration": {
+          "const": "The listed cases are human-authored, were not generated or rewritten by any model or teacher, and are licensed or de-identified for this benchmark."
+        },
+        "evidenceSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "modelProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "name", "version", "revision", "artifactSha256"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/nonEmptyString" },
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "revision": { "$ref": "#/$defs/nonEmptyString" },
+        "artifactSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "adapterProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "configurationSha256"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "configurationSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "semantscriptTrainingEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trainingLedgerSha256",
+        "artifactTrainingDatasetSha256",
+        "artifactTrainingKeySha256",
+        "releaseVerificationPayloadSha256",
+        "releaseVerificationAttestationSha256"
+      ],
+      "properties": {
+        "trainingLedgerSha256": { "$ref": "#/$defs/sha256" },
+        "artifactTrainingDatasetSha256": { "$ref": "#/$defs/sha256" },
+        "artifactTrainingKeySha256": { "$ref": "#/$defs/sha256" },
+        "releaseVerificationPayloadSha256": { "$ref": "#/$defs/sha256" },
+        "releaseVerificationAttestationSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "semantscriptExecutionBackend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "runtime", "device"],
+      "properties": {
+        "kind": { "const": "semantscript-node" },
+        "runtime": { "const": "onnxruntime-node" },
+        "device": { "const": "cpu" }
+      }
+    },
+    "ollamaExecutionBackend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "serverVersion",
+        "placement",
+        "modelTotalBytes",
+        "modelCpuBytes",
+        "modelGpuBytes"
+      ],
+      "properties": {
+        "kind": { "const": "ollama" },
+        "serverVersion": { "$ref": "#/$defs/nonEmptyString" },
+        "placement": { "enum": ["cpu", "gpu", "hybrid"] },
+        "modelTotalBytes": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "modelCpuBytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "modelGpuBytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      },
+      "$comment": "Runtime validation requires CPU plus GPU bytes to equal total bytes and derives placement from that split."
+    },
+    "anthropicExecutionBackend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "apiVersion", "endpoint", "placement"],
+      "properties": {
+        "kind": { "const": "anthropic-api" },
+        "apiVersion": { "const": "2023-06-01" },
+        "endpoint": { "const": "https://api.anthropic.com" },
+        "placement": { "const": "provider-managed" }
+      }
+    },
+    "layaExecutionBackend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "runtime", "device"],
+      "properties": {
+        "kind": { "const": "laya" },
+        "runtime": { "const": "python" },
+        "device": { "enum": ["cpu", "cuda"] }
+      }
+    },
+    "executionBackend": {
+      "oneOf": [
+        { "$ref": "#/$defs/semantscriptExecutionBackend" },
+        { "$ref": "#/$defs/ollamaExecutionBackend" },
+        { "$ref": "#/$defs/anthropicExecutionBackend" },
+        { "$ref": "#/$defs/layaExecutionBackend" }
+      ]
+    },
+    "systemRole": {
+      "enum": ["semantscript", "ollama-1b", "ollama-7b", "structured-api", "laya"]
+    },
+    "systemProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "taskSpecSha256", "model", "adapter", "trainingEvidence", "executionBackend"],
+      "properties": {
+        "role": { "$ref": "#/$defs/systemRole" },
+        "taskSpecSha256": {
+          "const": "bca8f0972254a19f32eed81e66adf79f22603d6f119dc5f06448c3851db7c163"
+        },
+        "model": { "$ref": "#/$defs/modelProvenance" },
+        "adapter": { "$ref": "#/$defs/adapterProvenance" },
+        "trainingEvidence": {
+          "oneOf": [
+            { "$ref": "#/$defs/semantscriptTrainingEvidence" },
+            { "type": "null" }
+          ]
+        },
+        "executionBackend": { "$ref": "#/$defs/executionBackend" }
+      },
+      "allOf": [
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "semantscript" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "semantscript" },
+                  "name": { "const": "refund-decision" },
+                  "version": { "const": "semantscript-artifact-v1" },
+                  "revision": { "$ref": "#/$defs/sha256" }
+                }
+              },
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "semantscript-node-artifact-runtime" },
+                  "version": { "const": "1" }
+                }
+              },
+              "trainingEvidence": { "$ref": "#/$defs/semantscriptTrainingEvidence" },
+              "executionBackend": { "$ref": "#/$defs/semantscriptExecutionBackend" }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "enum": ["ollama-1b", "ollama-7b"] } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "refund-ollama-json-schema" },
+                  "version": { "const": "2" }
+                }
+              },
+              "trainingEvidence": { "type": "null" },
+              "executionBackend": { "$ref": "#/$defs/ollamaExecutionBackend" }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "ollama-1b" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "ollama" },
+                  "name": { "const": "qwen2.5:1.5b-instruct-q4_K_M" },
+                  "version": { "const": "qwen2.5" },
+                  "revision": { "const": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b" },
+                  "artifactSha256": { "const": "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "ollama-7b" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "ollama" },
+                  "name": { "const": "qwen2.5:7b-instruct-q4_K_M" },
+                  "version": { "const": "qwen2.5" },
+                  "revision": { "const": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e" },
+                  "artifactSha256": { "const": "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "structured-api" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "anthropic" },
+                  "name": { "const": "claude-sonnet-5" },
+                  "version": { "const": "claude-sonnet-5" },
+                  "revision": { "const": "claude-sonnet-5" }
+                }
+              },
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "refund-anthropic-structured-output" },
+                  "version": { "const": "2" }
+                }
+              },
+              "trainingEvidence": { "type": "null" },
+              "executionBackend": { "$ref": "#/$defs/anthropicExecutionBackend" }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "laya" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "huggingface" },
+                  "name": { "const": "convaiinnovations/laya-typed-decisions" },
+                  "version": { "const": "laya-typed-decisions" },
+                  "revision": { "const": "dd079950600224fb459af2a0cb1d74e1e57ee9cf" },
+                  "artifactSha256": { "const": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e" }
+                }
+              },
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "refund-laya-typed-decisions" },
+                  "version": { "const": "2" }
+                }
+              },
+              "trainingEvidence": { "type": "null" },
+              "executionBackend": { "$ref": "#/$defs/layaExecutionBackend" }
+            }
+          }
+        }
+      ]
+    },
+    "runtimeVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "environmentProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capturedAt",
+        "operatingSystem",
+        "architecture",
+        "cpu",
+        "accelerator",
+        "memoryBytes",
+        "runtimeVersions",
+        "evidenceSha256"
+      ],
+      "properties": {
+        "capturedAt": { "$ref": "#/$defs/timestamp" },
+        "operatingSystem": { "$ref": "#/$defs/nonEmptyString" },
+        "architecture": { "$ref": "#/$defs/nonEmptyString" },
+        "cpu": { "$ref": "#/$defs/nonEmptyString" },
+        "accelerator": {
+          "oneOf": [
+            { "$ref": "#/$defs/nonEmptyString" },
+            { "type": "null" }
+          ]
+        },
+        "memoryBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "runtimeVersions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/runtimeVersion" }
+        },
+        "evidenceSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "measurementProtocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concurrency",
+        "warmupIterations",
+        "warmupInputOrderSha256",
+        "measuredDurationMs",
+        "memoryScope",
+        "peakMemoryBytes"
+      ],
+      "properties": {
+        "concurrency": { "const": 1 },
+        "warmupIterations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "warmupInputOrderSha256": { "$ref": "#/$defs/sha256" },
+        "measuredDurationMs": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "memoryScope": {
+          "enum": ["client-only", "process-tree"]
+        },
+        "peakMemoryBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "distributionEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "probability"],
+      "properties": {
+        "value": { "$ref": "#/$defs/refundDecision" },
+        "probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "prediction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "inputSha256", "value", "distribution", "latencyMs"],
+      "properties": {
+        "caseId": { "$ref": "#/$defs/recordId" },
+        "inputSha256": { "$ref": "#/$defs/sha256" },
+        "value": { "$ref": "#/$defs/refundDecision" },
+        "distribution": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/distributionEntry" }
+        },
+        "latencyMs": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "accuracyMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseCount",
+        "correctCount",
+        "accuracy",
+        "humanCaseCount",
+        "humanCorrectCount",
+        "humanAccuracy"
+      ],
+      "properties": {
+        "caseCount": { "type": "integer", "minimum": 1 },
+        "correctCount": { "type": "integer", "minimum": 0 },
+        "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "humanCaseCount": { "type": "integer", "minimum": 1 },
+        "humanCorrectCount": { "type": "integer", "minimum": 0 },
+        "humanAccuracy": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "systemMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accuracy", "calibration", "latency", "throughput", "memory"],
+      "properties": {
+        "accuracy": { "$ref": "#/$defs/accuracyMetrics" },
+        "calibration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["binCount", "expectedCalibrationError"],
+          "properties": {
+            "binCount": { "const": 15 },
+            "expectedCalibrationError": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "latency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p50Ms", "p95Ms"],
+          "properties": {
+            "p50Ms": { "type": "number", "minimum": 0 },
+            "p95Ms": { "type": "number", "minimum": 0 }
+          }
+        },
+        "throughput": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["concurrency", "measuredDurationMs", "requestsPerSecond"],
+          "properties": {
+            "concurrency": { "const": 1 },
+            "measuredDurationMs": { "type": "number", "exclusiveMinimum": 0 },
+            "requestsPerSecond": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["scope", "peakBytes"],
+          "properties": {
+            "scope": { "enum": ["client-only", "process-tree"] },
+            "peakBytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          }
+        }
+      }
+    },
+    "systemResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "predictionSha256",
+        "taskSpecSha256",
+        "model",
+        "adapter",
+        "trainingEvidence",
+        "executionBackend",
+        "environment",
+        "protocol",
+        "metrics"
+      ],
+      "properties": {
+        "role": { "$ref": "#/$defs/systemRole" },
+        "predictionSha256": { "$ref": "#/$defs/sha256" },
+        "taskSpecSha256": {
+          "const": "bca8f0972254a19f32eed81e66adf79f22603d6f119dc5f06448c3851db7c163"
+        },
+        "model": { "$ref": "#/$defs/modelProvenance" },
+        "adapter": { "$ref": "#/$defs/adapterProvenance" },
+        "trainingEvidence": {
+          "oneOf": [
+            { "$ref": "#/$defs/semantscriptTrainingEvidence" },
+            { "type": "null" }
+          ]
+        },
+        "executionBackend": { "$ref": "#/$defs/executionBackend" },
+        "environment": { "$ref": "#/$defs/environmentProvenance" },
+        "protocol": { "$ref": "#/$defs/measurementProtocol" },
+        "metrics": { "$ref": "#/$defs/systemMetrics" }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/systemResultRoleIdentity"
+        }
+      ]
+    },
+    "systemResultRoleIdentity": {
+      "allOf": [
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "semantscript" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "semantscript" },
+                  "name": { "const": "refund-decision" },
+                  "version": { "const": "semantscript-artifact-v1" },
+                  "revision": { "$ref": "#/$defs/sha256" },
+                  "artifactSha256": { "$ref": "#/$defs/sha256" }
+                }
+              },
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "semantscript-node-artifact-runtime" },
+                  "version": { "const": "1" }
+                }
+              },
+              "trainingEvidence": { "$ref": "#/$defs/semantscriptTrainingEvidence" },
+              "executionBackend": { "$ref": "#/$defs/semantscriptExecutionBackend" }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "enum": ["ollama-1b", "ollama-7b"] } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "refund-ollama-json-schema" },
+                  "version": { "const": "2" }
+                }
+              },
+              "trainingEvidence": { "type": "null" },
+              "executionBackend": { "$ref": "#/$defs/ollamaExecutionBackend" }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "ollama-1b" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "ollama" },
+                  "name": { "const": "qwen2.5:1.5b-instruct-q4_K_M" },
+                  "version": { "const": "qwen2.5" },
+                  "revision": { "const": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b" },
+                  "artifactSha256": { "const": "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "ollama-7b" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "ollama" },
+                  "name": { "const": "qwen2.5:7b-instruct-q4_K_M" },
+                  "version": { "const": "qwen2.5" },
+                  "revision": { "const": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e" },
+                  "artifactSha256": { "const": "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "structured-api" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "anthropic" },
+                  "name": { "const": "claude-sonnet-5" },
+                  "version": { "const": "claude-sonnet-5" },
+                  "revision": { "const": "claude-sonnet-5" },
+                  "artifactSha256": { "$ref": "#/$defs/sha256" }
+                }
+              },
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "refund-anthropic-structured-output" },
+                  "version": { "const": "2" }
+                }
+              },
+              "trainingEvidence": { "type": "null" },
+              "executionBackend": { "$ref": "#/$defs/anthropicExecutionBackend" }
+            }
+          }
+        },
+        {
+          "if": { "type": "object", "properties": { "role": { "const": "laya" } }, "required": ["role"] },
+          "then": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "object",
+                "properties": {
+                  "provider": { "const": "huggingface" },
+                  "name": { "const": "convaiinnovations/laya-typed-decisions" },
+                  "version": { "const": "laya-typed-decisions" },
+                  "revision": { "const": "dd079950600224fb459af2a0cb1d74e1e57ee9cf" },
+                  "artifactSha256": { "const": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e" }
+                }
+              },
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "name": { "const": "refund-laya-typed-decisions" },
+                  "version": { "const": "2" }
+                }
+              },
+              "trainingEvidence": { "type": "null" },
+              "executionBackend": { "$ref": "#/$defs/layaExecutionBackend" }
+            }
+          }
+        }
+      ]
+    },
+    "leakageAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "datasetSha256",
+        "trainingLedgerSha256",
+        "evaluationCaseCount",
+        "trainingInputCount",
+        "overlapCount"
+      ],
+      "properties": {
+        "datasetSha256": { "$ref": "#/$defs/sha256" },
+        "trainingLedgerSha256": { "$ref": "#/$defs/sha256" },
+        "evaluationCaseCount": { "type": "integer", "minimum": 1 },
+        "trainingInputCount": { "type": "integer", "minimum": 0 },
+        "overlapCount": { "const": 0 }
+      }
+    },
+    "goNoGo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "criterion",
+        "semantscriptP50Ms",
+        "semantscriptAccuracy",
+        "comparatorAccuracy",
+        "latencyPassed",
+        "accuracyPassed",
+        "missingSystems"
+      ],
+      "properties": {
+        "status": { "enum": ["go", "no-go", "incomplete"] },
+        "criterion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["semantscriptP50MsExclusiveMaximum", "accuracyComparator"],
+          "properties": {
+            "semantscriptP50MsExclusiveMaximum": { "const": 10 },
+            "accuracyComparator": { "const": "ollama-7b" }
+          }
+        },
+        "semantscriptP50Ms": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "semantscriptAccuracy": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "comparatorAccuracy": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "latencyPassed": { "type": ["boolean", "null"] },
+        "accuracyPassed": { "type": ["boolean", "null"] },
+        "missingSystems": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/systemRole" }
+        }
+      }
+    }
+  }
+}

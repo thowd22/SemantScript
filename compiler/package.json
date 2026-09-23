@@ -1,0 +1,26 @@
+{
+  "name": "@semantscript/compiler",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "peerDependencies": {
+    "typescript": ">=5.9.0 <7.0.0"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "clean": "tsc -b tsconfig.json --clean",
+    "prepack": "npm run build",
+    "pretest": "npm run build",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+  }
+}

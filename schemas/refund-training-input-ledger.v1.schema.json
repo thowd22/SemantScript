@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantscript.dev/schemas/refund-training-input-ledger.v1.schema.json",
+  "title": "SemantScript refund training input ledger v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "ledgerVersion",
+    "benchmark",
+    "createdAt",
+    "function",
+    "sources",
+    "partitions",
+    "payloadSha256"
+  ],
+  "properties": {
+    "kind": { "const": "semantscript.refund-training-input-ledger" },
+    "ledgerVersion": { "const": 1 },
+    "benchmark": { "const": "refund-decision" },
+    "createdAt": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/timestamp"
+    },
+    "function": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/functionBinding"
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseDatasetSha256",
+        "adversarialDatasetSha256",
+        "releaseVerificationPayloadSha256",
+        "releaseVerificationAttestationSha256"
+      ],
+      "properties": {
+        "baseDatasetSha256": {
+          "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+        },
+        "adversarialDatasetSha256": {
+          "anyOf": [
+            {
+              "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+            },
+            { "type": "null" }
+          ]
+        },
+        "releaseVerificationPayloadSha256": {
+          "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+        },
+        "releaseVerificationAttestationSha256": {
+          "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "partitions": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/examples" },
+        { "$ref": "#/$defs/synthetic" },
+        { "$ref": "#/$defs/adversarial" },
+        { "$ref": "#/$defs/calibration" },
+        { "$ref": "#/$defs/verification" }
+      ],
+      "items": false,
+      "minItems": 5,
+      "maxItems": 5
+    },
+    "payloadSha256": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "inputDigests": {
+      "type": "array",
+      "maxItems": 50000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+      }
+    },
+    "examples": {
+      "$ref": "#/$defs/partition",
+      "type": "object",
+      "properties": { "name": { "const": "examples" } }
+    },
+    "synthetic": {
+      "$ref": "#/$defs/partition",
+      "type": "object",
+      "properties": { "name": { "const": "synthetic" } }
+    },
+    "adversarial": {
+      "$ref": "#/$defs/partition",
+      "type": "object",
+      "properties": { "name": { "const": "adversarial" } }
+    },
+    "calibration": {
+      "$ref": "#/$defs/partition",
+      "type": "object",
+      "properties": { "name": { "const": "calibration" } }
+    },
+    "verification": {
+      "$ref": "#/$defs/partition",
+      "type": "object",
+      "properties": { "name": { "const": "verification" } }
+    },
+    "partition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "inputSha256s"],
+      "properties": {
+        "name": {
+          "enum": ["examples", "synthetic", "adversarial", "calibration", "verification"]
+        },
+        "inputSha256s": { "$ref": "#/$defs/inputDigests" }
+      }
+    }
+  }
+}

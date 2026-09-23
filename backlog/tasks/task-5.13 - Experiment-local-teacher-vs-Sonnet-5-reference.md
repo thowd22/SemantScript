@@ -4,7 +4,7 @@ title: 'Experiment: local teacher vs Sonnet 5 reference'
 status: To Do
 assignee: []
 created_date: '2026-09-20 02:43'
-updated_date: '2026-09-20 19:18'
+updated_date: '2026-09-23 19:05'
 labels:
   - trainer
   - benchmark
@@ -33,3 +33,12 @@ We want to iterate locally without paying per build, but only if the local teach
 - [ ] #3 Two student encoders are trained, one per teacher dataset, and their accuracy and calibration on the held-out set are compared
 - [ ] #4 A backlog decision records whether the local teacher is acceptable for iteration and the measured accuracy gap
 <!-- AC:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-23 19:05
+---
+Handoff readiness note: this story remains To Do and dependency-blocked on TASK-5.11. Reuse the canonical refund function/dataset contracts, held-out evaluator, ROCm training pipeline, leakage ledger, Sonnet 5 training-only CLI teacher, environment capture, and publication controls from TASK-5.11 after its final dataset is frozen. Do not confuse the installed Qwen 2.5 1.5B/7B benchmark baselines with this story local teacher: AC #1 still specifically requires Qwen3-14B. No Sonnet or Qwen3-14B experiment calls, datasets, student runs, results, or decision record exist yet. Start only after TASK-5.11 is complete, then use one fixed Sonnet-labeled evaluation target excluded from both student training corpora.
+---
+<!-- COMMENTS:END -->

@@ -1,0 +1,1098 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantscript.dev/schemas/neural-function.v1.schema.json",
+  "title": "SemantScript NeuralFunction IR v1",
+  "description": "Build-time intermediate representation for one compiled sema expression.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "irVersion",
+    "stage",
+    "id",
+    "semanticSha256",
+    "source",
+    "definition",
+    "inputs",
+    "output",
+    "model",
+    "runtime",
+    "trainingProvenance",
+    "verification"
+  ],
+  "properties": {
+    "kind": {
+      "const": "semantscript.neural-function"
+    },
+    "irVersion": {
+      "const": 1
+    },
+    "stage": {
+      "enum": ["source", "trained", "verified"]
+    },
+    "id": {
+      "$ref": "#/$defs/functionId"
+    },
+    "semanticSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source": {
+      "$ref": "#/$defs/sourceLocation"
+    },
+    "definition": {
+      "$ref": "#/$defs/definition"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/inputEntry"
+      }
+    },
+    "output": {
+      "$ref": "#/$defs/outputSpec"
+    },
+    "model": {
+      "$ref": "#/$defs/modelRefs"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtimePolicy"
+    },
+    "trainingProvenance": {
+      "$ref": "#/$defs/trainingProvenance"
+    },
+    "verification": {
+      "$ref": "#/$defs/verification"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "stage": { "const": "source" } },
+        "required": ["stage"]
+      },
+      "then": {
+        "properties": {
+          "trainingProvenance": { "$ref": "#/$defs/pendingRecord" },
+          "verification": { "$ref": "#/$defs/pendingRecord" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "stage": { "const": "trained" } },
+        "required": ["stage"]
+      },
+      "then": {
+        "properties": {
+          "trainingProvenance": { "$ref": "#/$defs/completedTrainingProvenance" },
+          "verification": { "$ref": "#/$defs/pendingRecord" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "stage": { "const": "verified" } },
+        "required": ["stage"]
+      },
+      "then": {
+        "properties": {
+          "trainingProvenance": { "$ref": "#/$defs/completedTrainingProvenance" },
+          "verification": { "$ref": "#/$defs/completedVerification" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "functionId": {
+      "type": "string",
+      "pattern": "^nf_[a-f0-9]{64}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "logicalRef": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
+      "maxLength": 200
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "sourceLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line", "column", "sourceSha256"],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template", "examples", "constraints"],
+      "properties": {
+        "template": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/templatePart"
+          }
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/example"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraint"
+          }
+        }
+      }
+    },
+    "templatePart": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name"],
+          "properties": {
+            "kind": {
+              "const": "input"
+            },
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+            }
+          }
+        }
+      ]
+    },
+    "example": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputs", "output"],
+      "properties": {
+        "inputs": {
+          "type": "object"
+        },
+        "output": true
+      }
+    },
+    "constraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "predicate", "output"],
+      "properties": {
+        "kind": {
+          "enum": ["always", "never"]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predicate": {
+          "$ref": "#/$defs/expression"
+        },
+        "output": true
+      }
+    },
+    "expression": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/literalExpression"
+        },
+        {
+          "$ref": "#/$defs/inputExpression"
+        },
+        {
+          "$ref": "#/$defs/propertyExpression"
+        },
+        {
+          "$ref": "#/$defs/indexExpression"
+        },
+        {
+          "$ref": "#/$defs/unaryExpression"
+        },
+        {
+          "$ref": "#/$defs/binaryExpression"
+        }
+      ]
+    },
+    "literalExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "value"],
+      "properties": {
+        "node": {
+          "const": "literal"
+        },
+        "value": {
+          "type": ["string", "number", "boolean", "null"]
+        }
+      }
+    },
+    "inputExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "name"],
+      "properties": {
+        "node": {
+          "const": "input"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "propertyExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "object", "property"],
+      "properties": {
+        "node": {
+          "const": "property"
+        },
+        "object": {
+          "$ref": "#/$defs/expression"
+        },
+        "property": {
+          "type": "string"
+        }
+      }
+    },
+    "indexExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "object", "index"],
+      "properties": {
+        "node": {
+          "const": "index"
+        },
+        "object": {
+          "$ref": "#/$defs/expression"
+        },
+        "index": {
+          "$ref": "#/$defs/expression"
+        }
+      }
+    },
+    "unaryExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "operator", "operand"],
+      "properties": {
+        "node": {
+          "const": "unary"
+        },
+        "operator": {
+          "enum": ["!", "+", "-"]
+        },
+        "operand": {
+          "$ref": "#/$defs/expression"
+        }
+      }
+    },
+    "binaryExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "operator", "left", "right"],
+      "properties": {
+        "node": {
+          "const": "binary"
+        },
+        "operator": {
+          "enum": [
+            "===",
+            "!==",
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "&&",
+            "||",
+            "+",
+            "-",
+            "*",
+            "/",
+            "%",
+            "**"
+          ]
+        },
+        "left": {
+          "$ref": "#/$defs/expression"
+        },
+        "right": {
+          "$ref": "#/$defs/expression"
+        }
+      }
+    },
+    "inputEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "index", "tsType", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tsType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "$ref": "#/$defs/inputType"
+        }
+      }
+    },
+    "inputType": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/primitiveInputType"
+        },
+        {
+          "$ref": "#/$defs/literalInputType"
+        },
+        {
+          "$ref": "#/$defs/enumInputType"
+        },
+        {
+          "$ref": "#/$defs/arrayInputType"
+        },
+        {
+          "$ref": "#/$defs/tupleInputType"
+        },
+        {
+          "$ref": "#/$defs/objectInputType"
+        },
+        {
+          "$ref": "#/$defs/unionInputType"
+        }
+      ]
+    },
+    "primitiveInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["string", "boolean", "number", "null"]
+        }
+      }
+    },
+    "literalInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "const": "literal"
+        },
+        "value": {
+          "type": ["string", "number", "boolean", "null"]
+        }
+      }
+    },
+    "enumInputType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "base", "values"],
+          "properties": {
+            "kind": {
+              "const": "enum"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "base": {
+              "const": "string"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "base", "values"],
+          "properties": {
+            "kind": {
+              "const": "enum"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "base": {
+              "const": "number"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "arrayInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": {
+          "const": "array"
+        },
+        "items": {
+          "$ref": "#/$defs/inputType"
+        }
+      }
+    },
+    "tupleInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": {
+          "const": "tuple"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputType"
+          }
+        }
+      }
+    },
+    "objectInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "fields"],
+      "properties": {
+        "kind": {
+          "const": "object"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputField"
+          }
+        }
+      }
+    },
+    "inputField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "optional", "type"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/$defs/inputType"
+        }
+      }
+    },
+    "unionInputType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "variants"],
+      "properties": {
+        "kind": {
+          "const": "union"
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/inputType"
+          }
+        }
+      }
+    },
+    "outputSpec": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/scalarOutput"
+        },
+        {
+          "$ref": "#/$defs/objectOutput"
+        }
+      ]
+    },
+    "scalarOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tsType", "head"],
+      "properties": {
+        "kind": {
+          "const": "scalar"
+        },
+        "tsType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head": {
+          "$ref": "#/$defs/headSpec"
+        }
+      }
+    },
+    "objectOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tsType", "fields"],
+      "properties": {
+        "kind": {
+          "const": "object"
+        },
+        "tsType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "head"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "head": {
+                "$ref": "#/$defs/headSpec"
+              }
+            }
+          }
+        }
+      }
+    },
+    "headSpec": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/booleanHead"
+        },
+        {
+          "$ref": "#/$defs/nominalStringHead"
+        },
+        {
+          "$ref": "#/$defs/nominalNumberHead"
+        },
+        {
+          "$ref": "#/$defs/ordinalStringHead"
+        },
+        {
+          "$ref": "#/$defs/ordinalNumberHead"
+        }
+      ]
+    },
+    "booleanHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceKind", "support"],
+      "properties": {
+        "kind": {
+          "const": "nominal"
+        },
+        "sourceKind": {
+          "const": "boolean"
+        },
+        "support": {
+          "const": [false, true]
+        }
+      }
+    },
+    "nominalStringHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceKind", "support"],
+      "properties": {
+        "kind": {
+          "const": "nominal"
+        },
+        "sourceKind": {
+          "enum": ["string-union", "string-enum"]
+        },
+        "support": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "nominalNumberHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceKind", "support"],
+      "properties": {
+        "kind": {
+          "const": "nominal"
+        },
+        "sourceKind": {
+          "const": "number-enum"
+        },
+        "support": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "ordinalStringHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceKind", "support", "expectedValue"],
+      "properties": {
+        "kind": {
+          "const": "ordinal"
+        },
+        "sourceKind": {
+          "const": "ordinal-string"
+        },
+        "support": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "expectedValue": {
+          "const": "zero-based-rank"
+        }
+      }
+    },
+    "ordinalNumberHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sourceKind",
+        "minimum",
+        "maximum",
+        "step",
+        "supportDecimal",
+        "expectedValue"
+      ],
+      "properties": {
+        "kind": {
+          "const": "ordinal"
+        },
+        "sourceKind": {
+          "enum": ["bounded-int", "bounded-number"]
+        },
+        "minimum": {
+          "$ref": "#/$defs/canonicalDecimal"
+        },
+        "maximum": {
+          "$ref": "#/$defs/canonicalDecimal"
+        },
+        "step": {
+          "$ref": "#/$defs/canonicalDecimal"
+        },
+        "supportDecimal": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/canonicalDecimal"
+          }
+        },
+        "expectedValue": {
+          "const": "numeric"
+        }
+      }
+    },
+    "canonicalDecimal": {
+      "type": "string",
+      "pattern": "^(?!-0$)-?(?:0|[1-9][0-9]*)(?:\\.[0-9]*[1-9])?$"
+    },
+    "modelRefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoder", "adapter", "heads"],
+      "properties": {
+        "encoder": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "adapter": {
+          "$ref": "#/$defs/logicalRef"
+        },
+        "heads": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["outputPath", "ref"],
+            "properties": {
+              "outputPath": {
+                "type": "string",
+                "pattern": "^(?:|/(?:[^~/]|~0|~1)*)$"
+              },
+              "ref": {
+                "$ref": "#/$defs/logicalRef"
+              }
+            }
+          }
+        }
+      }
+    },
+    "runtimePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resultMode",
+        "confidenceThreshold",
+        "fallbackRef",
+        "synchronous"
+      ],
+      "properties": {
+        "resultMode": {
+          "enum": ["value", "diagnostic"]
+        },
+        "confidenceThreshold": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fallbackRef": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "synchronous": {
+          "const": true
+        }
+      }
+    },
+    "pendingRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "const": "pending"
+        }
+      }
+    },
+    "trainingProvenance": {
+      "oneOf": [
+        { "$ref": "#/$defs/pendingRecord" },
+        { "$ref": "#/$defs/completedTrainingProvenance" }
+      ]
+    },
+    "completedTrainingProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "teacher",
+        "baseModel",
+        "datasetSha256",
+        "counts",
+        "seed",
+        "trainer",
+        "trainedAt"
+      ],
+      "properties": {
+        "status": {
+          "const": "complete"
+        },
+        "teacher": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "model", "configurationSha256"],
+          "properties": {
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "configurationSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "baseModel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "revision", "weightsSha256"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "weightsSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "datasetSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "examples",
+            "synthetic",
+            "adversarial",
+            "calibration",
+            "verification",
+            "humanAuthoredVerification"
+          ],
+          "properties": {
+            "examples": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "synthetic": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "adversarial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "calibration": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "verification": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "humanAuthoredVerification": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "trainer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "commit"],
+          "properties": {
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{7,64}$"
+            }
+          }
+        },
+        "trainedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "verification": {
+      "oneOf": [
+        { "$ref": "#/$defs/pendingRecord" },
+        { "$ref": "#/$defs/completedVerification" }
+      ]
+    },
+    "completedVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "verifiedAt", "metrics"],
+      "properties": {
+        "status": {
+          "enum": ["passed", "failed"]
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accuracy",
+            "ece",
+            "brier",
+            "pairConsistency",
+            "heads",
+            "exampleFailures",
+            "constraintViolations",
+            "typeErrors"
+          ],
+          "properties": {
+            "accuracy": {
+              "$ref": "#/$defs/unitInterval"
+            },
+            "ece": {
+              "$ref": "#/$defs/unitInterval"
+            },
+            "brier": {
+              "$ref": "#/$defs/unitInterval"
+            },
+            "pairConsistency": {
+              "$ref": "#/$defs/unitInterval"
+            },
+            "heads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/headVerification"
+              }
+            },
+            "exampleFailures": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "constraintViolations": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "typeErrors": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "headVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "accuracy", "pairConsistency", "calibration"],
+      "properties": {
+        "outputPath": {
+          "type": "string",
+          "pattern": "^(?:|/(?:[^~/]|~0|~1)*)$"
+        },
+        "accuracy": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "pairConsistency": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "calibration": {
+          "$ref": "#/$defs/calibration"
+        }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "temperature",
+        "ece",
+        "brier",
+        "sampleCount",
+        "splitSha256",
+        "eceBins"
+      ],
+      "properties": {
+        "method": {
+          "const": "temperature-scaling"
+        },
+        "temperature": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ece": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "brier": {
+          "$ref": "#/$defs/unitInterval"
+        },
+        "sampleCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "splitSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "eceBins": {
+          "type": "integer",
+          "minimum": 2
+        }
+      }
+    },
+    "unitInterval": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

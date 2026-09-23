@@ -1,0 +1,14 @@
+* text=auto
+
+*.json text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.toml text eol=lf
+*.ts text eol=lf
+*.py text eol=lf
+package-lock.json text eol=lf
+
+*.onnx binary
+*.safetensors binary
+*.bin binary
+

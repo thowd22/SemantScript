@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-20 19:18'
-updated_date: '2026-09-20 20:05'
+updated_date: '2026-09-23 19:05'
 labels:
   - model
   - research
@@ -36,3 +36,12 @@ Laya publishes an Apache-licensed ModernBERT checkpoint already fine-tuned for t
 - [ ] #7 The write-up gives a per-application rule of thumb: which size fits a <10 ms request path, and which is appropriate for batch workloads
 - [ ] #8 Encoder size is exposed as a per-application config value with the benchmark-derived default
 <!-- AC:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-23 19:05
+---
+Handoff readiness note: this story remains To Do and no sweep results are claimed. TASK-5.11 has already pinned and smoke-tested ModernBERT-base on AMD ROCm and pinned/smoke-tested Laya code d120d4ba220711b93c171973118753460310e16b plus checkpoint dd079950600224fb459af2a0cb1d74e1e57ee9cf; those identities and the benchmark measurement/provenance machinery can be reused. The required same refund training dataset is not frozen yet, and the large/~1B size points, multi-head amortization runs, CPU/GPU latency curve, configuration change, and Decision-3 update remain wholly unstarted.
+---
+<!-- COMMENTS:END -->

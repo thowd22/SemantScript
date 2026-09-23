@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantscript.dev/schemas/refund-benchmark-result.v1.schema.json",
+  "title": "SemantScript refund benchmark result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "resultVersion",
+    "benchmark",
+    "generatedAt",
+    "taskSpecSha256",
+    "datasetSha256",
+    "trainingLedgerSha256",
+    "leakageAudit",
+    "systems",
+    "goNoGo",
+    "payloadSha256"
+  ],
+  "properties": {
+    "kind": { "const": "semantscript.refund-benchmark-result" },
+    "resultVersion": { "const": 1 },
+    "benchmark": { "const": "refund-decision" },
+    "generatedAt": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/timestamp"
+    },
+    "taskSpecSha256": {
+      "const": "bca8f0972254a19f32eed81e66adf79f22603d6f119dc5f06448c3851db7c163"
+    },
+    "datasetSha256": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+    },
+    "trainingLedgerSha256": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+    },
+    "leakageAudit": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/leakageAudit"
+    },
+    "systems": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/systemResult"
+      }
+    },
+    "goNoGo": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/goNoGo"
+    },
+    "payloadSha256": {
+      "$ref": "https://semantscript.dev/schemas/refund-benchmark-common.v1.schema.json#/$defs/sha256"
+    }
+  }
+}

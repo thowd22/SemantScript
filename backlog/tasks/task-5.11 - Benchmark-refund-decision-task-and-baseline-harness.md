@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-23 23:32'
+updated_date: '2026-09-23 23:54'
 labels:
   - benchmark
 milestone: m-1
@@ -114,6 +114,8 @@ First complete release-pipeline attempt (2026-09-23 22:44 UTC, 4 epochs, ModernB
 Baselines rerun against the explicit-policy final set (results-v2-2026-09-23): Qwen 2.5 1.5B accuracy 0.519 (p50 320 ms; now gets fraud->review 26/26 and clean approvals 57/57 but never denies stale or outside-window orders), Qwen 2.5 7B accuracy 0.537 (p50 570 ms; stale deny 28/28 but fraud->deny 0/26 review, outside-window deny 10/39, suspicious 0/10), Laya 0.225 (review for all). The 7B comparator for the exit criterion is therefore about 54 percent even when every rule is spelled out.
 
 Opus 5.5 corpus frozen (benchmarks/refund/data/opus-v2-2026-09-23): 1,500 synthetic cases in 20.5 min at concurrency 6 (1,647 requests, 147 duplicate retries over 2 rounds, 8 residual duplicates, 0 schema and 0 constraint rejections), labels approve 310 / deny 583 / review 607, all five rule regions covered (254/350/329/257/310) with dense threshold coverage (86, 87 and 128 cases exactly at 30, 60 and 90 days). Adversarial phase 16.3 min: 12 boundary cases (both sides of all six constraints) and 150 counterfactual pairs editing status 40, ageDays 58, priorRefunds 20, total 22, tier 10; zero conflicting inputs across the corpus. Training sweep (epochs, learning rate, head) running against the release record before the release run.
+
+Sweep on the Opus corpus (decision-7 context): calibration-split accuracy 0.88-0.97 across epochs 4-12 and lr 2e-5/3e-5, but release accuracy stuck at 0.70-0.75 (20-25 misses of 80) with 38-157 constraint violations; per-case dump: 14/28 real clean approvals predicted review, 4/20 outside-window and 2/14 stale-fraud cases wrong. Cause is input distribution shift (Opus totals median ~1005 and prior refunds median 4 versus real 380 and 1; almost no day-zero orders). Response: pooled corpus (decision-7) generating now into benchmarks/refund/data/pooled-v3-2026-09-23: 7,339 rule-labeled real inputs + 1,500 replayed Opus cases, counterfactual ratio 0.02 via Opus.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

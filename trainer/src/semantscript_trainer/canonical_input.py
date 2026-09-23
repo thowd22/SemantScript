@@ -383,14 +383,16 @@ def _validate_and_order_schema(
         entry = _schema_mapping(raw_entry, "input entry")
         name = _schema_string(entry.get("name"), "input name")
         index = entry.get("index")
+        # IR loaded through the strict JSON reader carries integers as binary64 floats.
         if (
             isinstance(index, bool)
-            or not isinstance(index, int)
+            or not isinstance(index, (int, float))
+            or (isinstance(index, float) and not index.is_integer())
             or index < 0
             or index > MAXIMUM_SAFE_INTEGER
         ):
             _schema_failure("input index must be a non-negative safe integer")
-        entries.append((name, index, _schema_mapping(entry.get("type"), f"input {name} type")))
+        entries.append((name, int(index), _schema_mapping(entry.get("type"), f"input {name} type")))
 
     ordered = tuple(sorted(entries, key=lambda entry: entry[1]))
     names: set[str] = set()

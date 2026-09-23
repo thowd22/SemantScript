@@ -262,3 +262,13 @@ def test_allows_shared_acyclic_values_and_rejects_schema_ambiguity_and_depth() -
             schema({"kind": "union", "variants": [STRING, STRING]}),
             {"value": "x"},
         )
+
+
+def test_accepts_binary64_integral_schema_indices_from_strict_json() -> None:
+    integral = schema({"kind": "number"})
+    floating = [dict(integral[0], index=0.0)]
+    assert serialize_canonical_inputs(floating, {"value": 1}) == serialize_canonical_inputs(
+        integral, {"value": 1}
+    )
+    with pytest.raises(CanonicalInputError, match="non-negative safe integer"):
+        serialize_canonical_inputs([dict(integral[0], index=0.5)], {"value": 1})

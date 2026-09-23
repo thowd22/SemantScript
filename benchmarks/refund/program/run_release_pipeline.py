@@ -41,6 +41,10 @@ from benchmarks.refund.program.pipeline import (
     parse_release_verification_record,
     run_refund_runtime,
 )
+from benchmarks.refund.program.pooled_corpus import (
+    POOLED_CONFIG_KIND,
+    pooled_teacher_from_projection,
+)
 
 from semantscript_trainer.adversarial import (
     AdversarialDatasetGenerator,
@@ -78,8 +82,15 @@ def _refuse_teacher_calls(command: Sequence[str], **kwargs: Any) -> Any:
     raise RuntimeError("teacher requests are forbidden during pipeline replay")
 
 
-def _teacher_from_manifest(manifest: dict[str, Any]) -> ClaudeCliTrainingTeacher:
+def _teacher_from_manifest(manifest: dict[str, Any]) -> Any:
     configuration = manifest["teacher"]["configuration"]
+    if configuration.get("kind") == POOLED_CONFIG_KIND:
+        pooled = pooled_teacher_from_projection(configuration, process_runner=_refuse_teacher_calls)
+        if pooled.descriptor.configuration_sha256 != manifest["teacher"]["configurationSha256"]:
+            raise ReleasePipelineError(
+                "pooled corpus teacher configuration cannot be reconstructed"
+            )
+        return pooled
     config = ClaudeCliTeacherConfig(
         executable=configuration["cli"]["executable"],
         timeout_seconds=configuration["limits"]["timeoutSeconds"],

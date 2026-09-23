@@ -67,6 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--heldout-dir", required=True)
     parser.add_argument("--configs", nargs="+", required=True)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--dump-release-predictions", default=None)
     arguments = parser.parse_args(argv)
 
     manifest_path = Path(arguments.corpus_manifest)
@@ -145,6 +146,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             flush=True,
         )
+        if arguments.dump_release_predictions:
+            _dump_release_predictions(
+                ir, training, config, release, Path(arguments.dump_release_predictions), text
+            )
         del training
         try:
             import torch
@@ -153,6 +158,67 @@ def main(argv: Sequence[str] | None = None) -> int:
         except Exception:
             pass
     return 0
+
+
+def _dump_release_predictions(
+    ir: dict[str, Any],
+    training: Any,
+    config: TrainingConfig,
+    release: Any,
+    path: Path,
+    label: str,
+) -> None:
+    """Write per-case release predictions (expected, predicted, probabilities)."""
+
+    import torch
+    from transformers import AutoTokenizer
+
+    from semantscript_trainer.canonical_input import serialize_canonical_inputs
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        config.encoder_name,
+        revision=config.encoder_revision,
+        local_files_only=config.local_files_only,
+        trust_remote_code=False,
+        use_fast=True,
+    )
+    model = training.model
+    model.eval()
+    device = next(model.parameters()).device
+    support = list(training.head.support)
+    rows = []
+    document = release.document
+    with torch.no_grad():
+        for case in document["cases"]:
+            text = serialize_canonical_inputs(ir["inputs"], case["inputs"]).decode("utf-8")
+            encoded = tokenizer(
+                [text],
+                add_special_tokens=True,
+                padding=True,
+                truncation=True,
+                max_length=config.maximum_sequence_length,
+                return_tensors="pt",
+            )
+            logits = model(
+                input_ids=encoded["input_ids"].to(device),
+                attention_mask=encoded["attention_mask"].to(device),
+            )
+            probabilities = torch.softmax(logits[0].float(), dim=-1).tolist()
+            predicted = support[max(range(len(support)), key=lambda i: probabilities[i])]
+            rows.append(
+                {
+                    "id": case["id"],
+                    "inputs": case["inputs"],
+                    "expected": case["expected"],
+                    "predicted": predicted,
+                    "probabilities": dict(
+                        zip(support, [round(p, 4) for p in probabilities], strict=True)
+                    ),
+                }
+            )
+    existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    existing[label] = rows
+    path.write_text(json.dumps(existing, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

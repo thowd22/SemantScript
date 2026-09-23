@@ -675,7 +675,7 @@ def tokenizer_json_bytes(tokenizer: Any, /) -> bytes:
             serialized = to_str(pretty=False)
             if not isinstance(serialized, str):
                 raise TypeError("backend_tokenizer.to_str() must return a string")
-            document = serialized.encode("utf-8", errors="strict")
+            document = _normalize_fast_tokenizer_json(serialized)
 
         if not document:
             raise ValueError("tokenizer JSON must not be empty")
@@ -691,6 +691,26 @@ def tokenizer_json_bytes(tokenizer: Any, /) -> bytes:
         ) from error
     except Exception as error:
         raise VerificationExecutionError(f"tokenizer JSON serialization failed: {error}") from error
+
+
+def _normalize_fast_tokenizer_json(serialized: str) -> bytes:
+    """Serialize a fast tokenizer without its per-call padding and truncation state.
+
+    ``backend_tokenizer.to_str`` embeds the runtime padding and truncation
+    configuration, which every ``tokenizer(...)`` call may rewrite. Those fields
+    do not change the vocabulary, normalizer, pre-tokenizer or post-processor, so
+    they are cleared before hashing; the standard JSON module is used so integer
+    token ids stay integers.
+    """
+
+    parsed = json.loads(serialized)
+    if not isinstance(parsed, dict):
+        raise ValueError("tokenizer JSON root must be an object")
+    parsed["padding"] = None
+    parsed["truncation"] = None
+    return json.dumps(parsed, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode(
+        "utf-8", errors="strict"
+    )
 
 
 def _update_framed_hash(digest: Any, value: bytes) -> None:

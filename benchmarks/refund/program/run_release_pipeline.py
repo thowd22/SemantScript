@@ -64,6 +64,7 @@ from semantscript_trainer.verification import (
     VerificationConfig,
     evaluate_training_result,
     require_passing_verification,
+    tokenizer_json_bytes,
 )
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -183,7 +184,7 @@ def run_release_pipeline(
         "attestedCases": verification.attested_cases,
         "pairCount": verification.pair_count,
         "failures": list(verification.failures),
-        "metrics": verification.metrics.to_document(),
+        "metrics": verification.to_ir_document()["metrics"],
         "modelStateSha256": verification.model_state_sha256,
         "tokenizerSha256": verification.tokenizer_sha256,
         "elapsedSeconds": round(verification_seconds, 3),
@@ -209,7 +210,7 @@ def run_release_pipeline(
         verification=len(rows) + verification.attested_cases - origins["gold"],
         attested_verification=verification.attested_cases,
     )
-    weights_path, tokenizer_path = _pinned_encoder_files(training_config)
+    weights_path, _tokenizer_path = _pinned_encoder_files(training_config)
     provenance = VerifiedIrProvenance(
         teacher=base.teacher,
         base_model_name=training_config.encoder_name,
@@ -259,7 +260,8 @@ def run_release_pipeline(
         built.document,
         training,
         verification,
-        tokenizer_json=tokenizer_path.read_bytes(),
+        # The artifact must carry exactly the tokenizer bytes verification hashed.
+        tokenizer_json=tokenizer_json_bytes(tokenizer),
         source_ir_bytes=built.source_ir_bytes,
         provenance=artifact_provenance,
         input_ids=encoded["input_ids"],

@@ -282,7 +282,7 @@ def test_evidence_fingerprints_are_deterministic_and_bind_exact_state() -> None:
     assert mutated_tokenizer.tokenizer_sha256 != first.tokenizer_sha256
 
 
-def test_hugging_face_tokenizer_json_protocol_returns_exact_bytes() -> None:
+def test_hugging_face_tokenizer_json_protocol_returns_normalized_bytes() -> None:
     class Backend:
         def to_str(self, *, pretty: bool) -> str:
             assert pretty is False
@@ -291,7 +291,8 @@ def test_hugging_face_tokenizer_json_protocol_returns_exact_bytes() -> None:
     class Tokenizer:
         backend_tokenizer = Backend()
 
-    expected = b'{"model":{"type":"WordLevel"},"version":"1.0"}'
+    # Runtime padding/truncation state is cleared so the digest is stable across encodes.
+    expected = b'{"model":{"type":"WordLevel"},"version":"1.0","padding":null,"truncation":null}'
     assert tokenizer_json_bytes(Tokenizer()) == expected
 
 
@@ -701,3 +702,37 @@ def minimum_constraint() -> dict[str, Any]:
         },
         "output": True,
     }
+
+
+def test_fast_tokenizer_digest_ignores_runtime_padding_and_truncation_state() -> None:
+    from semantscript_trainer.verification import tokenizer_json_bytes
+
+    class Backend:
+        def __init__(self) -> None:
+            self.padding: dict[str, object] | None = None
+            self.truncation: dict[str, object] | None = None
+
+        def to_str(self, pretty: bool = False) -> str:
+            assert pretty is False
+            return json.dumps(
+                {
+                    "version": "1.0",
+                    "truncation": self.truncation,
+                    "padding": self.padding,
+                    "model": {"type": "WordPiece", "vocab": {"[PAD]": 0, "a": 1}},
+                }
+            )
+
+    class Tokenizer:
+        def __init__(self) -> None:
+            self.backend_tokenizer = Backend()
+
+    tokenizer = Tokenizer()
+    before = tokenizer_json_bytes(tokenizer)
+    tokenizer.backend_tokenizer.truncation = {"max_length": 128, "strategy": "LongestFirst"}
+    tokenizer.backend_tokenizer.padding = {"strategy": "BatchLongest", "pad_id": 0}
+    after = tokenizer_json_bytes(tokenizer)
+
+    assert before == after
+    assert b'"vocab":{"[PAD]":0,"a":1}' in before
+    assert b'"padding":null' in before and b'"truncation":null' in before

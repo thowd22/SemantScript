@@ -1,0 +1,111 @@
+{
+  "adversarial": {
+    "baseDatasetSha256": "5888fe1a60f994d6077b8864189f2c72d137ce4fce9b147d3e9f2187eab2c89a",
+    "cacheKeySha256": "b2c9ef0bf7053ef70229659988ebd605b8f9c53be407ac9c6d602d1de9008cd0",
+    "cachePath": "adversarial/adversarial-datasets/v1/b2/b2c9ef0bf7053ef70229659988ebd605b8f9c53be407ac9c6d602d1de9008cd0.json",
+    "caseCount": 304,
+    "caseCountsByTag": {
+      "constraint-boundary": 4,
+      "counterfactual": 300
+    },
+    "config": {
+      "counterfactualRatio": 0.25,
+      "maximumAttempts": 3
+    },
+    "datasetSha256": "b34bb09bcdd79ab94d4c23bd815324b92f03b9bde42a75ccbb725746a967230c",
+    "elapsedSeconds": 2468.247,
+    "labelCounts": {
+      "\"approve\"": 91,
+      "\"deny\"": 132,
+      "\"review\"": 81
+    },
+    "pairCount": 150,
+    "payloadSha256": "7dc17edbad6475f07e2b6a356c04213b8a10e6225ec1599fe88e05f40c1075ab"
+  },
+  "completedAt": "2026-09-23T20:53:03Z",
+  "dataClassification": "synthetic-training-only",
+  "environment": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "function": {
+    "bundlePath": "compiler/semantscript.ir.v1.json",
+    "bundleSha256": "3ce28698cd2d9f06502fce7c5bde274aa4e9bccd13a4aa964f39075547c683d2",
+    "id": "nf_955824a910df4df5cc32a079555fe109919c41492697d9a1cc507decc5afba20",
+    "semanticSha256": "29b03f7d9ec695eb4178e6c4320b6094f7d1c37bc6bfca3516e983e93a0dc1f1"
+  },
+  "kind": "semantscript.refund-training-corpus-manifest",
+  "manifestVersion": 1,
+  "notice": "Model-generated training data only. Not human-authored, not a benchmark or release-verification set, and never to be used as an evaluation target.",
+  "resumed": true,
+  "startedAt": "2026-09-23T20:14:09Z",
+  "synthetic": {
+    "cacheKeySha256": "d35bc8b85dd0fadadc74c46e176d666cd325faf18bc0e0e0231076ad07287c05",
+    "cachePath": "synthetic/datasets/v1/d3/d35bc8b85dd0fadadc74c46e176d666cd325faf18bc0e0e0231076ad07287c05.json",
+    "datasetSha256": "5888fe1a60f994d6077b8864189f2c72d137ce4fce9b147d3e9f2187eab2c89a",
+    "elapsedSeconds": 0.019,
+    "goldCount": 0,
+    "labelCounts": {
+      "\"approve\"": 96,
+      "\"deny\"": 305,
+      "\"review\"": 199
+    },
+    "loadedFromCache": true,
+    "payloadSha256": "a1a6bb377e80a4ca88137abf2ae1818982ba875fa9dde09613d6a856af0a5c41",
+    "requestedCaseCount": 600,
+    "runReport": null,
+    "syntheticCount": 600,
+    "uniqueInputCount": 600
+  },
+  "teacher": {
+    "cliVersion": "2.1.281 (Claude Code)",
+    "configuration": {
+      "cli": {
+        "executable": "claude",
+        "requiredVersion": null
+      },
+      "configVersion": 2,
+      "dataClassification": "synthetic-training-only",
+      "generation": {
+        "concurrency": 4,
+        "duplicateRounds": 2,
+        "maximumCaseAttempts": 3
+      },
+      "kind": "semantscript.refund-claude-cli-teacher-config",
+      "limits": {
+        "stderrBytes": 65536,
+        "stdinBytes": 8388608,
+        "stdoutBytes": 8388608,
+        "timeoutSeconds": 600.0
+      },
+      "promptProtocol": "semantscript-trainer-ir-prompts/v2",
+      "protocol": "semantscript.refund-training.claude-cli/v1",
+      "request": {
+        "chrome": false,
+        "effort": "high",
+        "fallbackModel": null,
+        "inputFormat": "text",
+        "maxBudgetUsd": 2.0,
+        "mcpServers": {},
+        "model": "claude-sonnet-5",
+        "outputFormat": "json",
+        "permissionMode": "dontAsk",
+        "permissionPrompts": "none",
+        "print": true,
+        "promptSuggestions": false,
+        "restrictedMode": true,
+        "safeMode": true,
+        "sessionPersistence": false,
+        "settingSources": [],
+        "skills": false,
+        "structuredOutput": "ir-derived-json-schema",
+        "tools": []
+      }
+    },
+    "configurationSha256": "28d6f079594f19cfccb2a1093b6940ccb2a787b0d2c584cf359376996b9f4e8b",
+    "dataClassification": "synthetic-training-only",
+    "model": "claude-sonnet-5",
+    "protocol": "semantscript.refund-training.claude-cli/v1",
+    "provider": "anthropic-claude-cli-training-only"
+  }
+}

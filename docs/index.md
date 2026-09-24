@@ -52,9 +52,10 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
 ## Component guides
 
 - [Compiler](../compiler/README.md): site discovery, type analysis, definition
-  resolution, execution plans, bundle emission, the diagnostics catalogue and
+  resolution, execution plans, bundle emission, the diagnostics catalogue,
   the build-tool adapters (ts-patch transformer, esbuild, Vite, webpack and
-  Turbopack loader).
+  Turbopack loader) and the editor plugin (hover and diagnostics at sema
+  sites).
 - [Runtime](../runtime/README.md): artifact loading, canonical input
   serialization, inference, confidence policy, fallbacks, stages and execution
   plans.

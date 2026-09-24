@@ -7,7 +7,8 @@
   "types": "./dist/index.d.ts",
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "ts-plugin"
   ],
   "exports": {
     ".": {
@@ -29,6 +30,10 @@
     "./loader": {
       "types": "./dist/loader.d.ts",
       "default": "./dist/loader.js"
+    },
+    "./ts-plugin": {
+      "types": "./dist/ts-plugin.d.cts",
+      "default": "./ts-plugin/index.js"
     }
   },
   "peerDependencies": {

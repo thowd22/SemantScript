@@ -142,3 +142,39 @@ Node 22.12+ supports for ESM without top-level await).
 
 Runnable adoption examples: [`examples/express-app`](../examples/express-app)
 (tsc transformer) and [`examples/next-app`](../examples/next-app) (loader).
+
+## Editor plugin
+
+`@semantscript/compiler/ts-plugin` is a TypeScript language-service plugin,
+enabled by one tsconfig entry that `semantscript init` writes:
+
+```json
+"plugins": [{ "name": "@semantscript/compiler/ts-plugin" }]
+```
+
+It makes tuning a neural function feel like fixing a type error. At every
+sema site it adds a hover with the function's short id and output type, its
+input, example and constraint counts and confidence threshold, and, from the
+latest artifact (`artifact` option, default `.semantscript/artifact` beside
+the tsconfig), the verified status, accuracy, ECE, pair consistency, attested
+cases and constraint violations. Inline diagnostics carry the compiler's own
+errors (unsupported output types, non-identifier or repeated inputs, invalid
+examples and constraints, codes 9100 to 9131) at the site, plus warnings for
+an expression with no trained artifact (9150), one missing from the latest
+artifact because it changed since training (9151), verified accuracy below
+`accuracyThreshold` (default 0.95, code 9152) and ECE above `eceThreshold`
+(default 0.1, the trainer's gate, code 9153), each with the next thing to try
+(add examples when there are none, a constraint for a broken rule, a
+confidence threshold with a fallback). The plugin plans the project through
+the service's own program, so unsaved buffers are analysed, and rereads the
+artifact only when its pointer changes.
+
+The entry is the CommonJS directory `ts-plugin/` at the package root because
+tsserver resolves plugins by file layout (not the `exports` map), loads them
+with `require` and expects the factory function itself. tsserver probes its
+own installation and any `--pluginProbeLocations`; VS Code passes the
+workspace folders, so the plugin in the project's `node_modules` loads with
+VS Code's bundled TypeScript and no extension. `test/ts-plugin.test.mjs`
+drives it both in-process through `ts.createLanguageService` and through a
+real `tsserver` session with the workspace as probe location, the path every
+editor takes.

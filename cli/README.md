@@ -30,6 +30,11 @@ comments and formatting:
 | esbuild | the same for `@semantscript/compiler/esbuild` in the first `build.mjs`, `esbuild.config.*` or `scripts/build.*` that calls esbuild                        |
 | Next.js | a `turbopack.rules` entry for `*.sem.ts`, `serverExternalPackages` for the runtime and `outputFileTracingIncludes` for the artifact directory             |
 
+Every project also gets the editor plugin entry
+`{ "name": "@semantscript/compiler/ts-plugin" }` in `tsconfig.json`, which
+puts the verified accuracy and guidance at each sema site in any editor that
+runs tsserver (see the compiler README).
+
 A config it cannot edit safely (missing, unparsable, `require()`-based, or a
 `next.config` that already sets one of the three keys) is reported as `manual`
 with the snippet to add, and nothing is written to it. `init` also adds

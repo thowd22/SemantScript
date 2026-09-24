@@ -546,7 +546,7 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   assert.match(tsconfig, /\/\/ strict project/u);
   assert.match(
     tsconfig,
-    /"compilerOptions": \{\n {4}"plugins": \[\{ "transform": "@semantscript\/compiler\/transformer" \}\],\n {4}"outDir": "dist"/u,
+    /"compilerOptions": \{\n {4}"plugins": \[\{ "name": "@semantscript\/compiler\/ts-plugin" \}, \{ "transform": "@semantscript\/compiler\/transformer" \}\],\n {4}"outDir": "dist"/u,
   );
   const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
   assert.equal(pkg.scripts.build, "tsc -p tsconfig.json");
@@ -565,7 +565,7 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
 
   const second = capture(root);
   assert.equal(await runCli(["init"], second.io), 0, second.stderr());
-  assert.equal((second.stdout().match(/^ {2}unchanged/gmu) ?? []).length, 4);
+  assert.equal((second.stdout().match(/^ {2}unchanged/gmu) ?? []).length, 5);
   assert.equal(await readFile(join(root, "tsconfig.json"), "utf8"), tsconfig);
 });
 
@@ -586,6 +586,10 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
     viteRun.stderr(),
   );
   assert.match(viteRun.stdout(), /detected vite/u);
+  assert.match(
+    viteRun.stdout(),
+    /manual {5}tsconfig\.json is missing; create one with/u,
+  );
   const viteConfig = await readFile(join(vite, "vite.config.ts"), "utf8");
   assert.match(
     viteConfig,

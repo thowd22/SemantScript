@@ -27,6 +27,7 @@ const TRANSFORMER_MODULE = `${COMPILER_PACKAGE}/transformer`;
 const VITE_MODULE = `${COMPILER_PACKAGE}/vite`;
 const ESBUILD_MODULE = `${COMPILER_PACKAGE}/esbuild`;
 const LOADER_MODULE = `${COMPILER_PACKAGE}/loader`;
+const EDITOR_PLUGIN = `${COMPILER_PACKAGE}/ts-plugin`;
 const STARTER_FILE = "hello.sem.ts";
 const STARTER_SOURCE = `import { sema } from "${CORE_PACKAGE}";
 
@@ -121,6 +122,7 @@ export function initCommand(
   const outcomes: Outcome[] = [];
 
   outcomes.push(wireBuildTool(tool, root));
+  outcomes.push(wireEditorPlugin(root));
   outcomes.push(addPackages(packagePath, pkg, tool));
   outcomes.push(reserveArtifactDirectory(root));
   if (values["no-example"] !== true) {
@@ -182,9 +184,35 @@ function wireBuildTool(tool: BuildTool, root: string): Outcome {
 }
 
 function wireTsc(root: string): Outcome {
+  return insertTsconfigPlugin(
+    root,
+    `{ "transform": "${TRANSFORMER_MODULE}" }`,
+    TRANSFORMER_MODULE,
+    "plugins entry for the ts-patch transformer",
+    "transformer already listed in plugins",
+  );
+}
+
+/** The editor plugin goes into every project's tsconfig: hover and diagnostics at sema sites. */
+function wireEditorPlugin(root: string): Outcome {
+  return insertTsconfigPlugin(
+    root,
+    `{ "name": "${EDITOR_PLUGIN}" }`,
+    EDITOR_PLUGIN,
+    "plugins entry for the editor plugin (hover and diagnostics at sema sites)",
+    "editor plugin already listed in plugins",
+  );
+}
+
+function insertTsconfigPlugin(
+  root: string,
+  entry: string,
+  marker: string,
+  changedWhat: string,
+  unchangedWhat: string,
+): Outcome {
   const file = "tsconfig.json";
   const path = join(root, file);
-  const entry = `{ "transform": "${TRANSFORMER_MODULE}" }`;
   const snippet = `"compilerOptions": { "plugins": [${entry}] }`;
   if (!existsSync(path)) {
     return {
@@ -194,12 +222,8 @@ function wireTsc(root: string): Outcome {
     };
   }
   const text = readFileSync(path, "utf8");
-  if (text.includes(TRANSFORMER_MODULE)) {
-    return {
-      kind: "unchanged",
-      file,
-      what: "transformer already listed in plugins",
-    };
+  if (text.includes(marker)) {
+    return { kind: "unchanged", file, what: unchangedWhat };
   }
   const parsed = ts.parseConfigFileTextToJson(path, text);
   if (parsed.error !== undefined) {
@@ -234,11 +258,7 @@ function wireTsc(root: string): Outcome {
     };
   }
   writeFileSync(path, updated);
-  return {
-    kind: "changed",
-    file,
-    what: "plugins entry for the ts-patch transformer",
-  };
+  return { kind: "changed", file, what: changedWhat };
 }
 
 function wireVite(root: string): Outcome {
@@ -587,6 +607,7 @@ function render(
     `  2. ${buildInstructions(tool)}   (writes the IR bundle next to the build output)`,
     "  3. semantscript train   (uses ANTHROPIC_API_KEY with the default teacher, or --teacher <toml>)",
     `  4. call loadSemaArtifact() once at startup; it reads ${DEFAULT_ARTIFACT_PATH} unless ${ARTIFACT_ENVIRONMENT_VARIABLE} is set`,
+    "  editor: after npm install, hover a sema expression for its verified accuracy (VS Code loads the plugin from node_modules; no extension needed)",
     "",
   );
   return lines.join("\n");

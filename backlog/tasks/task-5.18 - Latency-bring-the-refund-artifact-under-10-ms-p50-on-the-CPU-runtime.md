@@ -4,7 +4,7 @@ title: 'Latency: bring the refund artifact under 10 ms p50 on the CPU runtime'
 status: To Do
 assignee: []
 created_date: '2026-09-24 12:13'
-updated_date: '2026-09-24 13:52'
+updated_date: '2026-09-24 14:18'
 labels:
   - runtime
   - model
@@ -34,3 +34,9 @@ Path decided 2026-09-24 after measuring the levers on the committed release. Int
 - [ ] #2 Attested accuracy on the final set stays at or above 0.99 and 15-bin ECE at or below 0.05 with the faster artifact
 - [ ] #3 The re-measured predictions, result and updated written go/no-go are committed under benchmarks/refund/data with the new artifact digest and the release evidence that produced it
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-09-24: TASK-5.18.1 done. Compact encoding alone brings the refund release to p50 28.5 ms (from 38.4) with a first-seed strict-gate pass and 160/160 on the final set; the 22-layer encoder's per-layer overhead now dominates at batch 1, so the remaining path to p50 under 10 ms is depth routing (TASK-6.7).
+<!-- SECTION:NOTES:END -->

@@ -172,6 +172,12 @@ the pipeline manifest and the prediction record.
   (TASK-5.18.1) plus compile-time depth routing (TASK-6.7), both at float32.
   The latency criterion is still not met.
 
+- Compact canonical encoding (TASK-5.18.1, `data/results-compact-2026-09-24/README.md`):
+  retrained on the same corpus with `canonical-input/v2` (31 to 34 tokens per
+  input instead of 102 to 115), first seed passed the strict gate, final set
+  160/160, p50 28.5 ms, p95 35.4 ms. Still above the 10 ms bar; depth routing
+  (TASK-6.7) is the remaining lever.
+
 ## Records
 
 - Corpus: `data/pooled-v4-2026-09-24/manifest.json`

@@ -1,0 +1,1682 @@
+[
+ {
+  "expected": "review",
+  "id": "uci-r-00074fea52e6a782def50163",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 3.0,
+    "status": "fraudulent",
+    "total": 802.65
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-000e8068b8939db75015ca02",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 9.0,
+    "status": "paid",
+    "total": 143.6
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-001e81f76b95ebb4a35899c7",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 5.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 12.0,
+    "status": "paid",
+    "total": 608.4
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-002f0c98015aae2dc6b39307",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 2.0,
+    "status": "paid",
+    "total": 665.1
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-002fb2b242180399ecd58371",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 3.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "paid",
+    "total": 219.0
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 0.9999,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-0045cb1c20890453d04e1b9d",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 13.0,
+    "status": "paid",
+    "total": 418.7
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-004a35e4bc697d35beb3731b",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 223.0,
+    "status": "paid",
+    "total": 251.56
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-00508328548089a7f9386d60",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 23.0,
+    "status": "paid",
+    "total": 380.98
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-005d4ab58ccd73f354865e89",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 7.0,
+    "status": "paid",
+    "total": 822.93
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-006406ac479b5b59e10eab3b",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 6.0,
+    "status": "fraudulent",
+    "total": 379.95
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-006af9fc661dc40fbd551a98",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 117.0,
+    "status": "fraudulent",
+    "total": 613.8
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-007172d77d7bea5392d99906",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 9.0,
+    "status": "paid",
+    "total": 463.63
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0072d8634f437539221dbda2",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 3.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 350.0,
+    "status": "paid",
+    "total": 326.65
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-00792268e806358913c6d554",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 15.0,
+    "status": "paid",
+    "total": 442.59
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-007f52c77c645b29f45bc6ae",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 13.0,
+    "status": "paid",
+    "total": 621.0
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-008d1f193b2e403c897360ba",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 6.0,
+    "status": "paid",
+    "total": 782.26
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-009394f20bc49b4462bfd97e",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 5.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 76.0,
+    "status": "paid",
+    "total": 4.11
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-009acc7fedd80bb78fbac5e0",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 8.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "paid",
+    "total": 610.77
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-00a5230273df5a4cadc20af0",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "fraudulent",
+    "total": 388.46
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-00acf18d5add1dd211f6ddb1",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 5.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "paid",
+    "total": 4936.65
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-00af89b8edc95ad81142671b",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 14.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "paid",
+    "total": 441.18
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-00afc9a56c293041aeff2abd",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 36.0,
+    "status": "paid",
+    "total": 494.48
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-00b7fed5e028eba507b116d3",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 43.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 5.0,
+    "status": "paid",
+    "total": 213.0
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-00c03e9400e32e7031f159e3",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "paid",
+    "total": 263.24
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-00c2adcb07d9dbe42e54b7f7",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 7.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 13.0,
+    "status": "paid",
+    "total": 6549.12
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-00c424f0ffcc740ca5779659",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 2.0,
+    "status": "fraudulent",
+    "total": 382.91
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-0106070f6344d86ccfb61662",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 3.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 9.0,
+    "status": "paid",
+    "total": 147.4
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-01394d55b90fca333b2453fc",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 5.0,
+    "status": "paid",
+    "total": 435.6
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-013a6ea8ef5520b7207e9082",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 2.0,
+    "status": "paid",
+    "total": 264.0
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-01513789339ae3aa50838a15",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "paid",
+    "total": 145.64
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-01660048e1fdc4810d4fefbc",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 27.0,
+    "status": "paid",
+    "total": 238.65
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-016dac94cb6359e6cb24fbdd",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 9.0,
+    "status": "paid",
+    "total": 267.8
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-01837c94bd8ea1c7dc90aa4a",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 6.0,
+    "status": "paid",
+    "total": 228.7
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-0189f293863aeb9b6297806e",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 35.0,
+    "status": "paid",
+    "total": 1002.26
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-01a43dce4b2f8e1d759b5f18",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 29.0,
+    "status": "paid",
+    "total": 395.2
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-01aeb192f77cbb080df5942c",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 5.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 2.0,
+    "status": "paid",
+    "total": 305.55
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-01b684ff632337943b5748c5",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 8.0,
+    "status": "paid",
+    "total": 243.69
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-01b82fbb9251a65d02c9e3e6",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 0.0,
+    "status": "paid",
+    "total": 190.48
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0258175b52d11a8a8def8058",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 190.0,
+    "status": "paid",
+    "total": 462.95
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-02a1cf6b8e57ab59bdf49abe",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 3.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 33.0,
+    "status": "paid",
+    "total": 668.65
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-02afa08bab98b15fd1684411",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 48.0,
+    "status": "paid",
+    "total": 179.85
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-02cc4e07043d9f4d940ec165",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 77.0,
+    "status": "paid",
+    "total": 158.79
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-03f3b8e4c8384f83335cc0db",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 58.0,
+    "status": "paid",
+    "total": 125.73
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0412ac81f095bf5670c337c9",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 49.0,
+    "status": "paid",
+    "total": 237.36
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-044cc3a952e2a5f4097d5d25",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 44.0,
+    "status": "paid",
+    "total": 1943.13
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0466c9577efe9eb25fa56920",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 42.0,
+    "status": "paid",
+    "total": 415.94
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-049484933577f548bd3222f6",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 61.0,
+    "status": "paid",
+    "total": 1290.7
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-052cabe9e06fea35bd0c0ba0",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 85.0,
+    "status": "paid",
+    "total": 51.0
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-054585a8164e1ffa09d4e98d",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 64.0,
+    "status": "paid",
+    "total": 524.21
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0588daec104b8803b0ddb3d8",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 119.0,
+    "status": "paid",
+    "total": 319.6
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-05f1534987c299465ed65093",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 37.0,
+    "status": "paid",
+    "total": 316.73
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-063c0c6a43366cb51e0f774e",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 155.0,
+    "status": "paid",
+    "total": 457.33
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-06e00e4ae078ff91617d1e66",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 3.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 37.0,
+    "status": "paid",
+    "total": 389.4
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-06eafb952408987923479e6b",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 8.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 42.0,
+    "status": "paid",
+    "total": 369.33
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0748541420dcca55c567d30b",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 54.0,
+    "status": "paid",
+    "total": 308.52
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "approve",
+  "id": "uci-r-082075ef21b179f0786f1552",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 37.0,
+    "status": "paid",
+    "total": 225.1
+   }
+  },
+  "predicted": "approve",
+  "probabilities": {
+   "approve": 1.0,
+   "deny": 0.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-083235d72e7dd64393eebbeb",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 179.0,
+    "status": "fraudulent",
+    "total": 584.4
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-086db01f31e5afba6bdc6420",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 85.0,
+    "status": "paid",
+    "total": 218.45
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0913bd576d6d258fccb16cc3",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 126.0,
+    "status": "paid",
+    "total": 165.78
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-093eb827d042b5521707cd73",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 5.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 33.0,
+    "status": "paid",
+    "total": 254.54
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0986a43881997b63bceef8db",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 2.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 126.0,
+    "status": "fraudulent",
+    "total": 120.0
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-09cbce354bfb9c47fa0a0e63",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 5.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 33.0,
+    "status": "paid",
+    "total": 100.8
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0a4ad370cac07c6c5b452ce4",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 71.0,
+    "status": "paid",
+    "total": 498.67
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0a897360b60d9ee85e6695ea",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 67.0,
+    "status": "paid",
+    "total": 1444.05
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-0ab550feca4d0d140817cb01",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 68.0,
+    "status": "fraudulent",
+    "total": 613.91
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0ad3ffecaba8e03835db59c8",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 57.0,
+    "status": "paid",
+    "total": 315.72
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0b1db3bbc2ba7f7383a2b1b2",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 38.0,
+    "status": "paid",
+    "total": 1554.6
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0c092e4dde61ddb545c9536c",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 67.0,
+    "status": "paid",
+    "total": 854.72
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-0c7b389d6defe6fd8b9a9441",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 41.0,
+    "status": "fraudulent",
+    "total": 189.31
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0cd1ecdc8d4aec117b060763",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 3.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 62.0,
+    "status": "paid",
+    "total": 743.79
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0d330ffbf5acedf489ec3daa",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 48.0,
+    "status": "paid",
+    "total": 1090.14
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-0d3a01979bd1a2e640194381",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 87.0,
+    "status": "fraudulent",
+    "total": 304.53
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0db9a757628906dc0959eeda",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 3.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 99.0,
+    "status": "fraudulent",
+    "total": 15.0
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0dd952aee22ee9c203c7770f",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 64.0,
+    "status": "paid",
+    "total": 15.0
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0dec991022284c2277d38304",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 51.0,
+    "status": "paid",
+    "total": 2300.4
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "review",
+  "id": "uci-r-0f28edfc32827a50a2c848c6",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 75.0,
+    "status": "fraudulent",
+    "total": 549.77
+   }
+  },
+  "predicted": "review",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 0.0,
+   "review": 1.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-0f9607aac476fbca55f3609b",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 1.0,
+    "tier": "standard"
+   },
+   "order": {
+    "ageDays": 147.0,
+    "status": "fraudulent",
+    "total": 302.67
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-105fed8f5775116a42fa5498",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 5.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 127.0,
+    "status": "paid",
+    "total": 453.59
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-149546bdae47dfad7e710245",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 6.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 123.0,
+    "status": "paid",
+    "total": 313.59
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ },
+ {
+  "expected": "deny",
+  "id": "uci-r-21df64e5c5d4d97a5d5cccc5",
+  "inputs": {
+   "customer": {
+    "priorRefunds": 0.0,
+    "tier": "enterprise"
+   },
+   "order": {
+    "ageDays": 141.0,
+    "status": "paid",
+    "total": 622.81
+   }
+  },
+  "predicted": "deny",
+  "probabilities": {
+   "approve": 0.0,
+   "deny": 1.0,
+   "review": 0.0
+  }
+ }
+]

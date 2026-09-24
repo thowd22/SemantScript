@@ -377,6 +377,22 @@ def test_constraint_violation_and_counterfactual_pair_failure_are_measured() -> 
     assert result.metrics.heads[0].pair_consistency == 0.0
     assert result.pair_count == 1
     assert any("adversarial constraint" in failure for failure in result.failures)
+    assert any("exceeds the configured tolerance 0" in failure for failure in result.failures)
+
+    tolerated = evaluate_training_result(
+        contract,
+        training,
+        base,
+        adversarial,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+        config=VerificationConfig(maximum_constraint_violation_rate=1.0),
+    )
+    assert tolerated.metrics.constraint_violations == 3
+    assert not any("adversarial constraint" in failure for failure in tolerated.failures)
+
+    with pytest.raises(VerificationConfigurationError, match="maximum_constraint_violation_rate"):
+        VerificationConfig(maximum_constraint_violation_rate=1.5)
 
 
 def test_ece_above_configured_gate_fails_even_without_gold_miss() -> None:

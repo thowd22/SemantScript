@@ -192,6 +192,15 @@ def run_release_pipeline(
     verification_seconds = time.monotonic() - verification_started
     verification_record = {
         "status": verification.status,
+        "gate": {
+            "eceThreshold": (verification_config or VerificationConfig()).ece_threshold,
+            "maximumConstraintViolationRate": (
+                verification_config or VerificationConfig()
+            ).maximum_constraint_violation_rate,
+            "recordCount": len(training.split.training)
+            + len(training.split.evaluation)
+            + len(release.case_ids),
+        },
         "verifiedAt": verification.verified_at,
         "attestedCases": verification.attested_cases,
         "pairCount": verification.pair_count,
@@ -437,6 +446,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--ece-threshold", type=float, default=0.1)
+    parser.add_argument("--maximum-constraint-violation-rate", type=float, default=0.0)
     arguments = parser.parse_args(argv)
     training_config = TrainingConfig(
         encoder_name=DEFAULT_ENCODER_NAME,
@@ -456,7 +466,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.heldout_dir,
             arguments.output_dir,
             training_config=training_config,
-            verification_config=VerificationConfig(ece_threshold=arguments.ece_threshold),
+            verification_config=VerificationConfig(
+                ece_threshold=arguments.ece_threshold,
+                maximum_constraint_violation_rate=arguments.maximum_constraint_violation_rate,
+            ),
         )
     except Exception as error:
         sys.stderr.write(f"release pipeline failed: {type(error).__name__}: {error}\n")

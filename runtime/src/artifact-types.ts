@@ -143,7 +143,7 @@ export interface ArtifactFunctionV1 {
     readonly pairConsistency: number;
     readonly attestedCases: number;
     readonly exampleFailures: 0;
-    readonly constraintViolations: 0;
+    readonly constraintViolations: number;
     readonly typeErrors: 0;
   };
   readonly trainingProvenance: {

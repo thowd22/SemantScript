@@ -579,7 +579,10 @@ function validateVerification(value: unknown, path: string): void {
   equal(get(verification, "status"), "passed", `${path}.status`);
   for (const key of ["accuracy", "ece", "brier", "pairConsistency"]) unit(get(verification, key), `${path}.${key}`);
   integer(get(verification, "attestedCases"), `${path}.attestedCases`, 1);
-  for (const key of ["exampleFailures", "constraintViolations", "typeErrors"]) equal(get(verification, key), 0, `${path}.${key}`);
+  for (const key of ["exampleFailures", "typeErrors"]) equal(get(verification, key), 0, `${path}.${key}`);
+  // Raw-model constraint violations are recorded, not forbidden: the trainer's release
+  // gate decided whether the observed rate was tolerated, and status must be "passed".
+  integer(get(verification, "constraintViolations"), `${path}.constraintViolations`, 0);
 }
 
 function validateCompatibility(manifest: ApplicationArtifactManifestV1, settings: ResolvedOptions<unknown>): void {

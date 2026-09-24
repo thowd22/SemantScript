@@ -293,7 +293,8 @@ a constraint over a generated, example, or verification case produces a non-fini
 intermediate, verification fails with the constraint and case identified.
 
 Constraints are hard **build contracts**: they drive boundary and adversarial case
-generation, and any observed violation fails verification. They are not a proof
+generation, and any observed violation fails verification unless the build records
+an explicit violation-rate tolerance. They are not a proof
 that an unseen runtime input can never be misclassified. Rules that must hold for
 every production input MUST remain deterministic TypeScript guards.
 

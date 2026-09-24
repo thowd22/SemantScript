@@ -108,12 +108,17 @@ class VerificationConfig:
     ece_threshold: float = 0.1
     ece_bins: int = DEFAULT_ECE_BIN_COUNT
     batch_size: int = 32
+    # Fraction of verification records (corpus rows plus attested cases) whose raw
+    # prediction may violate an active constraint before the gate fails. Zero keeps
+    # the strict contract; a build that relaxes it must record the value it used.
+    maximum_constraint_violation_rate: float = 0.0
     minimum_temperature: float = DEFAULT_MINIMUM_TEMPERATURE
     maximum_temperature: float = DEFAULT_MAXIMUM_TEMPERATURE
     maximum_temperature_iterations: int = DEFAULT_TEMPERATURE_ITERATIONS
 
     def __post_init__(self) -> None:
         _unit_interval("ece_threshold", self.ece_threshold)
+        _unit_interval("maximum_constraint_violation_rate", self.maximum_constraint_violation_rate)
         _bounded_integer("ece_bins", self.ece_bins, minimum=2, maximum=MAXIMUM_ECE_BIN_COUNT)
         _bounded_integer("batch_size", self.batch_size, minimum=1, maximum=MAXIMUM_BATCH_SIZE)
         _positive_finite("minimum_temperature", self.minimum_temperature)
@@ -494,7 +499,7 @@ def evaluate_training_result(
         raise VerificationExecutionError("classifier state changed during verification")
     if hashlib.sha256(tokenizer_json_bytes(resolved_tokenizer)).hexdigest() != tokenizer_sha256:
         raise VerificationExecutionError("tokenizer JSON changed during verification")
-    failures = _gate_failures(metrics, resolved)
+    failures = _gate_failures(metrics, resolved, len(records))
     return VerificationResult(
         function_id=training.function_id,
         semantic_sha256=training.semantic_sha256,
@@ -1173,12 +1178,19 @@ def _pair_consistency(
 def _gate_failures(
     metrics: VerificationMetricsV1,
     config: VerificationConfig,
+    record_count: int,
 ) -> tuple[str, ...]:
     failures: list[str] = []
     if metrics.example_failures:
         failures.append(f"{metrics.example_failures} gold/human example prediction(s) failed")
     if metrics.constraint_violations:
-        failures.append(f"{metrics.constraint_violations} adversarial constraint check(s) failed")
+        rate = metrics.constraint_violations / max(record_count, 1)
+        if rate > config.maximum_constraint_violation_rate:
+            failures.append(
+                f"{metrics.constraint_violations} adversarial constraint check(s) failed "
+                f"({rate:.6g} of {record_count} records exceeds the configured tolerance "
+                f"{config.maximum_constraint_violation_rate:.6g})"
+            )
     if metrics.type_errors:
         failures.append(f"{metrics.type_errors} output type check(s) failed")
     if metrics.ece > config.ece_threshold:

@@ -799,7 +799,9 @@
           "const": 0
         },
         "constraintViolations": {
-          "const": 0
+          "type": "integer",
+          "minimum": 0,
+          "$comment": "Raw-model violations observed during verification; the trainer's gate decides whether the recorded rate was tolerated, and status must still be passed."
         },
         "typeErrors": {
           "const": 0

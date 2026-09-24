@@ -248,7 +248,7 @@ head_metadata = verification.to_manifest_head_metadata()
 function_verification = verification.to_manifest_function_verification()
 ```
 
-Any gold or external attested-example miss, observed constraint violation, or ECE
+Any gold or external attested-example miss, observed constraint violation beyond the configured `maximum_constraint_violation_rate` (default zero), or ECE
 above the configured threshold raises `VerificationGateError` with the complete
 failed result attached. Malformed, non-finite, or incorrectly shaped classifier
 logits abort measurement with `VerificationExecutionError`; predictions decoded

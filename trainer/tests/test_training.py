@@ -530,3 +530,14 @@ def test_freeze_encoder_trains_only_the_head() -> None:
     assert len(result.metrics) == 5
     with pytest.raises(TrainingConfigurationError, match="freeze_encoder"):
         TrainingConfig(freeze_encoder="yes")  # type: ignore[arg-type]
+
+
+def test_trainable_parameter_guard_is_configurable() -> None:
+    assert TrainingConfig().maximum_trainable_parameters == 350_000_000
+    assert TrainingConfig(
+        maximum_trainable_parameters=1_000_000_000
+    ).maximum_trainable_parameters == (1_000_000_000)
+    with pytest.raises(TrainingConfigurationError, match="maximum_trainable_parameters"):
+        TrainingConfig(maximum_trainable_parameters=0)
+    with pytest.raises(TrainingConfigurationError, match="maximum_trainable_parameters"):
+        TrainingConfig(maximum_trainable_parameters=3_000_000_000)

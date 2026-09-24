@@ -22,7 +22,6 @@ from semantscript_trainer.dataset import TrainingDataset
 from semantscript_trainer.teacher import NeuralFunctionIr
 from semantscript_trainer.training import (
     _MAXIMUM_BATCH_PASSES,
-    _MAXIMUM_TRAINABLE_PARAMETER_COUNT,
     MAXIMUM_OPTIMIZATION_STEPS,
     EpochMetrics,
     TrainingConfig,
@@ -351,9 +350,10 @@ def _fit(
     parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
     if not parameters:
         raise TrainingConfigurationError("application has no trainable parameters")
-    if sum(parameter.numel() for parameter in parameters) > _MAXIMUM_TRAINABLE_PARAMETER_COUNT:
+    if sum(parameter.numel() for parameter in parameters) > config.maximum_trainable_parameters:
         raise TrainingConfigurationError(
-            f"application exceeds maximum trainable parameter count {_MAXIMUM_TRAINABLE_PARAMETER_COUNT}"
+            "application exceeds maximum trainable parameter count "
+            f"{config.maximum_trainable_parameters}"
         )
     try:
         optimizer = torch.optim.AdamW(

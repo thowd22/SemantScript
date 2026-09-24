@@ -47,6 +47,7 @@ _MAXIMUM_BATCH_PASSES = 200_000
 _MAXIMUM_BATCH_CLASS_VALUES = 4_000_000
 _MAXIMUM_HEAD_PARAMETER_COUNT = 16_000_000
 _MAXIMUM_TRAINABLE_PARAMETER_COUNT = 350_000_000
+_ABSOLUTE_MAXIMUM_TRAINABLE_PARAMETER_COUNT = 2_000_000_000
 
 type DeviceName = Literal["auto", "cpu", "cuda"]
 type HeadArchitecture = Literal["linear", "mlp"]
@@ -98,6 +99,9 @@ class TrainingConfig:
     # Keep the pretrained encoder fixed (no gradients, eval mode) and train only
     # the head, and the adapter for applications: the head-only regime.
     freeze_encoder: bool = False
+    # Guard against accidentally fine-tuning a model far larger than intended; a
+    # deliberate encoder-size sweep raises it explicitly.
+    maximum_trainable_parameters: int = _MAXIMUM_TRAINABLE_PARAMETER_COUNT
 
     def __post_init__(self) -> None:
         if (
@@ -109,6 +113,12 @@ class TrainingConfig:
             raise TrainingConfigurationError("select_best_epoch must be a boolean")
         if not isinstance(self.freeze_encoder, bool):
             raise TrainingConfigurationError("freeze_encoder must be a boolean")
+        _bounded_integer(
+            "maximum_trainable_parameters",
+            self.maximum_trainable_parameters,
+            minimum=1,
+            maximum=_ABSOLUTE_MAXIMUM_TRAINABLE_PARAMETER_COUNT,
+        )
         if self.learning_rate_schedule not in ("constant", "linear"):
             raise TrainingConfigurationError("learning_rate_schedule must be constant or linear")
         if (
@@ -323,10 +333,10 @@ def train_corpus(
     if not parameters:
         raise TrainingConfigurationError("classifier has no trainable parameters")
     parameter_count = sum(parameter.numel() for parameter in parameters)
-    if parameter_count > _MAXIMUM_TRAINABLE_PARAMETER_COUNT:
+    if parameter_count > resolved.maximum_trainable_parameters:
         raise TrainingConfigurationError(
             "classifier exceeds maximum trainable parameter count "
-            f"{_MAXIMUM_TRAINABLE_PARAMETER_COUNT}"
+            f"{resolved.maximum_trainable_parameters}"
         )
     try:
         model.to(device)

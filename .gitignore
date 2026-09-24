@@ -35,3 +35,6 @@ benchmarks/refund/data/**/*.lock
 # exported release artifacts are content-addressed ONNX bundles (hundreds of MB); the
 # pipeline manifest, verification record and ledger bind them by digest
 benchmarks/refund/data/release-*/artifact/
+
+# extracted or converted encoder checkpoints used by the encoder sweep (hundreds of MB)
+benchmarks/refund/data/encoders/

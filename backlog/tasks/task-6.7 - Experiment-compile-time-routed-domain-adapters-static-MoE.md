@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-20 20:10'
-updated_date: '2026-09-24 22:44'
+updated_date: '2026-09-24 23:29'
 labels:
   - model
   - compiler
@@ -55,4 +55,8 @@ Amended 2026-09-24 with depth routing. The Phase 1 refund benchmark (benchmarks/
 
 <!-- SECTION:NOTES:BEGIN -->
 Probe (scratch, ModernBERT-base, 49 tokens, CPU ORT): fetching only the depth-4 output of one multi-output encoder graph costs 20.5 ms p50 versus 23.5 ms for the full 22 layers (ORT executes the graph whole), while a standalone 6-layer prefix graph runs in 5.3 ms and a 12-layer one in 15.0 ms with outputs bit-identical to the multi-output graph; so depth routing exports one prefix graph per depth. Implemented so far: model (SentenceEncoder depth embedding through final_norm, PrefixSentenceEncoder, SharedEncoderApplication with adapters by ref and per-adapter depth, export_routed_application_components), trainer (FunctionCorpus model refs, domain_depths, train_application per-domain adapters, add_function_head attaches a fresh adapter for a new domain on the frozen encoder, build cache v2 with encoder and per-adapter files and per-function combined digests plus a model-refs digest, train_bundle reuse and rehydration per domain, artifact export of N encoders and adapters with per-function encoderRef, manifest validation), runtime (StagedInferencePlan.encoders and per-function encoderRef, loader validation, worker encodes per (encoder, input)), compiler (@domain header, diagnostic 9126, default domain from the file name, domainDepths option, model.encoderDepth, plan domains and per-stage adapterRefs, CLI --domain-depth), schemas and docs. Tests: model depth-routing and routed export, runtime routed artifact, compiler domains, trainer end-to-end routed bundle through the Node runtime.
+
+Mechanism committed (all Node and Python suites green). Experiments started: refund depth sweep (run_depth_sweep.py: depths 4, 6, 8, 12, 22 with the compact-release recipe on the frozen v4 corpus, attested release gate at 1 percent violation tolerance, routed artifact export, final-set accuracy and per-call latency through the Node runtime via run-final-set.mjs, and a raw CPU ONNX chain timing); the typed-decisions routed-domains comparison (run_routed_domains.py: single adapter vs four domain adapters, per-domain accuracy, gate metrics, pair consistency, CPU stage latency, artifact bytes, and an interference run adding one domain on the frozen encoder) follows on the GPU.
+
+Refund depth sweep done (results-depth-sweep-2026-09-24): every depth (4, 6, 8, 12, 22) passes the strict gate with zero attested release misses; final set through the CPU Node runtime: depth 4 160/160 at 7.9 ms p50, depth 6 160/160 at 9.8 ms, depth 8 160/160 at 16.0 ms, depth 12 160/160 at 23.8 ms, full depth 159/160 at 29.3 ms; CPU ONNX chain p50 7.2 / 8.7 / 14.9 / 17.0 / 39.4 ms; GPU launch-bound at about 8 ms everywhere; artifact 237 MB at depth 4 vs 599 MB full. AC8's bar (p50 under 10 ms with attested accuracy within one point of full depth) is met at depths 4 and 6 in the direct runtime measurement; the committed-harness rerun belongs to TASK-5.18.
 <!-- SECTION:NOTES:END -->

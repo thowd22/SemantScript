@@ -1,0 +1,457 @@
+{
+  "completedAt": "2026-09-24T23:27:37Z",
+  "corpus": {
+    "adversarialDatasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+    "baseDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+    "manifest": "benchmarks/refund/data/pooled-v4-2026-09-24/manifest.json",
+    "manifestSha256": "f36dde2ef406a1f0a954ed84c3b1261f213899bcd4d0abe15ab52323658fe640"
+  },
+  "depths": {
+    "12": {
+      "adapterRef": "adapter.refund-benchmark.refund",
+      "artifact": {
+        "bytes": 397813100,
+        "encoderPath": "models/encoder/depth-012.onnx",
+        "manifestSha256": "fa33ff3c990f8a03d1a46576ba907985f5d03295833b5b71e68d936824b1e088",
+        "root": "benchmarks/refund/data/results-depth-sweep-2026-09-24/artifacts/depth-012"
+      },
+      "cpuOnnx": {
+        "bytes": {
+          "adapter": 397723,
+          "encoder": 395833756,
+          "heads": 9676
+        },
+        "chain": {
+          "mean": 17.491,
+          "min": 9.87,
+          "p50": 17.026,
+          "p95": 24.088
+        },
+        "encoderOnly": {
+          "mean": 14.168,
+          "min": 8.599,
+          "p50": 13.905,
+          "p95": 20.061
+        },
+        "provider": "CPUExecutionProvider, default threads",
+        "tokens": 35
+      },
+      "depth": 12,
+      "encoderRef": "encoder.refund-benchmark.depth-012",
+      "finalSet": {
+        "accuracy": 1,
+        "cases": 160,
+        "correct": 160,
+        "latencyMs": {
+          "mean": 23.711,
+          "min": 18.354,
+          "p50": 23.771,
+          "p95": 29.45
+        },
+        "manifestSha256": "fa33ff3c990f8a03d1a46576ba907985f5d03295833b5b71e68d936824b1e088",
+        "misses": [],
+        "warmup": 20
+      },
+      "gpu": {
+        "mean": 8.528,
+        "min": 8.044,
+        "p50": 8.479,
+        "p95": 9.002,
+        "provider": "PyTorch eager, ROCm"
+      },
+      "heldOutCurve": [
+        0.9894,
+        0.9915,
+        0.9936,
+        0.9904,
+        0.9915,
+        0.9926,
+        0.9904,
+        0.9947
+      ],
+      "latencyTokens": 35,
+      "selectedEpoch": 8,
+      "status": "measured",
+      "trainSeconds": 230.5,
+      "trainedDepth": 12,
+      "verification": {
+        "brier": 0.0053,
+        "calibratedAccuracy": 0.9947,
+        "constraintViolations": 8,
+        "ece": 0.0004,
+        "failures": [],
+        "pairConsistency": 0.9945,
+        "releaseAccuracy": 1.0,
+        "releaseMisses": 0,
+        "status": "passed",
+        "temperature": 1.7298
+      }
+    },
+    "22": {
+      "adapterRef": "adapter.refund-benchmark.refund",
+      "artifact": {
+        "bytes": 598658808,
+        "encoderPath": "models/encoder/model.onnx",
+        "manifestSha256": "366493e0c944c4a96af7e1888350466709401b8b0880929c632c9f02f927d36e",
+        "root": "benchmarks/refund/data/results-depth-sweep-2026-09-24/artifacts/depth-022"
+      },
+      "cpuOnnx": {
+        "bytes": {
+          "adapter": 397723,
+          "encoder": 596679464,
+          "heads": 9676
+        },
+        "chain": {
+          "mean": 38.165,
+          "min": 18.924,
+          "p50": 39.408,
+          "p95": 55.426
+        },
+        "encoderOnly": {
+          "mean": 33.077,
+          "min": 19.167,
+          "p50": 30.675,
+          "p95": 47.677
+        },
+        "provider": "CPUExecutionProvider, default threads",
+        "tokens": 35
+      },
+      "depth": 22,
+      "encoderRef": "encoder.refund-benchmark",
+      "finalSet": {
+        "accuracy": 0.9938,
+        "cases": 160,
+        "correct": 159,
+        "latencyMs": {
+          "mean": 31.712,
+          "min": 18,
+          "p50": 29.303,
+          "p95": 45.617
+        },
+        "manifestSha256": "366493e0c944c4a96af7e1888350466709401b8b0880929c632c9f02f927d36e",
+        "misses": [
+          {
+            "expected": "deny",
+            "id": "uci-f-1a9b44f14069de0852896504",
+            "predicted": "approve"
+          }
+        ],
+        "warmup": 20
+      },
+      "gpu": {
+        "mean": 8.585,
+        "min": 7.908,
+        "p50": 8.287,
+        "p95": 10.127,
+        "provider": "PyTorch eager, ROCm"
+      },
+      "heldOutCurve": [
+        0.9766,
+        0.9915,
+        0.9798,
+        0.9936,
+        0.9926,
+        0.9947,
+        0.9936,
+        0.9979
+      ],
+      "latencyTokens": 35,
+      "selectedEpoch": 8,
+      "status": "measured",
+      "trainSeconds": 315.6,
+      "trainedDepth": null,
+      "verification": {
+        "brier": 0.0019,
+        "calibratedAccuracy": 0.9979,
+        "constraintViolations": 3,
+        "ece": 0.0012,
+        "failures": [],
+        "pairConsistency": 1.0,
+        "releaseAccuracy": 1.0,
+        "releaseMisses": 0,
+        "status": "passed",
+        "temperature": 1.5299
+      }
+    },
+    "4": {
+      "adapterRef": "adapter.refund-benchmark.refund",
+      "artifact": {
+        "bytes": 237098304,
+        "encoderPath": "models/encoder/depth-004.onnx",
+        "manifestSha256": "a08394a82c0413308c6c1c1df8ed31d3bb40c26802029140d768c75e0e43556b",
+        "root": "benchmarks/refund/data/results-depth-sweep-2026-09-24/artifacts/depth-004"
+      },
+      "cpuOnnx": {
+        "bytes": {
+          "adapter": 397723,
+          "encoder": 235118960,
+          "heads": 9676
+        },
+        "chain": {
+          "mean": 7.606,
+          "min": 2.375,
+          "p50": 7.18,
+          "p95": 15.95
+        },
+        "encoderOnly": {
+          "mean": 7.104,
+          "min": 2.441,
+          "p50": 6.889,
+          "p95": 15.99
+        },
+        "provider": "CPUExecutionProvider, default threads",
+        "tokens": 35
+      },
+      "depth": 4,
+      "encoderRef": "encoder.refund-benchmark.depth-004",
+      "finalSet": {
+        "accuracy": 1,
+        "cases": 160,
+        "correct": 160,
+        "latencyMs": {
+          "mean": 7.471,
+          "min": 3.248,
+          "p50": 7.887,
+          "p95": 12.059
+        },
+        "manifestSha256": "a08394a82c0413308c6c1c1df8ed31d3bb40c26802029140d768c75e0e43556b",
+        "misses": [],
+        "warmup": 20
+      },
+      "gpu": {
+        "mean": 8.502,
+        "min": 7.919,
+        "p50": 8.203,
+        "p95": 8.572,
+        "provider": "PyTorch eager, ROCm"
+      },
+      "heldOutCurve": [
+        0.9883,
+        0.9894,
+        0.9872,
+        0.9872,
+        0.9936,
+        0.9915,
+        0.9915,
+        0.9926
+      ],
+      "latencyTokens": 35,
+      "selectedEpoch": 5,
+      "status": "measured",
+      "trainSeconds": 164.7,
+      "trainedDepth": 4,
+      "verification": {
+        "brier": 0.0052,
+        "calibratedAccuracy": 0.9936,
+        "constraintViolations": 16,
+        "ece": 0.0042,
+        "failures": [],
+        "pairConsistency": 0.989,
+        "releaseAccuracy": 1.0,
+        "releaseMisses": 0,
+        "status": "passed",
+        "temperature": 1.7642
+      }
+    },
+    "6": {
+      "adapterRef": "adapter.refund-benchmark.refund",
+      "artifact": {
+        "bytes": 277276787,
+        "encoderPath": "models/encoder/depth-006.onnx",
+        "manifestSha256": "8f292957facde16bb4c23b562b8f25d3f92962d7438eb93a071fc1dda6383f5e",
+        "root": "benchmarks/refund/data/results-depth-sweep-2026-09-24/artifacts/depth-006"
+      },
+      "cpuOnnx": {
+        "bytes": {
+          "adapter": 397723,
+          "encoder": 275297443,
+          "heads": 9676
+        },
+        "chain": {
+          "mean": 10.575,
+          "min": 7.818,
+          "p50": 8.701,
+          "p95": 17.23
+        },
+        "encoderOnly": {
+          "mean": 9.684,
+          "min": 4.615,
+          "p50": 8.689,
+          "p95": 13.939
+        },
+        "provider": "CPUExecutionProvider, default threads",
+        "tokens": 35
+      },
+      "depth": 6,
+      "encoderRef": "encoder.refund-benchmark.depth-006",
+      "finalSet": {
+        "accuracy": 1,
+        "cases": 160,
+        "correct": 160,
+        "latencyMs": {
+          "mean": 11.324,
+          "min": 4.767,
+          "p50": 9.822,
+          "p95": 21.981
+        },
+        "manifestSha256": "8f292957facde16bb4c23b562b8f25d3f92962d7438eb93a071fc1dda6383f5e",
+        "misses": [],
+        "warmup": 20
+      },
+      "gpu": {
+        "mean": 8.402,
+        "min": 7.976,
+        "p50": 8.336,
+        "p95": 8.76,
+        "provider": "PyTorch eager, ROCm"
+      },
+      "heldOutCurve": [
+        0.983,
+        0.9872,
+        0.9894,
+        0.9851,
+        0.9926,
+        0.9936,
+        0.9936,
+        0.9915
+      ],
+      "latencyTokens": 35,
+      "selectedEpoch": 6,
+      "status": "measured",
+      "trainSeconds": 177.3,
+      "trainedDepth": 6,
+      "verification": {
+        "brier": 0.0058,
+        "calibratedAccuracy": 0.9936,
+        "constraintViolations": 8,
+        "ece": 0.0019,
+        "failures": [],
+        "pairConsistency": 0.9945,
+        "releaseAccuracy": 1.0,
+        "releaseMisses": 0,
+        "status": "passed",
+        "temperature": 1.6015
+      }
+    },
+    "8": {
+      "adapterRef": "adapter.refund-benchmark.refund",
+      "artifact": {
+        "bytes": 317455267,
+        "encoderPath": "models/encoder/depth-008.onnx",
+        "manifestSha256": "d8e1544a56f64e797716bf26d6f939317124ac91314371615a0a81299ae089b6",
+        "root": "benchmarks/refund/data/results-depth-sweep-2026-09-24/artifacts/depth-008"
+      },
+      "cpuOnnx": {
+        "bytes": {
+          "adapter": 397723,
+          "encoder": 315475923,
+          "heads": 9676
+        },
+        "chain": {
+          "mean": 14.241,
+          "min": 10.213,
+          "p50": 14.861,
+          "p95": 16.574
+        },
+        "encoderOnly": {
+          "mean": 13.892,
+          "min": 5.872,
+          "p50": 14.503,
+          "p95": 17.607
+        },
+        "provider": "CPUExecutionProvider, default threads",
+        "tokens": 35
+      },
+      "depth": 8,
+      "encoderRef": "encoder.refund-benchmark.depth-008",
+      "finalSet": {
+        "accuracy": 1,
+        "cases": 160,
+        "correct": 160,
+        "latencyMs": {
+          "mean": 18.569,
+          "min": 7.01,
+          "p50": 16.015,
+          "p95": 32.112
+        },
+        "manifestSha256": "d8e1544a56f64e797716bf26d6f939317124ac91314371615a0a81299ae089b6",
+        "misses": [],
+        "warmup": 20
+      },
+      "gpu": {
+        "mean": 9.495,
+        "min": 8.165,
+        "p50": 8.57,
+        "p95": 11.697,
+        "provider": "PyTorch eager, ROCm"
+      },
+      "heldOutCurve": [
+        0.9894,
+        0.9809,
+        0.9936,
+        0.9904,
+        0.9915,
+        0.9862,
+        0.9894,
+        0.9957
+      ],
+      "latencyTokens": 35,
+      "selectedEpoch": 8,
+      "status": "measured",
+      "trainSeconds": 194.2,
+      "trainedDepth": 8,
+      "verification": {
+        "brier": 0.0047,
+        "calibratedAccuracy": 0.9957,
+        "constraintViolations": 8,
+        "ece": 0.003,
+        "failures": [],
+        "pairConsistency": 1.0,
+        "releaseAccuracy": 1.0,
+        "releaseMisses": 0,
+        "status": "passed",
+        "temperature": 1.7676
+      }
+    }
+  },
+  "environment": {
+    "commit": "98cbc980d005260612385c55d1f5f1727ef61c5b",
+    "cpu": "x86_64",
+    "device": "cuda",
+    "gpu": "AMD Radeon RX 9070 XT",
+    "node": "v22.22.0",
+    "onnxruntime": "1.30.0",
+    "python": "3.12.3",
+    "torch": "2.9.1+rocm7.2.0.git7e1940d4"
+  },
+  "finalSet": {
+    "path": "benchmarks/refund/data/heldout-uci-2026-09-23/final-benchmark-dataset.json",
+    "sha256": "e3299515ee987336a877580856cf57881593181c7429b56f4186457672c52900"
+  },
+  "function": {
+    "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+    "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
+  },
+  "kind": "semantscript.refund-depth-sweep",
+  "latency": {
+    "batch": 1,
+    "finalSet": "every case timed once through the Node runtime after 20 warm-up calls",
+    "iterations": 200,
+    "warmup": 20
+  },
+  "recipe": {
+    "batchSize": 16,
+    "canonicalInputVersion": 2,
+    "epochs": 8,
+    "evaluationRatio": 0.1,
+    "gate": {
+      "eceThreshold": 0.1,
+      "maximumConstraintViolationRate": 0.01
+    },
+    "learningRate": 3e-05,
+    "seed": 1
+  },
+  "releaseCases": 80,
+  "resultVersion": 1,
+  "startedAt": "2026-09-24T23:06:05Z"
+}

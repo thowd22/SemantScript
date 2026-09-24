@@ -260,6 +260,7 @@ def run_depth(
     }
     corpus = application_function(bound, base, adversarial)
     log(f"depth {depth}: training {config.epochs} epoch(s) at batch {config.batch_size}")
+    trained_at = utc_now()
     started = time.monotonic()
     try:
         application = train_application([corpus], config=config, tokenizer=tokenizer)
@@ -330,11 +331,12 @@ def run_depth(
         seed=config.seed,
         trainer_version="0.0.0",
         trainer_commit=git_commit(),
-        trained_at=utc_now(),
+        trained_at=trained_at,
     )
     built = build_verified_ir(bound, training, verification, provenance)
     application.model.to("cpu")
     artifact_root = output / "artifacts" / f"depth-{depth:03d}"
+    artifact_root.parent.mkdir(parents=True, exist_ok=True)
     exported = export_multi_function_artifact(
         artifact_root,
         [ArtifactFunction(built.document, training, verification, built.source_ir_bytes)],
@@ -415,17 +417,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--depths", default="4,6,8,12,22")
     arguments = parser.parse_args(argv)
     depths = [int(value) for value in arguments.depths.split(",") if value.strip()]
-    output = Path(arguments.output_dir)
+    output = Path(arguments.output_dir).resolve()
     output.mkdir(parents=True, exist_ok=True)
     results_path = output / "results.json"
     results: dict[str, Any] = (
         json.loads(results_path.read_text(encoding="utf-8")) if results_path.is_file() else {}
     )
 
-    manifest_path = Path(arguments.corpus_manifest)
+    manifest_path = Path(arguments.corpus_manifest).resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     corpus_root = manifest_path.parent
-    heldout = Path(arguments.heldout_dir)
+    heldout = Path(arguments.heldout_dir).resolve()
     with tempfile.TemporaryDirectory(prefix="semantscript-depth-sweep-") as temporary:
         compiled = compile_refund_program(Path(temporary) / "compiler")
     ir = compiled.source_ir

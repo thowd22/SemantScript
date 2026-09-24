@@ -51,3 +51,5 @@ examples/*/.next/
 examples/*/package-lock.json
 examples/next-app/semantscript.ir.v1.json
 examples/*/.semantscript/
+# depth-sweep artifacts are rebuilt by run_depth_sweep.py (hundreds of MB each)
+benchmarks/refund/data/results-depth-sweep-*/artifacts/

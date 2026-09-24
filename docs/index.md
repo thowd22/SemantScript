@@ -83,6 +83,8 @@ run`, the zero-config defaults, the dev loop and the build cache rules.
   (`results-v2-2026-09-23`), the int8 experiment (`results-int8-2026-09-24`),
   the compact encoding run (`results-compact-2026-09-24`), the shared-encoder
   application (`release-application-2026-09-24`), stage scaling
-  (`results-stage-scaling-2026-09-24`) and the warm-start experiment
-  (`results-warm-start-2026-09-24`); each directory has a README that reads on
-  its own.
+  (`results-stage-scaling-2026-09-24`), the warm-start experiment
+  (`results-warm-start-2026-09-24`), the encoder sweep
+  (`results-encoder-sweep-2026-09-24`) and the depth-routing sweep
+  (`results-depth-sweep-2026-09-24`); each directory has a README that reads
+  on its own.

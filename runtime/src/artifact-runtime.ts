@@ -1,3 +1,4 @@
+import { watch } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { types as nodeTypes } from "node:util";
@@ -64,6 +65,16 @@ export interface LoadSemaArtifactOptions {
   readonly artifact?: Omit<ArtifactLoadOptions, "backend">;
   readonly inference?: InferenceRuntimeOptions;
   readonly fallbacks?: ReadonlyMap<string, SemaFallback>;
+  /**
+   * Development hot-swap: watch the artifact root's `current.json` and reload
+   * when it changes. A reload that fails to load leaves the previous artifact
+   * active, so a release only replaces the running one once it loads whole.
+   */
+  readonly watch?: boolean;
+  /** Called after each successful watched reload with the new handle. */
+  readonly onReload?: (handle: SemaArtifactHandle) => void;
+  /** Called when a watched reload fails; the previous artifact stays active. */
+  readonly onReloadError?: (error: unknown) => void;
 }
 
 export interface SemaStageEntry {
@@ -168,9 +179,84 @@ export function defaultSemaArtifactPath(
  * Stages and initializes a complete immutable artifact, then atomically makes it
  * visible to the compiler ABI. A failed load never replaces the active artifact.
  */
-export function loadSemaArtifact(
+export async function loadSemaArtifact(
   artifactPath: string = defaultSemaArtifactPath(),
   options: LoadSemaArtifactOptions = {},
+): Promise<SemaArtifactHandle> {
+  const handle = await activateArtifact(artifactPath, options);
+  stopWatching();
+  if (options.watch === true) {
+    startWatching(artifactPath, options);
+  }
+  return handle;
+}
+
+let watcher: ArtifactWatcher | undefined;
+
+interface ArtifactWatcher {
+  readonly close: () => void;
+}
+
+const WATCH_DEBOUNCE_MILLISECONDS = 100;
+
+function startWatching(
+  artifactPath: string,
+  options: LoadSemaArtifactOptions,
+): void {
+  const root = resolve(artifactPath);
+  let timer: NodeJS.Timeout | undefined;
+  let reloading = false;
+  let pending = false;
+  const reload = (): void => {
+    if (reloading) {
+      pending = true;
+      return;
+    }
+    reloading = true;
+    activateArtifact(artifactPath, options).then(
+      (handle) => {
+        reloading = false;
+        options.onReload?.(handle);
+        if (pending) {
+          pending = false;
+          reload();
+        }
+      },
+      (error: unknown) => {
+        reloading = false;
+        options.onReloadError?.(error);
+        if (pending) {
+          pending = false;
+          reload();
+        }
+      },
+    );
+  };
+  const fsWatcher = watch(root, { persistent: false }, (_event, fileName) => {
+    if (fileName !== null && fileName !== "current.json") return;
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(reload, WATCH_DEBOUNCE_MILLISECONDS);
+    timer.unref();
+  });
+  fsWatcher.on("error", (error: unknown) => {
+    options.onReloadError?.(error);
+  });
+  watcher = {
+    close: () => {
+      if (timer !== undefined) clearTimeout(timer);
+      fsWatcher.close();
+    },
+  };
+}
+
+function stopWatching(): void {
+  watcher?.close();
+  watcher = undefined;
+}
+
+function activateArtifact(
+  artifactPath: string,
+  options: LoadSemaArtifactOptions,
 ): Promise<SemaArtifactHandle> {
   const fallbackSnapshot = snapshotFallbacks(options.fallbacks);
   const artifactOptions = options.artifact;
@@ -209,6 +295,7 @@ export function loadSemaArtifact(
 
 /** Closes the active artifact, if any. Primarily useful for orderly shutdown and tests. */
 export function closeSemaArtifact(): Promise<void> {
+  stopWatching();
   return enqueueLifecycle(async () => {
     const current = activeArtifact;
     activeArtifact = undefined;
@@ -512,6 +599,9 @@ function createHandle(artifact: ActiveArtifact): SemaArtifactHandle {
         return;
       }
       closed = true;
+      if (activeArtifact?.token === artifact.token) {
+        stopWatching();
+      }
       await enqueueLifecycle(async () => {
         if (activeArtifact?.token === artifact.token) {
           activeArtifact = undefined;

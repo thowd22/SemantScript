@@ -26,13 +26,53 @@ export async function buildCommand(
     },
     allowPositionals: false,
   });
-  const application = values.application ?? "application";
+  const result = await compileProject(
+    {
+      ...(values.project === undefined ? {} : { project: values.project }),
+      ...(values.application === undefined
+        ? {}
+        : { application: values.application }),
+      ...(values.bundle === undefined ? {} : { bundle: values.bundle }),
+    },
+    io,
+  );
+  return result.status;
+}
+
+export interface CompileProjectOptions {
+  readonly project?: string;
+  readonly application?: string;
+  readonly bundle?: string;
+}
+
+export interface CompileProjectResult {
+  readonly status: number;
+  readonly projectRoot: string;
+  /** The project's TypeScript sources, for watchers. */
+  readonly sourceFiles: readonly string[];
+  readonly bundlePath?: string;
+}
+
+/** The build behind `semantscript build` and `dev`: prints the summary or diagnostics. */
+export async function compileProject(
+  options: CompileProjectOptions,
+  io: CliIo,
+): Promise<CompileProjectResult> {
+  const application = options.application ?? "application";
   if (!APPLICATION_ID.test(application)) {
     throw new CliUsageError(
       "--application must be lowercase letters, digits and single dashes (for example refund-app)",
     );
   }
-  const configPath = resolve(io.cwd, values.project ?? "tsconfig.json");
+  const configPath = resolve(io.cwd, options.project ?? "tsconfig.json");
+  const projectRoot = dirname(configPath);
+  const failed = (
+    sourceFiles: readonly string[] = [],
+  ): CompileProjectResult => ({
+    status: 1,
+    projectRoot,
+    sourceFiles,
+  });
   const configDiagnostics: ts.Diagnostic[] = [];
   const host: ts.ParseConfigFileHost = {
     ...ts.sys,
@@ -47,16 +87,17 @@ export async function buildCommand(
         ? formatDiagnostics(configDiagnostics, io.cwd)
         : `unable to read ${configPath}\n`,
     );
-    return 1;
+    return failed();
   }
   if (parsed.errors.length > 0) {
     io.stderr(formatDiagnostics(parsed.errors, io.cwd));
-    return 1;
+    return failed();
   }
+  const sourceFiles = parsed.fileNames.map((fileName) => resolve(fileName));
   const outDir = parsed.options.outDir;
   if (outDir === undefined) {
     io.stderr(`${configPath} must set compilerOptions.outDir\n`);
-    return 1;
+    return failed(sourceFiles);
   }
   const program = ts.createProgram({
     rootNames: parsed.fileNames,
@@ -68,12 +109,11 @@ export async function buildCommand(
   const preEmit = ts.getPreEmitDiagnostics(program);
   if (preEmit.length > 0) {
     io.stderr(formatDiagnostics(preEmit, io.cwd));
-    return 1;
+    return failed(sourceFiles);
   }
-  const projectRoot = dirname(configPath);
   const bundlePath = resolve(
     io.cwd,
-    values.bundle ?? join(outDir, "semantscript.ir.v1.json"),
+    options.bundle ?? join(outDir, "semantscript.ir.v1.json"),
   );
   const result = await compileSemantScriptProgram(program, {
     projectRoot,
@@ -83,7 +123,7 @@ export async function buildCommand(
   });
   if (!result.ok) {
     io.stderr(formatDiagnostics(result.diagnostics, io.cwd));
-    return 1;
+    return failed(sourceFiles);
   }
   const { plan, emittedFiles } = result.value;
   const lines = [
@@ -101,7 +141,12 @@ export async function buildCommand(
     `bundle: ${relative(io.cwd, result.value.bundlePath) || result.value.bundlePath}`,
   );
   io.stdout(`${lines.join("\n")}\n`);
-  return 0;
+  return {
+    status: 0,
+    projectRoot,
+    sourceFiles,
+    bundlePath: result.value.bundlePath,
+  };
 }
 
 function formatDiagnostics(

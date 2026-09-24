@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { delimiter, dirname, join, resolve } from "node:path";
 import process from "node:process";
@@ -17,6 +17,7 @@ import {
   stringOf,
   stringOption,
   type CliIo,
+  type OptionValues,
 } from "./io.js";
 import { readJson } from "./manifest.js";
 import { formatRatio, renderTable, shortId } from "./table.js";
@@ -55,7 +56,10 @@ const PASSTHROUGH_BOOLEAN = [
   "full",
 ] as const;
 
-const OPTIONS: Record<string, { readonly type: "string" | "boolean" }> = {
+export const TRAIN_OPTIONS: Record<
+  string,
+  { readonly type: "string" | "boolean" }
+> = {
   bundle: { type: "string" },
   artifact: { type: "string" },
   teacher: { type: "string" },
@@ -81,9 +85,17 @@ export async function trainCommand(
 ): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
-    options: OPTIONS,
+    options: TRAIN_OPTIONS,
     allowPositionals: false,
   });
+  return runTrain(values, io);
+}
+
+/** The training run behind `semantscript train` and `dev`. */
+export async function runTrain(
+  values: OptionValues,
+  io: CliIo,
+): Promise<number> {
   const bundle = resolveBundlePath(values, io);
   const artifact = resolveArtifactRoot(values, io);
   const teacher = resolveTeacherConfig(values, io);
@@ -126,16 +138,12 @@ export async function trainCommand(
   }
 
   io.stderr(`semantscript train: ${python} ${commandArgs.join(" ")}\n`);
-  const result = spawnSync(python, commandArgs, {
-    cwd: io.cwd,
-    env: { ...io.env, PYTHONPATH: pythonPath(io.env["PYTHONPATH"]) },
-    stdio: ["ignore", "ignore", "inherit"],
-  });
-  if (result.error !== undefined) {
-    io.stderr(`unable to run ${python}: ${result.error.message}\n`);
+  const outcome = await runProcess(python, commandArgs, io);
+  if (outcome.error !== undefined) {
+    io.stderr(`unable to run ${python}: ${outcome.error.message}\n`);
     return 1;
   }
-  const status = result.status ?? 1;
+  const status = outcome.status;
   let document: unknown;
   try {
     document = await readJson(report);
@@ -148,6 +156,33 @@ export async function trainCommand(
   }
   io.stdout(renderTrainReport(document));
   return status;
+}
+
+/** Runs the trainer with its stderr streamed to the terminal so progress shows per expression. */
+function runProcess(
+  command: string,
+  args: readonly string[],
+  io: CliIo,
+): Promise<{ readonly status: number; readonly error?: Error }> {
+  return new Promise((resolvePromise) => {
+    const child = spawn(command, args, {
+      cwd: io.cwd,
+      env: { ...io.env, PYTHONPATH: pythonPath(io.env["PYTHONPATH"]) },
+      stdio: ["ignore", "ignore", "inherit"],
+    });
+    const abort = (): void => {
+      child.kill();
+    };
+    io.signal?.addEventListener("abort", abort, { once: true });
+    child.once("error", (error) => {
+      io.signal?.removeEventListener("abort", abort);
+      resolvePromise({ status: 1, error });
+    });
+    child.once("close", (code) => {
+      io.signal?.removeEventListener("abort", abort);
+      resolvePromise({ status: code ?? 1 });
+    });
+  });
 }
 
 /** The monorepo's trainer and model sources when the CLI runs from the checkout. */

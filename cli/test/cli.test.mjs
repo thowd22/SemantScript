@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { setTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -761,4 +762,104 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   });
   assert.equal(await runCli(["test"], testRun.io), 1);
   assert.match(testRun.stderr(), /elsewhere\/artifact/u);
+});
+
+test("dev builds and trains, reruns on a saved source change with the cache, and stops on abort", async (t) => {
+  const root = await scratch(t, "semantscript-cli-dev-");
+  const configPath = await createProject(root, { "app.sem.ts": program });
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const argvPath = join(root, "argv.json");
+  const env = {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_ARGV_PATH: argvPath,
+    FAKE_TRAINER_EXIT: "0",
+    FAKE_TRAINER_SKIP_REPORT: "",
+  };
+  const python = process.platform === "win32" ? "python" : "python3";
+  const controller = new AbortController();
+  const run = capture(root, env);
+  const io = { ...run.io, signal: controller.signal };
+  const finished = runCli(
+    [
+      "dev",
+      "--project",
+      configPath,
+      "--application",
+      "demo",
+      "--python",
+      python,
+      "--trainer-module",
+      "fake_trainer",
+      "--debounce",
+      "50",
+    ],
+    io,
+  );
+
+  const waitFor = async (predicate) => {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      if (predicate()) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`timed out; stderr: ${run.stderr()}`);
+  };
+  await waitFor(
+    () =>
+      /cycle 1 \(initial build\)/u.test(run.stderr()) &&
+      /release published/u.test(run.stderr()),
+  );
+  const first = JSON.parse(await readFile(argvPath, "utf8"));
+  assert.ok(first.argv.includes(join(root, "dist", "semantscript.ir.v1.json")));
+  assert.ok(first.argv.includes(join(root, ".semantscript", "cache")));
+  assert.ok(
+    !first.argv.includes("--no-cache") && !first.argv.includes("--full"),
+  );
+  assert.match(run.stdout(), /nf_33333333…\s+src\/app\.sem\.ts\s+trained/u);
+
+  // A save of a sema source triggers one more build and train.
+  await writeFile(
+    join(root, "src", "app.sem.ts"),
+    program.replace("Is this positive?", "Is this message positive?"),
+  );
+  await waitFor(() =>
+    /cycle 2 \(src\/app\.sem\.ts changed\)/u.test(run.stderr()),
+  );
+  await waitFor(
+    () => (run.stderr().match(/release published/gu) ?? []).length === 2,
+  );
+  assert.equal(
+    (run.stdout().match(/compiled 1 neural function/gu) ?? []).length,
+    2,
+  );
+
+  // Emitted JavaScript under dist/ does not retrigger the loop.
+  await writeFile(join(root, "dist", "note.js"), "// not a source\n");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal((run.stderr().match(/cycle \d/gu) ?? []).length, 2);
+
+  controller.abort();
+  assert.equal(await finished, 0);
+
+  // --once runs one cycle and returns the train status.
+  const once = capture(root, { ...env, FAKE_TRAINER_EXIT: "1" });
+  assert.equal(
+    await runCli(
+      [
+        "dev",
+        "--once",
+        "--project",
+        configPath,
+        "--python",
+        python,
+        "--trainer-module",
+        "fake_trainer",
+      ],
+      once.io,
+    ),
+    1,
+  );
+  assert.match(
+    once.stderr(),
+    /training failed; the previous artifact stays in service/u,
+  );
 });

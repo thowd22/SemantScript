@@ -20,6 +20,13 @@ reload leaves the preceding artifact active. `path` may name a release directory
 containing `manifest.json` or an artifact root containing `current.json`. With no `path`, the runtime reads `SEMANTSCRIPT_ARTIFACT`
 when set, else `.semantscript/artifact` under the working directory, which is
 where `semantscript init` and `train` put it (`defaultSemaArtifactPath()`).
+With `{ watch: true }` the runtime also watches the artifact root's
+`current.json` and reloads through the same lifecycle whenever the pointer
+changes, which is how `semantscript dev` hot-swaps a retrained head into a
+running process: a release that fails to load leaves the previous artifact
+active (`onReloadError`), a successful one retires the previous handle and
+calls `onReload` with the new one; compiled code always goes through the
+active artifact. `closeSemaArtifact()` stops the watcher.
 
 The compiler ABI remains synchronous. ONNX Runtime's JavaScript API is asynchronous,
 so the package owns a dedicated worker thread and uses a bounded shared-memory

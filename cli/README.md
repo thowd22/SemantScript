@@ -9,6 +9,7 @@ bundle driver, `test` and `run` are the runtime.
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>]
 semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
+semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 ```
@@ -152,6 +153,31 @@ Training options pass through unchanged: `--cases`, `--epochs`, `--batch-size`,
 then `SEMANTSCRIPT_PYTHON`, then `python3`; inside this repository the trainer
 and model sources (and `.python-packages` when present) are put on `PYTHONPATH`
 automatically, and the caller's `PYTHONPATH` is kept after them.
+
+## dev
+
+Makes training invisible while developing: `dev` runs `build` then `train`
+once, then watches the project's TypeScript sources (`.ts`, `.mts`, `.cts`,
+`.tsx` and `tsconfig.json` under the project root, ignoring `node_modules`,
+`.git`, `.semantscript` and declaration files) and repeats both on every save,
+debounced (`--debounce`, default 300 ms). A save during a run queues exactly
+one more run. It takes every `build` and `train` option; `--once` runs a
+single cycle and exits with the train status, which is how scripts and tests
+use it. Each cycle is numbered on stderr with its reason (`initial build` or
+the changed file) and the trainer's progress lines stream underneath, one per
+expression (`<function id>: generating …`, `training its head on the frozen
+shared encoder`, verification and the published release), before the report
+table.
+
+Only what changed retrains: the build cache keyed by function id reuses every
+expression whose IR is unchanged, so a saved edit to one expression trains one
+head on the frozen shared encoder. A running application that loaded the
+artifact with `loadSemaArtifact(path, { watch: true })` (see the runtime
+README) swaps in each published release without a restart, and because the
+trainer publishes only after verification passes and the runtime replaces an
+artifact only once the new release has loaded whole, the stale head stays in
+service through a failed build, a failed verification or a broken release.
+Ctrl-C stops the loop after the current cycle.
 
 ## test
 

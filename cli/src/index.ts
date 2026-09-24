@@ -4,6 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { buildCommand } from "./build.js";
+import { devCommand } from "./dev.js";
 import { initCommand } from "./init.js";
 import { CliUsageError, processIo, type CliIo } from "./io.js";
 import { runCommand } from "./run.js";
@@ -21,6 +22,8 @@ export const USAGE = `usage: semantscript <command> [options]
          [--epochs <n>] [--batch-size <n>] [--learning-rate <x>] [--seed <n>]
          [--device <name>] [--select-best-epoch] [--ece-threshold <x>] ...
          generate data, train, verify and export an artifact from the bundle
+  dev    [build and train options] [--debounce <ms>] [--once]
+         build and train, then watch the sources and repeat on every save
   test   [--artifact <root>] [--bundle <path>] [--json]
          report each function's verification and replay the bundle's examples
   run    [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
@@ -31,7 +34,15 @@ export const USAGE = `usage: semantscript <command> [options]
   or the Anthropic backend when ANTHROPIC_API_KEY is set.
 `;
 
-export { buildCommand, initCommand, runCommand, testCommand, trainCommand };
+export {
+  buildCommand,
+  devCommand,
+  initCommand,
+  runCommand,
+  testCommand,
+  trainCommand,
+};
+export { compileProject } from "./build.js";
 export { detectBuildTool, type BuildTool } from "./init.js";
 export {
   DEFAULT_ARTIFACT_PATH,
@@ -50,6 +61,7 @@ const COMMANDS: Readonly<
   init: initCommand,
   build: buildCommand,
   train: trainCommand,
+  dev: devCommand,
   test: testCommand,
   run: runCommand,
 };

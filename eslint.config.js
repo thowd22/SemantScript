@@ -10,6 +10,7 @@ export default tseslint.config(
     extends: [eslint.configs.recommended],
     languageOptions: {
       globals: {
+        AbortController: "readonly",
         console: "readonly",
         process: "readonly",
         structuredClone: "readonly",

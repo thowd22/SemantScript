@@ -6,12 +6,19 @@ export interface CliIo {
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly stdout: (text: string) => void;
   readonly stderr: (text: string) => void;
+  /** Ends long-running commands (`dev`); the process wires SIGINT to it. */
+  readonly signal?: AbortSignal;
 }
 
 export function processIo(): CliIo {
+  const controller = new AbortController();
+  process.once("SIGINT", () => {
+    controller.abort();
+  });
   return {
     cwd: process.cwd(),
     env: process.env,
+    signal: controller.signal,
     stdout: (text) => {
       process.stdout.write(text);
     },

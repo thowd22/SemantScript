@@ -31,3 +31,7 @@ build/
 
 # dataset cache lock files are runtime state, never data
 benchmarks/refund/data/**/*.lock
+
+# exported release artifacts are content-addressed ONNX bundles (hundreds of MB); the
+# pipeline manifest, verification record and ledger bind them by digest
+benchmarks/refund/data/release-*/artifact/

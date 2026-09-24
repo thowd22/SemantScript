@@ -1,10 +1,11 @@
 # Refund benchmark foundation
 
 This private workspace owns the machine-checked contracts and deterministic metric
-math for the canonical refund-decision benchmark. It does **not** contain a real
-held-out dataset, human attestation, model prediction, or performance result.
-Those records must only be committed after the cases have actually been authored,
-licensed or de-identified, attested, frozen, and run through every required system.
+math for the canonical refund-decision benchmark. The first complete run, its
+committed records and the written go/no-go are in
+`data/results-v2-2026-09-23/README.md`; held-out sets, corpora and release
+evidence live under `data/`. Records are committed only after the cases have
+actually been extracted, attested, frozen, and run through every required system.
 
 The version-1 JSON Schemas are in the repository `schemas/` directory:
 

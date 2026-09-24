@@ -467,3 +467,32 @@ def test_select_best_epoch_restores_the_best_calibration_weights(
 
     with pytest.raises(TrainingConfigurationError, match="select_best_epoch"):
         TrainingConfig(select_best_epoch="yes")  # type: ignore[arg-type]
+
+
+def test_linear_schedule_trains_and_validates_settings() -> None:
+    contract = categorical_ir()
+    corpus = categorical_corpus()
+    result = train_corpus(
+        contract,
+        corpus,
+        config=TrainingConfig(
+            epochs=4,
+            batch_size=6,
+            learning_rate=0.08,
+            weight_decay=0,
+            maximum_sequence_length=8,
+            evaluation_ratio=0.25,
+            seed=19,
+            device="cpu",
+            learning_rate_schedule="linear",
+            warmup_ratio=0.1,
+        ),
+        tokenizer=TinyTokenizer(),
+        encoder=TinyTokenEncoder(),
+    )
+    assert len(result.metrics) == 4
+    assert result.config.learning_rate_schedule == "linear"
+    with pytest.raises(TrainingConfigurationError, match="learning_rate_schedule"):
+        TrainingConfig(learning_rate_schedule="cosine")  # type: ignore[arg-type]
+    with pytest.raises(TrainingConfigurationError, match="warmup_ratio"):
+        TrainingConfig(warmup_ratio=0.9)

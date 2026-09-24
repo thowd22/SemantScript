@@ -211,6 +211,9 @@ def run_release_pipeline(
         "elapsedSeconds": round(verification_seconds, 3),
     }
     (output / "verification.json").write_text(_dump(verification_record), encoding="utf-8")
+    misses = _dump_release_predictions(ir, training, training_config, release, output)
+    if misses:
+        log("release misses: " + "; ".join(misses))
     log(
         f"verification {verification.status}: accuracy {verification.metrics.accuracy:.4f}, "
         f"ece {verification.metrics.ece:.4f}, brier {verification.metrics.brier:.4f}"
@@ -326,6 +329,8 @@ def run_release_pipeline(
             },
             "device": training.device,
             "trainedAt": trained_at,
+            "learningRateSchedule": training_config.learning_rate_schedule,
+            "warmupRatio": training_config.warmup_ratio,
             "selectedEpoch": training.selected_epoch,
             "selectBestEpoch": training_config.select_best_epoch,
             "trainingRows": training.training_row_count,
@@ -363,6 +368,64 @@ def run_release_pipeline(
     (output / "pipeline-manifest.json").write_text(_dump(summary), encoding="utf-8")
     log(f"done in {summary['elapsedSeconds']:.0f}s")
     return summary
+
+
+def _dump_release_predictions(
+    ir: dict[str, Any],
+    training: Any,
+    config: TrainingConfig,
+    release: Any,
+    output: Path,
+) -> list[str]:
+    """Write per-case release predictions and return one line per miss."""
+
+    import torch
+
+    from semantscript_trainer.canonical_input import serialize_canonical_inputs
+
+    tokenizer = _load_tokenizer(config)
+    model = training.model
+    model.eval()
+    device = next(model.parameters()).device
+    support = list(training.head.support)
+    rows: list[dict[str, Any]] = []
+    misses: list[str] = []
+    with torch.no_grad():
+        for case in release.document["cases"]:
+            text = serialize_canonical_inputs(ir["inputs"], case["inputs"]).decode("utf-8")
+            encoded = tokenizer(
+                [text],
+                add_special_tokens=True,
+                padding=True,
+                truncation=True,
+                max_length=config.maximum_sequence_length,
+                return_tensors="pt",
+            )
+            logits = model(
+                input_ids=encoded["input_ids"].to(device),
+                attention_mask=encoded["attention_mask"].to(device),
+            )
+            probabilities = torch.softmax(logits[0].float(), dim=-1).tolist()
+            predicted = support[max(range(len(support)), key=lambda i: probabilities[i])]
+            rows.append(
+                {
+                    "id": case["id"],
+                    "inputs": case["inputs"],
+                    "expected": case["expected"],
+                    "predicted": predicted,
+                    "probabilities": dict(
+                        zip(support, [round(p, 4) for p in probabilities], strict=True)
+                    ),
+                }
+            )
+            if predicted != case["expected"]:
+                misses.append(
+                    f"{case['id']} expected {case['expected']} got {predicted} "
+                    f"inputs {json.dumps(case['inputs'], sort_keys=True)}"
+                )
+    model.train()
+    (output / "release-predictions.json").write_text(_dump(rows), encoding="utf-8")
+    return misses
 
 
 class _Logger:
@@ -450,6 +513,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--ece-threshold", type=float, default=0.1)
     parser.add_argument("--maximum-constraint-violation-rate", type=float, default=0.0)
     parser.add_argument("--select-best-epoch", action="store_true")
+    parser.add_argument("--learning-rate-schedule", default="constant")
+    parser.add_argument("--warmup-ratio", type=float, default=0.0)
     arguments = parser.parse_args(argv)
     training_config = TrainingConfig(
         encoder_name=DEFAULT_ENCODER_NAME,
@@ -463,6 +528,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed=arguments.seed,
         device=arguments.device,
         select_best_epoch=arguments.select_best_epoch,
+        learning_rate_schedule=arguments.learning_rate_schedule,
+        warmup_ratio=arguments.warmup_ratio,
     )
     try:
         run_release_pipeline(

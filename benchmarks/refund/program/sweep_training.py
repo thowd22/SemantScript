@@ -56,6 +56,12 @@ def parse_config(text: str) -> dict[str, Any]:
             values[key] = float(raw)
         elif key == "head":
             values[key] = raw.strip()
+        elif key == "schedule":
+            values[key] = raw.strip()
+        elif key == "warmup":
+            values[key] = float(raw)
+        elif key == "best":
+            values[key] = raw.strip() in ("1", "true", "yes")
         else:
             raise ValueError(f"unknown setting {key!r}")
     return values
@@ -113,6 +119,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=settings.get("seed", 1),
             device=arguments.device,
             head_architecture=settings.get("head", "linear"),
+            select_best_epoch=settings.get("best", False),
+            learning_rate_schedule=settings.get("schedule", "constant"),
+            warmup_ratio=settings.get("warmup", 0.0),
         )
         started = time.monotonic()
         training = train_classifier(ir, base, adversarial, config=config)

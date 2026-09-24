@@ -46,6 +46,7 @@ _MAXIMUM_TRAINABLE_PARAMETER_COUNT = 350_000_000
 type DeviceName = Literal["auto", "cpu", "cuda"]
 type HeadArchitecture = Literal["linear", "mlp"]
 type LossName = Literal["proper", "cross_entropy"]
+type ScheduleName = Literal["constant", "linear"]
 
 _IMMUTABLE_REVISION = re.compile(r"^[a-f0-9]{40}$")
 
@@ -80,10 +81,24 @@ class TrainingConfig:
     # Keep the epoch with the best held-out accuracy instead of the last one. The
     # selection uses only the calibration split, never attested or benchmark data.
     select_best_epoch: bool = False
+    # "linear" warms the learning rate up over warmup_ratio of the steps and then
+    # decays it linearly to zero, which damps last-epoch noise; "constant" keeps
+    # the historical behavior.
+    learning_rate_schedule: ScheduleName = "constant"
+    warmup_ratio: float = 0.0
 
     def __post_init__(self) -> None:
         if not isinstance(self.select_best_epoch, bool):
             raise TrainingConfigurationError("select_best_epoch must be a boolean")
+        if self.learning_rate_schedule not in ("constant", "linear"):
+            raise TrainingConfigurationError("learning_rate_schedule must be constant or linear")
+        if (
+            isinstance(self.warmup_ratio, bool)
+            or not isinstance(self.warmup_ratio, (int, float))
+            or not math.isfinite(float(self.warmup_ratio))
+            or not 0 <= float(self.warmup_ratio) <= 0.5
+        ):
+            raise TrainingConfigurationError("warmup_ratio must be a finite number from 0 to 0.5")
         if not isinstance(self.encoder_name, str) or not self.encoder_name:
             raise TrainingConfigurationError("encoder_name must be nonempty")
         if (
@@ -292,6 +307,18 @@ def train_corpus(
         )
     except (RuntimeError, TypeError, ValueError) as error:
         raise TrainingExecutionError(f"could not construct AdamW optimizer: {error}") from error
+    scheduler = None
+    if resolved.learning_rate_schedule == "linear":
+        total_steps = max(steps_per_epoch * resolved.epochs, 1)
+        warmup_steps = int(total_steps * float(resolved.warmup_ratio))
+
+        def linear_factor(step: int) -> float:
+            if warmup_steps and step < warmup_steps:
+                return (step + 1) / warmup_steps
+            remaining = total_steps - step
+            return max(remaining / max(total_steps - warmup_steps, 1), 0.0)
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, linear_factor)
     metrics: list[EpochMetrics] = []
     training_rows = prepared["training"]
     evaluation_rows = prepared["evaluation"]
@@ -346,6 +373,8 @@ def train_corpus(
                 optimizer.step()
             except RuntimeError as error:
                 raise TrainingExecutionError(f"optimizer step failed: {error}") from error
+            if scheduler is not None:
+                scheduler.step()
             size = len(batch)
             loss_total += float(loss.detach().cpu().item()) * size
             example_count += size

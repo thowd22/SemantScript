@@ -34,8 +34,9 @@ import hashlib
 import json
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from benchmarks.refund.program.pipeline import (
@@ -78,16 +79,34 @@ from semantscript_trainer import (
     train_classifier,
 )
 from semantscript_trainer.canonical_input import serialize_canonical_inputs
-from semantscript_trainer.constraints import compile_constraints
+from semantscript_trainer.constraints import ConstraintEvaluationBudget, compile_constraints
 from semantscript_trainer.dataset import SyntheticDatasetGenerator
 from semantscript_trainer.semantic_json import semantic_json_sha256
-from semantscript_trainer.teacher import NeuralFunctionIr
+from semantscript_trainer.teacher import (
+    BoundaryPairProposal,
+    CounterfactualProposal,
+    NeuralFunctionIr,
+    TeacherResponseError,
+)
 from semantscript_trainer.training import DEFAULT_ENCODER_NAME, DEFAULT_ENCODER_REVISION
 from semantscript_trainer.verification import tokenizer_json_bytes
 
 RISK_SOURCE = "refund-risk.sem.ts"
 RISK_SUPPORT = ("high", "low", "medium")
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+
+
+# Adversarial protocol without a language model: single-field edits of real
+# inputs across the refund schema's thresholds, labeled by the constraints.
+_REFUND_SCHEMA_EDITS: Mapping[tuple[str, str], tuple[Any, ...]] = MappingProxyType(
+    {
+        ("order", "status"): ("paid", "fraudulent"),
+        ("customer", "tier"): ("standard", "enterprise"),
+        ("customer", "priorRefunds"): (0, 1, 2, 4, 5, 6),
+        ("order", "ageDays"): (1, 30, 59, 60, 61, 90, 91, 120),
+        ("order", "total"): (250, 499, 500, 750, 1499, 1500, 2000, 4999, 5000),
+    }
+)
 
 
 class ConstraintLabelTeacher:
@@ -184,6 +203,77 @@ class ConstraintLabelTeacher:
         if n > len(cases):
             raise ReleasePipelineError(f"constraint teacher can supply {len(cases)} cases, not {n}")
         return cases[:n]
+
+    def _edits(self, inputs: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+        edits = []
+        for (record, field), values in _REFUND_SCHEMA_EDITS.items():
+            for value in values:
+                if inputs[record][field] == value:
+                    continue
+                edited = copy.deepcopy(inputs)
+                edited[record][field] = value
+                edits.append((f"/{record}/{field}", edited))
+        return edits
+
+    def _unique_label(
+        self, constraints: Any, support: Sequence[str], inputs: dict[str, Any]
+    ) -> str | None:
+        if semantic_json_sha256(inputs) in self._excluded:
+            return None
+        admissible = [v for v in support if not constraints.evaluate_output_contract(inputs, v)[1]]
+        return admissible[0] if len(admissible) == 1 else None
+
+    def generate_boundary_pair(
+        self, ir: NeuralFunctionIr, constraint_index: int, /
+    ) -> BoundaryPairProposal:
+        constraints = compile_constraints(ir)
+        support = list(ir["output"]["head"]["support"])
+        budget = ConstraintEvaluationBudget()
+        for row in sorted(self._pool["candidates"], key=lambda entry: entry["key"]):
+            inputs = copy.deepcopy(row["inputs"])
+            if int(row["key"][:8], 16) % 100 < self._fraud_percent:
+                inputs["order"]["status"] = "fraudulent"
+            base_label = self._unique_label(constraints, support, inputs)
+            if base_label is None:
+                continue
+            base_result = constraints.evaluate(constraint_index, inputs, budget=budget)
+            for _, edited in self._edits(inputs):
+                if constraints.evaluate(constraint_index, edited, budget=budget) is base_result:
+                    continue
+                edited_label = self._unique_label(constraints, support, edited)
+                if edited_label is None:
+                    continue
+                false_case, true_case = (
+                    (GeneratedCase(inputs, base_label), GeneratedCase(edited, edited_label))
+                    if base_result is False
+                    else (GeneratedCase(edited, edited_label), GeneratedCase(inputs, base_label))
+                )
+                return BoundaryPairProposal(predicate_false=false_case, predicate_true=true_case)
+        raise TeacherResponseError(
+            f"no single-field edit of a real input flips constraint {constraint_index}"
+        )
+
+    def generate_counterfactual(
+        self, ir: NeuralFunctionIr, anchor: GeneratedCase, /
+    ) -> CounterfactualProposal:
+        constraints = compile_constraints(ir)
+        support = list(ir["output"]["head"]["support"])
+        for path, edited in self._edits(copy.deepcopy(anchor.inputs)):
+            label = self._unique_label(constraints, support, edited)
+            if label is None or label == anchor.output:
+                continue
+            record, field = path.strip("/").split("/")
+            return CounterfactualProposal(
+                twin=GeneratedCase(edited, label),
+                reason=(
+                    f"changing {record}.{field} from {json.dumps(anchor.inputs[record][field])} to "
+                    f"{json.dumps(edited[record][field])} crosses a rule threshold, so the risk moves from "
+                    f"{anchor.output} to {label}"
+                ),
+            )
+        raise TeacherResponseError(
+            "no single-field edit of the anchor changes its constraint label"
+        )
 
 
 def rule_labeled_cases(
@@ -366,6 +456,17 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
     available = len(teacher_b.labeled_pool(ir_b))
     base_b = SyntheticDatasetGenerator(teacher_b, output / "b-synthetic").generate(ir_b, available)
     log(f"B corpus: {json.dumps(teacher_b.report)}")
+    adversarial_b = AdversarialDatasetGenerator(
+        teacher_b,
+        output / "b-adversarial",
+        config=AdversarialGenerationConfig(
+            counterfactual_ratio=arguments.counterfactual_ratio, maximum_attempts=3
+        ),
+    ).generate(ir_b, base_b)
+    log(
+        f"B adversarial sidecar: {len(adversarial_b.cases)} cases, {len(adversarial_b.pairs)} pairs, "
+        "single-field edits of real inputs labeled by the constraints (no language model)"
+    )
     attested_b = rule_labeled_cases(ir_b, [case.inputs for case in attested_a])
     log(
         f"B attested set: {len(attested_b)} release inputs relabeled by B's constraints (rule-labeled, not judge-adjudicated)"
@@ -373,7 +474,7 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
 
     tokenizer = _load_tokenizer(config)
     function_a = application_function(ir_a, base_a, adversarial_a)
-    function_b = application_function(ir_b, base_b, None)
+    function_b = application_function(ir_b, base_b, adversarial_b)
     report: dict[str, Any] = {
         "kind": "semantscript.refund-shared-encoder-experiment",
         "startedAt": _utc_now(),
@@ -390,6 +491,11 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
                 "support": list(RISK_SUPPORT),
                 "attested": "release inputs relabeled by B's constraints (rule-labeled)",
                 "corpus": teacher_b.report,
+                "adversarial": {
+                    "cases": len(adversarial_b.cases),
+                    "pairs": len(adversarial_b.pairs),
+                    "datasetSha256": adversarial_b.dataset_sha256,
+                },
                 "teacher": teacher_b.descriptor.configuration_sha256,
             },
         },
@@ -408,7 +514,7 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
 
     log("regime b-alone: single-function trainer on B")
     t0 = time.monotonic()
-    alone_b = train_classifier(ir_b, base_b, None, config=config, tokenizer=tokenizer)
+    alone_b = train_classifier(ir_b, base_b, adversarial_b, config=config, tokenizer=tokenizer)
     report["regimes"]["b-alone"] = {
         "seconds": round(time.monotonic() - t0, 1),
         "B": function_summary(alone_b, tokenizer, ir_b, attested_b, config),
@@ -418,6 +524,7 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
     )
     del alone_b
 
+    (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
     log("regime joint: shared encoder and adapter, both heads")
     t0 = time.monotonic()
     joint = train_application(
@@ -441,6 +548,7 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
         f"joint: A held-out {joint.functions[compiled_a.function_id].held_out_accuracy:.4f} attested {report['regimes']['joint']['A']['attestedAccuracy']:.4f}; B held-out {joint.functions[compiled_b.function_id].held_out_accuracy:.4f} attested {report['regimes']['joint']['B']['attestedAccuracy']:.4f}"
     )
 
+    (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
     log("regime a-then-b: A alone on the shared architecture, then B's head on the frozen encoder")
     t0 = time.monotonic()
     first = train_application(
@@ -470,6 +578,7 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
     )
     del first, extended
 
+    (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
     log("verifying both functions of the joint application")
     verifications = {}
     for label, ir, base, adversarial, attested in (
@@ -607,6 +716,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--warmup-ratio", type=float, default=0.05)
     parser.add_argument("--maximum-constraint-violation-rate", type=float, default=0.01)
     parser.add_argument("--adapter-bottleneck-size", type=int, default=64)
+    parser.add_argument("--counterfactual-ratio", type=float, default=0.02)
     arguments = parser.parse_args(argv)
     try:
         run_experiment(arguments)

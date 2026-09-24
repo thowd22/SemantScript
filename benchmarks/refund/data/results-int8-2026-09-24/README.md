@@ -42,6 +42,11 @@ worse model; the attested miss is the one the release policy counts.
 
 ## What this settles
 
+**Decision (2026-09-24): int8 dynamic quantization is a measured dead end for
+this model and is dropped from the Phase 1 latency path.** No int8 artifact
+enters the benchmark results; the verified derivation gate stays as the
+mechanism for future graph changes such as depth-routed prefixes.
+
 - Dynamic int8 alone gives 1.3 to 1.4x on this CPU, not the 2.3x the PyTorch
   proxy suggested, and it moves roughly one decision in a thousand. It is a
   usable lever only together with fewer tokens (TASK-5.18.1) or fewer layers

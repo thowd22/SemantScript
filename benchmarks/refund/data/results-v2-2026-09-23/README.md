@@ -167,6 +167,9 @@ the pipeline manifest and the prediction record.
 - Int8 dynamic quantization of this release (TASK-5.18.2, `data/results-int8-2026-09-24/README.md`):
   p50 27.7 ms, 1.38x faster, but the strict gate refused it because one attested
   release decision changed; the measured artifact carries a recorded tolerance.
+  Decision (2026-09-24): int8 is a measured dead end for this model and is off
+  the latency path; the path to the 10 ms bar is compact canonical encoding
+  (TASK-5.18.1) plus compile-time depth routing (TASK-6.7), both at float32.
   The latency criterion is still not met.
 
 ## Records

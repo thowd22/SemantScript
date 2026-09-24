@@ -42,6 +42,11 @@ def main(argv: list[str]) -> int:
         "application": {"id": values.get("application-id", "demo"), "version": "0.0.0"},
         "teacher": {"provider": "fake", "model": "fake", "configurationSha256": "0" * 64},
         "trainingKeySha256": "1" * 64,
+        "cache": {
+            "reused": 0 if "no-cache" in values else 1,
+            "trained": 1,
+            "directory": None if "no-cache" in values else str(values["cache-dir"]),
+        },
         "artifact": None
         if exit_code
         else {
@@ -54,6 +59,7 @@ def main(argv: list[str]) -> int:
                 "id": "nf_" + "3" * 64,
                 "semanticSha256": "4" * 64,
                 "sourcePath": "src/app.sem.ts",
+                "cache": "trained",
                 "dataset": {"sha256": "5" * 64, "cases": int(values.get("cases", 64)), "gold": 1},
                 "adversarial": {"sha256": "6" * 64, "cases": 4},
                 "training": {

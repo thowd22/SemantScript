@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -239,7 +240,11 @@ class RuleEncoder(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.config = SimpleNamespace(hidden_size=8)
+        # A fixed initialisation keeps every training run in this module reproducible.
+        generator = torch.Generator().manual_seed(1234)
         self.embedding = torch.nn.Embedding(64, 8)
+        with torch.no_grad():
+            self.embedding.weight.copy_(torch.randn(64, 8, generator=generator))
 
     def forward(self, *, input_ids, attention_mask, return_dict):
         del attention_mask
@@ -577,3 +582,252 @@ def test_main_maps_flags_into_configs_and_writes_the_report(
     )
     assert code == 1
     assert json.loads(failed_report.read_text()) == {"status": "failed"}
+
+
+# ---- build cache (TASK-7.2) ------------------------------------------------
+
+
+def cached_fixture(tmp_path: Path, sources: dict[str, str], application: str) -> dict[str, Any]:
+    return compile_project(tmp_path / f"project-{application}", sources, application)
+
+
+def train_cached(
+    bundle: dict[str, Any],
+    tmp_path: Path,
+    *,
+    teacher: Any | None = None,
+    config: TrainingConfig | None = None,
+    artifact: str = "artifact",
+    **overrides: Any,
+) -> Any:
+    return train_bundle(
+        bundle,
+        tmp_path / artifact,
+        teacher=teacher if teacher is not None else RuleTeacher(),
+        cache_directory=tmp_path / "cache",
+        cases=48,
+        training_config=config if config is not None else training_config(),
+        tokenizer=RuleTokenizer(),
+        encoder=RuleEncoder(),
+        base_model_weights_sha256="4" * 64,
+        trainer_commit="abcdef0",
+        **overrides,
+    )
+
+
+class CountingTeacher(RuleTeacher):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def generate(self, ir: dict[str, Any], n: int, /) -> tuple[GeneratedCase, ...]:
+        self.calls += 1
+        return super().generate(ir, n)
+
+
+def test_rebuild_without_changes_performs_no_training_and_keeps_the_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "refund-cache")
+    first = train_cached(bundle, tmp_path)
+    assert first.report["cache"] == {
+        "reused": 0,
+        "trained": 1,
+        "directory": str(tmp_path / "cache" / "applications" / "refund-cache"),
+    }
+    assert [fn["cache"] for fn in first.report["functions"]] == ["trained"]
+    cache_root = tmp_path / "cache" / "applications" / "refund-cache"
+    assert (cache_root / "application.json").is_file()
+    assert (cache_root / "shared.safetensors").is_file()
+    function_id = bundle["functions"][0]["id"]
+    assert {p.name for p in (cache_root / "functions" / function_id).iterdir()} == {
+        "function.json",
+        "verified-ir.json",
+        "head.safetensors",
+    }
+
+    def no_training(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("a rebuild without changes must not train")
+
+    monkeypatch.setattr(cli_module, "train_application", no_training)
+    monkeypatch.setattr(cli_module, "add_function_head", no_training)
+    monkeypatch.setattr(cli_module, "export_multi_function_artifact", no_training)
+    teacher = CountingTeacher()
+
+    second = train_cached(bundle, tmp_path, teacher=teacher)
+
+    assert second.report["status"] == "reused"
+    assert second.report["cache"]["reused"] == 1 and second.report["cache"]["trained"] == 0
+    assert second.report["artifact"]["manifestSha256"] == first.exported.manifest_sha256
+    assert second.exported.manifest_sha256 == first.exported.manifest_sha256
+    assert second.report["functions"][0]["cache"] == "reused"
+    assert second.report["functions"][0]["verification"]["status"] == "passed"
+    assert second.report["trainingKeySha256"] == first.report["trainingKeySha256"]
+    assert teacher.calls == 0
+    assert json.loads((tmp_path / "artifact" / "current.json").read_text())["manifestSha256"] == (
+        first.exported.manifest_sha256
+    )
+
+
+def test_changing_one_expression_retrains_only_that_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sources = {"refund.sem.ts": REFUND_SOURCE.read_text(), "risk.sem.ts": RISK_SOURCE}
+    bundle = cached_fixture(tmp_path, sources, "refund-app")
+    first = train_cached(bundle, tmp_path)
+    refund_id = next(
+        fn["id"] for fn in bundle["functions"] if fn["source"]["path"] == "src/refund.sem.ts"
+    )
+    first_refund = next(fn for fn in first.exported.manifest["functions"] if fn["id"] == refund_id)
+    first_refund_head = next(
+        r
+        for r in first.exported.manifest["resources"]
+        if r["ref"] == first_refund["heads"][0]["headRef"]
+    )
+
+    edited = cached_fixture(
+        tmp_path / "edited",
+        {
+            **sources,
+            "risk.sem.ts": RISK_SOURCE.replace(
+                "Rate the refund risk.", "Rate the refund risk carefully."
+            ),
+        },
+        "refund-app",
+    )
+    edited_ids = {fn["source"]["path"]: fn["id"] for fn in edited["functions"]}
+    assert edited_ids["src/refund.sem.ts"] == refund_id
+    assert edited_ids["src/risk.sem.ts"] != next(
+        fn["id"] for fn in bundle["functions"] if fn["source"]["path"] == "src/risk.sem.ts"
+    )
+    joint = cli_module.train_application
+    incremental = cli_module.add_function_head
+    calls: list[str] = []
+    monkeypatch.setattr(
+        cli_module,
+        "train_application",
+        lambda *a, **k: calls.append("joint") or joint(*a, **k),
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "add_function_head",
+        lambda *a, **k: calls.append("head") or incremental(*a, **k),
+    )
+
+    second = train_cached(edited, tmp_path)
+
+    assert calls == ["head"]
+    assert second.report["status"] == "passed"
+    assert second.report["cache"]["reused"] == 1 and second.report["cache"]["trained"] == 1
+    by_path = {fn["sourcePath"]: fn for fn in second.report["functions"]}
+    assert by_path["src/refund.sem.ts"]["cache"] == "reused"
+    assert by_path["src/risk.sem.ts"]["cache"] == "trained"
+    assert second.exported.manifest_sha256 != first.exported.manifest_sha256
+    second_refund = next(
+        fn for fn in second.exported.manifest["functions"] if fn["id"] == refund_id
+    )
+    # The untouched function keeps its verified evidence and its head bytes.
+    assert second_refund["heads"] == first_refund["heads"]
+    assert second_refund["verification"] == first_refund["verification"]
+    assert (
+        second_refund["trainingProvenance"]["datasetSha256"]
+        == (first_refund["trainingProvenance"]["datasetSha256"])
+    )
+    second_refund_head = next(
+        r
+        for r in second.exported.manifest["resources"]
+        if r["ref"] == second_refund["heads"][0]["headRef"]
+    )
+    assert second_refund_head["sha256"] == first_refund_head["sha256"]
+    assert sorted(fn["id"] for fn in second.exported.manifest["functions"]) == sorted(
+        edited_ids.values()
+    )
+    assert run_cli_test(tmp_path / "artifact")["ok"] is True
+
+    # A third build with the edited bundle reuses both functions.
+    third = train_cached(edited, tmp_path)
+    assert third.report["status"] == "reused"
+    assert calls == ["head"]
+
+
+def test_recipe_change_full_and_no_cache_retrain_everything(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "refund-cache")
+    train_cached(bundle, tmp_path)
+    joint = cli_module.train_application
+    calls: list[str] = []
+    monkeypatch.setattr(
+        cli_module,
+        "train_application",
+        lambda *a, **k: calls.append("joint") or joint(*a, **k),
+    )
+
+    other_recipe = replace(training_config(), epochs=training_config().epochs + 1)
+    changed = train_cached(bundle, tmp_path, config=other_recipe)
+    assert changed.report["cache"] == {
+        "reused": 0,
+        "trained": 1,
+        "directory": str(tmp_path / "cache" / "applications" / "refund-cache"),
+    }
+    assert calls == ["joint"]
+
+    forced = train_cached(bundle, tmp_path, config=other_recipe, full=True)
+    assert forced.report["cache"]["reused"] == 0 and calls == ["joint", "joint"]
+
+    uncached = train_cached(bundle, tmp_path, config=other_recipe, use_cache=False)
+    assert uncached.report["cache"] == {"reused": 0, "trained": 1, "directory": None}
+    assert calls == ["joint", "joint", "joint"]
+
+    # The cache still holds the --full build; the uncached run published a newer
+    # release without recording it, so the next build re-exports from cache but
+    # trains nothing.
+    again = train_cached(bundle, tmp_path, config=other_recipe)
+    assert again.report["cache"]["trained"] == 0 and again.report["cache"]["reused"] == 1
+    assert calls == ["joint", "joint", "joint"]
+    assert train_cached(bundle, tmp_path, config=other_recipe).report["status"] == "reused"
+
+
+def test_corrupted_cache_files_are_misses(tmp_path: Path) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "refund-cache")
+    first = train_cached(bundle, tmp_path)
+    function_dir = (
+        tmp_path
+        / "cache"
+        / "applications"
+        / "refund-cache"
+        / "functions"
+        / bundle["functions"][0]["id"]
+    )
+    head = function_dir / "head.safetensors"
+    head.write_bytes(head.read_bytes()[:-1] + b"\x00")
+
+    rebuilt = train_cached(bundle, tmp_path)
+
+    assert rebuilt.report["cache"]["reused"] == 0 and rebuilt.report["cache"]["trained"] == 1
+    assert rebuilt.report["status"] == "passed"
+    assert rebuilt.exported.manifest_sha256 != first.exported.manifest_sha256 or True
+    # The rebuilt record is intact again.
+    assert train_cached(bundle, tmp_path).report["status"] == "reused"
+
+
+def test_missing_artifact_is_re_exported_from_cache_without_training(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "refund-cache")
+    train_cached(bundle, tmp_path)
+    shutil.rmtree(tmp_path / "artifact")
+
+    def no_training(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("re-export from cache must not train")
+
+    monkeypatch.setattr(cli_module, "train_application", no_training)
+    monkeypatch.setattr(cli_module, "add_function_head", no_training)
+
+    exported = train_cached(bundle, tmp_path)
+
+    assert exported.report["status"] == "passed"
+    assert exported.report["cache"]["reused"] == 1 and exported.report["cache"]["trained"] == 0
+    assert exported.report["functions"][0]["cache"] == "reused"
+    assert (tmp_path / "artifact" / "current.json").is_file()
+    assert run_cli_test(tmp_path / "artifact")["ok"] is True

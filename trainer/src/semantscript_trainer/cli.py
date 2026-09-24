@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
+import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,12 +31,25 @@ from semantscript_trainer.adversarial import (
     AdversarialDatasetGenerator,
     AdversarialGenerationConfig,
 )
-from semantscript_trainer.application import application_function, train_application
+from semantscript_trainer.application import (
+    DEFAULT_ADAPTER_BOTTLENECK_SIZE,
+    ApplicationTrainingResult,
+    FunctionCorpus,
+    add_function_head,
+    application_function,
+    train_application,
+)
 from semantscript_trainer.artifact import (
     ArtifactFunction,
     ArtifactProvenance,
     ExportedArtifact,
     export_multi_function_artifact,
+)
+from semantscript_trainer.build_cache import (
+    ApplicationCache,
+    BuildCacheError,
+    CachedFunction,
+    cache_recipe,
 )
 from semantscript_trainer.canonical_input import serialize_canonical_inputs
 from semantscript_trainer.dataset import SyntheticDatasetGenerator, TrainingDataset
@@ -56,12 +71,12 @@ from semantscript_trainer.training import (
     TrainingConfig,
     TrainingResult,
     _load_tokenizer,
-    train_classifier,
 )
 from semantscript_trainer.verification import (
     VerificationConfig,
     VerificationResult,
     evaluate_training_result,
+    model_state_sha256,
     tokenizer_json_bytes,
 )
 
@@ -94,6 +109,7 @@ class TrainedFunction:
     adversarial: AdversarialDataset | None
     training: TrainingResult
     verification: VerificationResult
+    reused: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,10 +139,19 @@ def train_bundle(
     tokenizer: Any | None = None,
     encoder: Any | None = None,
     base_model_weights_sha256: str | None = None,
+    adapter_bottleneck_size: int = DEFAULT_ADAPTER_BOTTLENECK_SIZE,
+    use_cache: bool = True,
+    full: bool = False,
     log: Callable[[str], None] | None = None,
 ) -> TrainBundleResult:
     """Train, verify and export every function of ``bundle`` into ``artifact_root``.
 
+    Every function trains over one shared encoder and adapter. With the build
+    cache on, functions whose id, semantic digest and recipe match a cached
+    record are reused: a bundle with no changes performs no training (and no
+    export when its release is still published), and a changed function trains
+    only its own head on the frozen shared modules. ``full`` retrains everything
+    jointly; ``use_cache=False`` ignores and does not write the cache.
     ``tokenizer``, ``encoder`` and ``base_model_weights_sha256`` default to the
     pinned Hugging Face encoder of ``training_config``; tests inject fakes.
     """
@@ -148,7 +173,74 @@ def train_bundle(
     resolved_application_id = (
         application_id if application_id is not None else _application_id(functions[0])
     )
-    cache = Path(cache_directory)
+    cache_root = Path(cache_directory)
+    recipe = cache_recipe(
+        resolved_training,
+        resolved_verification,
+        resolved_adversarial,
+        adapter_bottleneck_size,
+        descriptor,
+    )
+    cache = ApplicationCache(cache_root, resolved_application_id) if use_cache else None
+
+    reused: dict[str, CachedFunction] = {}
+    if cache is not None and not full:
+        shared_sha256 = cache.shared_state_sha256() if cache.shared_state_intact() else None
+        for ir in functions:
+            function_id = cast(str, ir["id"])
+            record = cache.cached_function(function_id)
+            if (
+                record is not None
+                and shared_sha256 is not None
+                and record.semantic_sha256 == ir["semanticSha256"]
+                and record.recipe_sha256 == recipe.sha256
+                and record.shared_state_sha256 == shared_sha256
+            ):
+                reused[function_id] = record
+    to_train = [ir for ir in functions if cast(str, ir["id"]) not in reused]
+    if cache is not None:
+        say(f"build cache: {len(reused)} function(s) reused, {len(to_train)} to train")
+
+    def report_skeleton(status: str, trained_at: str) -> dict[str, Any]:
+        return {
+            "kind": REPORT_KIND,
+            "reportVersion": REPORT_VERSION,
+            "status": status,
+            "trainedAt": trained_at,
+            "application": {"id": resolved_application_id, "version": application_version},
+            "teacher": {
+                "provider": descriptor.provider,
+                "model": descriptor.model,
+                "configurationSha256": descriptor.configuration_sha256,
+            },
+            "cache": {
+                "reused": len(reused),
+                "trained": len(to_train),
+                "directory": None if cache is None else str(cache.root),
+            },
+            "trainingKeySha256": None,
+            "artifact": None,
+            "functions": [],
+        }
+
+    if cache is not None and not to_train:
+        existing = _published_release(Path(artifact_root), cache.release_sha256())
+        if existing is not None:
+            say(f"build cache: nothing changed; release {existing.manifest_sha256} stands")
+            report = report_skeleton("reused", _utc_now())
+            report["trainingKeySha256"] = _training_key_from_records(
+                [reused[cast(str, ir["id"])] for ir in functions]
+            )
+            report["functions"] = [
+                _cached_function_report(ir, reused[cast(str, ir["id"])]) for ir in functions
+            ]
+            report["artifact"] = {
+                "root": str(existing.artifact_root),
+                "releaseDirectory": str(existing.release_directory),
+                "manifestSha256": existing.manifest_sha256,
+            }
+            return TrainBundleResult(report=report, exported=existing, functions=())
+
     resolved_tokenizer = tokenizer if tokenizer is not None else _load_tokenizer(resolved_training)
 
     datasets: list[tuple[NeuralFunctionIr, TrainingDataset, AdversarialDataset | None]] = []
@@ -157,8 +249,9 @@ def train_bundle(
         definition = cast(dict[str, Any], ir["definition"])
         gold = len(cast(list[Any], definition.get("examples", [])))
         total = max(cases, gold)
-        say(f"{function_id}: generating {total} cases ({gold} gold)")
-        base = SyntheticDatasetGenerator(teacher, cache).generate(ir, total)
+        if function_id not in reused:
+            say(f"{function_id}: generating {total} cases ({gold} gold)")
+        base = SyntheticDatasetGenerator(teacher, cache_root).generate(ir, total)
         adversarial: AdversarialDataset | None = None
         if cast(list[Any], definition.get("constraints", [])):
             if not isinstance(teacher, AdversarialTeacher):
@@ -166,43 +259,68 @@ def train_bundle(
                     f"{function_id} declares constraints; the teacher must support "
                     "boundary and counterfactual generation"
                 )
-            say(f"{function_id}: generating adversarial cases around its constraints")
+            if function_id not in reused:
+                say(f"{function_id}: generating adversarial cases around its constraints")
             adversarial = AdversarialDatasetGenerator(
-                teacher, cache, config=resolved_adversarial
+                teacher, cache_root, config=resolved_adversarial
             ).generate(ir, base)
+        record = reused.get(function_id)
+        if record is not None and (
+            record.dataset_sha256 != base.dataset_sha256
+            or record.adversarial_dataset_sha256
+            != (None if adversarial is None else adversarial.dataset_sha256)
+        ):
+            say(f"{function_id}: cached datasets changed; training it again")
+            del reused[function_id]
+            to_train.append(ir)
         datasets.append((ir, base, adversarial))
+    by_id = {cast(str, ir["id"]): (ir, base, adversarial) for ir, base, adversarial in datasets}
 
-    trainings: dict[str, TrainingResult]
-    shared_model: Any
-    if len(datasets) == 1:
-        ir, base, adversarial = datasets[0]
-        say(f"{ir['id']}: training one classifier")
-        training = train_classifier(
-            ir,
-            base,
-            adversarial,
-            config=resolved_training,
-            tokenizer=resolved_tokenizer,
-            encoder=encoder,
+    trained_at = _utc_now()
+    shared_changed = not reused
+    if reused:
+        say(f"build cache: restoring the shared encoder and {len(reused)} head(s)")
+        application = _rehydrate_application(
+            cast(ApplicationCache, cache),
+            [
+                (reused[function_id], application_function(*by_id[function_id]))
+                for function_id in reused
+            ],
+            resolved_training,
+            encoder,
+            adapter_bottleneck_size,
         )
-        trainings = {cast(str, ir["id"]): training}
-        shared_model = training.model
+        for ir in to_train:
+            function_id = cast(str, ir["id"])
+            say(f"{function_id}: training its head on the frozen shared encoder")
+            application = add_function_head(
+                application,
+                application_function(*by_id[function_id]),
+                config=resolved_training,
+                tokenizer=resolved_tokenizer,
+            )
     else:
-        say(f"training {len(datasets)} functions over one shared encoder and adapter")
+        say(f"training {len(datasets)} function(s) over one shared encoder and adapter")
         application = train_application(
             [application_function(ir, base, adversarial) for ir, base, adversarial in datasets],
             config=resolved_training,
             tokenizer=resolved_tokenizer,
             encoder=encoder,
+            adapter_bottleneck_size=adapter_bottleneck_size,
         )
-        trainings = dict(application.functions)
-        shared_model = application.model
-    trained_at = _utc_now()
+    trainings = dict(application.functions)
+    shared_model = application.model
 
     trained: list[TrainedFunction] = []
     for ir, base, adversarial in datasets:
         function_id = cast(str, ir["id"])
         training = trainings[function_id]
+        record = reused.get(function_id)
+        if record is not None:
+            trained.append(
+                TrainedFunction(ir, base, adversarial, training, record.verification, reused=True)
+            )
+            continue
         verification = evaluate_training_result(
             ir,
             training,
@@ -220,21 +338,9 @@ def train_bundle(
         trained.append(TrainedFunction(ir, base, adversarial, training, verification))
 
     training_key = _training_key_sha256(trained)
-    report: dict[str, Any] = {
-        "kind": REPORT_KIND,
-        "reportVersion": REPORT_VERSION,
-        "status": "passed",
-        "trainedAt": trained_at,
-        "application": {"id": resolved_application_id, "version": application_version},
-        "teacher": {
-            "provider": descriptor.provider,
-            "model": descriptor.model,
-            "configurationSha256": descriptor.configuration_sha256,
-        },
-        "trainingKeySha256": training_key,
-        "artifact": None,
-        "functions": [_function_report(entry) for entry in trained],
-    }
+    report = report_skeleton("passed", trained_at)
+    report["trainingKeySha256"] = training_key
+    report["functions"] = [_function_report(entry) for entry in trained]
     failed = [entry for entry in trained if entry.verification.status != "passed"]
     if failed:
         report["status"] = "failed"
@@ -248,24 +354,32 @@ def train_bundle(
     )
     commit = trainer_commit if trainer_commit is not None else _git_commit()
     artifact_functions: list[ArtifactFunction] = []
+    verified_bytes: dict[str, bytes] = {}
     for entry in trained:
-        provenance = VerifiedIrProvenance(
-            teacher=entry.base.teacher,
-            base_model_name=resolved_training.encoder_name,
-            base_model_revision=resolved_training.encoder_revision,
-            base_model_weights_sha256=weights_sha256,
-            dataset_sha256=entry.base.dataset_sha256,
-            counts=_provenance_counts(entry),
-            seed=resolved_training.seed,
-            trainer_version=trainer_version,
-            trainer_commit=commit,
-            trained_at=trained_at,
-        )
-        built = build_verified_ir(entry.ir, entry.training, entry.verification, provenance)
-        artifact_functions.append(
-            ArtifactFunction(
-                built.document, entry.training, entry.verification, built.source_ir_bytes
+        function_id = cast(str, entry.ir["id"])
+        record = reused.get(function_id)
+        if record is not None:
+            source_ir_bytes = record.verified_ir_bytes
+            document = cast(NeuralFunctionIr, json.loads(source_ir_bytes))
+        else:
+            provenance = VerifiedIrProvenance(
+                teacher=entry.base.teacher,
+                base_model_name=resolved_training.encoder_name,
+                base_model_revision=resolved_training.encoder_revision,
+                base_model_weights_sha256=weights_sha256,
+                dataset_sha256=entry.base.dataset_sha256,
+                counts=_provenance_counts(entry),
+                seed=resolved_training.seed,
+                trainer_version=trainer_version,
+                trainer_commit=commit,
+                trained_at=trained_at,
             )
+            built = build_verified_ir(entry.ir, entry.training, entry.verification, provenance)
+            source_ir_bytes = built.source_ir_bytes
+            document = built.document
+        verified_bytes[function_id] = source_ir_bytes
+        artifact_functions.append(
+            ArtifactFunction(document, entry.training, entry.verification, source_ir_bytes)
         )
 
     first = trained[0]
@@ -308,7 +422,194 @@ def train_bundle(
         "manifestSha256": exported.manifest_sha256,
     }
     say(f"published release {exported.manifest_sha256}")
+
+    if cache is not None:
+        if shared_changed:
+            # Records built on the previous shared weights can never be reused again.
+            shutil.rmtree(cache.root / "functions", ignore_errors=True)
+            shared_sha256 = cache.store_shared_state(shared_model.encoder, shared_model.adapter)
+        else:
+            shared_sha256 = cast(str, cache.shared_state_sha256())
+        for entry in trained:
+            if entry.reused:
+                continue
+            cache.store_function(
+                ir=entry.ir,
+                recipe_sha256=recipe.sha256,
+                shared_state_sha256=shared_sha256,
+                training=entry.training,
+                verification=entry.verification,
+                verified_ir_bytes=verified_bytes[cast(str, entry.ir["id"])],
+                dataset_cases=len(entry.base.cases),
+                dataset_gold=entry.base.gold_count,
+                adversarial_cases=0 if entry.adversarial is None else len(entry.adversarial.cases),
+            )
+        cache.store_index(
+            recipe=recipe,
+            function_ids=[cast(str, entry.ir["id"]) for entry in trained],
+            release_sha256=exported.manifest_sha256,
+            shared_state_sha256=shared_sha256,
+            tokenizer_sha256=trained[0].verification.tokenizer_sha256,
+        )
+        say(f"build cache: stored under {cache.root}")
     return TrainBundleResult(report=report, exported=exported, functions=tuple(trained))
+
+
+def _published_release(artifact_root: Path, manifest_sha256: str | None) -> ExportedArtifact | None:
+    """The artifact root's current release when it is the one the cache last published."""
+
+    if manifest_sha256 is None:
+        return None
+    pointer_path = artifact_root / "current.json"
+    try:
+        pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+        if not isinstance(pointer, dict) or pointer.get("manifestSha256") != manifest_sha256:
+            return None
+        release = artifact_root / str(pointer["release"])
+        manifest_path = release / "manifest.json"
+        manifest_bytes = manifest_path.read_bytes()
+        if hashlib.sha256(manifest_bytes).hexdigest() != manifest_sha256:
+            return None
+        manifest = json.loads(manifest_bytes)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return ExportedArtifact(
+        artifact_root=artifact_root,
+        release_directory=release,
+        manifest_path=manifest_path,
+        manifest_sha256=manifest_sha256,
+        pointer_path=pointer_path,
+        manifest=manifest,
+    )
+
+
+def _rehydrate_application(
+    cache: ApplicationCache,
+    entries: Sequence[tuple[CachedFunction, FunctionCorpus]],
+    config: TrainingConfig,
+    encoder: Any | None,
+    adapter_bottleneck_size: int,
+) -> ApplicationTrainingResult:
+    """Rebuild the shared application and every reused function from exact cached state."""
+
+    from semantscript_trainer.application import (
+        _build_adapter,
+        _function_states,
+        _load_application_modules,
+    )
+    from semantscript_trainer.training import _build_heads, _build_sentence_encoder
+
+    application_module, _ = _load_application_modules()
+    sentence_encoder = _build_sentence_encoder(config, encoder)
+    adapter = _build_adapter(
+        application_module, sentence_encoder.hidden_size, adapter_bottleneck_size
+    )
+    encoder_state, adapter_state = cache.load_shared_state()
+    heads: dict[str, Any] = {}
+    try:
+        sentence_encoder.load_state_dict(encoder_state)
+        adapter.load_state_dict(adapter_state)
+        for record, function in entries:
+            head = _build_heads(function.corpus.output_heads, sentence_encoder.hidden_size, config)
+            head.load_state_dict(cache.load_head_state(record))
+            heads[function.function_id] = head
+        model = application_module.SharedEncoderApplication(sentence_encoder, adapter, heads)
+    except (RuntimeError, TypeError, ValueError, KeyError) as error:
+        raise BuildCacheError(
+            f"cached weights do not fit the configured modules: {error}"
+        ) from error
+    states = _function_states([function for _, function in entries], config)
+    results: dict[str, TrainingResult] = {}
+    for (record, function), state in zip(entries, states, strict=True):
+        training = TrainingResult(
+            model=model.function_model(function.function_id),
+            head=function.corpus.head,
+            split=state.split,
+            config=config,
+            device=record.device,
+            metrics=record.metrics,
+            function_id=function.function_id,
+            semantic_sha256=function.corpus.semantic_sha256,
+            base_dataset_sha256=function.corpus.base_dataset_sha256,
+            adversarial_dataset_sha256=function.corpus.adversarial_dataset_sha256,
+            selected_epoch=record.selected_epoch,
+            output_heads=function.corpus.output_heads,
+        )
+        if model_state_sha256(training.model) != record.model_state_sha256:
+            raise BuildCacheError(
+                f"restored weights for {function.function_id} do not match their verified state; "
+                "rebuild with the cache off"
+            )
+        results[function.function_id] = training
+    return ApplicationTrainingResult(
+        model=model,
+        config=config,
+        device=entries[0][0].device,
+        adapter_bottleneck_size=adapter_bottleneck_size,
+        functions=results,
+        metrics=(),
+        selected_epoch=None,
+    )
+
+
+def _cached_function_report(ir: NeuralFunctionIr, record: CachedFunction) -> dict[str, Any]:
+    epoch_index = (
+        record.selected_epoch - 1 if record.selected_epoch is not None else len(record.metrics) - 1
+    )
+    last = record.metrics[epoch_index] if record.metrics else None
+    verification = record.verification
+    return {
+        "id": ir["id"],
+        "semanticSha256": ir["semanticSha256"],
+        "sourcePath": record.source_path,
+        "cache": "reused",
+        "dataset": {
+            "sha256": record.dataset_sha256,
+            "cases": record.dataset_cases,
+            "gold": record.dataset_gold,
+        },
+        "adversarial": (
+            None
+            if record.adversarial_dataset_sha256 is None
+            else {"sha256": record.adversarial_dataset_sha256, "cases": record.adversarial_cases}
+        ),
+        "training": {
+            "trainingRows": None,
+            "heldOutRows": None,
+            "epochs": len(record.metrics),
+            "selectedEpoch": record.selected_epoch,
+            "heldOutAccuracy": None if last is None else last.held_out_accuracy,
+            "heldOutFieldAccuracy": (
+                None
+                if last is None or last.held_out_field_accuracy is None
+                else list(last.held_out_field_accuracy)
+            ),
+        },
+        "verification": {
+            "status": verification.status,
+            "failures": list(verification.failures),
+            "attestedCases": verification.attested_cases,
+            "pairCount": verification.pair_count,
+            "metrics": verification.to_ir_document()["metrics"],
+        },
+    }
+
+
+def _training_key_from_records(records: Sequence[CachedFunction]) -> str:
+    projection: JsonValue = {
+        "kind": _TRAINING_KEY_KIND,
+        "keyVersion": 1,
+        "functions": [
+            {
+                "id": record.function_id,
+                "semanticSha256": record.semantic_sha256,
+                "datasetSha256": record.dataset_sha256,
+                "adversarialDatasetSha256": record.adversarial_dataset_sha256,
+            }
+            for record in sorted(records, key=lambda record: record.function_id)
+        ],
+    }
+    return semantic_json_sha256(projection)
 
 
 def _bundle_functions(bundle: Mapping[str, Any]) -> list[NeuralFunctionIr]:
@@ -391,6 +692,7 @@ def _function_report(entry: TrainedFunction) -> dict[str, Any]:
         "id": entry.ir["id"],
         "semanticSha256": entry.ir["semanticSha256"],
         "sourcePath": source.get("path"),
+        "cache": "reused" if entry.reused else "trained",
         "dataset": {
             "sha256": entry.base.dataset_sha256,
             "cases": len(entry.base.cases),
@@ -503,6 +805,11 @@ def _build_parser() -> argparse.ArgumentParser:
     train.add_argument("--ece-threshold", type=float)
     train.add_argument("--max-constraint-violation-rate", type=float)
     train.add_argument("--counterfactual-ratio", type=float)
+    train.add_argument("--adapter-bottleneck-size", type=int)
+    train.add_argument(
+        "--no-cache", action="store_true", help="ignore and do not write the build cache"
+    )
+    train.add_argument("--full", action="store_true", help="retrain every function jointly")
     return parser
 
 
@@ -566,14 +873,21 @@ def main(argv: list[str] | None = None) -> int:
             application_id=arguments.application_id,
             application_version=arguments.application_version,
             compiler_version=arguments.compiler_version,
+            use_cache=not arguments.no_cache,
+            full=arguments.full,
             log=log,
+            **(
+                {"adapter_bottleneck_size": arguments.adapter_bottleneck_size}
+                if arguments.adapter_bottleneck_size is not None
+                else {}
+            ),
         )
         report = result.report
     except TrainBundleFailure as error:
         log(f"error: {error}")
         report = error.report
         code = 1
-    except (OSError, ValueError, RuntimeError, TypeError) as error:
+    except (OSError, ValueError, RuntimeError, TypeError, BuildCacheError) as error:
         log(f"error: {error}")
         code = 1
     if report is not None:

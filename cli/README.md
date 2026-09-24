@@ -42,13 +42,59 @@ plus the published release digest. A function that fails verification stops the
 build with the report kept and nothing published; the trainer's exit status is
 the command's.
 
+### Build cache
+
+Retraining every function on every build is unacceptable, so `train` keeps a
+content-addressed cache under `--cache-dir` (default `.semantscript/cache`),
+next to the synthetic and adversarial dataset caches:
+
+```text
+.semantscript/cache/applications/<application-id>/
+  application.json          recipe digest, last release digest, function index
+  shared.safetensors        the application's encoder and adapter weights
+  functions/<function-id>/
+    function.json           digests, epoch metrics, verification record
+    verified-ir.json        exact verified IR bytes
+    head.safetensors        the function's head weights
+```
+
+The key is the function id, which the compiler derives from the expression's
+semantic identity (template text, input and output types, examples, constraints
+and runtime policy), so editing an expression changes its id. A cached function
+is reused when its id and semantic digest match the bundle, it was built under
+the same recipe (encoder name and revision, canonical input version, adapter
+size, every training, verification and adversarial setting, and the teacher's
+provider, model and configuration digest), its datasets still resolve to the
+same digests, and every cache file passes its digest check. Anything else is a
+miss for that function.
+
+- **No changes**: nothing trains. When the release the cache last published is
+  still the artifact root's current release, nothing is exported either and
+  the report says `reused`; otherwise the artifact is re-exported from cached
+  weights.
+- **One expression changed**: only its head trains, on the frozen shared
+  encoder and adapter restored from the cache, so every untouched function
+  keeps its verified weights and evidence byte for byte. The new head is
+  verified like any other before the whole artifact is exported again.
+- **Recipe changed, `--full`, or `--no-cache`**: every function retrains
+  jointly (the shared encoder moves), and the previous function records are
+  discarded because they were built on the old encoder. `--no-cache` also
+  writes nothing.
+
+Deleting the cache directory is always safe; the next build trains from
+scratch. The cached weights are exact (safetensors), roughly the size of the
+encoder per application. Heads trained incrementally sit on an encoder that
+was fine-tuned for the application's earlier expressions; run `--full` before
+a release when that matters.
+
 Training options pass through unchanged: `--cases`, `--epochs`, `--batch-size`,
 `--learning-rate`, `--max-sequence-length`, `--evaluation-ratio`, `--seed`,
 `--device`, `--head-architecture`, `--select-best-epoch`, `--encoder-name`,
 `--encoder-revision`, `--local-files-only`, `--ece-threshold`,
 `--max-constraint-violation-rate`, `--counterfactual-ratio`,
-`--application-id`, `--application-version`, `--compiler-version` and
-`--cache-dir` (default `.semantscript/cache`). The interpreter is `--python`,
+`--adapter-bottleneck-size`, `--no-cache`, `--full`, `--application-id`,
+`--application-version`, `--compiler-version` and `--cache-dir` (default
+`.semantscript/cache`). The interpreter is `--python`,
 then `SEMANTSCRIPT_PYTHON`, then `python3`; inside this repository the trainer
 and model sources (and `.python-packages` when present) are put on `PYTHONPATH`
 automatically, and the caller's `PYTHONPATH` is kept after them.

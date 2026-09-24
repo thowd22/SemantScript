@@ -423,6 +423,19 @@ verification and adversarial settings map to `TrainingConfig`,
 flags keep the library defaults. The Node CLI (`cli/`) spawns this module and
 renders the report.
 
+Every function trains over one shared encoder and adapter, and
+`semantscript_trainer.build_cache` keeps the result under
+`<cache-dir>/applications/<application-id>/`: the exact encoder and adapter
+weights, and per function the head weights, the verified IR bytes, the
+verification record and the digests binding them (recipe, shared state,
+datasets, model state). On the next build a function whose id, semantic digest,
+recipe, shared-state digest and dataset digests all match is reused without
+training; a changed function trains only its head with `add_function_head` on
+the restored, frozen shared modules; a recipe change, `--full` or `--no-cache`
+retrains everything jointly and discards the old records. Every cached file is
+digest-checked and a mismatch is a miss. The `cli/README.md` build-cache section
+lists the rules as users see them.
+
 ## Teacher backends
 
 `Teacher.generate(ir, n)` is the only case-source contract used by the generator.

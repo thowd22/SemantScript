@@ -42,8 +42,14 @@ const PASSTHROUGH_STRING = [
   "ece-threshold",
   "max-constraint-violation-rate",
   "counterfactual-ratio",
+  "adapter-bottleneck-size",
 ] as const;
-const PASSTHROUGH_BOOLEAN = ["local-files-only", "select-best-epoch"] as const;
+const PASSTHROUGH_BOOLEAN = [
+  "local-files-only",
+  "select-best-epoch",
+  "no-cache",
+  "full",
+] as const;
 
 const OPTIONS: Record<string, { readonly type: "string" | "boolean" }> = {
   bundle: { type: "string" },
@@ -179,17 +185,14 @@ export function renderTrainReport(document: unknown): string {
               objectOf(adversarial, `${path}.adversarial`)["cases"],
               `${path}.adversarial.cases`,
             );
+      const heldOut = training["heldOutAccuracy"];
       return [
         shortId(stringOf(fn["id"], `${path}.id`)),
         typeof fn["sourcePath"] === "string" ? fn["sourcePath"] : "",
+        typeof fn["cache"] === "string" ? fn["cache"] : "trained",
         String(numberOf(dataset["cases"], `${path}.dataset.cases`)),
         String(adversarialCases),
-        formatRatio(
-          numberOf(
-            training["heldOutAccuracy"],
-            `${path}.training.heldOutAccuracy`,
-          ),
-        ),
+        typeof heldOut === "number" ? formatRatio(heldOut) : "-",
         stringOf(verification["status"], `${path}.verification.status`),
         formatRatio(
           numberOf(
@@ -220,6 +223,7 @@ export function renderTrainReport(document: unknown): string {
       [
         "function",
         "source",
+        "cache",
         "cases",
         "adversarial",
         "held-out acc",
@@ -232,6 +236,17 @@ export function renderTrainReport(document: unknown): string {
       rows,
     ),
   ];
+  const cache = report["cache"];
+  if (cache !== null && cache !== undefined) {
+    const summary = objectOf(cache, "report.cache");
+    const directory = summary["directory"];
+    const reused = String(numberOf(summary["reused"], "report.cache.reused"));
+    const trained = String(
+      numberOf(summary["trained"], "report.cache.trained"),
+    );
+    const where = typeof directory === "string" ? ` (${directory})` : " (off)";
+    lines.push(`build cache: ${reused} reused, ${trained} trained${where}\n`);
+  }
   const artifact = report["artifact"];
   if (artifact !== null && artifact !== undefined) {
     const record = objectOf(artifact, "report.artifact");
@@ -239,6 +254,10 @@ export function renderTrainReport(document: unknown): string {
       `artifact: ${stringOf(record["root"], "report.artifact.root")} (release ${stringOf(record["manifestSha256"], "report.artifact.manifestSha256")})\n`,
     );
   }
-  lines.push(`train ${status}\n`);
+  lines.push(
+    status === "reused"
+      ? "train reused: nothing changed, no training performed\n"
+      : `train ${status}\n`,
+  );
   return lines.join("");
 }

@@ -421,6 +421,7 @@ test("train spawns the Python driver with resolved paths and renders its report"
     "--select-best-epoch",
     "--application-id",
     "demo",
+    "--full",
   ];
 
   const passed = capture(root, env);
@@ -448,7 +449,9 @@ test("train spawns the Python driver with resolved paths and renders its report"
     assert.equal(recorded.argv[index + 1], expectedPair[1]);
   }
   assert.ok(recorded.argv.includes("--select-best-epoch"));
+  assert.ok(recorded.argv.includes("--full"));
   assert.ok(!recorded.argv.includes("--local-files-only"));
+  assert.ok(!recorded.argv.includes("--no-cache"));
   assert.match(recorded.pythonpath, /trainer[\\/]src/u);
   assert.ok(
     recorded.pythonpath.endsWith(fixtures),
@@ -456,7 +459,22 @@ test("train spawns the Python driver with resolved paths and renders its report"
   );
   assert.match(
     passed.stdout(),
-    /nf_33333333…\s+src\/app\.sem\.ts\s+16\s+4\s+0\.8750\s+passed\s+0\.9000\s+0\.0500\s+1\s+0/u,
+    /nf_33333333…\s+src\/app\.sem\.ts\s+trained\s+16\s+4\s+0\.8750\s+passed\s+0\.9000\s+0\.0500\s+1\s+0/u,
+  );
+  assert.match(
+    passed.stdout(),
+    /build cache: 1 reused, 1 trained \(.*\.semantscript\/cache\)/u,
+  );
+
+  const uncached = capture(root, env);
+  assert.equal(
+    await runCli([...args, "--no-cache"], uncached.io),
+    0,
+    uncached.stderr(),
+  );
+  assert.match(uncached.stdout(), /build cache: 0 reused, 1 trained \(off\)/u);
+  assert.ok(
+    JSON.parse(await readFile(argvPath, "utf8")).argv.includes("--no-cache"),
   );
   assert.match(passed.stdout(), /artifact: .*out\/artifact \(release 2{64}\)/u);
   assert.match(passed.stdout(), /train passed\n$/u);

@@ -38,3 +38,7 @@ benchmarks/refund/data/release-*/artifact/
 
 # extracted or converted encoder checkpoints used by the encoder sweep (hundreds of MB)
 benchmarks/refund/data/encoders/
+
+# compiled typed-decisions programs and their dataset caches are rebuilt from the pinned dataset
+benchmarks/typed-decisions/program/dist/
+benchmarks/typed-decisions/data/cache/

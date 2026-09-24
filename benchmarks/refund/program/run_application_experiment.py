@@ -32,6 +32,7 @@ import argparse
 import copy
 import hashlib
 import json
+import shutil
 import sys
 import time
 from collections.abc import Mapping, Sequence
@@ -390,10 +391,19 @@ def provenance_for(
 def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
     started = time.monotonic()
     output = Path(arguments.output_dir)
+    previous: dict[str, Any] = {}
     if output.exists() and any(output.iterdir()):
-        raise ReleasePipelineError("output directory must be absent or empty")
+        if not arguments.resume:
+            raise ReleasePipelineError("output directory must be absent or empty")
+        report_path = output / "experiment-report.json"
+        if report_path.is_file():
+            previous = json.loads(report_path.read_text(encoding="utf-8")).get("regimes", {})
+        for name in ("compiler-a", "compiler-b", "artifact"):
+            shutil.rmtree(output / name, ignore_errors=True)
     output.mkdir(parents=True, exist_ok=True)
     log = _Logger(output / "pipeline.log")
+    if previous:
+        log(f"resuming: reusing measured regimes {sorted(previous)} from the previous run")
     heldout = Path(arguments.heldout_dir)
     config = TrainingConfig(
         encoder_name=DEFAULT_ENCODER_NAME,
@@ -512,18 +522,22 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
         "regimes": {},
     }
 
-    log("regime b-alone: single-function trainer on B")
-    t0 = time.monotonic()
-    alone_b = train_classifier(ir_b, base_b, adversarial_b, config=config, tokenizer=tokenizer)
-    report["regimes"]["b-alone"] = {
-        "seconds": round(time.monotonic() - t0, 1),
-        "B": function_summary(alone_b, tokenizer, ir_b, attested_b, config),
-    }
-    log(
-        f"b-alone: held-out {alone_b.held_out_accuracy:.4f}, attested {report['regimes']['b-alone']['B']['attestedAccuracy']:.4f}"
-    )
-    del alone_b
-
+    if "b-alone" in previous:
+        report["regimes"]["b-alone"] = previous["b-alone"]
+        log("regime b-alone: reused from the previous run")
+    else:
+        log("regime b-alone: single-function trainer on B")
+        t0 = time.monotonic()
+        alone_b = train_classifier(ir_b, base_b, adversarial_b, config=config, tokenizer=tokenizer)
+        report["regimes"]["b-alone"] = {
+            "seconds": round(time.monotonic() - t0, 1),
+            "B": function_summary(alone_b, tokenizer, ir_b, attested_b, config),
+        }
+        log(
+            f"b-alone: held-out {alone_b.held_out_accuracy:.4f}, attested "
+            f"{report['regimes']['b-alone']['B']['attestedAccuracy']:.4f}"
+        )
+        del alone_b
     (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
     log("regime joint: shared encoder and adapter, both heads")
     t0 = time.monotonic()
@@ -549,41 +563,47 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
     )
 
     (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
-    log("regime a-then-b: A alone on the shared architecture, then B's head on the frozen encoder")
-    t0 = time.monotonic()
-    first = train_application(
-        [function_a],
-        config=config,
-        tokenizer=tokenizer,
-        adapter_bottleneck_size=arguments.adapter_bottleneck_size,
-    )
-    from semantscript_trainer.verification import model_state_sha256
+    if "a-then-b" in previous:
+        report["regimes"]["a-then-b"] = previous["a-then-b"]
+        log("regime a-then-b: reused from the previous run")
+    else:
+        log(
+            "regime a-then-b: A alone on the shared architecture, then B's head on the frozen encoder"
+        )
+        t0 = time.monotonic()
+        first = train_application(
+            [function_a],
+            config=config,
+            tokenizer=tokenizer,
+            adapter_bottleneck_size=arguments.adapter_bottleneck_size,
+        )
+        from semantscript_trainer.verification import model_state_sha256
 
-    digest_a_before = model_state_sha256(first.functions[compiled_a.function_id].model)
-    a_summary = function_summary(
-        first.functions[compiled_a.function_id], tokenizer, ir_a, attested_a, config
-    )
-    extended = add_function_head(first, function_b, tokenizer=tokenizer)
-    digest_a_after = model_state_sha256(extended.functions[compiled_a.function_id].model)
-    report["regimes"]["a-then-b"] = {
-        "seconds": round(time.monotonic() - t0, 1),
-        "A": a_summary,
-        "B": function_summary(
-            extended.functions[compiled_b.function_id], tokenizer, ir_b, attested_b, config
-        ),
-        "aStateUnchangedAfterAddingB": digest_a_before == digest_a_after,
-    }
-    log(
-        f"a-then-b: A held-out {a_summary['heldOutAccuracy']:.4f} attested {a_summary['attestedAccuracy']:.4f} (state unchanged: {digest_a_before == digest_a_after}); B held-out {extended.functions[compiled_b.function_id].held_out_accuracy:.4f} attested {report['regimes']['a-then-b']['B']['attestedAccuracy']:.4f}"
-    )
-    del first, extended
+        digest_a_before = model_state_sha256(first.functions[compiled_a.function_id].model)
+        a_summary = function_summary(
+            first.functions[compiled_a.function_id], tokenizer, ir_a, attested_a, config
+        )
+        extended = add_function_head(first, function_b, tokenizer=tokenizer)
+        digest_a_after = model_state_sha256(extended.functions[compiled_a.function_id].model)
+        report["regimes"]["a-then-b"] = {
+            "seconds": round(time.monotonic() - t0, 1),
+            "A": a_summary,
+            "B": function_summary(
+                extended.functions[compiled_b.function_id], tokenizer, ir_b, attested_b, config
+            ),
+            "aStateUnchangedAfterAddingB": digest_a_before == digest_a_after,
+        }
+        log(
+            f"a-then-b: A held-out {a_summary['heldOutAccuracy']:.4f} attested {a_summary['attestedAccuracy']:.4f} (state unchanged: {digest_a_before == digest_a_after}); B held-out {extended.functions[compiled_b.function_id].held_out_accuracy:.4f} attested {report['regimes']['a-then-b']['B']['attestedAccuracy']:.4f}"
+        )
+        del first, extended
 
     (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
     log("verifying both functions of the joint application")
     verifications = {}
     for label, ir, base, adversarial, attested in (
         ("A", ir_a, base_a, adversarial_a, attested_a),
-        ("B", ir_b, base_b, None, attested_b),
+        ("B", ir_b, base_b, adversarial_b, attested_b),
     ):
         function_id = ir["id"]
         verification = evaluate_training_result(
@@ -717,6 +737,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--maximum-constraint-violation-rate", type=float, default=0.01)
     parser.add_argument("--adapter-bottleneck-size", type=int, default=64)
     parser.add_argument("--counterfactual-ratio", type=float, default=0.02)
+    parser.add_argument("--resume", action="store_true")
     arguments = parser.parse_args(argv)
     try:
         run_experiment(arguments)

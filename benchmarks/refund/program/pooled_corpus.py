@@ -114,6 +114,16 @@ class PooledCorpusTeacher:
 
     @property
     def configuration_projection(self) -> dict[str, Any]:
+        projection = self._base_projection()
+        if self._stale_status_twins:
+            # For every real order older than 90 days, also emit the same order with the
+            # other status so the stale rule's precedence over fraud is taught from real
+            # inputs; both twins are rule-labeled like every other pool row. The key is
+            # present only when enabled so earlier manifests keep their digests.
+            projection["staleStatusTwins"] = True
+        return projection
+
+    def _base_projection(self) -> dict[str, Any]:
         return {
             "kind": POOLED_CONFIG_KIND,
             "configVersion": 1,
@@ -135,10 +145,6 @@ class PooledCorpusTeacher:
                 "count": len(self._excluded),
             },
             "fraudPercent": self._fraud_percent,
-            # For every real order older than 90 days, also emit the same order with the
-            # other status so the stale rule's precedence over fraud is taught from real
-            # inputs; both twins are rule-labeled like every other pool row.
-            "staleStatusTwins": self._stale_status_twins,
             "adversarial": self._adversarial.configuration_projection,
         }
 

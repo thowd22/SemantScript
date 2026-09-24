@@ -28,6 +28,7 @@ _RFC3339 = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
     r"[0-9]{2}(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$"
 )
+_MAXIMUM_SAFE_INTEGER = 2**53 - 1
 _TOP_LEVEL_FIELDS = {
     "kind",
     "irVersion",
@@ -211,6 +212,7 @@ def build_verified_ir(
         document = deepcopy(source_ir)
     except (TypeError, ValueError, RecursionError) as error:
         raise VerifiedIrBuildError(f"source IR cannot be snapshotted: {error}") from error
+    _restore_integral_numbers(document)
     document["stage"] = "verified"
     document["trainingProvenance"] = provenance.to_document()
     document["verification"] = verification.to_ir_document()
@@ -226,10 +228,12 @@ def _validate_source_lifecycle(source_ir: NeuralFunctionIr) -> None:
     if not isinstance(source_ir, dict) or set(source_ir) != _TOP_LEVEL_FIELDS:
         raise VerifiedIrBuildError("source IR must contain exactly the neural-function v1 fields")
     ir_version = source_ir.get("irVersion")
+    # Compiler bundles read through the strict JSON reader carry every number
+    # as binary64, so the version may arrive as the integral float 1.0.
     if (
         source_ir.get("kind") != "semantscript.neural-function"
         or isinstance(ir_version, bool)
-        or not isinstance(ir_version, int)
+        or not isinstance(ir_version, (int, float))
         or ir_version != 1
     ):
         raise VerifiedIrBuildError("source IR must be neural-function IR v1")
@@ -306,6 +310,31 @@ def _validate_training_provenance(
     verified_at = _parse_timestamp("verification verified_at", verification.verified_at)
     if trained_at > verified_at:
         raise VerifiedIrBuildError("provenance trained_at cannot be later than verified_at")
+
+
+def _restore_integral_numbers(document: NeuralFunctionIr) -> None:
+    """Write integral binary64 values back as integers, as the compiler emitted them.
+
+    The compiler serializes IR with JavaScript number formatting, which never
+    writes a fractional part for an integral value, while the trainer's strict
+    JSON reader rounds every token to binary64. Both spell the same semantic
+    value, so the exact verified bytes restore the compiler's spelling for
+    every safe integer (including signed zero, which JavaScript writes as 0).
+    """
+
+    work: list[dict[str, Any] | list[Any]] = [document]
+    while work:
+        current = work.pop()
+        items = current.items() if isinstance(current, dict) else enumerate(current)
+        for key, value in items:
+            if isinstance(value, (dict, list)):
+                work.append(value)
+            elif (
+                isinstance(value, float)
+                and value.is_integer()
+                and abs(value) <= _MAXIMUM_SAFE_INTEGER
+            ):
+                current[key] = int(value)  # type: ignore[index]
 
 
 def _serialize_exact_json(document: NeuralFunctionIr) -> bytes:

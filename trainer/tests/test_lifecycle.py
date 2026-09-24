@@ -16,6 +16,7 @@ from semantscript_trainer.lifecycle import (
     build_verified_ir,
 )
 from semantscript_trainer.semantic_json import semantic_json_sha256
+from semantscript_trainer.strict_json import loads_strict_json
 from semantscript_trainer.teacher import TeacherDescriptor
 from semantscript_trainer.training import EpochMetrics, TrainingConfig, TrainingResult
 from semantscript_trainer.training_contract import (
@@ -73,6 +74,43 @@ def test_builds_exact_export_ready_verified_ir_without_mutating_source() -> None
         training,
         verification,
     )
+
+
+def test_accepts_strict_json_binary64_source_and_restores_integral_spelling() -> None:
+    source, training, verification, provenance = fixture()
+    # The trainer's strict reader rounds every JSON number to binary64, so a
+    # compiler bundle arrives with irVersion 1.0, input index 0.0 and source
+    # line 1.0 even though the compiler wrote integers.
+    binary64_source = loads_strict_json(json.dumps(source))
+    assert isinstance(binary64_source, dict)
+    assert isinstance(binary64_source["irVersion"], float)
+    assert isinstance(binary64_source["inputs"][0]["index"], float)
+
+    built = build_verified_ir(binary64_source, training, verification, provenance)
+    reference = build_verified_ir(source, training, verification, provenance)
+
+    assert built.source_ir_bytes == reference.source_ir_bytes
+    document = built.document
+    assert document["irVersion"] == 1 and isinstance(document["irVersion"], int)
+    assert isinstance(document["inputs"][0]["index"], int)
+    assert isinstance(document["source"]["line"], int)
+    validate_verified_ir_binding(document, built.source_ir_bytes, training, verification)
+
+
+def test_restores_only_safe_integral_numbers() -> None:
+    source, training, verification, provenance = fixture()
+    binary64_source = loads_strict_json(json.dumps(source))
+    assert isinstance(binary64_source, dict)
+    binary64_source["source"]["line"] = 7.0
+    binary64_source["source"]["column"] = float(2**53 - 1)
+
+    built = build_verified_ir(binary64_source, training, verification, provenance)
+
+    assert built.document["source"] == {**source["source"], "line": 7, "column": 2**53 - 1}
+    beyond_safe_range = deepcopy(binary64_source)
+    beyond_safe_range["source"]["column"] = float(2**53) * 2
+    with pytest.raises(VerifiedIrBuildError, match="constructed verified IR is invalid"):
+        build_verified_ir(beyond_safe_range, training, verification, provenance)
 
 
 @pytest.mark.parametrize(

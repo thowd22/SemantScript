@@ -30,6 +30,14 @@ from semantscript_trainer import (
     VerifiedIrProvenance,
     semantic_json_sha256,
 )
+from semantscript_trainer.artifact import validate_verified_ir_binding
+from semantscript_trainer.lifecycle import build_verified_ir
+from semantscript_trainer.verification import (
+    CalibrationRecordV1,
+    HeadVerificationV1,
+    VerificationMetricsV1,
+    VerificationResult,
+)
 
 from . import pipeline
 
@@ -51,6 +59,33 @@ def test_real_compiler_bridge_emits_one_diagnostic_source_record(
         "deny",
         "review",
     ]
+
+
+def test_compiled_source_ir_builds_exact_verified_ir(
+    compiled_program: pipeline.CompiledRefundProgram,
+) -> None:
+    # The bundle is read through the strict JSON reader, which rounds every
+    # number to binary64; the lifecycle must still accept it and write the
+    # compiler's integral spelling back into the exact verified bytes.
+    assert isinstance(compiled_program.source_ir["irVersion"], float)
+    base, training = training_fixture(compiled_program)
+    verification = verification_fixture(compiled_program, training)
+    provenance = replace(
+        provenance_fixture(base),
+        base_model_name=training.config.encoder_name,
+        base_model_revision=training.config.encoder_revision,
+    )
+
+    built = build_verified_ir(compiled_program.source_ir, training, verification, provenance)
+
+    document = built.document
+    assert document["stage"] == "verified"
+    assert document["semanticSha256"] == compiled_program.semantic_sha256
+    assert document["irVersion"] == 1 and isinstance(document["irVersion"], int)
+    assert all(isinstance(entry["index"], int) for entry in document["inputs"])
+    assert isinstance(document["source"]["line"], int)
+    assert isinstance(document["source"]["column"], int)
+    validate_verified_ir_binding(document, built.source_ir_bytes, training, verification)
 
 
 def test_compile_bridge_refuses_nonempty_output_and_unbounded_timeout(tmp_path: Path) -> None:
@@ -603,6 +638,48 @@ def training_fixture(
         adversarial_dataset_sha256=None,
     )
     return base, training
+
+
+def verification_fixture(
+    compiled: pipeline.CompiledRefundProgram,
+    training: TrainingResult,
+) -> VerificationResult:
+    calibration = CalibrationRecordV1(
+        temperature=1.0,
+        ece=0.0,
+        brier=0.0,
+        sample_count=len(training.split.evaluation),
+        split_sha256="7" * 64,
+        ece_bins=2,
+    )
+    head = HeadVerificationV1(
+        output_path="",
+        accuracy=1.0,
+        pair_consistency=1.0,
+        calibration=calibration,
+    )
+    metrics = VerificationMetricsV1(
+        accuracy=1.0,
+        ece=0.0,
+        brier=0.0,
+        pair_consistency=1.0,
+        heads=(head,),
+        example_failures=0,
+        constraint_violations=0,
+        type_errors=0,
+    )
+    return VerificationResult(
+        function_id=compiled.function_id,
+        semantic_sha256=compiled.semantic_sha256,
+        model_state_sha256="a" * 64,
+        tokenizer_sha256="b" * 64,
+        status="passed",
+        verified_at="2026-09-23T11:00:00Z",
+        metrics=metrics,
+        attested_cases=1,
+        pair_count=0,
+        failures=(),
+    )
 
 
 def provenance_fixture(base: TrainingDataset) -> VerifiedIrProvenance:

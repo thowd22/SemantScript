@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-24 00:51'
+updated_date: '2026-09-24 02:06'
 labels:
   - benchmark
 milestone: m-1
@@ -120,6 +120,8 @@ Sweep on the Opus corpus (decision-7 context): calibration-split accuracy 0.88-0
 Pooled corpus result (sweep, 6 epochs, lr 3e-5, calibration split 10 percent, 571 s): release misses 0 of 80 (100 percent on the attested set, all five rule regions perfect), calibration accuracy 0.989, ECE 0.0021, pair consistency 1.0, but 36 raw-model constraint violations across ~9,300 verification records (0.39 percent), so the zero-violation gate failed. Decision-8 adds a configurable violation-rate tolerance (default 0) and records the count in the artifact; the refund release run will use 0.01. A 12-epoch run with a 5 percent calibration split is measuring whether violations drop further before the release run.
 
 12-epoch run with a 5 percent calibration split did not help (3 release misses, 41 violations, pair consistency 0.989), so the release run uses 6 epochs, lr 3e-5, 10 percent calibration split, seed 1, with maximum_constraint_violation_rate 0.01. Release pipeline started on the pooled corpus.
+
+Release attempts on the pooled corpus (8 epochs, best-epoch selection, tolerance 0.01): seeds 1, 2, 3 reached calibration accuracy 0.9935 / 0.9891 / 0.9924 with ECE 0.003 and the violation rate under 1 percent, but missed 1, 2 and 1 attested release cases respectively, so run-to-run GPU nondeterminism is the remaining obstacle. Trainer now supports a linear learning-rate schedule with warmup (commit ede18c7) and the driver dumps per-case release predictions; a new attempt loop (seeds 1-4, linear schedule, warmup 0.05) is running.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

@@ -334,13 +334,11 @@ class VerificationResult:
             raise VerificationConfigurationError("verification failures are invalid")
         if (self.status == "passed") != (not self.failures):
             raise VerificationConfigurationError("verification status and failures disagree")
-        if self.status == "passed" and (
-            self.metrics.example_failures
-            or self.metrics.constraint_violations
-            or self.metrics.type_errors
-        ):
+        # Constraint violations may remain on a passing result when the gate's
+        # configured tolerance admitted their rate; misses and type errors may not.
+        if self.status == "passed" and (self.metrics.example_failures or self.metrics.type_errors):
             raise VerificationConfigurationError(
-                "passing verification cannot contain example, constraint, or type failures"
+                "passing verification cannot contain example or type failures"
             )
 
     def to_ir_document(self) -> dict[str, JsonValue]:

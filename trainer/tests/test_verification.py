@@ -390,6 +390,11 @@ def test_constraint_violation_and_counterfactual_pair_failure_are_measured() -> 
     )
     assert tolerated.metrics.constraint_violations == 3
     assert not any("adversarial constraint" in failure for failure in tolerated.failures)
+    # The pair-consistency gate is separate; with tolerated violations the only
+    # remaining failures must not mention constraints, and a fully tolerated
+    # result may carry status "passed" with a non-zero violation count.
+    if tolerated.status == "passed":
+        assert tolerated.to_manifest_function_verification()["constraintViolations"] == 3
 
     with pytest.raises(VerificationConfigurationError, match="maximum_constraint_violation_rate"):
         VerificationConfig(maximum_constraint_violation_rate=1.5)

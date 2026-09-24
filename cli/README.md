@@ -6,11 +6,53 @@ implementations: `build` is the compiler, `train` is the Python trainer's
 bundle driver, `test` and `run` are the runtime.
 
 ```text
+semantscript init  [--tool next|vite|esbuild|tsc] [--no-example]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>]
-semantscript train --bundle <path> --artifact <root> --teacher <teacher.toml> [options]
-semantscript test  --artifact <root> [--bundle <path>] [--json]
-semantscript run   --artifact <root> <module.js> [--call <export>] [--input <json> | --input-file <path>]
+semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
+semantscript test  [--artifact <root>] [--bundle <path>] [--json]
+semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 ```
+
+## init
+
+Adopts SemantScript in an existing project with no configuration file. `init`
+detects the build tool from the project root (a `next.config.*` or `next`
+dependency, then a `vite.config.*` or `vite` dependency, then `esbuild` in the
+dependencies or a build script, then `tsconfig.json`; `--tool` overrides) and
+wires the matching compiler adapter with an idempotent text edit that keeps
+comments and formatting:
+
+| Tool    | Edit                                                                                                                                                      |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| tsc     | `plugins: [{ "transform": "@semantscript/compiler/transformer" }]` in `tsconfig.json`; `ts-patch` as a dev dependency and `ts-patch install` in `prepare` |
+| Vite    | `import semantscript from "@semantscript/compiler/vite"` and `semantscript()` first in `plugins`                                                          |
+| esbuild | the same for `@semantscript/compiler/esbuild` in the first `build.mjs`, `esbuild.config.*` or `scripts/build.*` that calls esbuild                        |
+| Next.js | a `turbopack.rules` entry for `*.sem.ts`, `serverExternalPackages` for the runtime and `outputFileTracingIncludes` for the artifact directory             |
+
+A config it cannot edit safely (missing, unparsable, `require()`-based, or a
+`next.config` that already sets one of the three keys) is reported as `manual`
+with the snippet to add, and nothing is written to it. `init` also adds
+`@semantscript/core` and `@semantscript/compiler` to `package.json`, writes
+`.semantscript/.gitignore` reserving `artifact/` and `cache/`, and, unless
+`--no-example` is passed or a `.sem.ts` file already exists, one starter
+expression (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). It ends
+with the next steps: `npm install`, the tool's build, `semantscript train`,
+and one `loadSemaArtifact()` call at startup.
+
+### Defaults
+
+Every command works without flags once the project is initialised:
+
+- the bundle is the build's `semantscript.ir.v1.json` under the tsconfig
+  `outDir`, then `.`, `dist`, `out` or `build`;
+- the artifact root is `SEMANTSCRIPT_ARTIFACT` when set, else
+  `.semantscript/artifact`, for `train`, `test`, `run` and the runtime's
+  `loadSemaArtifact()` with no argument;
+- the teacher is the first of `semantscript.teacher.toml`, `teacher.toml` and
+  `.semantscript/teacher.toml`; when none exists and `ANTHROPIC_API_KEY` is
+  set, `train` writes `.semantscript/teacher.toml` for the Anthropic backend
+  (`claude-sonnet-5`) and uses it. Without a key or a file, `train` asks for
+  `--teacher`. The key never enters any file.
 
 ## build
 

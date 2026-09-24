@@ -4,6 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { buildCommand } from "./build.js";
+import { initCommand } from "./init.js";
 import { CliUsageError, processIo, type CliIo } from "./io.js";
 import { runCommand } from "./run.js";
 import { testCommand } from "./test-command.js";
@@ -11,20 +12,33 @@ import { trainCommand } from "./train.js";
 
 export const USAGE = `usage: semantscript <command> [options]
 
+  init   [--tool next|vite|esbuild|tsc] [--no-example]
+         wire the compiler into the project's build tool and add a starter expression
   build  [--project tsconfig.json] [--application <id>] [--bundle <path>]
          compile .sem.ts sites to runtime calls and one IR bundle
-  train  --bundle <path> --artifact <root> --teacher <teacher.toml>
+  train  [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>]
          [--cache-dir <dir>] [--report <path>] [--python <exe>] [--cases <n>]
          [--epochs <n>] [--batch-size <n>] [--learning-rate <x>] [--seed <n>]
          [--device <name>] [--select-best-epoch] [--ece-threshold <x>] ...
          generate data, train, verify and export an artifact from the bundle
-  test   --artifact <root> [--bundle <path>] [--json]
+  test   [--artifact <root>] [--bundle <path>] [--json]
          report each function's verification and replay the bundle's examples
-  run    --artifact <root> <module.js> [--call <export>] [--input <json> | --input-file <path>]
+  run    [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
          load the artifact, import the compiled module and call an export
+
+  defaults: the bundle is the build's semantscript.ir.v1.json, the artifact is
+  .semantscript/artifact (or SEMANTSCRIPT_ARTIFACT), the teacher is teacher.toml
+  or the Anthropic backend when ANTHROPIC_API_KEY is set.
 `;
 
-export { buildCommand, runCommand, testCommand, trainCommand };
+export { buildCommand, initCommand, runCommand, testCommand, trainCommand };
+export { detectBuildTool, type BuildTool } from "./init.js";
+export {
+  DEFAULT_ARTIFACT_PATH,
+  resolveArtifactRoot,
+  resolveBundlePath,
+  resolveTeacherConfig,
+} from "./defaults.js";
 export { canonical } from "./test-command.js";
 export { pythonPath, renderTrainReport } from "./train.js";
 export { readArtifactSummary } from "./manifest.js";
@@ -33,6 +47,7 @@ export type { CliIo } from "./io.js";
 const COMMANDS: Readonly<
   Record<string, (args: readonly string[], io: CliIo) => Promise<number>>
 > = {
+  init: initCommand,
   build: buildCommand,
   train: trainCommand,
   test: testCommand,

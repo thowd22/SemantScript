@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import {
   copyFile,
   mkdir,
@@ -102,8 +103,14 @@ test("usage and unknown commands exit with status 2", async () => {
   assert.equal(await runCli(["bogus"], bogus.io), 2);
   assert.match(bogus.stderr(), /unknown command bogus/u);
   const missing = capture(process.cwd());
-  assert.equal(await runCli(["test"], missing.io), 2);
-  assert.match(missing.stderr(), /--artifact is required/u);
+  assert.equal(await runCli(["train"], missing.io), 2);
+  assert.match(
+    missing.stderr(),
+    /--bundle is required: no semantscript\.ir\.v1\.json under/u,
+  );
+  const noArtifact = capture(process.cwd());
+  assert.equal(await runCli(["test"], noArtifact.io), 1);
+  assert.match(noArtifact.stderr(), /\.semantscript\/artifact/u);
   const unknownOption = capture(process.cwd());
   assert.equal(await runCli(["build", "--nope"], unknownOption.io), 2);
   assert.match(unknownOption.stderr(), /Unknown option/u);
@@ -517,4 +524,241 @@ test("helpers canonicalize JSON, extend PYTHONPATH and render reports", () => {
     () => renderTrainReport({ status: "passed" }),
     /report\.functions must be an array/u,
   );
+});
+
+test("init wires a tsc project through ts-patch, keeps tsconfig comments and is idempotent", async (t) => {
+  const root = await scratch(t, "semantscript-cli-init-tsc-");
+  await writeFile(
+    join(root, "package.json"),
+    '{\n  "name": "app",\n  "type": "module",\n  "scripts": { "build": "tsc -p tsconfig.json", "prepare": "husky" }\n}\n',
+  );
+  await writeFile(
+    join(root, "tsconfig.json"),
+    '{\n  // strict project\n  "compilerOptions": {\n    "outDir": "dist",\n    "strict": true\n  },\n  "include": ["src"]\n}\n',
+  );
+  await mkdir(join(root, "src"));
+
+  const first = capture(root);
+  assert.equal(await runCli(["init"], first.io), 0, first.stderr());
+  assert.match(first.stdout(), /detected tsc/u);
+  const tsconfig = await readFile(join(root, "tsconfig.json"), "utf8");
+  assert.match(tsconfig, /\/\/ strict project/u);
+  assert.match(
+    tsconfig,
+    /"compilerOptions": \{\n {4}"plugins": \[\{ "transform": "@semantscript\/compiler\/transformer" \}\],\n {4}"outDir": "dist"/u,
+  );
+  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  assert.equal(pkg.scripts.build, "tsc -p tsconfig.json");
+  assert.equal(pkg.scripts.prepare, "husky && ts-patch install");
+  assert.ok("@semantscript/core" in pkg.dependencies);
+  assert.ok("@semantscript/compiler" in pkg.devDependencies);
+  assert.ok("ts-patch" in pkg.devDependencies);
+  assert.match(
+    await readFile(join(root, "src", "hello.sem.ts"), "utf8"),
+    /sema<boolean>`/u,
+  );
+  assert.match(
+    await readFile(join(root, ".semantscript", ".gitignore"), "utf8"),
+    /artifact\/\ncache\//u,
+  );
+
+  const second = capture(root);
+  assert.equal(await runCli(["init"], second.io), 0, second.stderr());
+  assert.equal((second.stdout().match(/^ {2}unchanged/gmu) ?? []).length, 4);
+  assert.equal(await readFile(join(root, "tsconfig.json"), "utf8"), tsconfig);
+});
+
+test("init wires Vite, Next.js and esbuild projects and leaves conflicting configs to the user", async (t) => {
+  const vite = await scratch(t, "semantscript-cli-init-vite-");
+  await writeFile(
+    join(vite, "package.json"),
+    '{ "name": "v", "devDependencies": { "vite": "8.3.1" } }\n',
+  );
+  await writeFile(
+    join(vite, "vite.config.ts"),
+    'import { defineConfig } from "vite";\nimport react from "@vitejs/plugin-react";\n\nexport default defineConfig({\n  plugins: [react()],\n});\n',
+  );
+  const viteRun = capture(vite);
+  assert.equal(
+    await runCli(["init", "--no-example"], viteRun.io),
+    0,
+    viteRun.stderr(),
+  );
+  assert.match(viteRun.stdout(), /detected vite/u);
+  const viteConfig = await readFile(join(vite, "vite.config.ts"), "utf8");
+  assert.match(
+    viteConfig,
+    /plugin-react";\nimport semantscript from "@semantscript\/compiler\/vite";\n/u,
+  );
+  assert.match(viteConfig, /plugins: \[semantscript\(\), react\(\)\]/u);
+  assert.equal(existsSync(join(vite, "hello.sem.ts")), false);
+
+  const next = await scratch(t, "semantscript-cli-init-next-");
+  await writeFile(
+    join(next, "package.json"),
+    '{ "name": "n", "dependencies": { "next": "16.3.6" } }\n',
+  );
+  await writeFile(
+    join(next, "next.config.ts"),
+    'import type { NextConfig } from "next";\n\nconst nextConfig: NextConfig = {\n  reactStrictMode: true,\n};\n\nexport default nextConfig;\n',
+  );
+  const nextRun = capture(next);
+  assert.equal(await runCli(["init"], nextRun.io), 0, nextRun.stderr());
+  assert.match(nextRun.stdout(), /detected next/u);
+  const nextConfig = await readFile(join(next, "next.config.ts"), "utf8");
+  assert.match(
+    nextConfig,
+    /const nextConfig: NextConfig = \{\n {2}\/\/ SemantScript/u,
+  );
+  assert.match(
+    nextConfig,
+    /"\*\.sem\.ts": \{ loaders: \["@semantscript\/compiler\/loader"\] \}/u,
+  );
+  assert.match(
+    nextConfig,
+    /serverExternalPackages: \["@semantscript\/core"\]/u,
+  );
+  assert.match(
+    nextConfig,
+    /outputFileTracingIncludes: \{ "\/\*\*": \["\.\/\.semantscript\/artifact\/\*\*"\] \}/u,
+  );
+  assert.match(nextConfig, /reactStrictMode: true,\n\};/u);
+  assert.ok(existsSync(join(next, "lib", "hello.sem.ts")));
+
+  const conflicting = await scratch(t, "semantscript-cli-init-next-conflict-");
+  await writeFile(join(conflicting, "package.json"), '{ "name": "c" }\n');
+  await writeFile(
+    join(conflicting, "next.config.mjs"),
+    "export default {\n  turbopack: { rules: {} },\n};\n",
+  );
+  const conflictRun = capture(conflicting);
+  assert.equal(
+    await runCli(["init", "--tool", "next", "--no-example"], conflictRun.io),
+    0,
+  );
+  assert.match(
+    conflictRun.stdout(),
+    /manual {5}next\.config\.mjs already sets turbopack/u,
+  );
+  assert.equal(
+    await readFile(join(conflicting, "next.config.mjs"), "utf8"),
+    "export default {\n  turbopack: { rules: {} },\n};\n",
+  );
+
+  const esbuild = await scratch(t, "semantscript-cli-init-esbuild-");
+  await writeFile(
+    join(esbuild, "package.json"),
+    '{ "name": "e", "scripts": { "build": "node build.mjs" }, "devDependencies": { "esbuild": "0.28.2" } }\n',
+  );
+  await writeFile(
+    join(esbuild, "build.mjs"),
+    'import { build } from "esbuild";\n\nawait build({\n  entryPoints: ["src/main.ts"],\n  bundle: true,\n});\n',
+  );
+  const esbuildRun = capture(esbuild);
+  assert.equal(
+    await runCli(["init", "--no-example"], esbuildRun.io),
+    0,
+    esbuildRun.stderr(),
+  );
+  assert.match(esbuildRun.stdout(), /detected esbuild/u);
+  const script = await readFile(join(esbuild, "build.mjs"), "utf8");
+  assert.match(
+    script,
+    /import semantscript from "@semantscript\/compiler\/esbuild";/u,
+  );
+  assert.match(
+    script,
+    /await build\(\{\n {2}plugins: \[semantscript\(\)\],\n {2}entryPoints/u,
+  );
+
+  const bare = await scratch(t, "semantscript-cli-init-bare-");
+  await writeFile(join(bare, "package.json"), '{ "name": "b" }\n');
+  const bareRun = capture(bare);
+  assert.equal(await runCli(["init"], bareRun.io), 2);
+  assert.match(bareRun.stderr(), /no build tool detected/u);
+});
+
+test("train, test and run resolve the bundle, artifact and teacher from documented defaults", async (t) => {
+  const root = await scratch(t, "semantscript-cli-defaults-");
+  await writeFile(
+    join(root, "tsconfig.json"),
+    JSON.stringify({ compilerOptions: { outDir: "build-output" }, files: [] }),
+  );
+  await mkdir(join(root, "build-output"));
+  await writeFile(join(root, "build-output", "semantscript.ir.v1.json"), "{}");
+  const argvPath = join(root, "argv.json");
+  const env = {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_ARGV_PATH: argvPath,
+    FAKE_TRAINER_EXIT: "0",
+    FAKE_TRAINER_SKIP_REPORT: "",
+    ANTHROPIC_API_KEY: "",
+  };
+  const python = process.platform === "win32" ? "python" : "python3";
+
+  const noTeacher = capture(root, env);
+  assert.equal(
+    await runCli(
+      ["train", "--python", python, "--trainer-module", "fake_trainer"],
+      noTeacher.io,
+    ),
+    2,
+  );
+  assert.match(
+    noTeacher.stderr(),
+    /--teacher is required: no semantscript\.teacher\.toml, teacher\.toml/u,
+  );
+
+  const generated = capture(root, {
+    ...env,
+    ANTHROPIC_API_KEY: "not-a-real-key",
+  });
+  assert.equal(
+    await runCli(
+      ["train", "--python", python, "--trainer-module", "fake_trainer"],
+      generated.io,
+    ),
+    0,
+    generated.stderr(),
+  );
+  const recorded = JSON.parse(await readFile(argvPath, "utf8"));
+  const after = (flag) => recorded.argv[recorded.argv.indexOf(flag) + 1];
+  assert.equal(
+    after("--bundle"),
+    join(root, "build-output", "semantscript.ir.v1.json"),
+  );
+  assert.equal(after("--artifact"), join(root, ".semantscript", "artifact"));
+  assert.equal(after("--teacher"), join(root, ".semantscript", "teacher.toml"));
+  assert.match(
+    await readFile(join(root, ".semantscript", "teacher.toml"), "utf8"),
+    /backend = "anthropic"/u,
+  );
+  assert.match(
+    generated.stderr(),
+    /wrote .*\.semantscript\/teacher\.toml \(Anthropic backend, claude-sonnet-5\)/u,
+  );
+
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const explicit = capture(root, {
+    ...env,
+    SEMANTSCRIPT_ARTIFACT: "elsewhere/artifact",
+  });
+  assert.equal(
+    await runCli(
+      ["train", "--python", python, "--trainer-module", "fake_trainer"],
+      explicit.io,
+    ),
+    0,
+    explicit.stderr(),
+  );
+  const second = JSON.parse(await readFile(argvPath, "utf8"));
+  const secondAfter = (flag) => second.argv[second.argv.indexOf(flag) + 1];
+  assert.equal(secondAfter("--teacher"), join(root, "teacher.toml"));
+  assert.equal(secondAfter("--artifact"), join(root, "elsewhere", "artifact"));
+
+  const testRun = capture(root, {
+    SEMANTSCRIPT_ARTIFACT: "elsewhere/artifact",
+  });
+  assert.equal(await runCli(["test"], testRun.io), 1);
+  assert.match(testRun.stderr(), /elsewhere\/artifact/u);
 });

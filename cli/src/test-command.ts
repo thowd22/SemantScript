@@ -1,7 +1,8 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { listOf, objectOf, requireString, stringOf, type CliIo } from "./io.js";
+import { resolveArtifactRoot } from "./defaults.js";
+import { listOf, objectOf, stringOf, type CliIo } from "./io.js";
 import {
   readArtifactSummary,
   readJson,
@@ -41,7 +42,7 @@ export async function testCommand(
     },
     allowPositionals: false,
   });
-  const root = resolve(io.cwd, requireString(values, "artifact"));
+  const root = resolveArtifactRoot(values, io);
   const summary = await readArtifactSummary(root);
   const examples =
     values.bundle === undefined

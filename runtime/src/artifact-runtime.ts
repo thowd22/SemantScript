@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import process from "node:process";
 import { types as nodeTypes } from "node:util";
 
 import type {
@@ -141,12 +143,33 @@ export class SemaArtifactInactiveError extends Error {
 let activeArtifact: ActiveArtifact | undefined;
 let lifecycleTail: Promise<void> = Promise.resolve();
 
+/** The artifact root `loadSemaArtifact()` uses when no path is passed, relative to the working directory. */
+export const DEFAULT_SEMA_ARTIFACT_PATH = ".semantscript/artifact";
+/** Environment variable that overrides the default artifact root. */
+export const SEMA_ARTIFACT_ENVIRONMENT_VARIABLE = "SEMANTSCRIPT_ARTIFACT";
+
+/**
+ * Where the runtime looks for the artifact when the application does not say:
+ * `SEMANTSCRIPT_ARTIFACT` when set, else `.semantscript/artifact` under the
+ * working directory, which is where `semantscript init` and `train` put it.
+ */
+export function defaultSemaArtifactPath(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  const override = env[SEMA_ARTIFACT_ENVIRONMENT_VARIABLE];
+  return resolve(
+    override !== undefined && override.length > 0
+      ? override
+      : DEFAULT_SEMA_ARTIFACT_PATH,
+  );
+}
+
 /**
  * Stages and initializes a complete immutable artifact, then atomically makes it
  * visible to the compiler ABI. A failed load never replaces the active artifact.
  */
 export function loadSemaArtifact(
-  artifactPath: string,
+  artifactPath: string = defaultSemaArtifactPath(),
   options: LoadSemaArtifactOptions = {},
 ): Promise<SemaArtifactHandle> {
   const fallbackSnapshot = snapshotFallbacks(options.fallbacks);
@@ -162,7 +185,9 @@ export function loadSemaArtifact(
       inferenceOptionsForPlan(plan, inferenceOptions),
     );
     const token = Symbol("active SemantScript artifact");
-    const canonicalInputVersion = canonicalInputVersionOfManifest(staged.manifest.compatibility.canonicalInput);
+    const canonicalInputVersion = canonicalInputVersionOfManifest(
+      staged.manifest.compatibility.canonicalInput,
+    );
     const next: ActiveArtifact = {
       token,
       manifestSha256: staged.manifestSha256,
@@ -206,16 +231,22 @@ export function dispatchSemaCall<T>(
   return dispatchArtifactCall(current, functionId, inputs) as T;
 }
 
-function canonicalInputVersionOfManifest(encoding: string): CanonicalInputVersion {
+function canonicalInputVersionOfManifest(
+  encoding: string,
+): CanonicalInputVersion {
   const version = canonicalInputVersionOf(encoding);
   if (version === undefined) {
-    throw new TypeError(`artifact declares unimplemented canonical input encoding ${JSON.stringify(encoding)}`);
+    throw new TypeError(
+      `artifact declares unimplemented canonical input encoding ${JSON.stringify(encoding)}`,
+    );
   }
   return version;
 }
 
 /** @internal Compiler-generated code may call this through the exported __sema object. */
-export function dispatchSemaStage(entries: readonly SemaStageEntry[]): SemaStageOutcome {
+export function dispatchSemaStage(
+  entries: readonly SemaStageEntry[],
+): SemaStageOutcome {
   const current = activeArtifact;
   if (current === undefined) {
     throw new SemaRuntimeNotLoadedError();
@@ -228,7 +259,10 @@ export function dispatchSemaStage(entries: readonly SemaStageEntry[]): SemaStage
  * inputs of every function in a stage and receives the results so far, which
  * is how one stage's outputs feed the next.
  */
-export function executeSemaPlan(plan: SemaExecutionPlan, provide: SemaStageInputsProvider): SemaPlanOutcome {
+export function executeSemaPlan(
+  plan: SemaExecutionPlan,
+  provide: SemaStageInputsProvider,
+): SemaPlanOutcome {
   const current = activeArtifact;
   if (current === undefined) {
     throw new SemaRuntimeNotLoadedError();
@@ -245,15 +279,24 @@ function executeArtifactPlan(
   const results = new Map<string, unknown>();
   const stagePasses: SemaStagePasses[] = [];
   for (const stage of plan.stages) {
-    const inputsByFunction: Readonly<Record<string, Readonly<Record<string, unknown>>>> =
-      provide(stage, results);
+    const inputsByFunction: Readonly<
+      Record<string, Readonly<Record<string, unknown>>>
+    > = provide(stage, results);
     const provided = Object.keys(inputsByFunction);
-    if (provided.length !== stage.functionIds.length || stage.functionIds.some((id) => !(id in inputsByFunction))) {
-      throw new TypeError(`stage ${String(stage.index)} inputs must cover exactly its functions`);
+    if (
+      provided.length !== stage.functionIds.length ||
+      stage.functionIds.some((id) => !(id in inputsByFunction))
+    ) {
+      throw new TypeError(
+        `stage ${String(stage.index)} inputs must cover exactly its functions`,
+      );
     }
     const outcome = dispatchArtifactStage(
       artifact,
-      stage.functionIds.map((functionId) => ({ functionId, inputs: inputsByFunction[functionId] ?? {} })),
+      stage.functionIds.map((functionId) => ({
+        functionId,
+        inputs: inputsByFunction[functionId] ?? {},
+      })),
     );
     for (const [position, functionId] of stage.functionIds.entries()) {
       results.set(functionId, outcome.results[position]);
@@ -277,14 +320,20 @@ function validateExecutionPlan(plan: SemaExecutionPlan): void {
   const stageOf = new Map<string, number>();
   for (const [position, stage] of plan.stages.entries()) {
     if (stage.index !== position) {
-      throw new TypeError("execution plan stages must be indexed consecutively from zero");
+      throw new TypeError(
+        "execution plan stages must be indexed consecutively from zero",
+      );
     }
     if (!isList(stage.functionIds) || stage.functionIds.length === 0) {
-      throw new TypeError(`execution plan stage ${String(position)} must name at least one function`);
+      throw new TypeError(
+        `execution plan stage ${String(position)} must name at least one function`,
+      );
     }
     for (const functionId of stage.functionIds) {
       if (typeof functionId !== "string" || seen.has(functionId)) {
-        throw new TypeError(`execution plan function ${JSON.stringify(functionId)} is not unique`);
+        throw new TypeError(
+          `execution plan function ${JSON.stringify(functionId)} is not unique`,
+        );
       }
       seen.add(functionId);
       stageOf.set(functionId, position);
@@ -293,7 +342,11 @@ function validateExecutionPlan(plan: SemaExecutionPlan): void {
   for (const dependency of plan.dependencies ?? []) {
     const producer = stageOf.get(dependency.producerFunctionId);
     const consumer = stageOf.get(dependency.consumerFunctionId);
-    if (producer === undefined || consumer === undefined || producer >= consumer) {
+    if (
+      producer === undefined ||
+      consumer === undefined ||
+      producer >= consumer
+    ) {
       throw new TypeError(
         `execution plan dependency ${dependency.producerFunctionId} -> ${dependency.consumerFunctionId} is not satisfiable in stage order`,
       );
@@ -301,7 +354,10 @@ function validateExecutionPlan(plan: SemaExecutionPlan): void {
   }
 }
 
-function dispatchArtifactStage(artifact: ActiveArtifact, entries: readonly SemaStageEntry[]): SemaStageOutcome {
+function dispatchArtifactStage(
+  artifact: ActiveArtifact,
+  entries: readonly SemaStageEntry[],
+): SemaStageOutcome {
   if (!isList(entries) || entries.length === 0) {
     throw new TypeError("a stage must carry at least one entry");
   }
@@ -316,7 +372,10 @@ function dispatchArtifactStage(artifact: ActiveArtifact, entries: readonly SemaS
       canonicalInput: serializeCanonicalInputs(
         activeFunction.artifact.inputs satisfies readonly CanonicalInputEntry[],
         entry.inputs,
-        { maximumBytes: artifact.runtime.maximumInputBytes, version: artifact.canonicalInputVersion },
+        {
+          maximumBytes: artifact.runtime.maximumInputBytes,
+          version: artifact.canonicalInputVersion,
+        },
       ),
     };
   });
@@ -328,7 +387,12 @@ function dispatchArtifactStage(artifact: ActiveArtifact, entries: readonly SemaS
   );
   return {
     results: resolved.map((entry, index) =>
-      applyConfidencePolicy(artifact, entry.activeFunction, entry.inputs, stage.results[index]),
+      applyConfidencePolicy(
+        artifact,
+        entry.activeFunction,
+        entry.inputs,
+        stage.results[index],
+      ),
     ),
     passes: stage.passes,
   };
@@ -348,10 +412,18 @@ function dispatchArtifactCall(
   const canonicalInput = serializeCanonicalInputs(
     semanticFunction.inputs satisfies readonly CanonicalInputEntry[],
     inputs,
-    { maximumBytes: artifact.runtime.maximumInputBytes, version: artifact.canonicalInputVersion },
+    {
+      maximumBytes: artifact.runtime.maximumInputBytes,
+      version: artifact.canonicalInputVersion,
+    },
   );
   const inferenceResult = artifact.runtime.call(functionId, canonicalInput);
-  return applyConfidencePolicy(artifact, activeFunction, inputs, inferenceResult);
+  return applyConfidencePolicy(
+    artifact,
+    activeFunction,
+    inputs,
+    inferenceResult,
+  );
 }
 
 function applyConfidencePolicy(
@@ -374,7 +446,9 @@ function applyConfidencePolicy(
   }
 
   if (confidenceThreshold === null) {
-    throw new Error("value-mode diagnostic inference requires a confidence threshold");
+    throw new Error(
+      "value-mode diagnostic inference requires a confidence threshold",
+    );
   }
 
   const confidence = isScalarFunction(semanticFunction)
@@ -403,7 +477,11 @@ function applyConfidencePolicy(
 
   artifact.fallbackInvocationStack.add(functionId);
   try {
-    const fallbackResult = activeFunction.fallback(inputs, diagnostic, confidenceThreshold);
+    const fallbackResult = activeFunction.fallback(
+      inputs,
+      diagnostic,
+      confidenceThreshold,
+    );
     validateFallbackResult(semanticFunction, fallbackRef, fallbackResult);
     return fallbackResult;
   } finally {
@@ -453,12 +531,25 @@ function enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-function buildInferencePlan(staged: StagedArtifactDescriptor<Uint8Array>): StagedInferencePlan {
+function buildInferencePlan(
+  staged: StagedArtifactDescriptor<Uint8Array>,
+): StagedInferencePlan {
   const resources = new Map(
-    staged.resources.map(({ metadata, prepared }) => [metadata.ref, { metadata, prepared }]),
+    staged.resources.map(({ metadata, prepared }) => [
+      metadata.ref,
+      { metadata, prepared },
+    ]),
   );
-  const tokenizer = requireResource(resources, staged.manifest.model.tokenizerRef, "tokenizer");
-  const encoder = requireOnnxResource(resources, staged.manifest.model.encoderRef, "encoder");
+  const tokenizer = requireResource(
+    resources,
+    staged.manifest.model.tokenizerRef,
+    "tokenizer",
+  );
+  const encoder = requireOnnxResource(
+    resources,
+    staged.manifest.model.encoderRef,
+    "encoder",
+  );
   const adapters = staged.manifest.resources
     .filter((resource) => resource.role === "adapter")
     .map((resource) => {
@@ -473,7 +564,8 @@ function buildInferencePlan(staged: StagedArtifactDescriptor<Uint8Array>): Stage
     id: entry.id,
     adapterRef: entry.adapterRef,
     diagnosticsRequired:
-      entry.runtime.resultMode === "diagnostic" || entry.runtime.confidenceThreshold !== null,
+      entry.runtime.resultMode === "diagnostic" ||
+      entry.runtime.confidenceThreshold !== null,
     heads: entry.heads.map((head) => buildHeadPlan(resources, head)),
   }));
 
@@ -484,7 +576,8 @@ function buildInferencePlan(staged: StagedArtifactDescriptor<Uint8Array>): Stage
     encoderAbi: encoder.metadata.onnx,
     adapters,
     functions,
-    maximumSequenceLength: (tokenizer.metadata as TokenizerResourceV1).maximumSequenceLength,
+    maximumSequenceLength: (tokenizer.metadata as TokenizerResourceV1)
+      .maximumSequenceLength,
   };
 }
 
@@ -505,7 +598,10 @@ function buildHeadPlan(
     support: headSupport(head),
     temperature: head.calibration.temperature,
     expectedValueMode: expectedValueMode(head),
-    model: validatedModel({ metadata: resource.metadata, prepared: resource.prepared }),
+    model: validatedModel({
+      metadata: resource.metadata,
+      prepared: resource.prepared,
+    }),
     abi: resource.metadata.onnx,
   };
 }
@@ -599,7 +695,10 @@ function inferenceOptionsForPlan(
   for (const semanticFunction of plan.functions) {
     requiredBytes = Math.max(
       requiredBytes,
-      maximumInferenceResponseBytes(semanticFunction, MAXIMUM_RESPONSE_BUFFER_BYTES),
+      maximumInferenceResponseBytes(
+        semanticFunction,
+        MAXIMUM_RESPONSE_BUFFER_BYTES,
+      ),
     );
   }
   if (requiredBytes > MAXIMUM_RESPONSE_BUFFER_BYTES) {
@@ -608,7 +707,10 @@ function inferenceOptionsForPlan(
       `artifact output requires ${String(requiredBytes)} response bytes; maximum is ${String(MAXIMUM_RESPONSE_BUFFER_BYTES)}`,
     );
   }
-  if (options?.responseBufferBytes !== undefined && options.responseBufferBytes < requiredBytes) {
+  if (
+    options?.responseBufferBytes !== undefined &&
+    options.responseBufferBytes < requiredBytes
+  ) {
     throw new RangeError(
       `responseBufferBytes must be at least ${String(requiredBytes)} for this artifact`,
     );
@@ -616,7 +718,8 @@ function inferenceOptionsForPlan(
   return {
     ...options,
     responseBufferBytes:
-      options?.responseBufferBytes ?? Math.max(DEFAULT_RESPONSE_BUFFER_BYTES, requiredBytes),
+      options?.responseBufferBytes ??
+      Math.max(DEFAULT_RESPONSE_BUFFER_BYTES, requiredBytes),
   };
 }
 
@@ -632,7 +735,9 @@ function snapshotFallbacks(
       throw new TypeError("fallback references must be non-empty strings");
     }
     if (typeof callback !== "function") {
-      throw new TypeError(`fallback ${JSON.stringify(reference)} must be a function`);
+      throw new TypeError(
+        `fallback ${JSON.stringify(reference)} must be a function`,
+      );
     }
     snapshot.set(reference, callback);
   }
@@ -646,7 +751,8 @@ function bindFunctions(
   return new Map(
     functions.map((artifact): readonly [string, ActiveFunction] => {
       const fallbackRef = artifact.runtime.fallbackRef;
-      const fallback = fallbackRef === null ? undefined : fallbacks.get(fallbackRef);
+      const fallback =
+        fallbackRef === null ? undefined : fallbacks.get(fallbackRef);
       if (fallbackRef !== null && fallback === undefined) {
         throw new SemaFallbackError(
           "missing",
@@ -678,26 +784,44 @@ function validateFallbackResult(
   if (isScalarFunction(semanticFunction)) {
     const head = semanticFunction.heads[0];
     if (head === undefined || !supportContains(head, result)) {
-      invalidFallbackResult(semanticFunction.id, fallbackRef, "result is outside scalar output support");
+      invalidFallbackResult(
+        semanticFunction.id,
+        fallbackRef,
+        "result is outside scalar output support",
+      );
     }
     return;
   }
 
   if (result === null || typeof result !== "object" || Array.isArray(result)) {
-    invalidFallbackResult(semanticFunction.id, fallbackRef, "flat result must be a plain object");
+    invalidFallbackResult(
+      semanticFunction.id,
+      fallbackRef,
+      "flat result must be a plain object",
+    );
   }
   if (nodeTypes.isProxy(result) || nodeTypes.isPromise(result)) {
-    invalidFallbackResult(semanticFunction.id, fallbackRef, "flat result cannot be a proxy or promise");
+    invalidFallbackResult(
+      semanticFunction.id,
+      fallbackRef,
+      "flat result cannot be a proxy or promise",
+    );
   }
   const prototype = Object.getPrototypeOf(result) as unknown;
   if (prototype !== Object.prototype && prototype !== null) {
-    invalidFallbackResult(semanticFunction.id, fallbackRef, "flat result must be a plain object");
+    invalidFallbackResult(
+      semanticFunction.id,
+      fallbackRef,
+      "flat result must be a plain object",
+    );
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(result);
   const actualNames = Object.getOwnPropertyNames(result);
   const expectedNames = new Set(
-    semanticFunction.heads.map((head) => head.outputPath[0] ?? missingFlatField(semanticFunction.id)),
+    semanticFunction.heads.map(
+      (head) => head.outputPath[0] ?? missingFlatField(semanticFunction.id),
+    ),
   );
   for (const name of actualNames) {
     if (!expectedNames.has(name)) {
@@ -737,21 +861,40 @@ function assertAcyclicFallbackResult(
   budget: { remaining: number },
   depth: number,
 ): void {
-  if ((typeof value !== "object" || value === null) && typeof value !== "function") {
+  if (
+    (typeof value !== "object" || value === null) &&
+    typeof value !== "function"
+  ) {
     return;
   }
   if (depth > MAXIMUM_FALLBACK_RESULT_DEPTH || budget.remaining <= 0) {
-    invalidFallbackResult(functionId, fallbackRef, "result exceeds validation limits");
+    invalidFallbackResult(
+      functionId,
+      fallbackRef,
+      "result exceeds validation limits",
+    );
   }
   budget.remaining -= 1;
   if (nodeTypes.isProxy(value)) {
-    invalidFallbackResult(functionId, fallbackRef, "result cannot contain proxies");
+    invalidFallbackResult(
+      functionId,
+      fallbackRef,
+      "result cannot contain proxies",
+    );
   }
   if (nodeTypes.isPromise(value)) {
-    invalidFallbackResult(functionId, fallbackRef, "result cannot be a promise");
+    invalidFallbackResult(
+      functionId,
+      fallbackRef,
+      "result cannot be a promise",
+    );
   }
   if (active.has(value)) {
-    invalidFallbackResult(functionId, fallbackRef, "result cannot contain cycles");
+    invalidFallbackResult(
+      functionId,
+      fallbackRef,
+      "result cannot contain cycles",
+    );
   }
   if (completed.has(value)) {
     return;
@@ -760,11 +903,21 @@ function assertAcyclicFallbackResult(
   active.add(value);
   try {
     if (Object.getOwnPropertySymbols(value).length > 0) {
-      invalidFallbackResult(functionId, fallbackRef, "result cannot contain symbol-keyed properties");
+      invalidFallbackResult(
+        functionId,
+        fallbackRef,
+        "result cannot contain symbol-keyed properties",
+      );
     }
-    for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
+    for (const descriptor of Object.values(
+      Object.getOwnPropertyDescriptors(value),
+    )) {
       if (!("value" in descriptor)) {
-        invalidFallbackResult(functionId, fallbackRef, "result cannot contain accessors");
+        invalidFallbackResult(
+          functionId,
+          fallbackRef,
+          "result cannot contain accessors",
+        );
       }
       assertAcyclicFallbackResult(
         descriptor.value,
@@ -787,7 +940,10 @@ function supportContains(head: HeadBindingV1, value: unknown): boolean {
 }
 
 function isScalarFunction(semanticFunction: ArtifactFunctionV1): boolean {
-  return semanticFunction.heads.length === 1 && semanticFunction.heads[0]?.outputPath.length === 0;
+  return (
+    semanticFunction.heads.length === 1 &&
+    semanticFunction.heads[0]?.outputPath.length === 0
+  );
 }
 
 function scalarDiagnostic(diagnostic: SemaDiagnosticResult): {
@@ -802,7 +958,11 @@ function objectDiagnostic(diagnostic: SemaDiagnosticResult): {
   return diagnostic as { readonly minimumFieldConfidence: number };
 }
 
-function invalidFallbackResult(functionId: string, fallbackRef: string, detail: string): never {
+function invalidFallbackResult(
+  functionId: string,
+  fallbackRef: string,
+  detail: string,
+): never {
   throw new SemaFallbackError(
     "invalid-result",
     functionId,
@@ -812,5 +972,7 @@ function invalidFallbackResult(functionId: string, fallbackRef: string, detail: 
 }
 
 function missingFlatField(functionId: string): never {
-  throw new Error(`semantic function ${JSON.stringify(functionId)} has an invalid flat output path`);
+  throw new Error(
+    `semantic function ${JSON.stringify(functionId)} has an invalid flat output path`,
+  );
 }

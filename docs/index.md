@@ -63,8 +63,8 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
   and build cache, quantization, teacher backends.
 - [Model](../model/README.md): the encoder, adapter and head modules and the
   ONNX export with parity checks.
-- [CLI](../cli/README.md): `semantscript build | train | test | run` and the
-  build cache rules.
+- [CLI](../cli/README.md): `semantscript init | build | train | test | run`,
+  the zero-config defaults and the build cache rules.
 - [Examples](../examples/README.md), including the
   [Express](../examples/express-app/README.md) and
   [Next.js](../examples/next-app/README.md) applications that adopt sema

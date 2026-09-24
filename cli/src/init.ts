@@ -1,0 +1,593 @@
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { createRequire } from "node:module";
+import { parseArgs } from "node:util";
+
+import ts from "typescript";
+
+import {
+  DEFAULT_ARTIFACT_PATH,
+  ARTIFACT_ENVIRONMENT_VARIABLE,
+} from "./defaults.js";
+import { CliUsageError, type CliIo } from "./io.js";
+
+export type BuildTool = "next" | "vite" | "esbuild" | "tsc";
+
+const BUILD_TOOLS: readonly BuildTool[] = ["next", "vite", "esbuild", "tsc"];
+const CORE_PACKAGE = "@semantscript/core";
+const COMPILER_PACKAGE = "@semantscript/compiler";
+const TS_PATCH_PACKAGE = "ts-patch";
+const TRANSFORMER_MODULE = `${COMPILER_PACKAGE}/transformer`;
+const VITE_MODULE = `${COMPILER_PACKAGE}/vite`;
+const ESBUILD_MODULE = `${COMPILER_PACKAGE}/esbuild`;
+const LOADER_MODULE = `${COMPILER_PACKAGE}/loader`;
+const STARTER_FILE = "hello.sem.ts";
+const STARTER_SOURCE = `import { sema } from "${CORE_PACKAGE}";
+
+/** A first decision. Replace the text with what your application needs to know. */
+export function needsAttentionToday(subject: string): boolean {
+  return sema<boolean>\`
+    Whether a support ticket with this subject needs attention today rather
+    than in the normal queue.
+    Subject: \${subject}
+  \`;
+}
+`;
+const VITE_CONFIG_FILES = [
+  "vite.config.ts",
+  "vite.config.mts",
+  "vite.config.js",
+  "vite.config.mjs",
+];
+const NEXT_CONFIG_FILES = [
+  "next.config.ts",
+  "next.config.mts",
+  "next.config.js",
+  "next.config.mjs",
+];
+const ESBUILD_SCRIPT_FILES = [
+  "esbuild.config.mjs",
+  "esbuild.config.js",
+  "esbuild.config.ts",
+  "esbuild.mjs",
+  "esbuild.js",
+  "build.mjs",
+  "build.js",
+  "build.ts",
+  "scripts/build.mjs",
+  "scripts/build.js",
+  "scripts/build.ts",
+];
+const NEXT_CONFIG_SNIPPET = `  // SemantScript: compile .sem.ts modules and keep the runtime's native bindings external.
+  turbopack: {
+    rules: { "*.sem.ts": { loaders: ["${LOADER_MODULE}"] } },
+  },
+  serverExternalPackages: ["${CORE_PACKAGE}"],
+  outputFileTracingIncludes: { "/**": ["./${DEFAULT_ARTIFACT_PATH}/**"] },
+`;
+
+type Outcome =
+  | { readonly kind: "changed"; readonly file: string; readonly what: string }
+  | { readonly kind: "unchanged"; readonly file: string; readonly what: string }
+  | {
+      readonly kind: "manual";
+      readonly what: string;
+      readonly snippet: string;
+    };
+
+interface PackageJson {
+  version?: unknown;
+  scripts?: Record<string, unknown>;
+  dependencies?: Record<string, unknown>;
+  devDependencies?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/**
+ * `semantscript init`: detect the project's build tool, wire the matching
+ * compiler adapter, add the packages, reserve `.semantscript/` and write one
+ * starter expression, so the next build compiles a sema site.
+ */
+export function initCommand(
+  args: readonly string[],
+  io: CliIo,
+): Promise<number> {
+  const { values } = parseArgs({
+    args: [...args],
+    options: {
+      tool: { type: "string" },
+      "no-example": { type: "boolean" },
+    },
+    allowPositionals: false,
+  });
+  const root = io.cwd;
+  const packagePath = join(root, "package.json");
+  if (!existsSync(packagePath)) {
+    throw new CliUsageError(
+      `no package.json in ${root}; run init at the project root`,
+    );
+  }
+  const pkg = readPackageJson(packagePath);
+  const tool =
+    values.tool === undefined
+      ? detectBuildTool(root, pkg)
+      : parseTool(values.tool);
+  const outcomes: Outcome[] = [];
+
+  outcomes.push(wireBuildTool(tool, root));
+  outcomes.push(addPackages(packagePath, pkg, tool));
+  outcomes.push(reserveArtifactDirectory(root));
+  if (values["no-example"] !== true) {
+    outcomes.push(writeStarter(root, tool));
+  }
+
+  io.stdout(render(tool, root, outcomes));
+  return Promise.resolve(0);
+}
+
+export function detectBuildTool(root: string, pkg: PackageJson): BuildTool {
+  const dependencies = { ...pkg.dependencies, ...pkg.devDependencies };
+  if (
+    NEXT_CONFIG_FILES.some((file) => existsSync(join(root, file))) ||
+    "next" in dependencies
+  ) {
+    return "next";
+  }
+  if (
+    VITE_CONFIG_FILES.some((file) => existsSync(join(root, file))) ||
+    "vite" in dependencies
+  ) {
+    return "vite";
+  }
+  const scripts = Object.values(pkg.scripts ?? {});
+  if (
+    "esbuild" in dependencies ||
+    scripts.some(
+      (script) => typeof script === "string" && /\besbuild\b/u.test(script),
+    )
+  ) {
+    return "esbuild";
+  }
+  if (existsSync(join(root, "tsconfig.json"))) {
+    return "tsc";
+  }
+  throw new CliUsageError(
+    "no build tool detected (next.config, vite.config, esbuild in package.json or a tsconfig.json); pass --tool next|vite|esbuild|tsc",
+  );
+}
+
+function parseTool(value: string): BuildTool {
+  if ((BUILD_TOOLS as readonly string[]).includes(value))
+    return value as BuildTool;
+  throw new CliUsageError(`--tool must be one of ${BUILD_TOOLS.join(", ")}`);
+}
+
+function wireBuildTool(tool: BuildTool, root: string): Outcome {
+  switch (tool) {
+    case "tsc":
+      return wireTsc(root);
+    case "vite":
+      return wireVite(root);
+    case "next":
+      return wireNext(root);
+    case "esbuild":
+      return wireEsbuild(root);
+  }
+}
+
+function wireTsc(root: string): Outcome {
+  const file = "tsconfig.json";
+  const path = join(root, file);
+  const entry = `{ "transform": "${TRANSFORMER_MODULE}" }`;
+  const snippet = `"compilerOptions": { "plugins": [${entry}] }`;
+  if (!existsSync(path)) {
+    return {
+      kind: "manual",
+      what: "tsconfig.json is missing; create one with",
+      snippet,
+    };
+  }
+  const text = readFileSync(path, "utf8");
+  if (text.includes(TRANSFORMER_MODULE)) {
+    return {
+      kind: "unchanged",
+      file,
+      what: "transformer already listed in plugins",
+    };
+  }
+  const parsed = ts.parseConfigFileTextToJson(path, text);
+  if (parsed.error !== undefined) {
+    return { kind: "manual", what: `${file} does not parse; add`, snippet };
+  }
+  let updated: string | undefined;
+  const plugins = /"plugins"\s*:\s*\[/u.exec(text);
+  const compilerOptions = /"compilerOptions"\s*:\s*\{/u.exec(text);
+  if (plugins !== null) {
+    const insertAt = plugins.index + plugins[0].length;
+    const rest = text.slice(insertAt);
+    const empty = /^\s*\]/u.test(rest);
+    updated = `${text.slice(0, insertAt)}${entry}${empty ? "" : ", "}${rest}`;
+  } else if (compilerOptions !== null) {
+    const insertAt = compilerOptions.index + compilerOptions[0].length;
+    const indent = /\n([ \t]+)"/u.exec(text.slice(insertAt))?.[1] ?? "    ";
+    updated = `${text.slice(0, insertAt)}\n${indent}"plugins": [${entry}],${text.slice(insertAt)}`;
+  } else {
+    const brace = text.indexOf("{");
+    if (brace >= 0) {
+      updated = `${text.slice(0, brace + 1)}\n  "compilerOptions": { "plugins": [${entry}] },${text.slice(brace + 1)}`;
+    }
+  }
+  if (
+    updated === undefined ||
+    ts.parseConfigFileTextToJson(path, updated).error !== undefined
+  ) {
+    return {
+      kind: "manual",
+      what: `could not edit ${file}; add to compilerOptions`,
+      snippet,
+    };
+  }
+  writeFileSync(path, updated);
+  return {
+    kind: "changed",
+    file,
+    what: "plugins entry for the ts-patch transformer",
+  };
+}
+
+function wireVite(root: string): Outcome {
+  const file = VITE_CONFIG_FILES.find((candidate) =>
+    existsSync(join(root, candidate)),
+  );
+  const snippet = `import semantscript from "${VITE_MODULE}";\nexport default defineConfig({ plugins: [semantscript()] });`;
+  if (file === undefined) {
+    return {
+      kind: "manual",
+      what: "no vite.config found; create one with",
+      snippet,
+    };
+  }
+  return wireEsmConfig(
+    root,
+    file,
+    VITE_MODULE,
+    [/plugins\s*:\s*\[/u],
+    [/defineConfig\(\s*\{/u, /export\s+default\s+\{/u],
+    snippet,
+  );
+}
+
+function wireEsbuild(root: string): Outcome {
+  const file = ESBUILD_SCRIPT_FILES.find(
+    (candidate) =>
+      existsSync(join(root, candidate)) &&
+      /\besbuild\b/u.test(readFileSync(join(root, candidate), "utf8")),
+  );
+  const snippet = `import semantscript from "${ESBUILD_MODULE}";\nawait build({ /* your options */ plugins: [semantscript()] });`;
+  if (file === undefined) {
+    return {
+      kind: "manual",
+      what: "no esbuild build script found (esbuild plugins need the JS API, not the CLI); in your build script add",
+      snippet,
+    };
+  }
+  return wireEsmConfig(
+    root,
+    file,
+    ESBUILD_MODULE,
+    [/plugins\s*:\s*\[/u],
+    [/\bbuild\(\s*\{/u, /\bcontext\(\s*\{/u],
+    snippet,
+  );
+}
+
+/** Adds a default import of `module` and `semantscript()` to the first plugins array (or creates one). */
+function wireEsmConfig(
+  root: string,
+  file: string,
+  module: string,
+  pluginsPatterns: readonly RegExp[],
+  objectPatterns: readonly RegExp[],
+  snippet: string,
+): Outcome {
+  const path = join(root, file);
+  const text = readFileSync(path, "utf8");
+  if (text.includes(module)) {
+    return { kind: "unchanged", file, what: "plugin already configured" };
+  }
+  if (/\brequire\(/u.test(text) && !/^\s*import\b/mu.test(text)) {
+    return { kind: "manual", what: `${file} uses require(); add`, snippet };
+  }
+  let updated: string | undefined;
+  const plugins = firstMatch(text, pluginsPatterns);
+  const object = firstMatch(text, objectPatterns);
+  if (plugins !== undefined) {
+    const insertAt = plugins.index + plugins[0].length;
+    const empty = /^\s*\]/u.test(text.slice(insertAt));
+    updated = `${text.slice(0, insertAt)}semantscript()${empty ? "" : ", "}${text.slice(insertAt)}`;
+  } else if (object !== undefined) {
+    const insertAt = object.index + object[0].length;
+    updated = `${text.slice(0, insertAt)}\n  plugins: [semantscript()],${text.slice(insertAt)}`;
+  }
+  if (updated === undefined) {
+    return {
+      kind: "manual",
+      what: `could not find a plugins array or config object in ${file}; add`,
+      snippet,
+    };
+  }
+  writeFileSync(
+    path,
+    insertImport(updated, `import semantscript from "${module}";`),
+  );
+  return {
+    kind: "changed",
+    file,
+    what: `import and plugins entry for ${module}`,
+  };
+}
+
+function wireNext(root: string): Outcome {
+  const file = NEXT_CONFIG_FILES.find((candidate) =>
+    existsSync(join(root, candidate)),
+  );
+  const snippet = NEXT_CONFIG_SNIPPET.trimEnd();
+  if (file === undefined) {
+    return {
+      kind: "manual",
+      what: "no next.config found; create one exporting",
+      snippet,
+    };
+  }
+  const path = join(root, file);
+  const text = readFileSync(path, "utf8");
+  if (text.includes(LOADER_MODULE)) {
+    return { kind: "unchanged", file, what: "loader rule already configured" };
+  }
+  if (
+    /\b(turbopack|serverExternalPackages|outputFileTracingIncludes)\s*:/u.test(
+      text,
+    )
+  ) {
+    return {
+      kind: "manual",
+      what: `${file} already sets turbopack, serverExternalPackages or outputFileTracingIncludes; merge`,
+      snippet,
+    };
+  }
+  const object = firstMatch(text, [
+    /const\s+\w+\s*(?::\s*NextConfig)?\s*=\s*\{/u,
+    /module\.exports\s*=\s*\{/u,
+    /export\s+default\s+\{/u,
+  ]);
+  if (object === undefined) {
+    return {
+      kind: "manual",
+      what: `could not find the config object in ${file}; add`,
+      snippet,
+    };
+  }
+  const insertAt = object.index + object[0].length;
+  writeFileSync(
+    path,
+    `${text.slice(0, insertAt)}\n${NEXT_CONFIG_SNIPPET.trimEnd()}${text.slice(insertAt)}`,
+  );
+  return {
+    kind: "changed",
+    file,
+    what: "turbopack loader rule, external runtime and artifact tracing",
+  };
+}
+
+function firstMatch(
+  text: string,
+  patterns: readonly RegExp[],
+): RegExpExecArray | undefined {
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    if (match !== null) return match;
+  }
+  return undefined;
+}
+
+function insertImport(text: string, importLine: string): string {
+  const imports = [...text.matchAll(/^import\b[^\n]*\n/gmu)];
+  const last = imports.at(-1);
+  if (last === undefined) return `${importLine}\n${text}`;
+  const insertAt = last.index + last[0].length;
+  return `${text.slice(0, insertAt)}${importLine}\n${text.slice(insertAt)}`;
+}
+
+function addPackages(
+  packagePath: string,
+  pkg: PackageJson,
+  tool: BuildTool,
+): Outcome {
+  const version = packageVersion();
+  const added: string[] = [];
+  const dependencies = pkg.dependencies ?? {};
+  const devDependencies = pkg.devDependencies ?? {};
+  const has = (name: string): boolean =>
+    name in dependencies || name in devDependencies;
+  if (!has(CORE_PACKAGE)) {
+    dependencies[CORE_PACKAGE] = version;
+    added.push(CORE_PACKAGE);
+  }
+  if (!has(COMPILER_PACKAGE)) {
+    devDependencies[COMPILER_PACKAGE] = version;
+    added.push(COMPILER_PACKAGE);
+  }
+  if (tool === "tsc") {
+    if (!has(TS_PATCH_PACKAGE)) {
+      devDependencies[TS_PATCH_PACKAGE] = "^4.0.1";
+      added.push(TS_PATCH_PACKAGE);
+    }
+    const scripts = pkg.scripts ?? {};
+    const prepare = scripts["prepare"];
+    if (typeof prepare !== "string" || prepare.length === 0) {
+      scripts["prepare"] = "ts-patch install";
+      added.push("scripts.prepare");
+    } else if (!prepare.includes("ts-patch install")) {
+      scripts["prepare"] = `${prepare} && ts-patch install`;
+      added.push("scripts.prepare");
+    }
+    pkg.scripts = scripts;
+  }
+  if (added.length === 0) {
+    return {
+      kind: "unchanged",
+      file: "package.json",
+      what: "packages already present",
+    };
+  }
+  pkg.dependencies = dependencies;
+  pkg.devDependencies = devDependencies;
+  const original = readFileSync(packagePath, "utf8");
+  const indent = /^([ \t]+)"/mu.exec(original)?.[1] ?? "  ";
+  writeFileSync(packagePath, `${JSON.stringify(pkg, null, indent)}\n`);
+  return {
+    kind: "changed",
+    file: "package.json",
+    what: `added ${added.join(", ")}`,
+  };
+}
+
+function reserveArtifactDirectory(root: string): Outcome {
+  const directory = join(root, ".semantscript");
+  const ignorePath = join(directory, ".gitignore");
+  const file = relative(root, ignorePath);
+  if (existsSync(ignorePath)) {
+    return {
+      kind: "unchanged",
+      file,
+      what: "artifact and cache directories already reserved",
+    };
+  }
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(
+    ignorePath,
+    "# SemantScript build outputs: the trained artifact and the build cache\nartifact/\ncache/\n",
+  );
+  return {
+    kind: "changed",
+    file,
+    what: "reserves .semantscript/artifact and .semantscript/cache",
+  };
+}
+
+function writeStarter(root: string, tool: BuildTool): Outcome {
+  const existing = findSemaSource(root, root, 0);
+  if (existing !== undefined) {
+    return {
+      kind: "unchanged",
+      file: relative(root, existing),
+      what: "a .sem.ts file already exists",
+    };
+  }
+  const directory =
+    tool === "next" && existsSync(join(root, "lib"))
+      ? "lib"
+      : existsSync(join(root, "src"))
+        ? "src"
+        : tool === "next"
+          ? "lib"
+          : ".";
+  const path = join(root, directory, STARTER_FILE);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, STARTER_SOURCE);
+  return {
+    kind: "changed",
+    file: relative(root, path),
+    what: "one starter sema expression",
+  };
+}
+
+function findSemaSource(
+  root: string,
+  directory: string,
+  depth: number,
+): string | undefined {
+  if (depth > 4) return undefined;
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (
+      entry.name.startsWith(".") ||
+      entry.name === "node_modules" ||
+      entry.name === "dist"
+    )
+      continue;
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      const found = findSemaSource(root, path, depth + 1);
+      if (found !== undefined) return found;
+    } else if (entry.name.endsWith(".sem.ts")) {
+      return path;
+    }
+  }
+  return undefined;
+}
+
+function readPackageJson(path: string): PackageJson {
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new CliUsageError(`${path} must contain a JSON object`);
+  }
+  return parsed as PackageJson;
+}
+
+function packageVersion(): string {
+  try {
+    const own = createRequire(import.meta.url)("../package.json") as {
+      version?: unknown;
+    };
+    return typeof own.version === "string" ? own.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function buildInstructions(tool: BuildTool): string {
+  switch (tool) {
+    case "tsc":
+      return "npm run build (tsc is patched by `ts-patch install` from the prepare script; `npx tspc` also works)";
+    case "vite":
+      return "npx vite build";
+    case "next":
+      return "npx next build";
+    case "esbuild":
+      return "run your esbuild build script";
+  }
+}
+
+function render(
+  tool: BuildTool,
+  root: string,
+  outcomes: readonly Outcome[],
+): string {
+  const lines = [`semantscript init: detected ${tool} in ${root}`];
+  for (const outcome of outcomes) {
+    if (outcome.kind === "manual") {
+      lines.push(`  manual     ${outcome.what}:`);
+      for (const line of outcome.snippet.split("\n"))
+        lines.push(`               ${line}`);
+    } else {
+      lines.push(
+        `  ${outcome.kind.padEnd(10)} ${outcome.file}: ${outcome.what}`,
+      );
+    }
+  }
+  lines.push(
+    "next steps:",
+    "  1. npm install",
+    `  2. ${buildInstructions(tool)}   (writes the IR bundle next to the build output)`,
+    "  3. semantscript train   (uses ANTHROPIC_API_KEY with the default teacher, or --teacher <toml>)",
+    `  4. call loadSemaArtifact() once at startup; it reads ${DEFAULT_ARTIFACT_PATH} unless ${ARTIFACT_ENVIRONMENT_VARIABLE} is set`,
+    "",
+  );
+  return lines.join("\n");
+}

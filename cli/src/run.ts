@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import { CliUsageError, requireString, type CliIo } from "./io.js";
+import { resolveArtifactRoot } from "./defaults.js";
+import { CliUsageError, type CliIo } from "./io.js";
 
 /**
  * `semantscript run`: load the artifact so compiled `__sema` calls resolve,
@@ -31,7 +32,7 @@ export async function runCommand(
   if (values.input !== undefined && values["input-file"] !== undefined) {
     throw new CliUsageError("pass either --input or --input-file, not both");
   }
-  const root = resolve(io.cwd, requireString(values, "artifact"));
+  const root = resolveArtifactRoot(values, io);
   const callArguments = await resolveArguments(
     values.input,
     values["input-file"],

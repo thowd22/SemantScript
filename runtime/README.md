@@ -17,7 +17,9 @@ Compiled output imports the internal `__sema` binding and calls
 application startup and await it before importing or invoking compiled code. A
 successful load atomically activates the complete immutable artifact; a failed
 reload leaves the preceding artifact active. `path` may name a release directory
-containing `manifest.json` or an artifact root containing `current.json`.
+containing `manifest.json` or an artifact root containing `current.json`. With no `path`, the runtime reads `SEMANTSCRIPT_ARTIFACT`
+when set, else `.semantscript/artifact` under the working directory, which is
+where `semantscript init` and `train` put it (`defaultSemaArtifactPath()`).
 
 The compiler ABI remains synchronous. ONNX Runtime's JavaScript API is asynchronous,
 so the package owns a dedicated worker thread and uses a bounded shared-memory

@@ -6,10 +6,14 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import {
+  resolveArtifactRoot,
+  resolveBundlePath,
+  resolveTeacherConfig,
+} from "./defaults.js";
+import {
   listOf,
   numberOf,
   objectOf,
-  requireString,
   stringOf,
   stringOption,
   type CliIo,
@@ -80,9 +84,9 @@ export async function trainCommand(
     options: OPTIONS,
     allowPositionals: false,
   });
-  const bundle = resolve(io.cwd, requireString(values, "bundle"));
-  const artifact = resolve(io.cwd, requireString(values, "artifact"));
-  const teacher = resolve(io.cwd, requireString(values, "teacher"));
+  const bundle = resolveBundlePath(values, io);
+  const artifact = resolveArtifactRoot(values, io);
+  const teacher = resolveTeacherConfig(values, io);
   const cacheDir = resolve(
     io.cwd,
     stringOption(values, "cache-dir") ?? ".semantscript/cache",

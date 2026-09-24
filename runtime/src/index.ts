@@ -4,7 +4,10 @@ import type { SemaStageEntry, SemaStageOutcome } from "./artifact-runtime.js";
 export {
   closeSemaArtifact,
   executeSemaPlan,
+  DEFAULT_SEMA_ARTIFACT_PATH,
+  defaultSemaArtifactPath,
   loadSemaArtifact,
+  SEMA_ARTIFACT_ENVIRONMENT_VARIABLE,
   SemaArtifactInactiveError,
   SemaRuntimeNotLoadedError,
   type LoadSemaArtifactOptions,
@@ -55,11 +58,15 @@ declare const ordinalKind: unique symbol;
 declare const boundedIntKind: unique symbol;
 declare const boundedNumberKind: unique symbol;
 
-export type Ordinal<Values extends readonly [string, string, ...string[]]> = Values[number] & {
-  readonly [ordinalKind]?: Values;
-};
+export type Ordinal<Values extends readonly [string, string, ...string[]]> =
+  Values[number] & {
+    readonly [ordinalKind]?: Values;
+  };
 
-export type BoundedInt<Minimum extends number, Maximum extends number> = number & {
+export type BoundedInt<
+  Minimum extends number,
+  Maximum extends number,
+> = number & {
   readonly [boundedIntKind]?: readonly [Minimum, Maximum];
 };
 
@@ -146,7 +153,10 @@ export const __sema: SemaRuntimeDispatcher = {
   },
 };
 
-export function always<T>(predicate: () => boolean, requiredOutput: T): SemaConstraint<T> {
+export function always<T>(
+  predicate: () => boolean,
+  requiredOutput: T,
+): SemaConstraint<T> {
   if (typeof predicate !== "function") {
     throw new TypeError("always predicate must be a function");
   }
@@ -154,7 +164,10 @@ export function always<T>(predicate: () => boolean, requiredOutput: T): SemaCons
   return { [semaConstraintKind]: requiredOutput };
 }
 
-export function never<T>(predicate: () => boolean, forbiddenOutput: T): SemaConstraint<T> {
+export function never<T>(
+  predicate: () => boolean,
+  forbiddenOutput: T,
+): SemaConstraint<T> {
   if (typeof predicate !== "function") {
     throw new TypeError("never predicate must be a function");
   }

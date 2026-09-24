@@ -77,9 +77,13 @@ class PooledCorpusTeacher:
         heldout_directory: Path,
         fraud_percent: int,
         adversarial: ClaudeCliTrainingTeacher,
+        stale_status_twins: bool = False,
     ) -> None:
         if not isinstance(fraud_percent, int) or not 0 <= fraud_percent <= 100:
             raise TeacherConfigurationError("fraud_percent must be an integer from 0 through 100")
+        if not isinstance(stale_status_twins, bool):
+            raise TeacherConfigurationError("stale_status_twins must be a boolean")
+        self._stale_status_twins = stale_status_twins
         self._pool_path = pool_path.resolve()
         self._replay_path = replay_path.resolve() if replay_path is not None else None
         self._heldout_directory = heldout_directory.resolve()
@@ -131,6 +135,10 @@ class PooledCorpusTeacher:
                 "count": len(self._excluded),
             },
             "fraudPercent": self._fraud_percent,
+            # For every real order older than 90 days, also emit the same order with the
+            # other status so the stale rule's precedence over fraud is taught from real
+            # inputs; both twins are rule-labeled like every other pool row.
+            "staleStatusTwins": self._stale_status_twins,
             "adversarial": self._adversarial.configuration_projection,
         }
 
@@ -156,10 +164,19 @@ class PooledCorpusTeacher:
         cases: list[GeneratedCase] = []
         excluded = duplicates = ambiguous = 0
         counts: dict[str, int] = {}
+        candidates: list[dict[str, Any]] = []
         for row in sorted(self._pool["candidates"], key=lambda entry: entry["key"]):
             inputs = copy.deepcopy(row["inputs"])
             if int(row["key"][:8], 16) % 100 < self._fraud_percent:
                 inputs["order"]["status"] = "fraudulent"
+            candidates.append(inputs)
+            if self._stale_status_twins and inputs["order"]["ageDays"] > 90:
+                twin = copy.deepcopy(inputs)
+                twin["order"]["status"] = (
+                    "paid" if inputs["order"]["status"] == "fraudulent" else "fraudulent"
+                )
+                candidates.append(twin)
+        for inputs in candidates:
             digest = semantic_json_sha256(inputs)
             if digest in self._excluded:
                 excluded += 1
@@ -245,6 +262,7 @@ def pooled_teacher_from_projection(
         heldout_directory=_REPOSITORY_ROOT / projection["exclusions"]["heldoutDirectory"],
         fraud_percent=int(projection["fraudPercent"]),
         adversarial=adversarial,
+        stale_status_twins=bool(projection.get("staleStatusTwins", False)),
     )
 
 

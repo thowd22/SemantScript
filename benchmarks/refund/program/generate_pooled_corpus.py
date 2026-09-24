@@ -59,6 +59,7 @@ def generate_pooled_corpus(
     cli_config: ClaudeCliTeacherConfig,
     case_limit: int | None = None,
     resume: bool = False,
+    stale_status_twins: bool = False,
 ) -> dict[str, Any]:
     output = Path(output_directory)
     if output.exists() and any(output.iterdir()) and not resume:
@@ -84,6 +85,7 @@ def generate_pooled_corpus(
         heldout_directory=heldout_directory,
         fraud_percent=fraud_percent,
         adversarial=adversarial_teacher,
+        stale_status_twins=stale_status_twins,
     )
     adversarial_teacher.verify_installation()
     available = len(teacher.generate(ir, 0)) or len(teacher.labeled_pool(ir)) + (
@@ -208,6 +210,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--timeout-seconds", type=float, default=600.0)
     parser.add_argument("--model", default="claude-opus-5-5")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--stale-status-twins", action="store_true")
     arguments = parser.parse_args(argv)
     cli_config = ClaudeCliTeacherConfig(
         timeout_seconds=arguments.timeout_seconds,
@@ -229,6 +232,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             cli_config=cli_config,
             case_limit=arguments.case_limit,
             resume=arguments.resume,
+            stale_status_twins=arguments.stale_status_twins,
         )
     except Exception as error:
         sys.stderr.write(f"pooled corpus generation failed: {type(error).__name__}: {error}\n")

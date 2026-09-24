@@ -84,3 +84,26 @@ def compiled_program(tmp_path_factory: pytest.TempPathFactory):
     from benchmarks.refund.program.pipeline import compile_refund_program
 
     return compile_refund_program(tmp_path_factory.mktemp("pooled-compile") / "compiler")
+
+
+def test_stale_status_twins_add_rule_labeled_denials_for_both_statuses(compiled_program) -> None:
+    ir = compiled_program.source_ir
+    plain = _teacher().labeled_pool(ir)
+    twinned_teacher = PooledCorpusTeacher(
+        pool_path=POOL,
+        replay_path=None,
+        heldout_directory=HELDOUT,
+        fraud_percent=15,
+        adversarial=ClaudeCliTrainingTeacher(ClaudeCliTeacherConfig(model="claude-opus-5-5")),
+        stale_status_twins=True,
+    )
+    twinned = twinned_teacher.labeled_pool(ir)
+    stale = [c for c in twinned if c.inputs["order"]["ageDays"] > 90]
+    assert len(twinned) > len(plain)
+    assert all(c.output == "deny" for c in stale)
+    statuses = {c.inputs["order"]["status"] for c in stale}
+    assert statuses == {"paid", "fraudulent"}
+    assert twinned_teacher.configuration_projection["staleStatusTwins"] is True
+    assert twinned_teacher.descriptor != _teacher().descriptor
+    rebuilt = pooled_teacher_from_projection(twinned_teacher.configuration_projection)
+    assert rebuilt.descriptor == twinned_teacher.descriptor

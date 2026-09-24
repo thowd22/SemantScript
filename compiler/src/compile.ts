@@ -305,7 +305,10 @@ function finishSemaCompilationPlan(
       throw new Error(`missing source digest for ${site.sourceFile.fileName}`);
     }
 
-    const domain = configuration.domain ?? defaultDomainName(normalizedPath);
+    const domain =
+      configuration.domain ??
+      controllerDomainName(site.node) ??
+      defaultDomainName(normalizedPath);
     const depth = routed ? (domainDepths[domain] ?? null) : null;
     const functionEncoderRef =
       depth === null
@@ -628,15 +631,31 @@ function compareLocatedSites(
 
 const DOMAIN_NAME = /^[a-z][a-z0-9-]*$/u;
 
-/** The default domain of a site: its file name without `.sem.ts`, lowercased with dashes. */
-function defaultDomainName(normalizedPath: string): string {
-  const base = normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1);
-  const stem = base.replace(/\.sem\.ts$/u, "").replace(/\.[^.]*$/u, "");
-  const slug = stem
+/**
+ * A site inside a named class (a controller in the framework sense) belongs to
+ * that class's domain by default, so an application organised by controllers
+ * gets one adapter per controller without headers.
+ */
+function controllerDomainName(node: ts.Node): string | undefined {
+  const owner = ts.findAncestor(node, ts.isClassLike);
+  const name = owner?.name?.text;
+  return name === undefined ? undefined : slugifyDomain(name);
+}
+
+function slugifyDomain(text: string): string {
+  const slug = text
+    .replace(/([a-z0-9])([A-Z])/gu, "$1-$2")
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, "-")
     .replace(/^-+|-+$/gu, "");
   return DOMAIN_NAME.test(slug) ? slug : `domain-${slug || "default"}`;
+}
+
+/** The default domain of a site: its file name without `.sem.ts`, lowercased with dashes. */
+function defaultDomainName(normalizedPath: string): string {
+  const base = normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1);
+  const stem = base.replace(/\.sem\.ts$/u, "").replace(/\.[^.]*$/u, "");
+  return slugifyDomain(stem);
 }
 
 function validateDomainDepths(

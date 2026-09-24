@@ -231,9 +231,10 @@ before the behavior text. It names the compile-time routed domain of the
 expression: every expression of a domain shares one adapter over the
 application's encoder, and the `semantscript build --domain-depth name=n`
 option sets how many shared-encoder layers that domain runs before its adapter
-(the full stack by default). Without a header the domain is the file's name
-without `.sem.ts`, lowercased with dashes, so expressions grouped by file are
-grouped by domain. Naming a domain depth or using one `@domain` header makes
+(the full stack by default). Without a header the domain is the enclosing
+class's name when the expression sits inside a class (a controller), else the
+file's name without `.sem.ts`, both lowercased with dashes, so expressions
+grouped by controller or by file are grouped by domain. Naming a domain depth or using one `@domain` header makes
 the whole bundle routed; otherwise every expression shares the application's
 single adapter and the plan is unchanged.
 

@@ -104,8 +104,8 @@ emits one file in memory for a bundler: its JavaScript without the
 
 `planSemaCompilation` takes `domainDepths`, a map of domain name to the number
 of shared-encoder layers that domain runs. Each site's domain is its
-`@domain(name)` header or, by default, its file name without `.sem.ts`
-(lowercased, dashes). When any depth is named or any site carries a header the
+`@domain(name)` header, else the enclosing class's name (a controller), else
+its file name without `.sem.ts` (all lowercased with dashes). When any depth is named or any site carries a header the
 plan is routed: every function's `model.adapter` becomes
 `<adapterRef>.<domain>`, a domain with a depth gets `model.encoder`
 `<encoderRef>.depth-NNN` and `model.encoderDepth`, the execution plan gains a

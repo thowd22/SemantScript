@@ -965,6 +965,35 @@ export const triage = sema<"urgent" | "routine">\`PROMPT_TRIAGE \${subject}\`;
   );
 });
 
+test("sites inside a class default to the class's domain, the controller", async (t) => {
+  const fixture = await createProject({
+    "src/handlers.sem.ts": `import { sema } from "@semantscript/core";
+declare const message: string;
+export class RefundController {
+  decide() {
+    return sema<"yes" | "no">\`PROMPT_CONTROLLER \${message}\`;
+  }
+}
+export const loose = sema<"yes" | "no">\`PROMPT_LOOSE \${message}\`;
+`,
+  });
+  t.after(fixture.dispose);
+  const planned = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+    adapterRef: "adapter.app",
+    routeDomains: true,
+  });
+  assert.equal(planned.ok, true, formatDiagnostics(planned));
+  const domains = planned.value.bundle.executionPlan.domains.map((domain) => [
+    domain.name,
+    domain.adapterRef,
+  ]);
+  assert.deepEqual(domains, [
+    ["refund-controller", "adapter.app.refund-controller"],
+    ["handlers", "adapter.app.handlers"],
+  ]);
+});
+
 test("an unrouted project keeps the application refs and plan shape of before", async (t) => {
   const fixture = await createProject({
     "src/plain.sem.ts": `import { sema } from "@semantscript/core";

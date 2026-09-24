@@ -68,6 +68,13 @@ artifact with two heads and calls both through the Node runtime. The risk
 function's attested set is the release inputs relabeled by its constraints,
 which the report marks as rule-labeled, not judge-adjudicated.
 
+`run_warm_start_experiment.py` answers TASK-7.3 on the frozen corpus: full
+fine-tuning at epoch budgets, head-only on the frozen encoder through the
+trainer (`freeze_encoder`), head-only on cached embeddings, and a Laya-distilled
+warm start, each verified against the release-attested cases with wall-clock
+recorded; results and the write-up live under
+`data/results-warm-start-2026-09-24`.
+
 `derive_multihead_artifact.py` and `run-stage-scaling.mjs` measure the
 shared-encoder thesis (TASK-6.5). The first clones a published single-function
 scalar release N times over its own tokenizer, encoder and adapter (fresh

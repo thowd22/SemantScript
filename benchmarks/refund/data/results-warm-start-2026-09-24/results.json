@@ -1,0 +1,1118 @@
+{
+  "budgets": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "completedAt": "2026-09-24T19:16:31Z",
+  "corpus": {
+    "adversarialDatasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+    "baseDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+    "manifest": "benchmarks/refund/data/pooled-v4-2026-09-24/manifest.json",
+    "manifestSha256": "f36dde2ef406a1f0a954ed84c3b1261f213899bcd4d0abe15ab52323658fe640",
+    "rows": 9409
+  },
+  "environment": {
+    "accelerator": "AMD Radeon RX 9070 XT",
+    "capturedAt": "2026-09-24T18:46:56Z",
+    "commit": "0e5ab2ee15ef2b23d74849df5bd345b114ee42a4",
+    "device": "cuda",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "versions": {
+      "python": "3.12.3",
+      "torch": "2.9.1+rocm7.2.0.git7e1940d4",
+      "transformers": "5.17.0"
+    }
+  },
+  "function": {
+    "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+    "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
+  },
+  "kind": "semantscript.warm-start-experiment",
+  "recipe": {
+    "full": {
+      "batch_size": 16,
+      "canonical_input_version": 2,
+      "device": "cuda",
+      "encoder_name": "answerdotai/ModernBERT-base",
+      "encoder_revision": "8949b909ec900327062f0ebf497f51aef5e6f0c8",
+      "epochs": 8,
+      "evaluation_ratio": 0.1,
+      "freeze_encoder": false,
+      "gradient_clip_norm": 1.0,
+      "head_architecture": "linear",
+      "learning_rate": 3e-05,
+      "learning_rate_schedule": "constant",
+      "local_files_only": true,
+      "loss": "proper",
+      "maximum_sequence_length": 128,
+      "mlp_hidden_size": null,
+      "seed": 1,
+      "select_best_epoch": false,
+      "warmup_ratio": 0.0,
+      "weight_decay": 0.01
+    },
+    "headOnly": {
+      "batch_size": 16,
+      "canonical_input_version": 2,
+      "device": "cuda",
+      "encoder_name": "answerdotai/ModernBERT-base",
+      "encoder_revision": "8949b909ec900327062f0ebf497f51aef5e6f0c8",
+      "epochs": 8,
+      "evaluation_ratio": 0.1,
+      "freeze_encoder": true,
+      "gradient_clip_norm": 1.0,
+      "head_architecture": "linear",
+      "learning_rate": 0.005,
+      "learning_rate_schedule": "constant",
+      "local_files_only": true,
+      "loss": "proper",
+      "maximum_sequence_length": 128,
+      "mlp_hidden_size": null,
+      "seed": 1,
+      "select_best_epoch": false,
+      "warmup_ratio": 0.0,
+      "weight_decay": 0.01
+    }
+  },
+  "regimes": {
+    "cached": {
+      "encodeSeconds": 24.98,
+      "encodedRows": 9489,
+      "epochs": [
+        {
+          "epoch": 1,
+          "fitSeconds": 0.342,
+          "heldOutAccuracy": 0.745,
+          "meanLoss": 0.83198,
+          "releaseAccuracy": 0.6375,
+          "releaseMisses": 29
+        },
+        {
+          "epoch": 2,
+          "fitSeconds": 0.533,
+          "heldOutAccuracy": 0.8002,
+          "meanLoss": 0.64118,
+          "releaseAccuracy": 0.775,
+          "releaseMisses": 18
+        },
+        {
+          "epoch": 3,
+          "fitSeconds": 0.729,
+          "heldOutAccuracy": 0.8172,
+          "meanLoss": 0.58041,
+          "releaseAccuracy": 0.8125,
+          "releaseMisses": 15
+        },
+        {
+          "epoch": 4,
+          "fitSeconds": 0.92,
+          "heldOutAccuracy": 0.8417,
+          "meanLoss": 0.50884,
+          "releaseAccuracy": 0.775,
+          "releaseMisses": 18
+        },
+        {
+          "epoch": 5,
+          "fitSeconds": 1.114,
+          "heldOutAccuracy": 0.8278,
+          "meanLoss": 0.46467,
+          "releaseAccuracy": 0.725,
+          "releaseMisses": 22
+        },
+        {
+          "epoch": 6,
+          "fitSeconds": 1.306,
+          "heldOutAccuracy": 0.8491,
+          "meanLoss": 0.44792,
+          "releaseAccuracy": 0.8125,
+          "releaseMisses": 15
+        },
+        {
+          "epoch": 7,
+          "fitSeconds": 1.493,
+          "heldOutAccuracy": 0.8661,
+          "meanLoss": 0.43231,
+          "releaseAccuracy": 0.825,
+          "releaseMisses": 14
+        },
+        {
+          "epoch": 8,
+          "fitSeconds": 1.681,
+          "heldOutAccuracy": 0.8672,
+          "meanLoss": 0.41118,
+          "releaseAccuracy": 0.75,
+          "releaseMisses": 20
+        },
+        {
+          "epoch": 9,
+          "fitSeconds": 1.867,
+          "heldOutAccuracy": 0.8608,
+          "meanLoss": 0.38768,
+          "releaseAccuracy": 0.825,
+          "releaseMisses": 14
+        },
+        {
+          "epoch": 10,
+          "fitSeconds": 2.052,
+          "heldOutAccuracy": 0.8693,
+          "meanLoss": 0.36807,
+          "releaseAccuracy": 0.7125,
+          "releaseMisses": 23
+        },
+        {
+          "epoch": 11,
+          "fitSeconds": 2.243,
+          "heldOutAccuracy": 0.8587,
+          "meanLoss": 0.36249,
+          "releaseAccuracy": 0.75,
+          "releaseMisses": 20
+        },
+        {
+          "epoch": 12,
+          "fitSeconds": 2.43,
+          "heldOutAccuracy": 0.8895,
+          "meanLoss": 0.36271,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 13,
+          "fitSeconds": 2.615,
+          "heldOutAccuracy": 0.9033,
+          "meanLoss": 0.32963,
+          "releaseAccuracy": 0.8375,
+          "releaseMisses": 13
+        },
+        {
+          "epoch": 14,
+          "fitSeconds": 2.808,
+          "heldOutAccuracy": 0.8884,
+          "meanLoss": 0.32517,
+          "releaseAccuracy": 0.85,
+          "releaseMisses": 12
+        },
+        {
+          "epoch": 15,
+          "fitSeconds": 2.998,
+          "heldOutAccuracy": 0.9139,
+          "meanLoss": 0.32358,
+          "releaseAccuracy": 0.8375,
+          "releaseMisses": 13
+        },
+        {
+          "epoch": 16,
+          "fitSeconds": 3.188,
+          "heldOutAccuracy": 0.9044,
+          "meanLoss": 0.31358,
+          "releaseAccuracy": 0.8,
+          "releaseMisses": 16
+        },
+        {
+          "epoch": 17,
+          "fitSeconds": 3.381,
+          "heldOutAccuracy": 0.898,
+          "meanLoss": 0.30876,
+          "releaseAccuracy": 0.8125,
+          "releaseMisses": 15
+        },
+        {
+          "epoch": 18,
+          "fitSeconds": 3.574,
+          "heldOutAccuracy": 0.9033,
+          "meanLoss": 0.2994,
+          "releaseAccuracy": 0.85,
+          "releaseMisses": 12
+        },
+        {
+          "epoch": 19,
+          "fitSeconds": 3.766,
+          "heldOutAccuracy": 0.9192,
+          "meanLoss": 0.28879,
+          "releaseAccuracy": 0.8,
+          "releaseMisses": 16
+        },
+        {
+          "epoch": 20,
+          "fitSeconds": 3.958,
+          "heldOutAccuracy": 0.9097,
+          "meanLoss": 0.29509,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 21,
+          "fitSeconds": 4.149,
+          "heldOutAccuracy": 0.9044,
+          "meanLoss": 0.29136,
+          "releaseAccuracy": 0.8375,
+          "releaseMisses": 13
+        },
+        {
+          "epoch": 22,
+          "fitSeconds": 4.346,
+          "heldOutAccuracy": 0.8852,
+          "meanLoss": 0.28682,
+          "releaseAccuracy": 0.8125,
+          "releaseMisses": 15
+        },
+        {
+          "epoch": 23,
+          "fitSeconds": 4.545,
+          "heldOutAccuracy": 0.9139,
+          "meanLoss": 0.28733,
+          "releaseAccuracy": 0.8625,
+          "releaseMisses": 11
+        },
+        {
+          "epoch": 24,
+          "fitSeconds": 4.736,
+          "heldOutAccuracy": 0.9118,
+          "meanLoss": 0.27612,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 25,
+          "fitSeconds": 4.934,
+          "heldOutAccuracy": 0.8746,
+          "meanLoss": 0.27638,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 26,
+          "fitSeconds": 5.137,
+          "heldOutAccuracy": 0.8863,
+          "meanLoss": 0.26886,
+          "releaseAccuracy": 0.7375,
+          "releaseMisses": 21
+        },
+        {
+          "epoch": 27,
+          "fitSeconds": 5.332,
+          "heldOutAccuracy": 0.9192,
+          "meanLoss": 0.26094,
+          "releaseAccuracy": 0.85,
+          "releaseMisses": 12
+        },
+        {
+          "epoch": 28,
+          "fitSeconds": 5.518,
+          "heldOutAccuracy": 0.933,
+          "meanLoss": 0.26278,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 29,
+          "fitSeconds": 5.706,
+          "heldOutAccuracy": 0.898,
+          "meanLoss": 0.25683,
+          "releaseAccuracy": 0.9125,
+          "releaseMisses": 7
+        },
+        {
+          "epoch": 30,
+          "fitSeconds": 5.894,
+          "heldOutAccuracy": 0.9256,
+          "meanLoss": 0.27344,
+          "releaseAccuracy": 0.825,
+          "releaseMisses": 14
+        },
+        {
+          "epoch": 31,
+          "fitSeconds": 6.083,
+          "heldOutAccuracy": 0.9256,
+          "meanLoss": 0.25037,
+          "releaseAccuracy": 0.8625,
+          "releaseMisses": 11
+        },
+        {
+          "epoch": 32,
+          "fitSeconds": 6.272,
+          "heldOutAccuracy": 0.9107,
+          "meanLoss": 0.25296,
+          "releaseAccuracy": 0.8875,
+          "releaseMisses": 9
+        },
+        {
+          "epoch": 33,
+          "fitSeconds": 6.472,
+          "heldOutAccuracy": 0.932,
+          "meanLoss": 0.24527,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 34,
+          "fitSeconds": 6.668,
+          "heldOutAccuracy": 0.9341,
+          "meanLoss": 0.25699,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 35,
+          "fitSeconds": 6.857,
+          "heldOutAccuracy": 0.9341,
+          "meanLoss": 0.23619,
+          "releaseAccuracy": 0.8625,
+          "releaseMisses": 11
+        },
+        {
+          "epoch": 36,
+          "fitSeconds": 7.042,
+          "heldOutAccuracy": 0.9299,
+          "meanLoss": 0.23628,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 37,
+          "fitSeconds": 7.23,
+          "heldOutAccuracy": 0.9362,
+          "meanLoss": 0.24609,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10
+        },
+        {
+          "epoch": 38,
+          "fitSeconds": 7.417,
+          "heldOutAccuracy": 0.9182,
+          "meanLoss": 0.24259,
+          "releaseAccuracy": 0.825,
+          "releaseMisses": 14
+        },
+        {
+          "epoch": 39,
+          "fitSeconds": 7.609,
+          "heldOutAccuracy": 0.9299,
+          "meanLoss": 0.23584,
+          "releaseAccuracy": 0.9,
+          "releaseMisses": 8
+        },
+        {
+          "epoch": 40,
+          "fitSeconds": 7.804,
+          "heldOutAccuracy": 0.9362,
+          "meanLoss": 0.22847,
+          "releaseAccuracy": 0.8875,
+          "releaseMisses": 9
+        }
+      ],
+      "final": {
+        "brier": 0.0512,
+        "calibratedAccuracy": 0.9362,
+        "constraintViolations": 574,
+        "ece": 0.016,
+        "pairConsistency": 0.8122,
+        "releaseAccuracy": 0.8875,
+        "releaseMisses": 9,
+        "seconds": 32.79,
+        "status": "failed",
+        "temperature": 0.6356
+      },
+      "fitSeconds": 7.804,
+      "regime": "cached",
+      "targetEpoch": null,
+      "timeToTargetSeconds": null,
+      "verifySeconds": 29.19
+    },
+    "full": {
+      "freezeEncoder": false,
+      "regime": "full",
+      "runs": [
+        {
+          "brier": 0.011,
+          "calibratedAccuracy": 0.9872,
+          "constraintViolations": 94,
+          "ece": 0.0054,
+          "epochs": 1,
+          "heldOutCurve": [
+            0.9872
+          ],
+          "pairConsistency": 0.9724,
+          "releaseAccuracy": 1.0,
+          "releaseMisses": 0,
+          "seconds": 57.76,
+          "status": "passed",
+          "temperature": 1.3627
+        },
+        {
+          "brier": 0.0063,
+          "calibratedAccuracy": 0.9936,
+          "constraintViolations": 36,
+          "ece": 0.0034,
+          "epochs": 2,
+          "heldOutCurve": [
+            0.9872,
+            0.9936
+          ],
+          "pairConsistency": 0.9834,
+          "releaseAccuracy": 1.0,
+          "releaseMisses": 0,
+          "seconds": 106.25,
+          "status": "passed",
+          "temperature": 1.6536
+        },
+        {
+          "brier": 0.0078,
+          "calibratedAccuracy": 0.9915,
+          "constraintViolations": 41,
+          "ece": 0.0039,
+          "epochs": 4,
+          "heldOutCurve": [
+            0.9872,
+            0.9936,
+            0.9936,
+            0.9915
+          ],
+          "pairConsistency": 0.989,
+          "releaseAccuracy": 1.0,
+          "releaseMisses": 0,
+          "seconds": 217.55,
+          "status": "passed",
+          "temperature": 1.7963
+        },
+        {
+          "brier": 0.0064,
+          "calibratedAccuracy": 0.9926,
+          "constraintViolations": 21,
+          "ece": 0.0066,
+          "epochs": 8,
+          "heldOutCurve": [
+            0.9872,
+            0.9936,
+            0.9936,
+            0.9915,
+            0.9926,
+            0.9947,
+            0.9936,
+            0.9926
+          ],
+          "pairConsistency": 0.9945,
+          "releaseAccuracy": 1.0,
+          "releaseMisses": 0,
+          "seconds": 434.09,
+          "status": "passed",
+          "temperature": 1.5587
+        }
+      ],
+      "targetBudget": 1,
+      "timeToTargetSeconds": 57.76
+    },
+    "head-only": {
+      "freezeEncoder": true,
+      "regime": "head-only",
+      "runs": [
+        {
+          "brier": 0.14,
+          "calibratedAccuracy": 0.796,
+          "constraintViolations": 1754,
+          "ece": 0.0236,
+          "epochs": 1,
+          "heldOutCurve": [
+            0.796
+          ],
+          "pairConsistency": 0.5856,
+          "releaseAccuracy": 0.775,
+          "releaseMisses": 18,
+          "seconds": 30.54,
+          "status": "failed",
+          "temperature": 0.6733
+        },
+        {
+          "brier": 0.1378,
+          "calibratedAccuracy": 0.8066,
+          "constraintViolations": 1727,
+          "ece": 0.0302,
+          "epochs": 2,
+          "heldOutCurve": [
+            0.796,
+            0.8066
+          ],
+          "pairConsistency": 0.5856,
+          "releaseAccuracy": 0.775,
+          "releaseMisses": 18,
+          "seconds": 59.6,
+          "status": "failed",
+          "temperature": 0.9031
+        },
+        {
+          "brier": 0.0817,
+          "calibratedAccuracy": 0.8874,
+          "constraintViolations": 987,
+          "ece": 0.019,
+          "epochs": 4,
+          "heldOutCurve": [
+            0.796,
+            0.8066,
+            0.8406,
+            0.8874
+          ],
+          "pairConsistency": 0.6851,
+          "releaseAccuracy": 0.7625,
+          "releaseMisses": 19,
+          "seconds": 117.4,
+          "status": "failed",
+          "temperature": 0.7624
+        },
+        {
+          "brier": 0.0886,
+          "calibratedAccuracy": 0.8874,
+          "constraintViolations": 1073,
+          "ece": 0.033,
+          "epochs": 8,
+          "heldOutCurve": [
+            0.796,
+            0.8066,
+            0.8406,
+            0.8874,
+            0.9033,
+            0.8533,
+            0.8959,
+            0.8874
+          ],
+          "pairConsistency": 0.6243,
+          "releaseAccuracy": 0.7125,
+          "releaseMisses": 23,
+          "seconds": 235.6,
+          "status": "failed",
+          "temperature": 1.1356
+        }
+      ],
+      "targetBudget": null,
+      "timeToTargetSeconds": null
+    },
+    "laya": {
+      "checkpoint": "convaiinnovations/laya-typed-decisions",
+      "checkpointRevision": "dd079950600224fb459af2a0cb1d74e1e57ee9cf",
+      "codeRevision": "d120d4ba220711b93c171973118753460310e16b",
+      "distilled": {
+        "epochs": [
+          {
+            "epoch": 1,
+            "fitSeconds": 0.219,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.02524,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 2,
+            "fitSeconds": 0.333,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00139,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 3,
+            "fitSeconds": 0.449,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00123,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 4,
+            "fitSeconds": 0.563,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00122,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 5,
+            "fitSeconds": 0.679,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00119,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 6,
+            "fitSeconds": 0.794,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00125,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 7,
+            "fitSeconds": 0.909,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00143,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 8,
+            "fitSeconds": 1.021,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00148,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 9,
+            "fitSeconds": 1.133,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00246,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 10,
+            "fitSeconds": 1.245,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00133,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 11,
+            "fitSeconds": 1.358,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00213,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 12,
+            "fitSeconds": 1.473,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00255,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 13,
+            "fitSeconds": 1.586,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00185,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 14,
+            "fitSeconds": 1.697,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00165,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 15,
+            "fitSeconds": 1.809,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00228,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 16,
+            "fitSeconds": 1.923,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00221,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 17,
+            "fitSeconds": 2.038,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.0018,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 18,
+            "fitSeconds": 2.152,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00153,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 19,
+            "fitSeconds": 2.267,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.00409,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          },
+          {
+            "epoch": 20,
+            "fitSeconds": 2.383,
+            "heldOutAccuracy": 0.3698,
+            "meanLoss": 0.0017,
+            "releaseAccuracy": 0.225,
+            "releaseMisses": 62
+          }
+        ],
+        "heldOutAccuracy": 0.3698,
+        "releaseAccuracy": 0.225,
+        "releaseMisses": 62
+      },
+      "loadSeconds": 1.61,
+      "refined": {
+        "encodeSeconds": 24.98,
+        "encodedRows": 9489,
+        "epochs": [
+          {
+            "epoch": 1,
+            "fitSeconds": 0.182,
+            "heldOutAccuracy": 0.7375,
+            "meanLoss": 0.84509,
+            "releaseAccuracy": 0.625,
+            "releaseMisses": 30
+          },
+          {
+            "epoch": 2,
+            "fitSeconds": 0.363,
+            "heldOutAccuracy": 0.797,
+            "meanLoss": 0.64468,
+            "releaseAccuracy": 0.75,
+            "releaseMisses": 20
+          },
+          {
+            "epoch": 3,
+            "fitSeconds": 0.545,
+            "heldOutAccuracy": 0.8098,
+            "meanLoss": 0.59028,
+            "releaseAccuracy": 0.7875,
+            "releaseMisses": 17
+          },
+          {
+            "epoch": 4,
+            "fitSeconds": 0.726,
+            "heldOutAccuracy": 0.8353,
+            "meanLoss": 0.51368,
+            "releaseAccuracy": 0.775,
+            "releaseMisses": 18
+          },
+          {
+            "epoch": 5,
+            "fitSeconds": 0.906,
+            "heldOutAccuracy": 0.8321,
+            "meanLoss": 0.47036,
+            "releaseAccuracy": 0.725,
+            "releaseMisses": 22
+          },
+          {
+            "epoch": 6,
+            "fitSeconds": 1.085,
+            "heldOutAccuracy": 0.847,
+            "meanLoss": 0.45067,
+            "releaseAccuracy": 0.8,
+            "releaseMisses": 16
+          },
+          {
+            "epoch": 7,
+            "fitSeconds": 1.268,
+            "heldOutAccuracy": 0.8682,
+            "meanLoss": 0.4358,
+            "releaseAccuracy": 0.8,
+            "releaseMisses": 16
+          },
+          {
+            "epoch": 8,
+            "fitSeconds": 1.457,
+            "heldOutAccuracy": 0.8682,
+            "meanLoss": 0.41434,
+            "releaseAccuracy": 0.7375,
+            "releaseMisses": 21
+          },
+          {
+            "epoch": 9,
+            "fitSeconds": 1.648,
+            "heldOutAccuracy": 0.8618,
+            "meanLoss": 0.3911,
+            "releaseAccuracy": 0.8125,
+            "releaseMisses": 15
+          },
+          {
+            "epoch": 10,
+            "fitSeconds": 1.833,
+            "heldOutAccuracy": 0.8704,
+            "meanLoss": 0.37027,
+            "releaseAccuracy": 0.7125,
+            "releaseMisses": 23
+          },
+          {
+            "epoch": 11,
+            "fitSeconds": 2.016,
+            "heldOutAccuracy": 0.8533,
+            "meanLoss": 0.36451,
+            "releaseAccuracy": 0.75,
+            "releaseMisses": 20
+          },
+          {
+            "epoch": 12,
+            "fitSeconds": 2.2,
+            "heldOutAccuracy": 0.8905,
+            "meanLoss": 0.365,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 13,
+            "fitSeconds": 2.383,
+            "heldOutAccuracy": 0.9001,
+            "meanLoss": 0.33137,
+            "releaseAccuracy": 0.85,
+            "releaseMisses": 12
+          },
+          {
+            "epoch": 14,
+            "fitSeconds": 2.568,
+            "heldOutAccuracy": 0.8895,
+            "meanLoss": 0.32701,
+            "releaseAccuracy": 0.85,
+            "releaseMisses": 12
+          },
+          {
+            "epoch": 15,
+            "fitSeconds": 2.75,
+            "heldOutAccuracy": 0.9086,
+            "meanLoss": 0.32527,
+            "releaseAccuracy": 0.8375,
+            "releaseMisses": 13
+          },
+          {
+            "epoch": 16,
+            "fitSeconds": 2.934,
+            "heldOutAccuracy": 0.9065,
+            "meanLoss": 0.31466,
+            "releaseAccuracy": 0.8125,
+            "releaseMisses": 15
+          },
+          {
+            "epoch": 17,
+            "fitSeconds": 3.12,
+            "heldOutAccuracy": 0.899,
+            "meanLoss": 0.31044,
+            "releaseAccuracy": 0.825,
+            "releaseMisses": 14
+          },
+          {
+            "epoch": 18,
+            "fitSeconds": 3.301,
+            "heldOutAccuracy": 0.9033,
+            "meanLoss": 0.30072,
+            "releaseAccuracy": 0.85,
+            "releaseMisses": 12
+          },
+          {
+            "epoch": 19,
+            "fitSeconds": 3.489,
+            "heldOutAccuracy": 0.9139,
+            "meanLoss": 0.28981,
+            "releaseAccuracy": 0.8,
+            "releaseMisses": 16
+          },
+          {
+            "epoch": 20,
+            "fitSeconds": 3.672,
+            "heldOutAccuracy": 0.9086,
+            "meanLoss": 0.29587,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 21,
+            "fitSeconds": 3.858,
+            "heldOutAccuracy": 0.9044,
+            "meanLoss": 0.29242,
+            "releaseAccuracy": 0.8375,
+            "releaseMisses": 13
+          },
+          {
+            "epoch": 22,
+            "fitSeconds": 4.055,
+            "heldOutAccuracy": 0.8842,
+            "meanLoss": 0.28799,
+            "releaseAccuracy": 0.8,
+            "releaseMisses": 16
+          },
+          {
+            "epoch": 23,
+            "fitSeconds": 4.257,
+            "heldOutAccuracy": 0.9118,
+            "meanLoss": 0.28821,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 24,
+            "fitSeconds": 4.455,
+            "heldOutAccuracy": 0.9097,
+            "meanLoss": 0.27696,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 25,
+            "fitSeconds": 4.656,
+            "heldOutAccuracy": 0.8746,
+            "meanLoss": 0.27698,
+            "releaseAccuracy": 0.8625,
+            "releaseMisses": 11
+          },
+          {
+            "epoch": 26,
+            "fitSeconds": 4.858,
+            "heldOutAccuracy": 0.8874,
+            "meanLoss": 0.26923,
+            "releaseAccuracy": 0.7375,
+            "releaseMisses": 21
+          },
+          {
+            "epoch": 27,
+            "fitSeconds": 5.056,
+            "heldOutAccuracy": 0.9192,
+            "meanLoss": 0.26155,
+            "releaseAccuracy": 0.85,
+            "releaseMisses": 12
+          },
+          {
+            "epoch": 28,
+            "fitSeconds": 5.253,
+            "heldOutAccuracy": 0.933,
+            "meanLoss": 0.26371,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 29,
+            "fitSeconds": 5.455,
+            "heldOutAccuracy": 0.8969,
+            "meanLoss": 0.25743,
+            "releaseAccuracy": 0.9125,
+            "releaseMisses": 7
+          },
+          {
+            "epoch": 30,
+            "fitSeconds": 5.654,
+            "heldOutAccuracy": 0.9256,
+            "meanLoss": 0.274,
+            "releaseAccuracy": 0.8125,
+            "releaseMisses": 15
+          },
+          {
+            "epoch": 31,
+            "fitSeconds": 5.854,
+            "heldOutAccuracy": 0.9277,
+            "meanLoss": 0.25085,
+            "releaseAccuracy": 0.85,
+            "releaseMisses": 12
+          },
+          {
+            "epoch": 32,
+            "fitSeconds": 6.048,
+            "heldOutAccuracy": 0.9086,
+            "meanLoss": 0.25318,
+            "releaseAccuracy": 0.8875,
+            "releaseMisses": 9
+          },
+          {
+            "epoch": 33,
+            "fitSeconds": 6.243,
+            "heldOutAccuracy": 0.932,
+            "meanLoss": 0.24568,
+            "releaseAccuracy": 0.8625,
+            "releaseMisses": 11
+          },
+          {
+            "epoch": 34,
+            "fitSeconds": 6.433,
+            "heldOutAccuracy": 0.9352,
+            "meanLoss": 0.25727,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 35,
+            "fitSeconds": 6.634,
+            "heldOutAccuracy": 0.9341,
+            "meanLoss": 0.23655,
+            "releaseAccuracy": 0.8625,
+            "releaseMisses": 11
+          },
+          {
+            "epoch": 36,
+            "fitSeconds": 6.83,
+            "heldOutAccuracy": 0.9299,
+            "meanLoss": 0.23667,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 37,
+            "fitSeconds": 7.027,
+            "heldOutAccuracy": 0.9341,
+            "meanLoss": 0.24653,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          },
+          {
+            "epoch": 38,
+            "fitSeconds": 7.222,
+            "heldOutAccuracy": 0.9182,
+            "meanLoss": 0.24297,
+            "releaseAccuracy": 0.825,
+            "releaseMisses": 14
+          },
+          {
+            "epoch": 39,
+            "fitSeconds": 7.417,
+            "heldOutAccuracy": 0.9288,
+            "meanLoss": 0.23596,
+            "releaseAccuracy": 0.9,
+            "releaseMisses": 8
+          },
+          {
+            "epoch": 40,
+            "fitSeconds": 7.608,
+            "heldOutAccuracy": 0.9341,
+            "meanLoss": 0.22883,
+            "releaseAccuracy": 0.875,
+            "releaseMisses": 10
+          }
+        ],
+        "final": {
+          "brier": 0.0514,
+          "calibratedAccuracy": 0.9341,
+          "constraintViolations": 580,
+          "ece": 0.0142,
+          "pairConsistency": 0.8011,
+          "releaseAccuracy": 0.875,
+          "releaseMisses": 10,
+          "seconds": 128.67,
+          "status": "failed",
+          "temperature": 0.6358
+        },
+        "fitSeconds": 7.608,
+        "regime": "laya-warm-start",
+        "targetEpoch": null,
+        "timeToTargetSeconds": null,
+        "verifySeconds": 28.59
+      },
+      "regime": "laya",
+      "scoreSeconds": 92.09,
+      "scoredRows": 8548,
+      "zeroTraining": {
+        "corpusLabelAgreement": 0.382,
+        "releaseAccuracy": 0.225
+      }
+    }
+  },
+  "releaseCases": 80,
+  "releasePayloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2",
+  "resultVersion": 1,
+  "startedAt": "2026-09-24T18:46:56Z",
+  "target": "zero release-attested misses (the release gate's attested criterion)"
+}

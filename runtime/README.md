@@ -17,16 +17,20 @@ Compiled output imports the internal `__sema` binding and calls
 application startup and await it before importing or invoking compiled code. A
 successful load atomically activates the complete immutable artifact; a failed
 reload leaves the preceding artifact active. `path` may name a release directory
-containing `manifest.json` or an artifact root containing `current.json`. With no `path`, the runtime reads `SEMANTSCRIPT_ARTIFACT`
-when set, else `.semantscript/artifact` under the working directory, which is
-where `semantscript init` and `train` put it (`defaultSemaArtifactPath()`).
-With `{ watch: true }` the runtime also watches the artifact root's
-`current.json` and reloads through the same lifecycle whenever the pointer
-changes, which is how `semantscript dev` hot-swaps a retrained head into a
-running process: a release that fails to load leaves the previous artifact
-active (`onReloadError`), a successful one retires the previous handle and
-calls `onReload` with the new one; compiled code always goes through the
-active artifact. `closeSemaArtifact()` stops the watcher.
+containing `manifest.json` or an artifact root containing `current.json`. With no `path`, the runtime resolves the artifact
+without environment-specific setup (`defaultSemaArtifactPath()`):
+`SEMANTSCRIPT_ARTIFACT` when set; else the first `.semantscript/artifact`
+found walking up from the entry script's directory (the compiled output, so a
+Docker image or function bundle that ships the artifact beside `dist/` needs
+nothing else) and then from the working directory; else
+`.semantscript/artifact` under the working directory, where `semantscript init`
+and `train` put it. With `{ watch: true }` the runtime also watches the
+artifact root's `current.json` and reloads through the same lifecycle whenever
+the pointer changes, which is how `semantscript dev` hot-swaps a retrained
+head into a running process: a release that fails to load leaves the previous
+artifact active (`onReloadError`), a successful one retires the previous
+handle and calls `onReload` with the new one; compiled code always goes
+through the active artifact. `closeSemaArtifact()` stops the watcher.
 
 The compiler ABI remains synchronous. ONNX Runtime's JavaScript API is asynchronous,
 so the package owns a dedicated worker thread and uses a bounded shared-memory
@@ -96,3 +100,19 @@ runs the compiler's execution plan stage by stage: `provide(stage, resultsSoFar)
 returns the inputs of every function in the stage, so a later stage's inputs can
 be built from earlier results, and the outcome maps every function id to its
 result with per-stage pass counts.
+
+## Packaging for deployment
+
+The runtime's native dependencies ship prebuilt: `onnxruntime-node` carries
+its binaries for linux (x64, arm64), macOS and Windows inside the package and
+`tokenizers` carries one `.node` binding per platform, so a plain
+`npm ci --omit=dev` on the target platform (a Dockerfile, a CI runner, a
+function bundle) installs the right one with no manual step, and installs
+made on one platform do not carry to another (bundle on the platform you
+deploy to, or in the image). Ship three things together: the compiled
+JavaScript, `node_modules` and the artifact directory; nothing else is read
+at runtime. [`examples/express-app/deploy`](../examples/express-app/deploy)
+has a multi-stage Dockerfile and a serverless handler, and
+[`scripts/cold-start.mjs`](../examples/express-app/scripts/cold-start.mjs)
+measures the cold start (process start, artifact load, first response) and
+resident memory; the numbers are in that example's README.

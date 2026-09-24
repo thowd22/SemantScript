@@ -49,3 +49,4 @@ examples/*/dist/
 examples/*/.next/
 examples/*/package-lock.json
 examples/next-app/semantscript.ir.v1.json
+examples/*/.semantscript/

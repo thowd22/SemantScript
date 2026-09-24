@@ -6,6 +6,7 @@ export {
   executeSemaPlan,
   DEFAULT_SEMA_ARTIFACT_PATH,
   defaultSemaArtifactPath,
+  type DefaultSemaArtifactPathOptions,
   loadSemaArtifact,
   SEMA_ARTIFACT_ENVIRONMENT_VARIABLE,
   SemaArtifactInactiveError,

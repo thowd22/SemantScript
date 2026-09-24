@@ -21,8 +21,10 @@ app.post("/tickets", (request, response) => {
   response.status(201).json(ticket);
 });
 
-const artifactRoot = process.env["SEMANTSCRIPT_ARTIFACT"] ?? "artifact";
-await loadSemaArtifact(artifactRoot);
+// No path: the runtime uses SEMANTSCRIPT_ARTIFACT when set, else it searches
+// .semantscript/artifact upward from this compiled file and from the working
+// directory, so the artifact deployed beside dist/ is found without setup.
+await loadSemaArtifact();
 app.listen(3000, () => {
   console.log("ticket API listening on http://localhost:3000 (POST /tickets)");
 });

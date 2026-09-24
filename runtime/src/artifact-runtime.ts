@@ -1,5 +1,5 @@
-import { watch } from "node:fs";
-import { resolve } from "node:path";
+import { statSync, watch } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { types as nodeTypes } from "node:util";
 
@@ -154,25 +154,70 @@ export class SemaArtifactInactiveError extends Error {
 let activeArtifact: ActiveArtifact | undefined;
 let lifecycleTail: Promise<void> = Promise.resolve();
 
-/** The artifact root `loadSemaArtifact()` uses when no path is passed, relative to the working directory. */
+/** The artifact directory `loadSemaArtifact()` looks for when no path is passed. */
 export const DEFAULT_SEMA_ARTIFACT_PATH = ".semantscript/artifact";
 /** Environment variable that overrides the default artifact root. */
 export const SEMA_ARTIFACT_ENVIRONMENT_VARIABLE = "SEMANTSCRIPT_ARTIFACT";
 
+export interface DefaultSemaArtifactPathOptions {
+  /** The application's entry script (default `process.argv[1]`): the compiled output to search from. */
+  readonly entry?: string | undefined;
+  /** The working directory to search from as well (default `process.cwd()`). */
+  readonly cwd?: string;
+}
+
 /**
  * Where the runtime looks for the artifact when the application does not say:
- * `SEMANTSCRIPT_ARTIFACT` when set, else `.semantscript/artifact` under the
- * working directory, which is where `semantscript init` and `train` put it.
+ * `SEMANTSCRIPT_ARTIFACT` when set; else the first `.semantscript/artifact`
+ * found walking up from the entry script's directory (the compiled output,
+ * so a deployed `dist/` finds the artifact shipped beside it) and then from
+ * the working directory; else `.semantscript/artifact` under the working
+ * directory, which is where `semantscript init` and `train` put it.
  */
 export function defaultSemaArtifactPath(
   env: Readonly<Record<string, string | undefined>> = process.env,
+  options: DefaultSemaArtifactPathOptions = {},
 ): string {
   const override = env[SEMA_ARTIFACT_ENVIRONMENT_VARIABLE];
-  return resolve(
-    override !== undefined && override.length > 0
-      ? override
-      : DEFAULT_SEMA_ARTIFACT_PATH,
-  );
+  if (override !== undefined && override.length > 0) {
+    return resolve(override);
+  }
+  const cwd = resolve(options.cwd ?? process.cwd());
+  const entry = "entry" in options ? options.entry : process.argv[1];
+  const starts = [
+    ...(entry === undefined || entry.length === 0
+      ? []
+      : [dirname(resolve(entry))]),
+    cwd,
+  ];
+  for (const start of starts) {
+    for (const directory of ancestors(start)) {
+      const candidate = join(directory, DEFAULT_SEMA_ARTIFACT_PATH);
+      if (isDirectory(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return join(cwd, DEFAULT_SEMA_ARTIFACT_PATH);
+}
+
+function ancestors(start: string): string[] {
+  const result: string[] = [];
+  let current = start;
+  for (;;) {
+    result.push(current);
+    const parent = dirname(current);
+    if (parent === current) return result;
+    current = parent;
+  }
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /**

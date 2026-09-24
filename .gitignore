@@ -42,3 +42,10 @@ benchmarks/refund/data/encoders/
 # compiled typed-decisions programs and their dataset caches are rebuilt from the pinned dataset
 benchmarks/typed-decisions/program/dist/
 benchmarks/typed-decisions/data/cache/
+
+# example applications are standalone packages; their installs and build outputs are not tracked
+examples/*/node_modules/
+examples/*/dist/
+examples/*/.next/
+examples/*/package-lock.json
+examples/next-app/semantscript.ir.v1.json

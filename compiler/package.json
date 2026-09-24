@@ -6,15 +6,35 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "default": "./dist/index.js"
+    },
+    "./transformer": {
+      "types": "./dist/transformer.d.ts",
+      "default": "./dist/transformer.js"
+    },
+    "./esbuild": {
+      "types": "./dist/esbuild.d.ts",
+      "default": "./dist/esbuild.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "default": "./dist/vite.js"
+    },
+    "./loader": {
+      "types": "./dist/loader.d.ts",
+      "default": "./dist/loader.js"
     }
   },
   "peerDependencies": {
-    "typescript": ">=5.9.0 <7.0.0"
+    "typescript": ">=5.9.0 <7.0.0",
+    "esbuild": ">=0.20.0",
+    "vite": ">=5.0.0"
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",
@@ -22,5 +42,13 @@
     "prepack": "npm run build",
     "pretest": "npm run build",
     "test": "node --test --test-concurrency=1 test/*.test.mjs"
+  },
+  "peerDependenciesMeta": {
+    "esbuild": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
   }
 }

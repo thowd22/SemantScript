@@ -1,0 +1,21 @@
+{
+  "name": "semantscript-example-express-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tspc -p tsconfig.json",
+    "start": "node --enable-source-maps dist/server.js"
+  },
+  "dependencies": {
+    "@semantscript/core": "file:../../runtime",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@semantscript/compiler": "file:../../compiler",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.4",
+    "ts-patch": "^4.0.1",
+    "typescript": "^6.0.3"
+  }
+}

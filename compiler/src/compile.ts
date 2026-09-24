@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   lstat,
   mkdir,
@@ -58,6 +59,13 @@ export interface PlanSemaCompilationOptions {
   ) => Uint8Array | Promise<Uint8Array>;
 }
 
+export interface PlanSemaCompilationSyncOptions {
+  readonly projectRoot: string;
+  readonly encoderRef?: string;
+  readonly adapterRef?: string;
+  readonly readSourceBytesSync?: (sourceFile: ts.SourceFile) => Uint8Array;
+}
+
 export interface PlannedSemaSite extends PlannedSemaRewrite {
   readonly analysis: SemaSiteAnalysis;
   readonly semanticSha256: string;
@@ -100,6 +108,17 @@ export type EmitSemaCompilationResult =
   | { readonly ok: true; readonly value: EmittedSemaCompilation }
   | { readonly ok: false; readonly diagnostics: readonly ts.Diagnostic[] };
 
+export interface EmittedSemaSourceFile {
+  /** The JavaScript text without its trailing `sourceMappingURL` comment. */
+  readonly code: string;
+  /** The source map JSON without `sourcesContent`, when the program emits maps. */
+  readonly map: string | undefined;
+}
+
+export type EmitSemaSourceFileResult =
+  | { readonly ok: true; readonly value: EmittedSemaSourceFile }
+  | { readonly ok: false; readonly diagnostics: readonly ts.Diagnostic[] };
+
 const planSeals = new WeakMap<SemaCompilationPlan, CompilationPlanSeal>();
 
 export interface CompileSemantScriptProgramOptions
@@ -109,11 +128,76 @@ export async function planSemaCompilation(
   program: ts.Program,
   options: PlanSemaCompilationOptions,
 ): Promise<PlanSemaCompilationResult> {
+  const prepared = prepareSemaSites(program, options.projectRoot);
+
+  if (!prepared.ok) {
+    return prepared;
+  }
+
+  const readSourceBytes = options.readSourceBytes ?? defaultReadSourceBytes;
+  const sourceDigests = new Map<string, string>();
+
+  for (const sourceFile of preparedSourceFiles(prepared.value)) {
+    sourceDigests.set(
+      sourceFile.fileName,
+      sha256Hex(await readSourceBytes(sourceFile)),
+    );
+  }
+
+  return finishSemaCompilationPlan(
+    program,
+    options,
+    prepared.value,
+    sourceDigests,
+  );
+}
+
+/**
+ * The synchronous planner for build-tool integrations that run inside a
+ * TypeScript emit (the ts-patch transformer) or a synchronous loader.
+ */
+export function planSemaCompilationSync(
+  program: ts.Program,
+  options: PlanSemaCompilationSyncOptions,
+): PlanSemaCompilationResult {
+  const prepared = prepareSemaSites(program, options.projectRoot);
+
+  if (!prepared.ok) {
+    return prepared;
+  }
+
+  const readSourceBytes =
+    options.readSourceBytesSync ?? defaultReadSourceBytesSync;
+  const sourceDigests = new Map<string, string>();
+
+  for (const sourceFile of preparedSourceFiles(prepared.value)) {
+    sourceDigests.set(
+      sourceFile.fileName,
+      sha256Hex(readSourceBytes(sourceFile)),
+    );
+  }
+
+  return finishSemaCompilationPlan(
+    program,
+    options,
+    prepared.value,
+    sourceDigests,
+  );
+}
+
+type PrepareSemaSitesResult =
+  | { readonly ok: true; readonly value: readonly PreparedSite[] }
+  | { readonly ok: false; readonly diagnostics: readonly ts.Diagnostic[] };
+
+function prepareSemaSites(
+  program: ts.Program,
+  projectRoot: string,
+): PrepareSemaSitesResult {
   const sites = findSemaSites(program)
     .map((site) => ({
       site,
       normalizedPath: normalizeProjectRelativeSourcePath(
-        options.projectRoot,
+        projectRoot,
         site.sourceFile.fileName,
       ),
     }))
@@ -122,8 +206,6 @@ export async function planSemaCompilation(
     malformedSiteDiagnostic,
   );
   const prepared: PreparedSite[] = [];
-  const sourceDigests = new Map<string, Promise<string>>();
-  const readSourceBytes = options.readSourceBytes ?? defaultReadSourceBytes;
 
   for (const { site, normalizedPath } of sites) {
     const analysisResult = analyzeSemaSite(program, site);
@@ -146,21 +228,11 @@ export async function planSemaCompilation(
       continue;
     }
 
-    let sourceDigest = sourceDigests.get(site.sourceFile.fileName);
-
-    if (!sourceDigest) {
-      sourceDigest = Promise.resolve(readSourceBytes(site.sourceFile)).then(
-        (bytes) => sha256Hex(bytes),
-      );
-      sourceDigests.set(site.sourceFile.fileName, sourceDigest);
-    }
-
     prepared.push({
       site,
       normalizedPath,
       analysis,
       configuration: definitionResult.value,
-      sourceSha256: await sourceDigest,
     });
   }
 
@@ -168,12 +240,38 @@ export async function planSemaCompilation(
     return { ok: false, diagnostics };
   }
 
+  return { ok: true, value: prepared };
+}
+
+function preparedSourceFiles(
+  prepared: readonly PreparedSite[],
+): readonly ts.SourceFile[] {
+  const sourceFiles = new Map<string, ts.SourceFile>();
+
+  for (const { site } of prepared) {
+    sourceFiles.set(site.sourceFile.fileName, site.sourceFile);
+  }
+
+  return [...sourceFiles.values()];
+}
+
+function finishSemaCompilationPlan(
+  program: ts.Program,
+  options: { readonly encoderRef?: string; readonly adapterRef?: string },
+  prepared: readonly PreparedSite[],
+  sourceDigests: ReadonlyMap<string, string>,
+): PlanSemaCompilationResult {
   const duplicateCounts = new Map<string, number>();
   const plannedSites: PlannedSemaSite[] = [];
 
   for (const preparedSite of prepared) {
-    const { analysis, configuration, normalizedPath, site, sourceSha256 } =
-      preparedSite;
+    const { analysis, configuration, normalizedPath, site } = preparedSite;
+    const sourceSha256 = sourceDigests.get(site.sourceFile.fileName);
+
+    if (sourceSha256 === undefined) {
+      throw new Error(`missing source digest for ${site.sourceFile.fileName}`);
+    }
+
     const configuredAnalysis: SemaSiteAnalysis = {
       ...analysis,
       ir: { ...analysis.ir, template: configuration.definition.template },
@@ -260,6 +358,80 @@ export async function planSemaCompilation(
   return {
     ok: true,
     value: plan,
+  };
+}
+
+/**
+ * Validates that `plan` is the exact, unmodified plan of `program` and returns
+ * the SemantScript rewrite as a TypeScript `before` transformer. Build tools
+ * that drive TypeScript emit themselves (a ts-patch transformer, a bundler
+ * plugin) pass it first in their `before` list.
+ */
+export function createSemaProgramTransformer(
+  program: ts.Program,
+  plan: SemaCompilationPlan,
+): ts.TransformerFactory<ts.SourceFile> {
+  const planSnapshot = assertPlanMatchesProgram(program, plan);
+  return createFirstBeforeSemaRewriteTransformer(planSnapshot.sites);
+}
+
+/**
+ * Emits one source file of `program` through TypeScript with the SemantScript
+ * rewrite, returning its JavaScript and source map in memory for a bundler.
+ * The program's own compiler options decide the module format, target and
+ * whether a map is produced.
+ */
+export function emitSemaSourceFile(
+  program: ts.Program,
+  plan: SemaCompilationPlan,
+  sourceFile: ts.SourceFile,
+): EmitSemaSourceFileResult {
+  if (program.getSourceFile(sourceFile.fileName) !== sourceFile) {
+    throw new RangeError("source file belongs to another Program");
+  }
+
+  const transformer = createSemaProgramTransformer(program, plan);
+  let code: string | undefined;
+  let map: string | undefined;
+  const emitResult = program.emit(
+    sourceFile,
+    (fileName, data) => {
+      if (fileName.endsWith(".map")) {
+        map = sanitizeEmittedOutput(fileName, data);
+      } else if (isJavaScriptOutput(fileName)) {
+        code = sanitizeEmittedOutput(fileName, data);
+      }
+    },
+    undefined,
+    false,
+    { before: [transformer] },
+  );
+  const emitDiagnostics = [...emitResult.diagnostics];
+
+  if (emitResult.emitSkipped || hasErrors(emitDiagnostics)) {
+    if (emitDiagnostics.length === 0) {
+      emitDiagnostics.push(
+        configurationDiagnostic("TypeScript skipped JavaScript emission"),
+      );
+    }
+
+    return { ok: false, diagnostics: emitDiagnostics };
+  }
+
+  if (code === undefined) {
+    return {
+      ok: false,
+      diagnostics: [
+        configurationDiagnostic(
+          `TypeScript emitted no JavaScript output for ${sourceFile.fileName}`,
+        ),
+      ],
+    };
+  }
+
+  return {
+    ok: true,
+    value: { code: stripSourceMappingComment(code), map },
   };
 }
 
@@ -388,7 +560,6 @@ interface PreparedSite {
     ReturnType<typeof resolveDefinitionConfiguration>,
     { readonly ok: true }
   >["value"];
-  readonly sourceSha256: string;
 }
 
 function compareLocatedSites(
@@ -443,6 +614,14 @@ async function defaultReadSourceBytes(
   sourceFile: ts.SourceFile,
 ): Promise<Uint8Array> {
   return readFile(sourceFile.fileName);
+}
+
+function defaultReadSourceBytesSync(sourceFile: ts.SourceFile): Uint8Array {
+  return readFileSync(sourceFile.fileName);
+}
+
+function stripSourceMappingComment(code: string): string {
+  return code.replace(/\r?\n?\/\/# sourceMappingURL=[^\r\n]*[\r\n]*$/u, "\n");
 }
 
 function resolveBundlePath(

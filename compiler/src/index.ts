@@ -83,14 +83,30 @@ export {
 } from "./rewrite.js";
 export {
   compileSemantScriptProgram,
+  createSemaProgramTransformer,
   emitSemaCompilation,
+  emitSemaSourceFile,
   planSemaCompilation,
+  planSemaCompilationSync,
   type CompileSemantScriptProgramOptions,
   type EmittedSemaCompilation,
+  type EmittedSemaSourceFile,
   type EmitSemaCompilationOptions,
   type EmitSemaCompilationResult,
+  type EmitSemaSourceFileResult,
   type PlannedSemaSite,
   type PlanSemaCompilationOptions,
   type PlanSemaCompilationResult,
+  type PlanSemaCompilationSyncOptions,
   type SemaCompilationPlan,
 } from "./compile.js";
+export {
+  formatSemaBuildDiagnostics,
+  isSemaSourceFileName,
+  loadSemaProjectBuild,
+  planSemaProgramBuild,
+  SemaBuildError,
+  type SemaBuildOptions,
+  type SemaProjectBuild,
+  type SemaProjectBuildDefaults,
+} from "./build-tools.js";

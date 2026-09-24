@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "strict": true,
+    "sourceMap": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "plugins": [
+      {
+        "transform": "@semantscript/compiler/transformer",
+        "application": "ticket-triage"
+      }
+    ]
+  },
+  "include": ["src"]
+}

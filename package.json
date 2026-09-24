@@ -29,8 +29,11 @@
     "@types/node": "22.20.4",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
+    "esbuild": "0.28.2",
     "eslint": "10.11.0",
+    "ts-patch": "4.0.1",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.70.1"
+    "typescript-eslint": "8.70.1",
+    "vite": "8.3.1"
   }
 }

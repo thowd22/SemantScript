@@ -52,7 +52,9 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
 ## Component guides
 
 - [Compiler](../compiler/README.md): site discovery, type analysis, definition
-  resolution, execution plans, bundle emission and the diagnostics catalogue.
+  resolution, execution plans, bundle emission, the diagnostics catalogue and
+  the build-tool adapters (ts-patch transformer, esbuild, Vite, webpack and
+  Turbopack loader).
 - [Runtime](../runtime/README.md): artifact loading, canonical input
   serialization, inference, confidence policy, fallbacks, stages and execution
   plans.
@@ -63,7 +65,10 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
   ONNX export with parity checks.
 - [CLI](../cli/README.md): `semantscript build | train | test | run` and the
   build cache rules.
-- [Examples](../examples/README.md).
+- [Examples](../examples/README.md), including the
+  [Express](../examples/express-app/README.md) and
+  [Next.js](../examples/next-app/README.md) applications that adopt sema
+  through a build-tool adapter.
 
 ## Benchmarks and results
 

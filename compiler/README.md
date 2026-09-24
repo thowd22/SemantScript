@@ -89,3 +89,56 @@ the IR bundle last. The default bundle is `semantscript.ir.v1.json` in `outDir`.
 provide `projectRoot`; they may override the logical encoder/adapter references,
 source-byte reader, or bundle path. A failed analysis or TypeScript emit returns
 diagnostics and does not write the bundle.
+
+`planSemaCompilationSync(program, options)` is the same planner for callers that
+run inside a synchronous TypeScript emit or loader; it reads source bytes with
+`readFileSync` (or `readSourceBytesSync`) and returns the identical plan.
+`createSemaProgramTransformer(program, plan)` validates the plan against the
+program and returns the rewrite as a `before` transformer for a caller that
+drives `program.emit` itself. `emitSemaSourceFile(program, plan, sourceFile)`
+emits one file in memory for a bundler: its JavaScript without the
+`sourceMappingURL` comment, and its map without `sourcesContent`.
+
+## Build-tool adapters
+
+Adoption means sema compiles wherever the application's TypeScript already
+compiles, so the package ships four thin adapters over the entry points above.
+Each plans the whole project (one TypeScript program from the nearest
+`tsconfig.json`, or the `tsconfig` option), writes the IR bundle, then rewrites
+`.sem.ts` files one at a time. Every adapter takes the same options:
+`tsconfig`, `application` (names the artifact's encoder and adapter refs,
+default `application`) and `bundlePath`.
+
+| Adapter                              | One-line adoption                                                                                           | Bundle default                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `@semantscript/compiler/transformer` | tsconfig `"plugins": [{ "transform": "@semantscript/compiler/transformer" }]`, built with ts-patch's `tspc` | `outDir/semantscript.ir.v1.json`               |
+| `@semantscript/compiler/esbuild`     | `plugins: [semantscript()]` in the esbuild build options                                                    | esbuild `outdir` (or beside `outfile`)         |
+| `@semantscript/compiler/vite`        | `plugins: [semantscript()]` in `vite.config`                                                                | Vite `build.outDir`, rewritten after emptying  |
+| `@semantscript/compiler/loader`      | Turbopack `rules: { "*.sem.ts": { loaders: ["@semantscript/compiler/loader"] } }` or a webpack rule         | tsconfig `outDir`, else beside `tsconfig.json` |
+
+The transformer plans from the program tsc hands it and reports planning
+diagnostics through ts-patch's `addDiagnostic`, so a malformed site fails the
+tsc build with its `TS9100` location like any type error. The bundler adapters
+build their own program with the emit shape a bundler expects (per-file
+JavaScript, separate source maps with `inlineSources`, no declarations, a
+script-style `module` raised to ESNext under classic or bundler resolution) and
+leave type checking to the application's own `tsc`; sema-site diagnostics still
+fail the build with the file, line and column. The Vite plugin re-plans on the
+next transform after any watched change; the loader re-plans when a compiled
+source's text differs from the program's copy.
+
+Source maps come from TypeScript's emit, with each rewritten call mapped to the
+original tagged template, so bundler-composed maps and `node
+--enable-source-maps` stack traces point at the `.sem.ts` line of the sema
+expression. `test/build-tools.test.mjs` builds one fixture through `tspc`,
+esbuild and Vite and asserts that trace for each. The loader returns the same
+map to webpack and Turbopack; Next.js 16.3 with Turbopack was observed to keep
+the loader output's positions in its composed server maps (with or without
+`sourcesContent`), so a Turbopack stack trace names the `.sem.ts` file but the
+emitted line. Diagnostics carry the original position in every adapter. The
+subpaths resolve under
+both `import` and `require` (ts-patch and webpack load them with `require`, which
+Node 22.12+ supports for ESM without top-level await).
+
+Runnable adoption examples: [`examples/express-app`](../examples/express-app)
+(tsc transformer) and [`examples/next-app`](../examples/next-app) (loader).

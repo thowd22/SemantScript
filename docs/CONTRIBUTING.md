@@ -10,20 +10,20 @@ The repository is one npm workspace for the Node half and one Python project
 for the training half. Both halves share the specifications and schemas at the
 root.
 
-| Path                 | Toolchain | What lives there                                                                                                                                                      |
-| -------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SPEC.md`, `IR.md`   | prose     | The normative language and IR/artifact contracts.                                                                                                                     |
-| `schemas/`           | JSON      | JSON Schemas (Draft 2020-12) for the IR, bundle, artifact, pointer and refund benchmark records.                                                                      |
-| `compiler/`          | Node/TS   | `@semantscript/compiler`: finds `sema` sites in a TypeScript program, resolves types to IR, rewrites sites to runtime calls, emits the IR bundle and execution plan.  |
-| `runtime/`           | Node/TS   | `@semantscript/core`: the public `sema` declarations, artifact loading, canonical input serialization, ONNX inference in a worker, calibration and confidence policy. |
-| `cli/`               | Node/TS   | `semantscript build \| train \| test \| run`.                                                                                                                         |
-| `trainer/`           | Python    | `semantscript_trainer`: datasets, adversarial cases, training, verification, verified IR, artifact export, build cache, teacher backends, the bundle driver.          |
-| `model/`             | Python    | `semantscript_model`: encoder, adapter and head modules, calibration and ONNX export.                                                                                 |
-| `benchmarks/refund/` | both      | The refund benchmark: TypeScript contracts, adapters and driver; Python release pipeline, teacher and experiments; committed data and results under `data/`.          |
-| `examples/`          | mixed     | Source fixtures, golden IR, manifest and serialization vectors.                                                                                                       |
-| `docs/`              | prose     | This documentation and research notes.                                                                                                                                |
-| `backlog/`           | Markdown  | Backlog.md tasks, decisions and milestones (edited only through the `backlog` CLI).                                                                                   |
-| `scripts/`           | Node      | `check.mjs` and `check-python.mjs`, the lint/test/build gates.                                                                                                        |
+| Path                 | Toolchain | What lives there                                                                                                                                                                                                            |
+| -------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SPEC.md`, `IR.md`   | prose     | The normative language and IR/artifact contracts.                                                                                                                                                                           |
+| `schemas/`           | JSON      | JSON Schemas (Draft 2020-12) for the IR, bundle, artifact, pointer and refund benchmark records.                                                                                                                            |
+| `compiler/`          | Node/TS   | `@semantscript/compiler`: finds `sema` sites in a TypeScript program, resolves types to IR, rewrites sites to runtime calls, emits the IR bundle and execution plan; ships the ts-patch, esbuild, Vite and loader adapters. |
+| `runtime/`           | Node/TS   | `@semantscript/core`: the public `sema` declarations, artifact loading, canonical input serialization, ONNX inference in a worker, calibration and confidence policy.                                                       |
+| `cli/`               | Node/TS   | `semantscript build \| train \| test \| run`.                                                                                                                                                                               |
+| `trainer/`           | Python    | `semantscript_trainer`: datasets, adversarial cases, training, verification, verified IR, artifact export, build cache, teacher backends, the bundle driver.                                                                |
+| `model/`             | Python    | `semantscript_model`: encoder, adapter and head modules, calibration and ONNX export.                                                                                                                                       |
+| `benchmarks/refund/` | both      | The refund benchmark: TypeScript contracts, adapters and driver; Python release pipeline, teacher and experiments; committed data and results under `data/`.                                                                |
+| `examples/`          | mixed     | Source fixtures, golden IR, manifest and serialization vectors, and the Express and Next.js adoption apps (standalone packages, not workspaces).                                                                            |
+| `docs/`              | prose     | This documentation and research notes.                                                                                                                                                                                      |
+| `backlog/`           | Markdown  | Backlog.md tasks, decisions and milestones (edited only through the `backlog` CLI).                                                                                                                                         |
+| `scripts/`           | Node      | `check.mjs` and `check-python.mjs`, the lint/test/build gates.                                                                                                                                                              |
 
 The contract between halves is data, never imports: the compiler writes an IR
 bundle the trainer reads, and the trainer writes an artifact the runtime loads.

@@ -9,7 +9,9 @@
   "bin": {
     "semantscript": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -22,5 +24,10 @@
     "prepack": "npm run build",
     "pretest": "npm run build",
     "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@semantscript/compiler": "0.0.0",
+    "@semantscript/core": "0.0.0",
+    "typescript": "6.0.3"
   }
 }

@@ -1,0 +1,146 @@
+{
+  "adversarial": {
+    "baseDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+    "cacheKeySha256": "198cb22063f394ef3478980f95e7350d54627099b1c9262f34594b4f6f3b3467",
+    "cachePath": "adversarial/adversarial-datasets/v1/19/198cb22063f394ef3478980f95e7350d54627099b1c9262f34594b4f6f3b3467.json",
+    "caseCount": 374,
+    "caseCountsByTag": {
+      "constraint-boundary": 12,
+      "counterfactual": 362
+    },
+    "config": {
+      "counterfactualRatio": 0.02,
+      "maximumAttempts": 5
+    },
+    "datasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+    "elapsedSeconds": 1116.569,
+    "labelCounts": {
+      "\"approve\"": 154,
+      "\"deny\"": 64,
+      "\"review\"": 156
+    },
+    "pairCount": 181,
+    "payloadSha256": "50f8a81640e90a60412c6ddf538c0e13ae68778a9e9a0780639ff381fea29553",
+    "runReport": null
+  },
+  "completedAt": "2026-09-24T04:14:01Z",
+  "dataClassification": "synthetic-training-only",
+  "environment": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "function": {
+    "bundlePath": "compiler/semantscript.ir.v1.json",
+    "bundleSha256": "4bd6a4f90d19f56983b199c421efd23430c648008ec3f5919946f24707671b39",
+    "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+    "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
+  },
+  "kind": "semantscript.refund-training-corpus-manifest",
+  "manifestVersion": 1,
+  "notice": "Model-generated and rule-labeled training data only. Real inputs are de-identified public transactions with every held-out input excluded by digest; labels are the unique output admitted by the compiled constraints. Never a benchmark or release set.",
+  "resumed": false,
+  "startedAt": "2026-09-24T03:56:53Z",
+  "synthetic": {
+    "cacheKeySha256": "5154939e947c1b6315a5aa47daf072c4e4b514dbcf3f3af1fa77a9ee97c1cfa1",
+    "cachePath": "synthetic/datasets/v1/51/5154939e947c1b6315a5aa47daf072c4e4b514dbcf3f3af1fa77a9ee97c1cfa1.json",
+    "datasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+    "elapsedSeconds": 3.592,
+    "goldCount": 0,
+    "labelCounts": {
+      "\"approve\"": 4424,
+      "\"deny\"": 1184,
+      "\"review\"": 3427
+    },
+    "loadedFromCache": false,
+    "payloadSha256": "bb11fc1a4b58331764b2342c5de9e9de128f9b958db82d0b6b7f69ee0267ae8a",
+    "poolReport": {
+      "ambiguous": 0,
+      "duplicateInputs": 18,
+      "excludedHeldOut": 240,
+      "labelCounts": {
+        "\"approve\"": 4114,
+        "\"deny\"": 601,
+        "\"review\"": 2820
+      },
+      "labeled": 7535,
+      "poolRows": 7597
+    },
+    "replayedCaseCount": 1500,
+    "requestedCaseCount": 9035,
+    "runReport": null,
+    "syntheticCount": 9035,
+    "uniqueInputCount": 9027
+  },
+  "teacher": {
+    "cliVersion": "2.1.281 (Claude Code)",
+    "configuration": {
+      "adversarial": {
+        "cli": {
+          "executable": "claude",
+          "requiredVersion": null
+        },
+        "configVersion": 2,
+        "dataClassification": "synthetic-training-only",
+        "generation": {
+          "concurrency": 6,
+          "duplicateRounds": 2,
+          "maximumCaseAttempts": 4
+        },
+        "kind": "semantscript.refund-claude-cli-teacher-config",
+        "limits": {
+          "stderrBytes": 65536,
+          "stdinBytes": 8388608,
+          "stdoutBytes": 8388608,
+          "timeoutSeconds": 600.0
+        },
+        "promptProtocol": "semantscript-trainer-ir-prompts/v2",
+        "protocol": "semantscript.refund-training.claude-cli/v1",
+        "request": {
+          "chrome": false,
+          "effort": "high",
+          "fallbackModel": null,
+          "inputFormat": "text",
+          "maxBudgetUsd": 2.0,
+          "mcpServers": {},
+          "model": "claude-opus-5-5",
+          "outputFormat": "json",
+          "permissionMode": "dontAsk",
+          "permissionPrompts": "none",
+          "print": true,
+          "promptSuggestions": false,
+          "restrictedMode": true,
+          "safeMode": true,
+          "sessionPersistence": false,
+          "settingSources": [],
+          "skills": false,
+          "structuredOutput": "ir-derived-json-schema",
+          "tools": []
+        }
+      },
+      "configVersion": 1,
+      "exclusions": {
+        "count": 240,
+        "heldoutDirectory": "benchmarks/refund/data/heldout-uci-2026-09-23",
+        "sha256": "e89c737685f98327f661721586475e750d42d5ce43aee5f0aecaa94afd309ace"
+      },
+      "fraudPercent": 15,
+      "kind": "semantscript.refund-pooled-corpus-teacher-config",
+      "labeling": "compiled-constraints-unique-admissible-output",
+      "pool": {
+        "path": "benchmarks/refund/data/uci-pool/candidates.json",
+        "sha256": "b22ca9fbaca6fd795f3640fc655c632fe3d285f2c067693d0da640f6b79c7ca9"
+      },
+      "replay": {
+        "caseCount": 1500,
+        "path": "benchmarks/refund/data/opus-v2-2026-09-23/synthetic/datasets/v1/b3/b38026977e4867a53e0073c7ac2773e465b2660bf0c994eaa4337cec2a6c8f63.json",
+        "payloadSha256": "ffaad9a80e73e7274f817eefaacace8351a8d78ea3676d772295a643b92f0017"
+      },
+      "staleStatusTwins": true
+    },
+    "configurationSha256": "5532c8bd990fc86627f5cffe0a48b91983658f5588e11506d8dae04683aeb16f",
+    "dataClassification": "synthetic-training-only",
+    "model": "claude-opus-5-5",
+    "protocol": "semantscript.refund-training.claude-cli/v1",
+    "provider": "real-input-pool-rule-labels+anthropic-claude-cli-adversarial"
+  }
+}

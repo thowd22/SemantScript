@@ -31,7 +31,7 @@ export function customerService(state: string): CustomerServiceDecisions {
     escalate_to_human: Hand off to a human agent with the appropriate authority.
     execute_refund: Issue the refund or credit the customer is owed.
     request_information: More detail is needed from the customer before anything can be done.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const category = sema<
     "account" | "billing" | "delivery" | "refund" | "technical"
@@ -44,7 +44,7 @@ export function customerService(state: string): CustomerServiceDecisions {
     delivery: Shipping, fulfilment or delivery of a physical item.
     refund: The customer is explicitly asking for money back.
     technical: The product or service is not working as expected.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const churn_risk = sema<BoundedInt<0, 3>>`
     Question: churn_risk
@@ -54,7 +54,7 @@ export function customerService(state: string): CustomerServiceDecisions {
     1: Mild frustration, but the relationship is intact.
     2: Clearly unhappy; repeat problems or explicit complaints.
     3: Imminent: threatening to cancel, dispute or leave.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const needs_human = sema<boolean>`
     Question: needs_human
@@ -62,7 +62,7 @@ export function customerService(state: string): CustomerServiceDecisions {
     Answer true or false:
     false: Automation can carry this to resolution.
     true: A human must take over: judgement, authority or empathy is required.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const urgency = sema<BoundedInt<0, 3>>`
     Question: urgency
@@ -72,7 +72,7 @@ export function customerService(state: string): CustomerServiceDecisions {
     1: Routine; handle within the normal queue.
     2: Elevated; should be handled within the same week.
     3: Critical; requires action within the same day.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   return { action, category, churn_risk, needs_human, urgency };
 }

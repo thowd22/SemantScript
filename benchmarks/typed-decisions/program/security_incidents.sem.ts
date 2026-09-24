@@ -17,7 +17,7 @@ export function securityIncidents(state: string): SecurityIncidentsDecisions {
     Answer true or false:
     false: The statement does not hold.
     true: The statement holds.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const disposition = sema<
     "close_benign" | "contain" | "investigate" | "monitor"
@@ -29,7 +29,7 @@ export function securityIncidents(state: string): SecurityIncidentsDecisions {
     contain: Contain the host or account immediately; do not wait for triage.
     investigate: Warrants an analyst opening an investigation.
     monitor: Not clearly malicious, but worth watching for recurrence.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const severity = sema<BoundedInt<0, 4>>`
     Question: severity
@@ -40,7 +40,7 @@ export function securityIncidents(state: string): SecurityIncidentsDecisions {
     2: Moderate: access to internal systems or non-public data.
     3: High: access to production, secrets or customer data.
     4: Critical: active compromise of crown-jewel systems.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const true_positive = sema<boolean>`
     Question: true_positive
@@ -48,7 +48,7 @@ export function securityIncidents(state: string): SecurityIncidentsDecisions {
     Answer true or false:
     false: Benign activity, a misconfiguration, or a known false positive.
     true: The underlying behaviour is malicious or unauthorised.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const urgency = sema<BoundedInt<0, 3>>`
     Question: urgency
@@ -58,7 +58,7 @@ export function securityIncidents(state: string): SecurityIncidentsDecisions {
     1: Routine; handle within the normal queue.
     2: Elevated; should be handled within the same week.
     3: Critical; requires action within the same day.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   return {
     credential_compromise,

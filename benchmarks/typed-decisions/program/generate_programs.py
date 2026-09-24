@@ -102,7 +102,6 @@ def behavioral_text(name: str, spec: dict) -> list[str]:
     else:
         lines.append("Answer true or false:")
         lines.extend(f"{option}: {text}" for option, text in criteria.items())
-    lines.append("State (JSON): ${state}")
     return lines
 
 
@@ -131,6 +130,7 @@ def render(workflow: str, schema: dict[str, dict]) -> str:
         if not _IDENTIFIER.match(name):
             raise SystemExit(f"{workflow}: question {name!r} is not an identifier")
         body = "\n".join(f"    {template_text(line)}" for line in behavioral_text(name, spec))
+        body += "\n    State (JSON): ${state}"
         parts.append(f"  const {name} = sema<{output_type(name, spec)}>`")
         parts.append(body)
         parts.append("  `;")

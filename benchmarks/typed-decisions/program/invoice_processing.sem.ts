@@ -19,7 +19,7 @@ export function invoiceProcessing(state: string): InvoiceProcessingDecisions {
     1: Trivial: rounding or a cosmetic difference.
     2: Moderate: a real difference worth confirming.
     3: Material: a large or unexplained difference.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const disposition = sema<"approve" | "hold" | "manual_review" | "reject">`
     Question: disposition
@@ -29,7 +29,7 @@ export function invoiceProcessing(state: string): InvoiceProcessingDecisions {
     hold: Something needs confirming before payment; hold pending clarification.
     manual_review: A human in finance must review the discrepancy.
     reject: Should not be paid: duplicate, unauthorised or materially wrong.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const duplicate = sema<boolean>`
     Question: duplicate
@@ -37,7 +37,7 @@ export function invoiceProcessing(state: string): InvoiceProcessingDecisions {
     Answer true or false:
     false: The statement does not hold.
     true: The statement holds.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const matches_order = sema<boolean>`
     Question: matches_order
@@ -45,7 +45,7 @@ export function invoiceProcessing(state: string): InvoiceProcessingDecisions {
     Answer true or false:
     false: There is a discrepancy against the order or the delivery.
     true: Line items, quantities and amounts reconcile.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   const urgency = sema<BoundedInt<0, 3>>`
     Question: urgency
@@ -55,7 +55,7 @@ export function invoiceProcessing(state: string): InvoiceProcessingDecisions {
     1: Routine; handle within the normal queue.
     2: Elevated; should be handled within the same week.
     3: Critical; requires action within the same day.
-    State (JSON): \${state}
+    State (JSON): ${state}
   `;
   return {
     discrepancy_severity,

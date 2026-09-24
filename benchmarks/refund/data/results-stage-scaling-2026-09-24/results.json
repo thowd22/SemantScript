@@ -1,0 +1,249 @@
+{
+  "kind": "semantscript.stage-scaling-result",
+  "resultVersion": 1,
+  "startedAt": "2026-09-24T16:56:55Z",
+  "completedAt": "2026-09-24T16:59:06Z",
+  "artifact": {
+    "root": "benchmarks/refund/data/release-multihead-2026-09-24/artifact",
+    "manifestSha256": "68c28a7f7c4b9a5cfd1625c0189128fa586d201d9b28438cf5ecd0ad9e15c4b4"
+  },
+  "inputsSource": "benchmarks/refund/data/pooled-v4-2026-09-24/synthetic/datasets/v1/51/5154939e947c1b6315a5aa47daf072c4e4b514dbcf3f3af1fa77a9ee97c1cfa1.json",
+  "inputsSha256": "6a340ad4462a8e9baf8767755df356c191783220363c477d155400e838f7e461",
+  "environment": {
+    "capturedAt": "2026-09-24T16:59:06Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "architecture": "x64",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+    "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+    "memoryBytes": 16265179136,
+    "runtimeVersions": [
+      {
+        "name": "node",
+        "version": "22.22.0"
+      },
+      {
+        "name": "onnxruntime-node",
+        "version": "1.30.0"
+      }
+    ],
+    "evidenceSha256": "ccd8b9a8d428ed96e30b0734f451588ce58bf514438394b761ed2e5848f87f6f"
+  },
+  "functionCount": 50,
+  "distinctInputs": 64,
+  "iterations": 30,
+  "warmupIterations": 5,
+  "headsPerStage": [
+    {
+      "heads": 1,
+      "passes": {
+        "encoder": 1,
+        "adapter": 1,
+        "head": 1
+      },
+      "fused": {
+        "count": 30,
+        "meanMs": 21.47806686666663,
+        "p50Ms": 20.987037999999302,
+        "p95Ms": 24.058987000000343,
+        "minMs": 19.448270000000775,
+        "maxMs": 28.701302999999825
+      },
+      "sequential": {
+        "count": 30,
+        "meanMs": 21.39825380000008,
+        "p50Ms": 20.82969899999989,
+        "p95Ms": 24.150272999999288,
+        "minMs": 19.902234999999564,
+        "maxMs": 24.21716000000015
+      },
+      "fusedDecisionsPerSecond": 46.55912499983751,
+      "sequentialDecisionsPerSecond": 46.73278527054372,
+      "fusedPerDecisionP50Ms": 20.987037999999302,
+      "sequentialOverFusedP50": 0.9925030392569254
+    },
+    {
+      "heads": 10,
+      "passes": {
+        "encoder": 1,
+        "adapter": 1,
+        "head": 10
+      },
+      "fused": {
+        "count": 30,
+        "meanMs": 23.37982836666603,
+        "p50Ms": 22.47239499999705,
+        "p95Ms": 28.884546999997838,
+        "minMs": 21.437697999999727,
+        "maxMs": 31.369581999999355
+      },
+      "sequential": {
+        "count": 30,
+        "meanMs": 219.02107743333337,
+        "p50Ms": 217.326216999998,
+        "p95Ms": 233.89988600000106,
+        "minMs": 205.62446600000112,
+        "maxMs": 239.9526300000016
+      },
+      "fusedDecisionsPerSecond": 427.71913647824624,
+      "sequentialDecisionsPerSecond": 45.65770617690366,
+      "fusedPerDecisionP50Ms": 2.247239499999705,
+      "sequentialOverFusedP50": 9.670807984641892
+    },
+    {
+      "heads": 50,
+      "passes": {
+        "encoder": 1,
+        "adapter": 1,
+        "head": 50
+      },
+      "fused": {
+        "count": 30,
+        "meanMs": 30.471064999999967,
+        "p50Ms": 29.718344000000798,
+        "p95Ms": 36.975269999999,
+        "minMs": 25.590690000000905,
+        "maxMs": 38.29061699999875
+      },
+      "sequential": {
+        "count": 30,
+        "meanMs": 1185.6925696333333,
+        "p50Ms": 1132.862632999997,
+        "p95Ms": 1466.7024059999967,
+        "minMs": 1016.6478360000037,
+        "maxMs": 1515.4501090000012
+      },
+      "fusedDecisionsPerSecond": 1640.9009662117178,
+      "sequentialDecisionsPerSecond": 42.1694470223948,
+      "fusedPerDecisionP50Ms": 0.5943668800000159,
+      "sequentialOverFusedP50": 38.1199784550568
+    }
+  ],
+  "batchScaling": [
+    {
+      "batch": 1,
+      "passes": {
+        "encoder": 1,
+        "adapter": 1,
+        "head": 1
+      },
+      "stage": {
+        "count": 30,
+        "meanMs": 24.544067033333945,
+        "p50Ms": 24.09969500000443,
+        "p95Ms": 28.052315000000817,
+        "minMs": 20.858421000004455,
+        "maxMs": 30.61557499999617
+      },
+      "perDecisionP50Ms": 24.09969500000443,
+      "decisionsPerSecond": 40.74304387458988
+    },
+    {
+      "batch": 2,
+      "passes": {
+        "encoder": 2,
+        "adapter": 2,
+        "head": 2
+      },
+      "stage": {
+        "count": 30,
+        "meanMs": 47.685603700000016,
+        "p50Ms": 47.12992200000008,
+        "p95Ms": 52.05374599999777,
+        "minMs": 42.48842600000353,
+        "maxMs": 53.3355689999953
+      },
+      "perDecisionP50Ms": 23.56496100000004,
+      "decisionsPerSecond": 41.941379469208634
+    },
+    {
+      "batch": 4,
+      "passes": {
+        "encoder": 4,
+        "adapter": 4,
+        "head": 4
+      },
+      "stage": {
+        "count": 30,
+        "meanMs": 102.16979203333321,
+        "p50Ms": 102.0354989999978,
+        "p95Ms": 117.95107899999857,
+        "minMs": 84.65468300000066,
+        "maxMs": 134.56207700000232
+      },
+      "perDecisionP50Ms": 25.50887474999945,
+      "decisionsPerSecond": 39.15051523932815
+    },
+    {
+      "batch": 8,
+      "passes": {
+        "encoder": 8,
+        "adapter": 8,
+        "head": 8
+      },
+      "stage": {
+        "count": 30,
+        "meanMs": 174.05592813333277,
+        "p50Ms": 172.18997999999556,
+        "p95Ms": 187.38144700000703,
+        "minMs": 160.96214999999938,
+        "maxMs": 195.4831269999995
+      },
+      "perDecisionP50Ms": 21.523747499999445,
+      "decisionsPerSecond": 45.96223803346547
+    },
+    {
+      "batch": 16,
+      "passes": {
+        "encoder": 16,
+        "adapter": 16,
+        "head": 16
+      },
+      "stage": {
+        "count": 30,
+        "meanMs": 389.9317241333328,
+        "p50Ms": 364.56908499999554,
+        "p95Ms": 535.8435419999878,
+        "minMs": 321.69232600000396,
+        "maxMs": 554.1201900000015
+      },
+      "perDecisionP50Ms": 22.78556781249972,
+      "decisionsPerSecond": 41.0328244914204
+    },
+    {
+      "batch": 32,
+      "passes": {
+        "encoder": 32,
+        "adapter": 32,
+        "head": 32
+      },
+      "stage": {
+        "count": 30,
+        "meanMs": 709.4037559666681,
+        "p50Ms": 686.5516020000068,
+        "p95Ms": 791.4107169999916,
+        "minMs": 625.398325999995,
+        "maxMs": 924.443054000003
+      },
+      "perDecisionP50Ms": 21.454737562500213,
+      "decisionsPerSecond": 45.10830360123375
+    },
+    {
+      "batch": 64,
+      "passes": {
+        "encoder": 64,
+        "adapter": 64,
+        "head": 64
+      },
+      "stage": {
+        "count": 30,
+        "meanMs": 1295.6378543000008,
+        "p50Ms": 1272.5391710000113,
+        "p95Ms": 1420.0712730000087,
+        "minMs": 1254.0848910000059,
+        "maxMs": 1439.2312269999966
+      },
+      "perDecisionP50Ms": 19.883424546875176,
+      "decisionsPerSecond": 49.396519087177744
+    }
+  ]
+}

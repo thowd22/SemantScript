@@ -68,6 +68,20 @@ artifact with two heads and calls both through the Node runtime. The risk
 function's attested set is the release inputs relabeled by its constraints,
 which the report marks as rule-labeled, not judge-adjudicated.
 
+`derive_multihead_artifact.py` and `run-stage-scaling.mjs` measure the
+shared-encoder thesis (TASK-6.5). The first clones a published single-function
+scalar release N times over its own tokenizer, encoder and adapter (fresh
+function ids and head refs, byte-copied head graphs, hard-linked shared
+resources) into a content-addressed artifact plus a derivation record naming the
+source manifest digest; the clones exist to count head passes, not to claim
+independently trained behaviour. The second loads such an artifact and, after
+warm-up, times one fused stage of 1, 10 and 50 heads over one input against one
+call per head, and one head over 1 to 64 distinct inputs in a stage (the batch
+curve), asserting the encoder/adapter/head pass counts and that fused results
+equal the single calls. Inputs come from a synthetic corpus, never from an
+evaluation set; results and the environment capture land in the output
+directory.
+
 Focused offline checks are bounded and do not train a model or publish results:
 
 ```sh

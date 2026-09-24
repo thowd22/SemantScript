@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readFile, readlink, rename, unlink } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  readlink,
+  rename,
+  unlink,
+} from "node:fs/promises";
 import path from "node:path";
 
 import ts from "typescript";
@@ -24,13 +32,19 @@ import {
   createFirstBeforeSemaRewriteTransformer,
   type PlannedSemaRewrite,
 } from "./rewrite.js";
-import { findSemaSites, type SemaSite } from "./sema-sites.js";
+import {
+  findMalformedSemaSites,
+  findSemaSites,
+  type MalformedSemaSite,
+  type SemaSite,
+} from "./sema-sites.js";
 import {
   createSourceNeuralFunctionIr,
   type SourceNeuralFunctionIr,
 } from "./source-ir.js";
 import { compareBytes } from "./semantic-json.js";
 
+const MALFORMED_SITE_DIAGNOSTIC = 9100;
 const COMPILATION_DIAGNOSTIC = 9130;
 const DEFAULT_BUNDLE_NAME = "semantscript.ir.v1.json";
 const textEncoder = new TextEncoder();
@@ -89,8 +103,7 @@ export type EmitSemaCompilationResult =
 const planSeals = new WeakMap<SemaCompilationPlan, CompilationPlanSeal>();
 
 export interface CompileSemantScriptProgramOptions
-  extends PlanSemaCompilationOptions,
-    EmitSemaCompilationOptions {}
+  extends PlanSemaCompilationOptions, EmitSemaCompilationOptions {}
 
 export async function planSemaCompilation(
   program: ts.Program,
@@ -99,10 +112,15 @@ export async function planSemaCompilation(
   const sites = findSemaSites(program)
     .map((site) => ({
       site,
-      normalizedPath: normalizeProjectRelativeSourcePath(options.projectRoot, site.sourceFile.fileName),
+      normalizedPath: normalizeProjectRelativeSourcePath(
+        options.projectRoot,
+        site.sourceFile.fileName,
+      ),
     }))
     .sort(compareLocatedSites);
-  const diagnostics: ts.Diagnostic[] = [];
+  const diagnostics: ts.Diagnostic[] = findMalformedSemaSites(program).map(
+    malformedSiteDiagnostic,
+  );
   const prepared: PreparedSite[] = [];
   const sourceDigests = new Map<string, Promise<string>>();
   const readSourceBytes = options.readSourceBytes ?? defaultReadSourceBytes;
@@ -131,8 +149,8 @@ export async function planSemaCompilation(
     let sourceDigest = sourceDigests.get(site.sourceFile.fileName);
 
     if (!sourceDigest) {
-      sourceDigest = Promise.resolve(readSourceBytes(site.sourceFile)).then((bytes) =>
-        sha256Hex(bytes),
+      sourceDigest = Promise.resolve(readSourceBytes(site.sourceFile)).then(
+        (bytes) => sha256Hex(bytes),
       );
       sourceDigests.set(site.sourceFile.fileName, sourceDigest);
     }
@@ -154,7 +172,8 @@ export async function planSemaCompilation(
   const plannedSites: PlannedSemaSite[] = [];
 
   for (const preparedSite of prepared) {
-    const { analysis, configuration, normalizedPath, site, sourceSha256 } = preparedSite;
+    const { analysis, configuration, normalizedPath, site, sourceSha256 } =
+      preparedSite;
     const configuredAnalysis: SemaSiteAnalysis = {
       ...analysis,
       ir: { ...analysis.ir, template: configuration.definition.template },
@@ -175,7 +194,11 @@ export async function planSemaCompilation(
     const duplicateKey = `${normalizedPath}\u0000${semanticSha256}`;
     const duplicateOrdinal = duplicateCounts.get(duplicateKey) ?? 0;
     duplicateCounts.set(duplicateKey, duplicateOrdinal + 1);
-    const functionId = createFunctionId(normalizedPath, duplicateOrdinal, semanticSha256);
+    const functionId = createFunctionId(
+      normalizedPath,
+      duplicateOrdinal,
+      semanticSha256,
+    );
     const record = createSourceNeuralFunctionIr(configuredAnalysis, {
       id: functionId,
       semanticSha256,
@@ -183,7 +206,12 @@ export async function planSemaCompilation(
       sourceSha256,
       encoderRef: options.encoderRef ?? "encoder.main",
       adapterRef: options.adapterRef ?? "adapter.application",
-      headRefs: createHeadRefs(functionId, analysis.ir.output.kind === "scalar" ? 1 : analysis.ir.output.fields.length),
+      headRefs: createHeadRefs(
+        functionId,
+        analysis.ir.output.kind === "scalar"
+          ? 1
+          : analysis.ir.output.fields.length,
+      ),
       confidenceThreshold: configuration.confidenceThreshold,
       examples: configuration.definition.examples,
       constraints: configuration.definition.constraints,
@@ -250,12 +278,17 @@ export async function emitSemaCompilation(
   await assertBundlePathDoesNotOverwriteSource(program, bundlePath);
   const planSnapshot = assertPlanMatchesProgram(program, plan);
   const outputs = new Map<string, string>();
-  const transformer = createFirstBeforeSemaRewriteTransformer(planSnapshot.sites);
+  const transformer = createFirstBeforeSemaRewriteTransformer(
+    planSnapshot.sites,
+  );
   const emitResult = program.emit(
     undefined,
     (fileName, data, writeByteOrderMark) => {
       const contents = `${writeByteOrderMark ? "\uFEFF" : ""}${data}`;
-      outputs.set(path.resolve(fileName), sanitizeEmittedOutput(fileName, contents));
+      outputs.set(
+        path.resolve(fileName),
+        sanitizeEmittedOutput(fileName, contents),
+      );
     },
     undefined,
     false,
@@ -265,21 +298,30 @@ export async function emitSemaCompilation(
 
   if (emitResult.emitSkipped || hasErrors(emitDiagnostics)) {
     if (emitDiagnostics.length === 0) {
-      emitDiagnostics.push(configurationDiagnostic("TypeScript skipped JavaScript emission"));
+      emitDiagnostics.push(
+        configurationDiagnostic("TypeScript skipped JavaScript emission"),
+      );
     }
 
     return { ok: false, diagnostics: emitDiagnostics };
   }
 
-  if (planSnapshot.sites.length > 0 && ![...outputs.keys()].some(isJavaScriptOutput)) {
+  if (
+    planSnapshot.sites.length > 0 &&
+    ![...outputs.keys()].some(isJavaScriptOutput)
+  ) {
     return {
       ok: false,
-      diagnostics: [configurationDiagnostic("TypeScript emitted no JavaScript output")],
+      diagnostics: [
+        configurationDiagnostic("TypeScript emitted no JavaScript output"),
+      ],
     };
   }
 
   if (await anyCanonicalPathMatches([...outputs.keys()], bundlePath)) {
-    throw new RangeError("IR bundle path conflicts with a TypeScript output path");
+    throw new RangeError(
+      "IR bundle path conflicts with a TypeScript output path",
+    );
   }
 
   const emittedFiles = [...outputs.keys()].sort(compareStrings);
@@ -292,7 +334,10 @@ export async function emitSemaCompilation(
   const stagedFiles: StagedTextFile[] = [];
 
   try {
-    const stagedBundle = await stageTextFile(bundlePath, planSnapshot.bundleText);
+    const stagedBundle = await stageTextFile(
+      bundlePath,
+      planSnapshot.bundleText,
+    );
     stagedFiles.push(stagedBundle);
 
     for (const fileName of emittedFiles) {
@@ -311,7 +356,11 @@ export async function emitSemaCompilation(
 
     await commitStagedFile(stagedBundle);
   } catch (error) {
-    await Promise.all(stagedFiles.map(({ temporary }) => unlink(temporary).catch(() => undefined)));
+    await Promise.all(
+      stagedFiles.map(({ temporary }) =>
+        unlink(temporary).catch(() => undefined),
+      ),
+    );
     throw error;
   }
 
@@ -355,19 +404,24 @@ function compareLocatedSites(
 
 function createHeadRefs(functionId: string, count: number): readonly string[] {
   const identity = functionId.slice(3);
-  return Array.from({ length: count }, (_, index) =>
-    `head.${identity}.${index.toString().padStart(3, "0")}`,
+  return Array.from(
+    { length: count },
+    (_, index) => `head.${identity}.${index.toString().padStart(3, "0")}`,
   );
 }
 
-function createExecutionPlanDescriptor(site: PlannedSemaSite): ExecutionPlanSiteDescriptor {
+function createExecutionPlanDescriptor(
+  site: PlannedSemaSite,
+): ExecutionPlanSiteDescriptor {
   const { template } = site.analysis.site.node;
   const expressions = ts.isTemplateExpression(template)
     ? template.templateSpans.map(({ expression }) => expression)
     : [];
 
   if (expressions.length !== site.inputNames.length) {
-    throw new RangeError("analyzed sema inputs do not match their template expressions");
+    throw new RangeError(
+      "analyzed sema inputs do not match their template expressions",
+    );
   }
 
   return {
@@ -385,11 +439,16 @@ function createExecutionPlanDescriptor(site: PlannedSemaSite): ExecutionPlanSite
   };
 }
 
-async function defaultReadSourceBytes(sourceFile: ts.SourceFile): Promise<Uint8Array> {
+async function defaultReadSourceBytes(
+  sourceFile: ts.SourceFile,
+): Promise<Uint8Array> {
   return readFile(sourceFile.fileName);
 }
 
-function resolveBundlePath(program: ts.Program, requested: string | undefined): string {
+function resolveBundlePath(
+  program: ts.Program,
+  requested: string | undefined,
+): string {
   if (requested) {
     return path.resolve(requested);
   }
@@ -397,7 +456,9 @@ function resolveBundlePath(program: ts.Program, requested: string | undefined): 
   const outDir = program.getCompilerOptions().outDir;
 
   if (!outDir) {
-    throw new TypeError("bundlePath is required when the TypeScript program has no outDir");
+    throw new TypeError(
+      "bundlePath is required when the TypeScript program has no outDir",
+    );
   }
 
   return path.resolve(outDir, DEFAULT_BUNDLE_NAME);
@@ -441,24 +502,37 @@ function assertPlanMatchesProgram(
 
   for (const site of plan.sites) {
     if (program.getSourceFile(site.sourceFile.fileName) !== site.sourceFile) {
-      throw new RangeError("compilation plan contains a source file from another Program");
+      throw new RangeError(
+        "compilation plan contains a source file from another Program",
+      );
     }
 
     const keys = remaining.get(site.sourceFile);
 
     if (!keys?.delete(siteKey(site.start, site.end))) {
-      throw new RangeError("compilation plan does not match the Program's discovered sema sites");
+      throw new RangeError(
+        "compilation plan does not match the Program's discovered sema sites",
+      );
     }
 
-    if (site.record.id !== site.functionId || site.record.semanticSha256 !== site.semanticSha256) {
-      throw new RangeError("compilation plan rewrite identity does not match its IR record");
+    if (
+      site.record.id !== site.functionId ||
+      site.record.semanticSha256 !== site.semanticSha256
+    ) {
+      throw new RangeError(
+        "compilation plan rewrite identity does not match its IR record",
+      );
     }
 
     if (
       site.inputNames.length !== site.record.inputs.length ||
-      site.inputNames.some((name, index) => name !== site.record.inputs[index]?.name)
+      site.inputNames.some(
+        (name, index) => name !== site.record.inputs[index]?.name,
+      )
     ) {
-      throw new RangeError("compilation plan rewrite inputs do not match its IR record");
+      throw new RangeError(
+        "compilation plan rewrite inputs do not match its IR record",
+      );
     }
   }
 
@@ -478,13 +552,17 @@ function assertPlanMatchesProgram(
     stringifyExactJson(plannedRecords) !== bundleFunctionsText ||
     plan.bundleText !== currentBundleText
   ) {
-    throw new RangeError("compilation plan bundle and bundle text are inconsistent");
+    throw new RangeError(
+      "compilation plan bundle and bundle text are inconsistent",
+    );
   }
 
   const seal = planSeals.get(plan);
 
   if (!seal) {
-    throw new TypeError("emit requires the exact plan returned by planSemaCompilation");
+    throw new TypeError(
+      "emit requires the exact plan returned by planSemaCompilation",
+    );
   }
 
   if (
@@ -502,7 +580,9 @@ function assertPlanMatchesProgram(
         expected.duplicateOrdinal !== actual.duplicateOrdinal ||
         expected.recordText !== stringifyExactJson(actual.record) ||
         expected.inputNames.length !== actual.inputNames.length ||
-        expected.inputNames.some((name, inputIndex) => name !== actual.inputNames[inputIndex])
+        expected.inputNames.some(
+          (name, inputIndex) => name !== actual.inputNames[inputIndex],
+        )
       );
     })
   ) {
@@ -526,7 +606,9 @@ async function assertBundlePathDoesNotOverwriteSource(
       bundlePath,
     )
   ) {
-    throw new RangeError("IR bundle path conflicts with a TypeScript source file");
+    throw new RangeError(
+      "IR bundle path conflicts with a TypeScript source file",
+    );
   }
 }
 
@@ -536,7 +618,9 @@ async function assertFileTargetIsNotDirectory(
 ): Promise<void> {
   try {
     if ((await lstat(fileName)).isDirectory()) {
-      throw new RangeError(`${description} path must not be an existing directory`);
+      throw new RangeError(
+        `${description} path must not be an existing directory`,
+      );
     }
   } catch (error) {
     if (!isMissingPathError(error)) {
@@ -551,7 +635,9 @@ async function anyCanonicalPathMatches(
 ): Promise<boolean> {
   const targetKey = comparisonPath(await canonicalizePath(target));
   const candidateKeys = await Promise.all(
-    candidates.map(async (candidate) => comparisonPath(await canonicalizePath(candidate))),
+    candidates.map(async (candidate) =>
+      comparisonPath(await canonicalizePath(candidate)),
+    ),
   );
   return candidateKeys.includes(targetKey);
 }
@@ -565,7 +651,10 @@ async function canonicalizePathSegments(
   seenLinks: Set<string>,
 ): Promise<string> {
   const root = path.parse(absolutePath).root;
-  const segments = path.relative(root, absolutePath).split(path.sep).filter(Boolean);
+  const segments = path
+    .relative(root, absolutePath)
+    .split(path.sep)
+    .filter(Boolean);
   let current = root;
 
   for (const [index, segment] of segments.entries()) {
@@ -580,7 +669,9 @@ async function canonicalizePathSegments(
       }
 
       if (seenLinks.has(candidate) || seenLinks.size >= 40) {
-        throw new RangeError(`too many symbolic links while resolving ${absolutePath}`);
+        throw new RangeError(
+          `too many symbolic links while resolving ${absolutePath}`,
+        );
       }
 
       seenLinks.add(candidate);
@@ -624,10 +715,9 @@ function sanitizeEmittedOutput(fileName: string, contents: string): string {
   return contents.replace(
     /(sourceMappingURL=data:application\/json(?:;charset=[^;,]+)?;base64,)([A-Za-z0-9+/=]+)/gu,
     (_match, prefix: string, payload: string) => {
-      const parsed = JSON.parse(Buffer.from(payload, "base64").toString("utf8")) as Record<
-        string,
-        unknown
-      >;
+      const parsed = JSON.parse(
+        Buffer.from(payload, "base64").toString("utf8"),
+      ) as Record<string, unknown>;
       delete parsed["sourcesContent"];
       return `${prefix}${Buffer.from(JSON.stringify(parsed)).toString("base64")}`;
     },
@@ -639,7 +729,10 @@ interface StagedTextFile {
   readonly temporary: string;
 }
 
-async function stageTextFile(fileName: string, contents: string): Promise<StagedTextFile> {
+async function stageTextFile(
+  fileName: string,
+  contents: string,
+): Promise<StagedTextFile> {
   const directory = path.dirname(fileName);
   await mkdir(directory, { recursive: true });
   const temporary = path.join(
@@ -668,6 +761,22 @@ async function commitStagedFile(staged: StagedTextFile): Promise<void> {
   await rename(staged.temporary, staged.target);
 }
 
+function malformedSiteDiagnostic(
+  site: MalformedSemaSite,
+): ts.DiagnosticWithLocation {
+  const siteText = site.node.getText(site.sourceFile);
+  const prefix = `${site.location.fileName}:${String(site.location.line)}:${String(site.location.column)}`;
+
+  return {
+    category: ts.DiagnosticCategory.Error,
+    code: MALFORMED_SITE_DIAGNOSTIC,
+    file: site.sourceFile,
+    start: site.location.start,
+    length: site.location.end - site.location.start,
+    messageText: `${prefix}: ${site.reason} (site: ${siteText})`,
+  };
+}
+
 function configurationDiagnostic(messageText: string): ts.Diagnostic {
   return {
     category: ts.DiagnosticCategory.Error,
@@ -694,7 +803,9 @@ function executionPlanDiagnostic(
 }
 
 function hasErrors(diagnostics: readonly ts.Diagnostic[]): boolean {
-  return diagnostics.some(({ category }) => category === ts.DiagnosticCategory.Error);
+  return diagnostics.some(
+    ({ category }) => category === ts.DiagnosticCategory.Error,
+  );
 }
 
 function isJavaScriptOutput(fileName: string): boolean {

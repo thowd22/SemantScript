@@ -236,6 +236,23 @@ export function renderTrainReport(document: unknown): string {
       rows,
     ),
   ];
+  for (const entry of listOf(report["functions"], "report.functions")) {
+    const fn = objectOf(entry, "report.functions[]");
+    const verification = objectOf(
+      fn["verification"],
+      "report.functions[].verification",
+    );
+    const failures = verification["failures"];
+    if (!Array.isArray(failures) || failures.length === 0) continue;
+    lines.push(
+      `${shortId(stringOf(fn["id"], "report.functions[].id"))} verification failures:\n`,
+    );
+    for (const failure of failures as readonly unknown[]) {
+      lines.push(
+        `  ${typeof failure === "string" ? failure.replaceAll("\n", "\n  ") : JSON.stringify(failure)}\n`,
+      );
+    }
+  }
   const cache = report["cache"];
   if (cache !== null && cache !== undefined) {
     const summary = objectOf(cache, "report.cache");

@@ -196,7 +196,10 @@ def test_gold_miss_fails_build_and_retains_typed_report() -> None:
 
     assert result.status == "failed"
     assert result.metrics.example_failures == 1
-    assert any("gold/human" in failure for failure in result.failures)
+    assert result.failures == (
+        "1 gold/human example prediction(s) failed:\n"
+        '  - gold example base:0: inputs {"score":0} expected false, predicted true',
+    )
     with pytest.raises(VerificationGateError) as caught:
         verify_training_result(
             contract,
@@ -376,8 +379,14 @@ def test_constraint_violation_and_counterfactual_pair_failure_are_measured() -> 
     assert result.metrics.pair_consistency == 0.0
     assert result.metrics.heads[0].pair_consistency == 0.0
     assert result.pair_count == 1
-    assert any("adversarial constraint" in failure for failure in result.failures)
-    assert any("exceeds the configured tolerance 0" in failure for failure in result.failures)
+    constraint_failure = next(f for f in result.failures if "adversarial constraint" in f)
+    assert constraint_failure.startswith(
+        "3 adversarial constraint check(s) failed (0.428571 of 7 records exceeds the "
+        "configured tolerance 0):\n"
+        '  - constraint 0 (score >= 10) violated by case base:2: inputs {"score":20} '
+        "predicted false\n"
+    )
+    assert constraint_failure.count("\n  - ") == 3
 
     tolerated = evaluate_training_result(
         contract,

@@ -1,6 +1,8 @@
 export {
+  findMalformedSemaSites,
   findSemaSites,
   isSemantScriptSourceFile,
+  type MalformedSemaSite,
   type SemaSite,
   type SemaSourceLocation,
 } from "./sema-sites.js";

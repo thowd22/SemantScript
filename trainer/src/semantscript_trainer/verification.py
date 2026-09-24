@@ -490,8 +490,10 @@ def evaluate_training_result(
         dtype=torch.long,
     )
     split_sha256 = calibration_split_sha256(training, calibration_rows)
-    example_failures = _example_failures(gold_rows, external_human, predictions)
-    constraint_violations = _constraint_violations(
+    example_failures, example_details = _example_failures(
+        gold_rows, external_human, predictions, heads
+    )
+    constraint_violations, constraint_details = _constraint_violations(
         ir,
         corpus,
         adversarial,
@@ -553,7 +555,7 @@ def evaluate_training_result(
         raise VerificationExecutionError("classifier state changed during verification")
     if hashlib.sha256(tokenizer_json_bytes(resolved_tokenizer)).hexdigest() != tokenizer_sha256:
         raise VerificationExecutionError("tokenizer JSON changed during verification")
-    failures = _gate_failures(metrics, resolved, len(records))
+    failures = _gate_failures(metrics, resolved, len(records), example_details, constraint_details)
     return VerificationResult(
         function_id=training.function_id,
         semantic_sha256=training.semantic_sha256,
@@ -1159,12 +1161,62 @@ def _example_failures(
     gold_rows: tuple[TrainingRow, ...],
     external_human: tuple[_CaseRecord, ...],
     predictions: Mapping[str, tuple[int, ...]],
-) -> int:
-    failures = sum(predictions[row.row_id] != row.label_indices for row in gold_rows)
-    failures += sum(
-        predictions[record.case_id] != record.label_indices for record in external_human
+    heads: Sequence[OutputHead],
+) -> tuple[int, tuple[str, ...]]:
+    """Count missed attested examples and describe each one for the failure report."""
+
+    details: list[str] = []
+    for row in gold_rows:
+        if predictions[row.row_id] != row.label_indices:
+            details.append(
+                _miss_detail(
+                    "gold example",
+                    row.row_id,
+                    row.inputs,
+                    row.label_indices,
+                    predictions[row.row_id],
+                    heads,
+                )
+            )
+    for record in external_human:
+        if predictions[record.case_id] != record.label_indices:
+            details.append(
+                _miss_detail(
+                    "attested case",
+                    record.case_id,
+                    record.inputs,
+                    record.label_indices,
+                    predictions[record.case_id],
+                    heads,
+                )
+            )
+    return len(details), tuple(details)
+
+
+def _miss_detail(
+    kind: str,
+    case_id: str,
+    inputs: Mapping[str, JsonValue],
+    expected: Sequence[int],
+    predicted: Sequence[int],
+    heads: Sequence[OutputHead],
+) -> str:
+    return (
+        f"{kind} {case_id}: inputs {_brief_json(inputs)} expected "
+        f"{_brief_json(predicted_output_value(heads, expected))}, predicted "
+        f"{_brief_json(predicted_output_value(heads, predicted))}"
     )
-    return failures
+
+
+_MAXIMUM_DETAIL_CHARACTERS = 400
+_MAXIMUM_DETAILS_PER_FAILURE = 10
+
+
+def _brief_json(value: object) -> str:
+    text = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    if len(text) > _MAXIMUM_DETAIL_CHARACTERS:
+        return text[: _MAXIMUM_DETAIL_CHARACTERS - 1] + "…"
+    return text
 
 
 def _constraint_violations(
@@ -1173,13 +1225,22 @@ def _constraint_violations(
     adversarial: AdversarialDataset | None,
     records: tuple[_CaseRecord, ...],
     predictions: Mapping[str, tuple[int, ...]],
-) -> int:
+) -> tuple[int, tuple[str, ...]]:
+    """Count constraint violations under the raw model and describe each one."""
+
     try:
         constraints = compile_constraints(ir)
     except (RuntimeError, TypeError, ValueError) as error:
         raise VerificationConfigurationError(f"IR constraints are invalid: {error}") from error
     if len(constraints) == 0:
-        return 0
+        return 0, ()
+    definition = ir.get("definition")
+    raw_constraints = definition.get("constraints") if isinstance(definition, Mapping) else None
+    sources = [
+        str(item.get("source", "")) if isinstance(item, Mapping) else ""
+        for item in (raw_constraints if isinstance(raw_constraints, list) else [])
+    ]
+    details: list[str] = []
     try:
         constraints.ensure_evaluation_budget(len(records))
     except ConstraintConfigurationError as error:
@@ -1211,7 +1272,14 @@ def _constraint_violations(
                     f"constraint-boundary case {case.case_id} predicate metadata is stale"
                 )
         violations += len(case_violations)
-    return violations
+        for index in case_violations:
+            source = sources[index] if index < len(sources) else ""
+            details.append(
+                f"constraint {index}{f' ({source})' if source else ''} violated by case "
+                f"{record.case_id}: inputs {_brief_json(record.inputs)} predicted "
+                f"{_brief_json(predicted_output)}"
+            )
+    return violations, tuple(details)
 
 
 def _pair_consistency(
@@ -1256,10 +1324,15 @@ def _gate_failures(
     metrics: VerificationMetricsV1,
     config: VerificationConfig,
     record_count: int,
+    example_details: Sequence[str] = (),
+    constraint_details: Sequence[str] = (),
 ) -> tuple[str, ...]:
     failures: list[str] = []
     if metrics.example_failures:
-        failures.append(f"{metrics.example_failures} gold/human example prediction(s) failed")
+        failures.append(
+            f"{metrics.example_failures} gold/human example prediction(s) failed"
+            + _detail_suffix(example_details)
+        )
     if metrics.constraint_violations:
         rate = metrics.constraint_violations / max(record_count, 1)
         if rate > config.maximum_constraint_violation_rate:
@@ -1267,6 +1340,7 @@ def _gate_failures(
                 f"{metrics.constraint_violations} adversarial constraint check(s) failed "
                 f"({rate:.6g} of {record_count} records exceeds the configured tolerance "
                 f"{config.maximum_constraint_violation_rate:.6g})"
+                + _detail_suffix(constraint_details)
             )
     if metrics.type_errors:
         failures.append(f"{metrics.type_errors} output type check(s) failed")
@@ -1275,6 +1349,19 @@ def _gate_failures(
             f"ECE {metrics.ece:.12g} exceeds configured threshold {config.ece_threshold:.12g}"
         )
     return tuple(failures)
+
+
+def _detail_suffix(details: Sequence[str]) -> str:
+    """The first few failing cases, one per line, so a failed build names them."""
+
+    if not details:
+        return ""
+    shown = list(details[:_MAXIMUM_DETAILS_PER_FAILURE])
+    remaining = len(details) - len(shown)
+    lines = [f"  - {item}" for item in shown]
+    if remaining > 0:
+        lines.append(f"  - and {remaining} more")
+    return ":\n" + "\n".join(lines)
 
 
 def _canonical_input(

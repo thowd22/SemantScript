@@ -482,6 +482,10 @@ test("train spawns the Python driver with resolved paths and renders its report"
   const failed = capture(root, { ...env, FAKE_TRAINER_EXIT: "3" });
   assert.equal(await runCli(args, failed.io), 3);
   assert.match(failed.stdout(), /failed\s+0\.9000/u);
+  assert.match(
+    failed.stdout(),
+    /verification failures:\n {2}injected failure\n/u,
+  );
   assert.match(failed.stdout(), /train failed\n$/u);
 
   const silent = capture(root, { ...env, FAKE_TRAINER_SKIP_REPORT: "1" });

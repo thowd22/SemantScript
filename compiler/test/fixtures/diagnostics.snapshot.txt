@@ -1,0 +1,19 @@
+malformed.sem.ts(3,24): error TS9100: <root>/malformed.sem.ts:3:24: sema requires an explicit output type argument, for example sema<"yes" | "no">`...` (site: sema`no type argument ${message}`)
+malformed.sem.ts(4,25): error TS9100: <root>/malformed.sem.ts:4:25: sema takes exactly one output type argument (found 2) (site: sema<"a" | "b", string>`two type arguments ${message}`)
+malformed.sem.ts(5,26): error TS9100: <root>/malformed.sem.ts:5:26: sema({ examples, constraints }) takes exactly one options argument (found 0) (site: sema<"a" | "b">()`configured without options ${message}`)
+malformed.sem.ts(6,27): error TS9100: <root>/malformed.sem.ts:6:27: sema({ examples, constraints }) takes exactly one options argument (found 2) (site: sema<"a" | "b">({}, {})`configured with two options ${message}`)
+malformed.sem.ts(7,34): error TS9100: <root>/malformed.sem.ts:7:34: sema.withConfidence requires an explicit output type argument, for example sema.withConfidence<"yes" | "no">`...` (site: sema.withConfidence`no type argument ${message}`)
+malformed.sem.ts(8,24): error TS9100: <root>/malformed.sem.ts:8:24: sema.withConfidence cannot be used through optional chaining (site: sema?.withConfidence<"a" | "b">`optional chain ${message}`)
+invalid.sem.ts(8,30): error TS9101: <root>/invalid.sem.ts:8:25: output type "string" is not a supported finite scalar output; use boolean, a union of at least two string literals, a homogeneous enum, Ordinal, BoundedInt, or BoundedNumber (site: sema<string>`free text ${message}`)
+invalid.sem.ts(2,27): error TS9105: <root>/invalid.sem.ts:9:23: output field Nested.child has unsupported nested or non-scalar type "{ flag: boolean; }" (site: sema<Nested>`nested ${message}`)
+invalid.sem.ts(3,23): error TS9102: <root>/invalid.sem.ts:10:22: enum Mixed is heterogeneous; all members must share one primitive base (site: sema<Mixed>`mixed enum ${message}`)
+invalid.sem.ts(11,31): error TS9104: <root>/invalid.sem.ts:11:26: output BoundedInt is invalid: minimum must be less than maximum (site: sema<BoundedInt<5, 1>>`bounds ${message}`)
+invalid.sem.ts(12,55): error TS9110: <root>/invalid.sem.ts:12:27: template interpolations must be bare identifiers; assign this expression to a named const first (site: sema<"yes" | "no">`member ${item.value}`)
+invalid.sem.ts(13,68): error TS9111: <root>/invalid.sem.ts:13:22: interpolation repeated appears more than once; each input name must be unique within a sema template (site: sema<"yes" | "no">`first ${repeated} second ${repeated}`)
+invalid.sem.ts(15,50): error TS9121: <root>/invalid.sem.ts:14:27: type "\"maybe\"" is not assignable to "\"yes\" | \"no\"" (site: sema<"yes" | "no">({
+  examples: [{ inputs: { message: "x" }, output: "maybe" }],
+})`example ${message}`)
+invalid.sem.ts(18,49): error TS9125: <root>/invalid.sem.ts:17:30: a never constraint contradicts a matching always constraint (site: sema<"yes" | "no">({
+  constraints: [always(() => score > 1, "yes"), never(() => score > 1, "yes")],
+})`constraints ${score}`)
+invalid.sem.ts(20,40): error TS9124: <root>/invalid.sem.ts:20:22: sema behavioral specification is empty after removing directives and whitespace (site: sema<"yes" | "no">`${message}`)

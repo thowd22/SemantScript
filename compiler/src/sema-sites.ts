@@ -31,8 +31,22 @@ interface ParsedTag {
   readonly configured: boolean;
 }
 
+/**
+ * A tagged template whose tag is the core `sema` (or `sema.withConfidence`) but
+ * which is not a canonical site: it would otherwise stay an untransformed
+ * runtime tag, so the compiler reports it instead of ignoring it.
+ */
+export interface MalformedSemaSite {
+  readonly sourceFile: ts.SourceFile;
+  readonly node: ts.TaggedTemplateExpression;
+  readonly location: SemaSourceLocation;
+  readonly reason: string;
+}
+
 export function isSemantScriptSourceFile(sourceFile: ts.SourceFile): boolean {
-  return !sourceFile.isDeclarationFile && sourceFile.fileName.endsWith(".sem.ts");
+  return (
+    !sourceFile.isDeclarationFile && sourceFile.fileName.endsWith(".sem.ts")
+  );
 }
 
 export function findSemaSites(
@@ -40,7 +54,9 @@ export function findSemaSites(
   sourceFile?: ts.SourceFile,
 ): readonly SemaSite[] {
   const checker = program.getTypeChecker();
-  const coreSemaSymbols = collectCoreExportSymbols(program, checker, ["sema"]).get("sema");
+  const coreSemaSymbols = collectCoreExportSymbols(program, checker, [
+    "sema",
+  ]).get("sema");
 
   if (!coreSemaSymbols || coreSemaSymbols.size === 0) {
     return [];
@@ -63,7 +79,11 @@ export function findSemaSites(
       if (ts.isTaggedTemplateExpression(node)) {
         const parsed = parseSemaTag(node);
         const resultMode = parsed
-          ? classifySemaExpression(parsed.callableExpression, checker, coreSemaSymbols)
+          ? classifySemaExpression(
+              parsed.callableExpression,
+              checker,
+              coreSemaSymbols,
+            )
           : undefined;
 
         if (parsed && resultMode) {
@@ -88,14 +108,120 @@ export function findSemaSites(
   return sites;
 }
 
-function parseSemaTag(node: ts.TaggedTemplateExpression): ParsedTag | undefined {
+/** Every core `sema` tagged template that `findSemaSites` cannot accept, with why. */
+export function findMalformedSemaSites(
+  program: ts.Program,
+  sourceFile?: ts.SourceFile,
+): readonly MalformedSemaSite[] {
+  const checker = program.getTypeChecker();
+  const coreSemaSymbols = collectCoreExportSymbols(program, checker, [
+    "sema",
+  ]).get("sema");
+
+  if (!coreSemaSymbols || coreSemaSymbols.size === 0) {
+    return [];
+  }
+
+  const sourceFiles = sourceFile
+    ? [sourceFile]
+    : program
+        .getSourceFiles()
+        .filter(isSemantScriptSourceFile)
+        .sort(compareSourceFiles);
+  const malformed: MalformedSemaSite[] = [];
+
+  for (const currentSourceFile of sourceFiles) {
+    if (!isSemantScriptSourceFile(currentSourceFile)) {
+      continue;
+    }
+
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isTaggedTemplateExpression(node) &&
+        parseSemaTag(node) === undefined
+      ) {
+        const reason = describeMalformedTag(node, checker, coreSemaSymbols);
+
+        if (reason !== undefined) {
+          malformed.push({
+            sourceFile: currentSourceFile,
+            node,
+            location: sourceLocation(currentSourceFile, node),
+            reason,
+          });
+        }
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    visit(currentSourceFile);
+  }
+
+  return malformed;
+}
+
+function describeMalformedTag(
+  node: ts.TaggedTemplateExpression,
+  checker: ts.TypeChecker,
+  coreSemaSymbols: ReadonlySet<ts.Symbol>,
+): string | undefined {
+  const configured = ts.isCallExpression(node.tag);
+  const tagExpression = configured ? node.tag.expression : node.tag;
+
+  if (
+    !ts.isIdentifier(tagExpression) &&
+    !ts.isPropertyAccessExpression(tagExpression)
+  ) {
+    return undefined;
+  }
+
+  const resultMode = classifySemaExpression(
+    tagExpression,
+    checker,
+    coreSemaSymbols,
+  );
+
+  if (resultMode === undefined) {
+    return undefined;
+  }
+
+  const form = resultMode === "diagnostic" ? "sema.withConfidence" : "sema";
+
+  if (ts.isOptionalChain(node.tag)) {
+    return `${form} cannot be used through optional chaining`;
+  }
+
+  const typeArguments = configured
+    ? node.tag.typeArguments
+    : node.typeArguments;
+  const typeArgumentCount = typeArguments?.length ?? 0;
+
+  if (typeArgumentCount !== 1) {
+    return typeArgumentCount === 0
+      ? `${form} requires an explicit output type argument, for example ${form}<"yes" | "no">\`...\``
+      : `${form} takes exactly one output type argument (found ${String(typeArgumentCount)})`;
+  }
+
+  if (configured && node.tag.arguments.length !== 1) {
+    return `${form}({ examples, constraints }) takes exactly one options argument (found ${String(node.tag.arguments.length)})`;
+  }
+
+  return `${form} is not used as a canonical tagged template`;
+}
+
+function parseSemaTag(
+  node: ts.TaggedTemplateExpression,
+): ParsedTag | undefined {
   if (ts.isOptionalChain(node.tag)) {
     return undefined;
   }
 
   const configured = ts.isCallExpression(node.tag);
   const tagExpression = configured ? node.tag.expression : node.tag;
-  const typeArguments = configured ? node.tag.typeArguments : node.typeArguments;
+  const typeArguments = configured
+    ? node.tag.typeArguments
+    : node.typeArguments;
 
   if (typeArguments?.length !== 1) {
     return undefined;
@@ -107,13 +233,19 @@ function parseSemaTag(node: ts.TaggedTemplateExpression): ParsedTag | undefined 
     return undefined;
   }
 
-  const options = configured && node.tag.arguments.length === 1 ? node.tag.arguments[0] : undefined;
+  const options =
+    configured && node.tag.arguments.length === 1
+      ? node.tag.arguments[0]
+      : undefined;
 
   if (configured && !options) {
     return undefined;
   }
 
-  if (!ts.isIdentifier(tagExpression) && !ts.isPropertyAccessExpression(tagExpression)) {
+  if (
+    !ts.isIdentifier(tagExpression) &&
+    !ts.isPropertyAccessExpression(tagExpression)
+  ) {
     return undefined;
   }
 
@@ -137,7 +269,11 @@ function classifySemaExpression(
   if (
     ts.isPropertyAccessExpression(expression) &&
     expression.name.text === "withConfidence" &&
-    expressionReferencesCoreSema(expression.expression, checker, coreSemaSymbols)
+    expressionReferencesCoreSema(
+      expression.expression,
+      checker,
+      coreSemaSymbols,
+    )
   ) {
     return "diagnostic";
   }

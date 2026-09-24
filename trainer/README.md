@@ -395,6 +395,34 @@ verification provenance matching the supplied training result. The caller must
 provide the training-key digest because its cache-key derivation is outside this
 export boundary.
 
+## Bundle driver (`semantscript train`)
+
+`semantscript_trainer.cli.train_bundle` turns one compiler IR bundle into one
+artifact: for every source-stage function it generates the synthetic dataset
+through the configured teacher (and the adversarial sidecar when the function
+declares constraints, which needs a teacher with boundary and counterfactual
+generation), trains one classifier for a single function or the shared-encoder
+application for several, verifies every function, binds verified IR with the
+derived provenance counts and exports the artifact with a training key over the
+dataset digests. A function that fails verification raises
+`TrainBundleFailure` carrying the report; nothing is published. The report
+(`semantscript.train-report`) lists, per function, the dataset and adversarial
+digests and sizes, held-out accuracy, the verification status, failures and
+metrics, plus the published release digest.
+
+```bash
+python -m semantscript_trainer.cli train \
+  --bundle dist/semantscript.ir.v1.json --artifact dist/artifact \
+  --teacher teacher.toml --cache-dir .semantscript/cache --report dist/train-report.json \
+  --cases 64 --epochs 3 --device cuda --local-files-only
+```
+
+`teacher.toml` holds the `[teacher]` table of the section below. Training,
+verification and adversarial settings map to `TrainingConfig`,
+`VerificationConfig` and `AdversarialGenerationConfig` fields; unspecified
+flags keep the library defaults. The Node CLI (`cli/`) spawns this module and
+renders the report.
+
 ## Teacher backends
 
 `Teacher.generate(ir, n)` is the only case-source contract used by the generator.

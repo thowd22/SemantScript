@@ -190,10 +190,14 @@ the base dataset's `total_cases` contract.
 ## Encoder fine-tuning
 
 `train_classifier` identity-checks the generated base dataset and optional
-adversarial sidecar, derives the head support and logit width from scalar IR, makes
-a deterministic group-aware held-out split, and fine-tunes both the encoder and a
-linear or one-hidden-layer MLP head. Counterfactual sources and twins, and the two
-sides of each constraint boundary, remain in one partition.
+adversarial sidecar, derives the head support and logit width from the IR output,
+makes a deterministic group-aware held-out split, and fine-tunes both the encoder
+and a linear or one-hidden-layer MLP head. A scalar output trains one head; a flat
+interface output trains one independent head per field (`derive_output_heads`,
+`FieldHeads`), every row carries one label index per head, the loss is the sum of
+the per-head losses, and `EpochMetrics` reports exact-match accuracy over all
+fields plus `held_out_field_accuracy` per field. Counterfactual sources and twins,
+and the two sides of each constraint boundary, remain in one partition.
 
 ```python
 from semantscript_trainer import TrainingConfig, train_classifier
@@ -252,8 +256,13 @@ Any gold or external attested-example miss, observed constraint violation beyond
 above the configured threshold raises `VerificationGateError` with the complete
 failed result attached. Malformed, non-finite, or incorrectly shaped classifier
 logits abort measurement with `VerificationExecutionError`; predictions decoded
-through a valid scalar head are support members, so completed scalar records have
-zero output type errors. At least one attested gold or external case and a
+through a valid head are support members, so completed records have zero output
+type errors. A flat interface output is verified per field: each head gets its own
+temperature, ECE, Brier, accuracy, and pair consistency (`HeadVerificationV1` with
+the field's JSON-pointer `outputPath`), the function-level accuracy is exact match
+over every field, the function-level ECE and Brier are the worst head's, and the
+pair consistency is the lowest head's, so the gate never passes on an average.
+At least one attested gold or external case and a
 nonempty held-out calibration partition are required. External attested cases must be
 disjoint from training inputs. Failed results can be serialized as IR verification
 diagnostics but cannot be projected into artifact-manifest metadata; TASK-5.8
@@ -270,7 +279,7 @@ the same bytes as `semantscript_tokenizer_json`.
 ## Verified IR lifecycle
 
 `build_verified_ir` is the supported bridge from compiler source IR to artifact
-export. It accepts only an exact closed source-stage scalar record with pending
+export. It accepts only an exact closed source-stage record with pending
 training and verification fields, a matching `TrainingResult`, passing
 `VerificationResult`, and explicit `VerifiedIrProvenance`. It derives and checks
 the example, synthetic, adversarial, calibration, verification, and attested
@@ -335,7 +344,14 @@ artifact/
     models/encoder/model.onnx
     models/adapters/application.onnx
     models/heads/<function-id>/head-000.onnx
+    models/heads/<function-id>/head-001.onnx   # one per output head, in IR order
 ```
+
+A scalar function publishes one head resource with an empty manifest `outputPath`;
+a flat interface function publishes one per field with `outputPath` `[field]`,
+per-head calibration and verification metadata, and the `all-fields` policy when
+it is thresholded. The int8 derivation (`quantize_release_artifact`) still accepts
+only single-function scalar releases.
 
 The release is built in a private directory under `releases`, resources are
 hashed before the deterministic manifest is written, and the release directory is

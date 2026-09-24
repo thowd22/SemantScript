@@ -33,7 +33,11 @@ from semantscript_trainer.semantic_json import semantic_json_bytes, semantic_jso
 from semantscript_trainer.strict_json import StrictJsonError, StrictJsonLimits, loads_strict_json
 from semantscript_trainer.teacher import GeneratedCase, JsonValue, NeuralFunctionIr
 from semantscript_trainer.training import TrainingResult
-from semantscript_trainer.training_contract import TrainingContractError, derive_training_head
+from semantscript_trainer.training_contract import (
+    TrainingContractError,
+    TrainingHeadContract,
+    derive_output_heads,
+)
 from semantscript_trainer.verification import (
     VerificationResult,
     model_state_sha256,
@@ -275,7 +279,7 @@ def export_multi_function_artifact(
             raise ArtifactConfigurationError(
                 "every function must share one canonical input encoding"
             )
-    function_ids = [cast(str, entry.ir["id"]) for entry in entries]
+    function_heads = [(cast(str, entry.ir["id"]), len(entry.training.heads)) for entry in entries]
 
     root, root_descriptor = _prepare_artifact_root(artifact_root)
     releases: Path | None = None
@@ -290,7 +294,7 @@ def export_multi_function_artifact(
         _require_directory_identity(releases, releases_descriptor, "artifact releases")
         _require_directory_identity(staging, staging_descriptor, "artifact staging")
         staging_io_root = _descriptor_directory_path(staging, staging_descriptor)
-        paths = _application_resource_paths(staging_io_root, function_ids)
+        paths = _application_resource_paths(staging_io_root, function_heads)
         _write_exclusive(paths["tokenizer"], tokenizer_bytes)
         _export_application_onnx(
             entries, encoder, adapter, input_ids, attention_mask, paths, resolved
@@ -390,12 +394,13 @@ def _validate_functions(functions: Sequence[ArtifactFunction]) -> tuple[Artifact
             raise ArtifactConfigurationError(
                 "every function must bind the application's encoder and adapter refs"
             )
-        head_ref = cast(str, cast(dict[str, JsonValue], cast(list[Any], model["heads"])[0])["ref"])
-        if head_ref in seen_heads:
-            raise ArtifactConfigurationError(
-                f"head ref {head_ref} is bound by more than one function"
-            )
-        seen_heads.add(head_ref)
+        for binding in cast(list[Any], model["heads"]):
+            head_ref = cast(str, cast(dict[str, JsonValue], binding)["ref"])
+            if head_ref in seen_heads:
+                raise ArtifactConfigurationError(
+                    f"head ref {head_ref} is bound by more than one head"
+                )
+            seen_heads.add(head_ref)
     return entries
 
 
@@ -479,16 +484,17 @@ def validate_verified_ir_binding(
             "verified IR does not contain the supplied verification evidence"
         )
     try:
-        ir_head = derive_training_head(ir)
+        ir_heads = derive_output_heads(ir)
     except TrainingContractError as error:
         raise ArtifactConfigurationError(f"IR training contract is invalid: {error}") from error
-    if ir_head != training.head:
-        raise ArtifactConfigurationError("IR output head differs from the trained head")
+    if ir_heads != training.heads:
+        raise ArtifactConfigurationError("IR output heads differ from the trained heads")
     _validate_manifest_inputs(ir.get("inputs"))
-    _validate_manifest_head_type(
-        _runtime_head_type(cast(dict[str, JsonValue], ir["output"]), training),
-        training.head.parameterization,
-    )
+    for head_spec, item in zip(_ir_head_specs(ir), training.heads, strict=True):
+        _validate_manifest_head_type(
+            _runtime_head_type_for(head_spec, item.contract),
+            item.contract.parameterization,
+        )
     _runtime_policy(ir)
     definition = cast(dict[str, JsonValue], ir["definition"])
     try:
@@ -509,18 +515,25 @@ def validate_verified_ir_binding(
     for name in ("encoder", "adapter"):
         _require_logical_ref(f"IR model {name}", model.get(name))
     heads = model.get("heads")
-    if not isinstance(heads, list) or len(heads) != 1 or not isinstance(heads[0], dict):
-        raise ArtifactConfigurationError("scalar artifact export requires exactly one IR head")
-    if heads[0].get("outputPath") != "":
-        raise ArtifactConfigurationError("scalar IR head outputPath must be empty")
-    _require_logical_ref("IR head ref", heads[0].get("ref"))
+    if (
+        not isinstance(heads, list)
+        or len(heads) != len(training.heads)
+        or any(not isinstance(head, dict) for head in heads)
+    ):
+        raise ArtifactConfigurationError("IR model heads must bind every trained output head")
+    for head, item in zip(heads, training.heads, strict=True):
+        if head.get("outputPath") != item.output_path:
+            raise ArtifactConfigurationError(
+                "IR model head outputPath differs from its trained head"
+            )
+        _require_logical_ref("IR head ref", head.get("ref"))
     resource_refs = {
         "tokenizer.main",
         cast(str, model.get("encoder")),
         cast(str, model.get("adapter")),
-        cast(str, heads[0].get("ref")),
+        *(cast(str, head.get("ref")) for head in heads),
     }
-    if len(resource_refs) != 4:
+    if len(resource_refs) != 3 + len(heads):
         raise ArtifactConfigurationError("tokenizer, encoder, adapter, and head refs must differ")
 
 
@@ -730,35 +743,78 @@ def _validate_tokenizer(
 def _validate_model_contract(training: TrainingResult) -> None:
     model = training.model
     encoder = getattr(model, "encoder", None)
-    head = getattr(model, "head", None)
     hidden_size = getattr(encoder, "hidden_size", None)
-    head_config = getattr(head, "config", None)
     if isinstance(hidden_size, bool) or not isinstance(hidden_size, int) or hidden_size < 1:
         raise ArtifactConfigurationError("trained encoder hidden_size is invalid")
-    if getattr(head_config, "input_size", None) != hidden_size:
-        raise ArtifactConfigurationError("trained head input width does not match the encoder")
-    if getattr(head_config, "output_size", None) != training.head.logit_count:
-        raise ArtifactConfigurationError("trained head logit width does not match its contract")
-    if getattr(head_config, "kind", None) != training.head.parameterization:
-        raise ArtifactConfigurationError(
-            "trained head parameterization does not match its contract"
-        )
+    for module, item in zip(_head_modules(training), training.heads, strict=True):
+        head_config = getattr(module, "config", None)
+        if getattr(head_config, "input_size", None) != hidden_size:
+            raise ArtifactConfigurationError("trained head input width does not match the encoder")
+        if getattr(head_config, "output_size", None) != item.contract.logit_count:
+            raise ArtifactConfigurationError("trained head logit width does not match its contract")
+        if getattr(head_config, "kind", None) != item.contract.parameterization:
+            raise ArtifactConfigurationError(
+                "trained head parameterization does not match its contract"
+            )
 
 
-def _application_resource_paths(staging: Path, function_ids: Sequence[str]) -> dict[str, Path]:
+def _head_modules(training: TrainingResult) -> tuple[Any, ...]:
+    """One exportable head module per output head; a FieldHeads module is unpacked."""
+
+    head = getattr(training.model, "head", None)
+    if head is None:
+        raise ArtifactConfigurationError("trained model has no head module")
+    submodules = getattr(head, "heads", None)
+    modules = tuple(submodules) if submodules is not None and hasattr(head, "slices") else (head,)
+    if len(modules) != len(training.heads):
+        raise ArtifactConfigurationError("trained head modules do not match the output heads")
+    return modules
+
+
+def _ir_head_specs(ir: NeuralFunctionIr) -> tuple[dict[str, Any], ...]:
+    """The IR head spec of every output head: the scalar head or one per object field."""
+
+    output = ir.get("output")
+    if not isinstance(output, dict):
+        raise ArtifactConfigurationError("IR output must be an object")
+    if output.get("kind") == "scalar":
+        head = output.get("head")
+        if not isinstance(head, dict):
+            raise ArtifactConfigurationError("IR scalar output head must be an object")
+        return (head,)
+    if output.get("kind") != "object":
+        raise ArtifactConfigurationError("IR output kind must be scalar or object")
+    fields = output.get("fields")
+    if not isinstance(fields, list) or not fields:
+        raise ArtifactConfigurationError("IR object output requires fields")
+    specs: list[dict[str, Any]] = []
+    for field in fields:
+        head = field.get("head") if isinstance(field, dict) else None
+        if not isinstance(head, dict):
+            raise ArtifactConfigurationError("IR object output field head must be an object")
+        specs.append(head)
+    return tuple(specs)
+
+
+def _application_resource_paths(
+    staging: Path, functions: Sequence[tuple[str, int]]
+) -> dict[str, Path]:
     paths = {
         "tokenizer": staging / "tokenizer" / "tokenizer.json",
         "encoder": staging / "models" / "encoder" / "model.onnx",
         "adapter": staging / "models" / "adapters" / "application.onnx",
     }
-    for function_id in function_ids:
-        paths[f"head:{function_id}"] = staging / "models" / "heads" / function_id / "head-000.onnx"
+    for function_id, head_count in functions:
+        for index in range(head_count):
+            paths[f"head:{function_id}:{index}"] = (
+                staging / "models" / "heads" / function_id / f"head-{index:03d}.onnx"
+            )
     return paths
 
 
 def _resource_paths(staging: Path, function_id: str) -> dict[str, Path]:
-    paths = _application_resource_paths(staging, [function_id])
-    paths["head"] = paths.pop(f"head:{function_id}")
+    paths = _application_resource_paths(staging, [(function_id, 1)])
+    paths["head"] = paths.pop(f"head:{function_id}:0")
     return paths
 
 
@@ -777,18 +833,22 @@ def _export_application_onnx(
         raise ArtifactConfigurationError(
             "artifact export requires the optional ONNX training dependencies"
         ) from error
+    head_modules: dict[str, Any] = {}
+    head_paths: dict[str, Path] = {}
+    for entry in entries:
+        function_id = cast(str, entry.ir["id"])
+        for index, module in enumerate(_head_modules(entry.training)):
+            head_modules[f"{function_id}:{index}"] = module
+            head_paths[f"{function_id}:{index}"] = paths[f"head:{function_id}:{index}"]
     export_application_components(
         encoder,
         adapter,
-        {cast(str, entry.ir["id"]): entry.training.model.head for entry in entries},
+        head_modules,
         input_ids,
         attention_mask,
         encoder_path=paths["encoder"],
         adapter_path=paths["adapter"],
-        head_paths={
-            cast(str, entry.ir["id"]): paths[f"head:{cast(str, entry.ir['id'])}"]
-            for entry in entries
-        },
+        head_paths=head_paths,
         relative_tolerance=config.parity_relative_tolerance,
         absolute_tolerance=config.parity_absolute_tolerance,
         maximum_component_bytes=config.maximum_resource_bytes,
@@ -843,30 +903,29 @@ def _resource_documents(
     ]
     for entry in entries:
         function_id = cast(str, entry.ir["id"])
-        binding = cast(
-            dict[str, JsonValue],
-            cast(list[Any], cast(dict[str, Any], entry.ir["model"])["heads"])[0],
-        )
-        definitions.append(
-            (
-                f"head:{function_id}",
-                cast(str, binding["ref"]),
-                "head",
-                f"models/heads/{function_id}/head-000.onnx",
-                {
-                    "opset": ONNX_OPSET_VERSION,
-                    "inputs": [dict(function_embedding)],
-                    "outputs": [
-                        {
-                            "name": "logits",
-                            "dtype": "float32",
-                            "shape": ["BATCH", entry.training.head.logit_count],
-                        }
-                    ],
-                    "externalData": False,
-                },
+        bindings = cast(list[Any], cast(dict[str, Any], entry.ir["model"])["heads"])
+        for index, item in enumerate(entry.training.heads):
+            binding = cast(dict[str, JsonValue], bindings[index])
+            definitions.append(
+                (
+                    f"head:{function_id}:{index}",
+                    cast(str, binding["ref"]),
+                    "head",
+                    f"models/heads/{function_id}/head-{index:03d}.onnx",
+                    {
+                        "opset": ONNX_OPSET_VERSION,
+                        "inputs": [dict(function_embedding)],
+                        "outputs": [
+                            {
+                                "name": "logits",
+                                "dtype": "float32",
+                                "shape": ["BATCH", item.contract.logit_count],
+                            }
+                        ],
+                        "externalData": False,
+                    },
+                )
             )
-        )
     resources: list[dict[str, JsonValue]] = []
     total = 0
     for key, reference, role, relative_path, onnx in definitions:
@@ -906,10 +965,25 @@ def _manifest_document(
         inputs = ir.get("inputs")
         output = ir.get("output")
         model = cast(dict[str, JsonValue], ir["model"])
-        head_binding = cast(dict[str, JsonValue], cast(list[JsonValue], model["heads"])[0])
+        bindings = cast(list[JsonValue], model["heads"])
         if not isinstance(inputs, list) or not isinstance(output, dict):
             raise ArtifactConfigurationError("IR input/output schemas are invalid")
-        head_metadata = verification.to_manifest_head_metadata()
+        head_documents: list[JsonValue] = []
+        for index, (item, head_spec) in enumerate(
+            zip(training.heads, _ir_head_specs(ir), strict=True)
+        ):
+            head_metadata = verification.to_manifest_head_metadata(index)
+            field_name = item.field_name
+            head_documents.append(
+                {
+                    "outputPath": [] if field_name is None else [field_name],
+                    "headRef": cast(str, cast(dict[str, JsonValue], bindings[index])["ref"]),
+                    "type": _runtime_head_type_for(head_spec, item.contract),
+                    "parameterization": item.contract.parameterization,
+                    "calibration": head_metadata["calibration"],
+                    "verification": head_metadata["verification"],
+                }
+            )
         functions.append(
             {
                 "id": cast(str, ir["id"]),
@@ -918,16 +992,7 @@ def _manifest_document(
                 "inputSchemaSha256": semantic_json_sha256(inputs),
                 "outputSchemaSha256": semantic_json_sha256(output),
                 "adapterRef": cast(str, model["adapter"]),
-                "heads": [
-                    {
-                        "outputPath": [],
-                        "headRef": cast(str, head_binding["ref"]),
-                        "type": _runtime_head_type(output, training),
-                        "parameterization": training.head.parameterization,
-                        "calibration": head_metadata["calibration"],
-                        "verification": head_metadata["verification"],
-                    }
-                ],
+                "heads": head_documents,
                 "runtime": _runtime_policy(ir),
                 "verification": verification.to_manifest_function_verification(),
                 "trainingProvenance": _training_provenance(ir, training, provenance),
@@ -1030,9 +1095,13 @@ def _training_provenance(
 def _runtime_head_type(output: dict[str, JsonValue], training: TrainingResult) -> JsonValue:
     head = output.get("head")
     if output.get("kind") != "scalar" or not isinstance(head, dict):
-        raise ArtifactConfigurationError("artifact export supports only a scalar output")
-    source_kind = training.head.source_kind
-    support = list(training.head.support)
+        raise ArtifactConfigurationError("scalar head type requires a scalar output")
+    return _runtime_head_type_for(head, training.head)
+
+
+def _runtime_head_type_for(head: dict[str, Any], contract: TrainingHeadContract) -> JsonValue:
+    source_kind = contract.source_kind
+    support = list(contract.support)
     if source_kind == "boolean":
         return {"kind": "boolean", "support": [False, True]}
     if source_kind in ("bounded-int", "bounded-number"):
@@ -1050,9 +1119,9 @@ def _runtime_head_type(output: dict[str, JsonValue], training: TrainingResult) -
             result[key] = deepcopy(value)
         return result
     if all(isinstance(value, str) for value in support):
-        kind = "ordinal-string" if training.head.ordinal else "nominal-string"
+        kind = "ordinal-string" if contract.ordinal else "nominal-string"
         return {"kind": kind, "support": support}
-    if not training.head.ordinal and all(
+    if not contract.ordinal and all(
         isinstance(value, (int, float)) and not isinstance(value, bool) for value in support
     ):
         return {"kind": "nominal-number", "support": support}
@@ -1060,6 +1129,8 @@ def _runtime_head_type(output: dict[str, JsonValue], training: TrainingResult) -
 
 
 def _runtime_policy(ir: NeuralFunctionIr) -> dict[str, JsonValue]:
+    output = ir.get("output")
+    scalar = isinstance(output, dict) and output.get("kind") == "scalar"
     raw = ir.get("runtime")
     if not isinstance(raw, dict):
         raise ArtifactConfigurationError("IR runtime policy must be an object")
@@ -1082,7 +1153,7 @@ def _runtime_policy(ir: NeuralFunctionIr) -> dict[str, JsonValue]:
             raise ArtifactConfigurationError("unthresholded runtime policy cannot set fallbackRef")
         policy = "none"
     else:
-        policy = "scalar-top1"
+        policy = "scalar-top1" if scalar else "all-fields"
         if mode == "diagnostic" and fallback is not None:
             raise ArtifactConfigurationError("diagnostic runtime policy cannot set fallbackRef")
     return {
@@ -1111,9 +1182,13 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
     functions = manifest.get("functions")
     if not isinstance(functions, list) or not functions:
         raise ArtifactConfigurationError("manifest must contain at least one function")
-    if not isinstance(resources, list) or len(resources) != 3 + len(functions):
+    head_total = sum(
+        len(function.get("heads", [])) if isinstance(function, dict) else 0
+        for function in functions
+    )
+    if not isinstance(resources, list) or len(resources) != 3 + head_total:
         raise ArtifactConfigurationError(
-            "manifest must contain a tokenizer, an encoder, an adapter and one head per function"
+            "manifest must contain a tokenizer, an encoder, an adapter and one resource per head"
         )
     refs: set[str] = set()
     paths: set[str] = set()
@@ -1136,9 +1211,9 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
         roles[role] = roles.get(role, 0) + 1
         if resource.get("format") == "onnx":
             _validate_onnx_precision(resource.get("onnx"), f"manifest resource {reference}")
-    if roles != {"tokenizer": 1, "encoder": 1, "adapter": 1, "head": len(functions)}:
+    if roles != {"tokenizer": 1, "encoder": 1, "adapter": 1, "head": head_total}:
         raise ArtifactConfigurationError(
-            "manifest resources must be one tokenizer, one encoder, one adapter and one head per function"
+            "manifest resources must be one tokenizer, one encoder, one adapter and one per head"
         )
 
     function_ids: set[str] = set()
@@ -1158,18 +1233,35 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
             raise ArtifactConfigurationError("manifest inputSchemaSha256 does not match its inputs")
 
         heads = function.get("heads")
-        if not isinstance(heads, list) or len(heads) != 1 or not isinstance(heads[0], dict):
-            raise ArtifactConfigurationError(
-                "scalar manifest function must contain exactly one head"
-            )
-        head = heads[0]
-        if head.get("outputPath") != []:
-            raise ArtifactConfigurationError("scalar manifest head outputPath must be empty")
-        head_ref = head.get("headRef")
-        if not isinstance(head_ref, str) or head_ref in head_refs or head_ref not in refs:
-            raise ArtifactConfigurationError("manifest head refs must name distinct head resources")
-        head_refs.add(head_ref)
-        _validate_manifest_head_type(head.get("type"), head.get("parameterization"))
+        if not isinstance(heads, list) or not heads or any(not isinstance(h, dict) for h in heads):
+            raise ArtifactConfigurationError("manifest function must contain at least one head")
+        scalar = len(heads) == 1 and heads[0].get("outputPath") == []
+        field_names: set[str] = set()
+        for head in heads:
+            output_path = head.get("outputPath")
+            if scalar:
+                if output_path != []:
+                    raise ArtifactConfigurationError(
+                        "scalar manifest head outputPath must be empty"
+                    )
+            elif (
+                not isinstance(output_path, list)
+                or len(output_path) != 1
+                or not isinstance(output_path[0], str)
+                or output_path[0] in field_names
+            ):
+                raise ArtifactConfigurationError(
+                    "flat object manifest heads must name distinct single-segment output paths"
+                )
+            else:
+                field_names.add(output_path[0])
+            head_ref = head.get("headRef")
+            if not isinstance(head_ref, str) or head_ref in head_refs or head_ref not in refs:
+                raise ArtifactConfigurationError(
+                    "manifest head refs must name distinct head resources"
+                )
+            head_refs.add(head_ref)
+            _validate_manifest_head_type(head.get("type"), head.get("parameterization"))
         runtime = function.get("runtime")
         if not isinstance(runtime, dict):
             raise ArtifactConfigurationError("manifest runtime policy must be an object")
@@ -1180,9 +1272,10 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
             raise ArtifactConfigurationError(
                 "unthresholded manifest runtime policy is inconsistent"
             )
-        if threshold is not None and runtime.get("policy") != "scalar-top1":
+        expected_policy = "scalar-top1" if scalar else "all-fields"
+        if threshold is not None and runtime.get("policy") != expected_policy:
             raise ArtifactConfigurationError(
-                "thresholded scalar manifest policy must be scalar-top1"
+                f"thresholded manifest policy must be {expected_policy}"
             )
         if runtime.get("resultMode") == "diagnostic" and runtime.get("fallbackRef") is not None:
             raise ArtifactConfigurationError("diagnostic manifest policy cannot set fallbackRef")

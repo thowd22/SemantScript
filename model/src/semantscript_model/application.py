@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .encoder import SentenceEncoder
-from .heads import ClassificationHead
+from .heads import ClassificationHead, FieldHeads
 
 try:
     import torch
@@ -95,7 +95,7 @@ if nn is not None:
             self,
             encoder: SentenceEncoder,
             adapter: ApplicationAdapter,
-            head: ClassificationHead,
+            head: ClassificationHead | FieldHeads,
         ) -> None:
             super().__init__()
             _validate_widths(encoder, adapter, head)
@@ -114,7 +114,7 @@ if nn is not None:
             self,
             encoder: SentenceEncoder,
             adapter: ApplicationAdapter,
-            heads: Mapping[str, ClassificationHead] | None = None,
+            heads: Mapping[str, ClassificationHead | FieldHeads] | None = None,
         ) -> None:
             super().__init__()
             if not isinstance(encoder, SentenceEncoder):
@@ -137,7 +137,7 @@ if nn is not None:
         def function_ids(self) -> tuple[str, ...]:
             return tuple(self.heads.keys())
 
-        def add_head(self, function_id: str, head: ClassificationHead) -> None:
+        def add_head(self, function_id: str, head: ClassificationHead | FieldHeads) -> None:
             """Attach a new function head; the shared modules are untouched."""
 
             if not isinstance(function_id, str) or not function_id or "." in function_id:
@@ -170,8 +170,8 @@ if nn is not None:
             }
 
     def _validate_widths(encoder: Any, adapter: Any, head: Any) -> None:
-        if not isinstance(head, ClassificationHead):
-            raise TypeError("head must be a ClassificationHead")
+        if not isinstance(head, (ClassificationHead, FieldHeads)):
+            raise TypeError("head must be a ClassificationHead or FieldHeads")
         hidden = getattr(encoder, "hidden_size", None)
         if getattr(getattr(adapter, "config", None), "hidden_size", None) != hidden:
             raise ValueError("adapter hidden_size must match the encoder hidden_size")

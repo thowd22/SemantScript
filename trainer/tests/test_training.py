@@ -437,7 +437,7 @@ def test_select_best_epoch_restores_the_best_calibration_weights(
     def fake_accuracy(model, *args, **kwargs):
         value = next(scripted)
         snapshots[value] = {k: v.detach().clone() for k, v in model.state_dict().items()}
-        return value
+        return value, (value,)
 
     monkeypatch.setattr(training_module, "_accuracy", fake_accuracy)
     result = train_corpus(

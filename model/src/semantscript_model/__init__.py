@@ -50,6 +50,8 @@ from semantscript_model.export import (
 )
 from semantscript_model.heads import (
     ClassificationHead,
+    FieldHeads,
+    FieldHeadsConfig,
     HeadArchitecture,
     HeadConfig,
     HeadKind,
@@ -97,6 +99,8 @@ __all__ = [
     "ExportedApplicationComponents",
     "ExportedOnnxComponent",
     "ExportedOnnxComponents",
+    "FieldHeads",
+    "FieldHeadsConfig",
     "FunctionModel",
     "HeadArchitecture",
     "HeadConfig",

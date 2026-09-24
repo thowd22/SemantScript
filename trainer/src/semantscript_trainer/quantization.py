@@ -423,7 +423,7 @@ def _source_resources(
     resources = manifest.get("resources")
     if not isinstance(resources, list) or len(resources) != 4:
         raise ArtifactConfigurationError(
-            "quantized derivation supports single-function artifacts only "
+            "quantized derivation supports single-function scalar artifacts only "
             "(one tokenizer, encoder, adapter and head resource)"
         )
     by_role: dict[str, tuple[dict[str, Any], Path]] = {}

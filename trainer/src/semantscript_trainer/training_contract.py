@@ -102,6 +102,9 @@ class TrainingRow:
     group_id: str
     origin: TrainingOrigin
     label_index: int
+    # One label per output head; ``label_index`` is the first (the only one for
+    # scalar outputs), kept so scalar callers and digests are unchanged.
+    label_indices: tuple[int, ...]
     _inputs_json: bytes = field(repr=False)
 
     def __init__(
@@ -112,6 +115,7 @@ class TrainingRow:
         origin: TrainingOrigin,
         inputs: dict[str, JsonValue],
         label_index: int,
+        label_indices: Sequence[int] | None = None,
     ) -> None:
         if not isinstance(row_id, str) or not row_id:
             raise TrainingContractError("training row ID must be nonempty")
@@ -121,6 +125,13 @@ class TrainingRow:
             raise TrainingContractError("training row origin is invalid")
         if isinstance(label_index, bool) or not isinstance(label_index, int) or label_index < 0:
             raise TrainingContractError("training row label index is invalid")
+        resolved_labels = (label_index,) if label_indices is None else tuple(label_indices)
+        if (
+            not resolved_labels
+            or any(isinstance(v, bool) or not isinstance(v, int) or v < 0 for v in resolved_labels)
+            or resolved_labels[0] != label_index
+        ):
+            raise TrainingContractError("training row label indices are invalid")
         if not isinstance(inputs, dict):
             raise TrainingContractError("training row inputs must be an object")
         try:
@@ -133,6 +144,7 @@ class TrainingRow:
         object.__setattr__(self, "group_id", group_id)
         object.__setattr__(self, "origin", origin)
         object.__setattr__(self, "label_index", label_index)
+        object.__setattr__(self, "label_indices", resolved_labels)
         object.__setattr__(self, "_inputs_json", encoded)
 
     @property
@@ -144,8 +156,36 @@ class TrainingRow:
 
 
 @dataclass(frozen=True, slots=True)
+class OutputHead:
+    """One output head and the JSON-pointer path it fills (empty for scalars)."""
+
+    output_path: str
+    contract: TrainingHeadContract
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.output_path, str):
+            raise TrainingContractError("output head path must be a string")
+        if not isinstance(self.contract, TrainingHeadContract):
+            raise TrainingContractError("output head contract is invalid")
+
+    @property
+    def field_name(self) -> str | None:
+        """The object field this head fills, or None for a scalar output."""
+
+        if self.output_path == "":
+            return None
+        if not self.output_path.startswith("/"):
+            raise TrainingContractError("output head path must be a JSON pointer")
+        return self.output_path[1:].replace("~1", "/").replace("~0", "~")
+
+
+@dataclass(frozen=True, slots=True)
 class TrainingCorpus:
-    """Identity-bound base and adversarial rows for one scalar function."""
+    """Identity-bound base and adversarial rows for one function.
+
+    ``head`` is the first output head's contract (the only one for a scalar
+    output); ``heads`` lists every output head in IR order.
+    """
 
     function_id: str
     semantic_sha256: str
@@ -153,8 +193,21 @@ class TrainingCorpus:
     adversarial_dataset_sha256: str | None
     head: TrainingHeadContract
     rows: tuple[TrainingRow, ...]
+    heads: tuple[OutputHead, ...] | None = None
 
     def __post_init__(self) -> None:
+        if self.heads is None:
+            object.__setattr__(self, "heads", (OutputHead("", self.head),))
+        heads = cast(tuple[OutputHead, ...], self.heads)
+        if (
+            not isinstance(heads, tuple)
+            or not heads
+            or any(not isinstance(item, OutputHead) for item in heads)
+            or heads[0].contract != self.head
+        ):
+            raise TrainingContractError("training corpus heads must start with its head")
+        if len({item.output_path for item in heads}) != len(heads):
+            raise TrainingContractError("training corpus output paths must be unique")
         if (
             not isinstance(self.function_id, str)
             or _FUNCTION_ID.fullmatch(self.function_id) is None
@@ -182,8 +235,22 @@ class TrainingCorpus:
         row_ids = [row.row_id for row in self.rows]
         if len(set(row_ids)) != len(row_ids):
             raise TrainingContractError("training corpus contains duplicate row IDs")
-        if any(row.label_index >= len(self.head.support) for row in self.rows):
-            raise TrainingContractError("training corpus contains an out-of-range label index")
+        for row in self.rows:
+            if len(row.label_indices) != len(heads) or any(
+                label >= len(item.contract.support)
+                for label, item in zip(row.label_indices, heads, strict=True)
+            ):
+                raise TrainingContractError(
+                    "training corpus contains an out-of-range or misaligned label index"
+                )
+
+    @property
+    def output_heads(self) -> tuple[OutputHead, ...]:
+        return cast(tuple[OutputHead, ...], self.heads)
+
+    @property
+    def logit_count(self) -> int:
+        return sum(item.contract.logit_count for item in self.output_heads)
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,10 +314,67 @@ def derive_training_head(ir: NeuralFunctionIr, /) -> TrainingHeadContract:
         raise TrainingContractError(f"IR case contract is invalid: {error}") from error
     output = ir.get("output")
     if not isinstance(output, Mapping) or output.get("kind") != "scalar":
-        raise TrainingContractError("TASK-5.6 training supports only scalar outputs")
+        raise TrainingContractError(
+            "derive_training_head supports only scalar outputs; use derive_output_heads"
+        )
     head = output.get("head")
     if not isinstance(head, Mapping):
         raise TrainingContractError("IR scalar output head must be an object")
+    return _head_contract(head)
+
+
+def derive_output_heads(ir: NeuralFunctionIr, /) -> tuple[OutputHead, ...]:
+    """Derive every output head of a function: one for a scalar, one per field otherwise."""
+
+    if not isinstance(ir, dict):
+        raise TrainingContractError("IR must be an object")
+    try:
+        build_case_schema(ir)
+    except Exception as error:
+        raise TrainingContractError(f"IR case contract is invalid: {error}") from error
+    output = ir.get("output")
+    if not isinstance(output, Mapping):
+        raise TrainingContractError("IR output must be an object")
+    if output.get("kind") == "scalar":
+        head = output.get("head")
+        if not isinstance(head, Mapping):
+            raise TrainingContractError("IR scalar output head must be an object")
+        return (OutputHead("", _head_contract(head)),)
+    if output.get("kind") != "object":
+        raise TrainingContractError("IR output kind must be scalar or object")
+    fields = output.get("fields")
+    if not isinstance(fields, list) or not fields:
+        raise TrainingContractError("IR object output requires fields")
+    heads: list[OutputHead] = []
+    for raw in fields:
+        if not isinstance(raw, Mapping) or not isinstance(raw.get("name"), str):
+            raise TrainingContractError("IR object output field is invalid")
+        head = raw.get("head")
+        if not isinstance(head, Mapping):
+            raise TrainingContractError("IR object output field head must be an object")
+        name = cast(str, raw["name"])
+        pointer = "/" + name.replace("~", "~0").replace("/", "~1")
+        heads.append(OutputHead(pointer, _head_contract(head)))
+    return tuple(heads)
+
+
+def output_labels(heads: Sequence[OutputHead], output: JsonValue, /) -> tuple[int, ...]:
+    """Label index per output head for one case output (scalar or object)."""
+
+    if len(heads) == 1 and heads[0].output_path == "":
+        return (heads[0].contract.label_index(output),)
+    if not isinstance(output, dict):
+        raise TrainingContractError("object output case must be an object")
+    labels: list[int] = []
+    for head in heads:
+        name = head.field_name
+        if name is None or name not in output:
+            raise TrainingContractError(f"object output case is missing field {name!r}")
+        labels.append(head.contract.label_index(output[name]))
+    return tuple(labels)
+
+
+def _head_contract(head: Mapping[str, Any]) -> TrainingHeadContract:
     kind = head.get("kind")
     source_kind = head.get("sourceKind")
     if kind not in ("nominal", "ordinal") or not isinstance(source_kind, str):
@@ -284,7 +408,8 @@ def assemble_training_corpus(
         raise TrainingContractError("base must be a TrainingDataset")
     if adversarial is not None and not isinstance(adversarial, AdversarialDataset):
         raise TrainingContractError("adversarial must be an AdversarialDataset")
-    head = derive_training_head(ir)
+    heads = derive_output_heads(ir)
+    head = heads[0].contract
     function_id = ir.get("id")
     semantic_sha256 = ir.get("semanticSha256")
     if function_id != base.function_id or semantic_sha256 != base.semantic_sha256:
@@ -318,18 +443,20 @@ def assemble_training_corpus(
     for index, case in enumerate(base.cases):
         _validate_row_case(ir, case.inputs, case.output, f"base case {index}")
         group_id = source_pairs.get(index, f"base:{index}")
+        labels = output_labels(heads, case.output)
         rows.append(
             TrainingRow(
                 row_id=f"base:{index}",
                 group_id=group_id,
                 origin=case.origin,
                 inputs=case.inputs,
-                label_index=head.label_index(case.output),
+                label_index=labels[0],
+                label_indices=labels,
             )
         )
 
     if adversarial is not None:
-        _append_adversarial_rows(ir, base, adversarial, head, rows)
+        _append_adversarial_rows(ir, base, adversarial, heads, rows)
     if len(rows) > MAXIMUM_TRAINING_ROW_COUNT:
         raise TrainingContractError(
             f"training corpus exceeds maximum row count {MAXIMUM_TRAINING_ROW_COUNT}"
@@ -342,6 +469,7 @@ def assemble_training_corpus(
         adversarial_dataset_sha256=(None if adversarial is None else adversarial.dataset_sha256),
         head=head,
         rows=tuple(rows),
+        heads=heads,
     )
 
 
@@ -393,6 +521,7 @@ def _merge_duplicate_input_groups(rows: list[TrainingRow]) -> list[TrainingRow]:
                     origin=row.origin,
                     inputs=row.inputs,
                     label_index=row.label_index,
+                    label_indices=row.label_indices,
                 )
             )
     return result
@@ -453,7 +582,7 @@ def _append_adversarial_rows(
     ir: NeuralFunctionIr,
     base: TrainingDataset,
     adversarial: AdversarialDataset,
-    head: TrainingHeadContract,
+    heads: tuple[OutputHead, ...],
     rows: list[TrainingRow],
 ) -> None:
     by_id = {case.case_id: case for case in adversarial.cases}
@@ -475,13 +604,15 @@ def _append_adversarial_rows(
             if case.pair_id not in pair_by_id:
                 raise TrainingContractError("counterfactual row has no matching pair")
             group_id = cast(str, case.pair_id)
+        labels = output_labels(heads, case.output)
         rows.append(
             TrainingRow(
                 row_id=case.case_id,
                 group_id=group_id,
                 origin=case.tag,
                 inputs=case.inputs,
-                label_index=head.label_index(case.output),
+                label_index=labels[0],
+                label_indices=labels,
             )
         )
 
@@ -635,6 +766,7 @@ __all__ = [
     "HeadKind",
     "HeadParameterization",
     "HeldOutSplitConfig",
+    "OutputHead",
     "TrainingContractError",
     "TrainingCorpus",
     "TrainingHeadContract",
@@ -642,6 +774,8 @@ __all__ = [
     "TrainingRow",
     "TrainingSplit",
     "assemble_training_corpus",
+    "derive_output_heads",
     "derive_training_head",
+    "output_labels",
     "split_training_corpus",
 ]

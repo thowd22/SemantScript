@@ -7,6 +7,7 @@ missing extra with an actionable error.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -104,6 +105,37 @@ if nn is not None:
             logits = self.projection(function_embedding.to(dtype=parameter.dtype))
             return logits.to(dtype=torch.float32)
 
+    class FieldHeads(nn.Module):
+        """One classification head per field of a flat object output.
+
+        The forward pass returns every field's logits concatenated along the
+        last dimension; ``slices`` records where each field's logits live so a
+        trainer or verifier can address one field at a time. Each field head is
+        still an independent ``ClassificationHead`` that exports as its own graph.
+        """
+
+        def __init__(self, heads: Sequence[ClassificationHead]) -> None:
+            super().__init__()
+            resolved = tuple(heads)
+            if not resolved:
+                raise ValueError("field heads require at least one head")
+            if any(not isinstance(head, ClassificationHead) for head in resolved):
+                raise TypeError("field heads must be ClassificationHead modules")
+            input_size = resolved[0].config.input_size
+            if any(head.config.input_size != input_size for head in resolved):
+                raise ValueError("every field head must read the same embedding width")
+            self.heads = nn.ModuleList(resolved)
+            slices: list[tuple[int, int]] = []
+            offset = 0
+            for head in resolved:
+                slices.append((offset, offset + head.config.output_size))
+                offset += head.config.output_size
+            self.slices = tuple(slices)
+            self.config = FieldHeadsConfig(input_size=input_size, output_size=offset)
+
+        def forward(self, function_embedding: Any) -> Any:
+            return torch.cat([head(function_embedding) for head in self.heads], dim=-1)
+
 else:
 
     class ClassificationHead:  # pragma: no cover - exercised only without PyTorch
@@ -113,9 +145,26 @@ else:
             del config
             raise _missing_torch() from _TORCH_IMPORT_ERROR
 
+    class FieldHeads:  # pragma: no cover - exercised only without PyTorch
+        """Deferred failure placeholder used when PyTorch is unavailable."""
+
+        def __init__(self, heads: Sequence[Any]) -> None:
+            del heads
+            raise _missing_torch() from _TORCH_IMPORT_ERROR
+
+
+@dataclass(frozen=True, slots=True)
+class FieldHeadsConfig:
+    """Combined width of a flat object output's field heads."""
+
+    input_size: int
+    output_size: int
+
 
 __all__ = [
     "ClassificationHead",
+    "FieldHeads",
+    "FieldHeadsConfig",
     "HeadArchitecture",
     "HeadConfig",
     "HeadKind",

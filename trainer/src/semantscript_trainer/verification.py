@@ -32,14 +32,17 @@ from semantscript_trainer.training import (
     MAXIMUM_CORPUS_TEXT_BYTES,
     TrainingConfig,
     TrainingResult,
+    head_slices,
+    predict_indices,
 )
 from semantscript_trainer.training_contract import (
     MAXIMUM_TRAINING_ROW_COUNT,
     HeldOutSplitConfig,
+    OutputHead,
     TrainingCorpus,
-    TrainingHeadContract,
     TrainingRow,
     assemble_training_corpus,
+    output_labels,
     split_training_corpus,
 )
 
@@ -189,8 +192,12 @@ class HeadVerificationV1:
     calibration: CalibrationRecordV1
 
     def __post_init__(self) -> None:
-        if self.output_path != "":
-            raise VerificationConfigurationError("TASK-5.7 supports only the scalar output path")
+        if not isinstance(self.output_path, str) or (
+            self.output_path != "" and not self.output_path.startswith("/")
+        ):
+            raise VerificationConfigurationError(
+                "head output path must be empty or a JSON pointer to an output field"
+            )
         _unit_interval("accuracy", self.accuracy)
         _unit_interval("pair_consistency", self.pair_consistency)
         if not isinstance(self.calibration, CalibrationRecordV1):
@@ -230,20 +237,40 @@ class VerificationMetricsV1:
     def __post_init__(self) -> None:
         for name in ("accuracy", "ece", "brier", "pair_consistency"):
             _unit_interval(name, getattr(self, name))
-        if not isinstance(self.heads, tuple) or len(self.heads) != 1:
-            raise VerificationConfigurationError("scalar verification requires exactly one head")
-        if not isinstance(self.heads[0], HeadVerificationV1):
+        if not isinstance(self.heads, tuple) or not self.heads:
+            raise VerificationConfigurationError("verification requires at least one head")
+        if any(not isinstance(head, HeadVerificationV1) for head in self.heads):
             raise VerificationConfigurationError("verification heads are invalid")
-        head = self.heads[0]
-        if (
-            self.accuracy != head.accuracy
-            or self.ece != head.calibration.ece
-            or self.brier != head.calibration.brier
-            or self.pair_consistency != head.pair_consistency
-        ):
-            raise VerificationConfigurationError(
-                "scalar function metrics must equal the sole head metrics"
-            )
+        if len({head.output_path for head in self.heads}) != len(self.heads):
+            raise VerificationConfigurationError("verification head output paths must be unique")
+        if len(self.heads) == 1 and self.heads[0].output_path == "":
+            head = self.heads[0]
+            if (
+                self.accuracy != head.accuracy
+                or self.ece != head.calibration.ece
+                or self.brier != head.calibration.brier
+                or self.pair_consistency != head.pair_consistency
+            ):
+                raise VerificationConfigurationError(
+                    "scalar function metrics must equal the sole head metrics"
+                )
+        else:
+            # A flat object is right only when every field is right, and the gate
+            # sees the worst head's calibration.
+            if any(head.output_path == "" for head in self.heads):
+                raise VerificationConfigurationError(
+                    "object output heads must all name an output field"
+                )
+            if (
+                self.accuracy > min(head.accuracy for head in self.heads) + 1e-12
+                or self.ece != max(head.calibration.ece for head in self.heads)
+                or self.brier != max(head.calibration.brier for head in self.heads)
+                or self.pair_consistency != min(head.pair_consistency for head in self.heads)
+            ):
+                raise VerificationConfigurationError(
+                    "object function metrics must be the exact-match accuracy, the maximum "
+                    "head ECE and Brier, and the minimum head pair consistency"
+                )
         for name in ("example_failures", "type_errors"):
             _bounded_integer(
                 name,
@@ -348,9 +375,9 @@ class VerificationResult:
             "metrics": self.metrics.to_ir_document(),
         }
 
-    def to_manifest_head_metadata(self) -> dict[str, JsonValue]:
+    def to_manifest_head_metadata(self, index: int = 0) -> dict[str, JsonValue]:
         self._require_passed()
-        return self.metrics.heads[0].to_manifest_metadata()
+        return self.metrics.heads[index].to_manifest_metadata()
 
     def to_manifest_function_verification(self) -> dict[str, JsonValue]:
         self._require_passed()
@@ -375,8 +402,12 @@ class VerificationResult:
 class _CaseRecord:
     case_id: str
     inputs: dict[str, JsonValue]
-    label_index: int
+    label_indices: tuple[int, ...]
     human_authored: bool
+
+    @property
+    def label_index(self) -> int:
+        return self.label_indices[0]
 
 
 def evaluate_training_result(
@@ -406,7 +437,10 @@ def evaluate_training_result(
             f"{MAXIMUM_BATCH_TOKENS}"
         )
     corpus = _reconstruct_corpus(ir, training, base, adversarial)
-    if resolved.batch_size * corpus.head.logit_count > MAXIMUM_CALIBRATION_LOGIT_VALUES:
+    heads = corpus.output_heads
+    if training.heads != heads:
+        raise VerificationConfigurationError("training result heads do not match the corpus")
+    if resolved.batch_size * corpus.logit_count > MAXIMUM_CALIBRATION_LOGIT_VALUES:
         raise VerificationConfigurationError(
             "verification batch_size * logit_count exceeds maximum value count "
             f"{MAXIMUM_CALIBRATION_LOGIT_VALUES}"
@@ -424,9 +458,7 @@ def evaluate_training_result(
         raise VerificationConfigurationError(
             f"attested verification cases exceed maximum {MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT}"
         )
-    _validate_source_examples(
-        ir, base, gold_rows, corpus.head, training.config.canonical_input_version
-    )
+    _validate_source_examples(ir, base, gold_rows, heads, training.config.canonical_input_version)
 
     calibration_rows = training.split.evaluation
     if not calibration_rows:
@@ -435,7 +467,7 @@ def evaluate_training_result(
         )
     if any(row.origin == "gold" for row in calibration_rows):
         raise VerificationConfigurationError("gold examples cannot be calibration-only rows")
-    if len(calibration_rows) * training.head.logit_count > MAXIMUM_CALIBRATION_LOGIT_VALUES:
+    if len(calibration_rows) * corpus.logit_count > MAXIMUM_CALIBRATION_LOGIT_VALUES:
         raise VerificationConfigurationError(
             f"calibration logits exceed maximum value count {MAXIMUM_CALIBRATION_LOGIT_VALUES}"
         )
@@ -454,23 +486,10 @@ def evaluate_training_result(
     )
     torch = _require_torch()
     targets = torch.tensor(
-        [row.label_index for row in calibration_rows],
+        [list(row.label_indices) for row in calibration_rows],
         dtype=torch.long,
     )
-    try:
-        calibration = _calibrate(
-            calibration_logits,
-            targets,
-            bin_count=resolved.ece_bins,
-            minimum_temperature=resolved.minimum_temperature,
-            maximum_temperature=resolved.maximum_temperature,
-            maximum_iterations=resolved.maximum_temperature_iterations,
-        )
-    except (RuntimeError, TypeError, ValueError) as error:
-        raise VerificationExecutionError(f"temperature calibration failed: {error}") from error
-
     split_sha256 = calibration_split_sha256(training, calibration_rows)
-    calibration_record = _calibration_record(calibration, split_sha256)
     example_failures = _example_failures(gold_rows, external_human, predictions)
     constraint_violations = _constraint_violations(
         ir,
@@ -479,24 +498,57 @@ def evaluate_training_result(
         records,
         predictions,
     )
-    pair_consistency, pair_count = _pair_consistency(corpus, adversarial, predictions)
-    calibrated = calibration.calibrated_metrics
-    head = HeadVerificationV1(
-        output_path="",
-        accuracy=calibrated.accuracy,
-        pair_consistency=pair_consistency,
-        calibration=calibration_record,
-    )
-    metrics = VerificationMetricsV1(
-        accuracy=calibrated.accuracy,
-        ece=calibrated.ece,
-        brier=calibrated.brier_score,
-        pair_consistency=pair_consistency,
-        heads=(head,),
-        example_failures=example_failures,
-        constraint_violations=constraint_violations,
-        type_errors=0,
-    )
+    pair_consistencies, pair_count = _pair_consistency(corpus, adversarial, predictions)
+    head_records: list[HeadVerificationV1] = []
+    for index, (head, (start, end)) in enumerate(zip(heads, head_slices(heads), strict=True)):
+        try:
+            calibration = _calibrate(
+                calibration_logits[:, start:end],
+                targets[:, index],
+                bin_count=resolved.ece_bins,
+                minimum_temperature=resolved.minimum_temperature,
+                maximum_temperature=resolved.maximum_temperature,
+                maximum_iterations=resolved.maximum_temperature_iterations,
+            )
+        except (RuntimeError, TypeError, ValueError) as error:
+            raise VerificationExecutionError(
+                f"temperature calibration failed for head {head.output_path!r}: {error}"
+            ) from error
+        calibrated = calibration.calibrated_metrics
+        head_records.append(
+            HeadVerificationV1(
+                output_path=head.output_path,
+                accuracy=calibrated.accuracy,
+                pair_consistency=pair_consistencies[index],
+                calibration=_calibration_record(calibration, split_sha256),
+            )
+        )
+    if len(head_records) == 1 and head_records[0].output_path == "":
+        sole = head_records[0]
+        metrics = VerificationMetricsV1(
+            accuracy=sole.accuracy,
+            ece=sole.calibration.ece,
+            brier=sole.calibration.brier,
+            pair_consistency=sole.pair_consistency,
+            heads=(sole,),
+            example_failures=example_failures,
+            constraint_violations=constraint_violations,
+            type_errors=0,
+        )
+    else:
+        exact = sum(predictions[row.row_id] == row.label_indices for row in calibration_rows) / len(
+            calibration_rows
+        )
+        metrics = VerificationMetricsV1(
+            accuracy=exact,
+            ece=max(record.calibration.ece for record in head_records),
+            brier=max(record.calibration.brier for record in head_records),
+            pair_consistency=min(record.pair_consistency for record in head_records),
+            heads=tuple(head_records),
+            example_failures=example_failures,
+            constraint_violations=constraint_violations,
+            type_errors=0,
+        )
     if model_state_sha256(training.model) != model_sha256:
         raise VerificationExecutionError("classifier state changed during verification")
     if hashlib.sha256(tokenizer_json_bytes(resolved_tokenizer)).hexdigest() != tokenizer_sha256:
@@ -559,13 +611,14 @@ def calibration_split_sha256(
     for row in rows:
         if not isinstance(row, TrainingRow):
             raise VerificationConfigurationError("calibration split contains an invalid row")
-        entries.append(
-            {
-                "rowId": row.row_id,
-                "groupId": row.group_id,
-                "labelIndex": row.label_index,
-            }
-        )
+        entry: dict[str, JsonValue] = {
+            "rowId": row.row_id,
+            "groupId": row.group_id,
+            "labelIndex": row.label_index,
+        }
+        if len(row.label_indices) > 1:
+            entry["labelIndices"] = list(row.label_indices)
+        entries.append(entry)
     document: dict[str, JsonValue] = {
         "functionId": training.function_id,
         "semanticSha256": training.semantic_sha256,
@@ -809,7 +862,7 @@ def _validate_attested_cases(
             )
         try:
             validate_case(ir, case)
-            label_index = corpus.head.label_index(case.output)
+            label_indices = output_labels(corpus.output_heads, case.output)
         except (RuntimeError, TypeError, ValueError) as error:
             raise VerificationConfigurationError(
                 f"human verification case {index} is invalid: {error}"
@@ -833,7 +886,7 @@ def _validate_attested_cases(
             _CaseRecord(
                 case_id=f"human:{index}",
                 inputs=deepcopy(case.inputs),
-                label_index=label_index,
+                label_indices=label_indices,
                 human_authored=True,
             )
         )
@@ -844,7 +897,7 @@ def _validate_source_examples(
     ir: NeuralFunctionIr,
     base: TrainingDataset,
     gold_rows: tuple[TrainingRow, ...],
-    head: TrainingHeadContract,
+    heads: tuple[OutputHead, ...],
     version: int = 1,
 ) -> None:
     definition = ir.get("definition")
@@ -868,11 +921,11 @@ def _validate_source_examples(
                 f"base gold row {index} does not match its IR example"
             )
         try:
-            if row.label_index != head.label_index(cast(JsonValue, raw.get("output"))):
+            if row.label_indices != output_labels(heads, cast(JsonValue, raw.get("output"))):
                 raise VerificationConfigurationError(
                     f"base gold row {index} output does not match its IR example"
                 )
-            if row.label_index != head.label_index(base.cases[index].output):
+            if row.label_indices != output_labels(heads, base.cases[index].output):
                 raise VerificationConfigurationError(
                     f"base gold row {index} output does not match the base dataset"
                 )
@@ -892,7 +945,7 @@ def _case_records(
         _CaseRecord(
             case_id=row.row_id,
             inputs=row.inputs,
-            label_index=row.label_index,
+            label_indices=row.label_indices,
             human_authored=row.origin == "gold",
         )
         for row in corpus.rows
@@ -912,11 +965,12 @@ def _collect_predictions(
     calibration_rows: tuple[TrainingRow, ...],
     tokenizer: Any | None,
     config: VerificationConfig,
-) -> tuple[dict[str, int], Any]:
+) -> tuple[dict[str, tuple[int, ...]], Any]:
     torch = _require_torch()
     schema = ir.get("inputs")
     if not isinstance(schema, list):
         raise VerificationConfigurationError("IR inputs must be an array")
+    heads = training.heads
     text_entries: dict[str, list[str]] = {}
     byte_count = 0
     for record in records:
@@ -932,7 +986,7 @@ def _collect_predictions(
 
     calibration_ids = {row.row_id for row in calibration_rows}
     calibration_by_id: dict[str, Any] = {}
-    predictions: dict[str, int] = {}
+    predictions: dict[str, tuple[int, ...]] = {}
     resolved_tokenizer = _load_tokenizer(training) if tokenizer is None else tokenizer
     model = training.model
     if not hasattr(model, "eval") or not callable(model.eval):
@@ -968,14 +1022,11 @@ def _collect_predictions(
                     f"classifier verification forward pass failed: {error}"
                 ) from error
             try:
-                _validate_logits(logits, torch, len(batch), training.head.logit_count)
+                _validate_logits(logits, torch, len(batch), training.logit_count)
                 cpu_logits = logits.detach().to(device="cpu", dtype=torch.float64)
-                if training.head.logit_count == 1:
-                    batch_predictions = (cpu_logits[:, 0] > 0).to(dtype=torch.long)
-                else:
-                    batch_predictions = torch.argmax(cpu_logits, dim=1)
+                batch_predictions = predict_indices(cpu_logits, heads, torch)
                 for index, (_, case_ids) in enumerate(batch):
-                    prediction = int(batch_predictions[index].item())
+                    prediction = tuple(int(v) for v in batch_predictions[index].tolist())
                     for case_id in case_ids:
                         predictions[case_id] = prediction
                         if case_id in calibration_ids:
@@ -1107,10 +1158,12 @@ def _calibration_record(result: Any, split_sha256: str) -> CalibrationRecordV1:
 def _example_failures(
     gold_rows: tuple[TrainingRow, ...],
     external_human: tuple[_CaseRecord, ...],
-    predictions: Mapping[str, int],
+    predictions: Mapping[str, tuple[int, ...]],
 ) -> int:
-    failures = sum(predictions[row.row_id] != row.label_index for row in gold_rows)
-    failures += sum(predictions[record.case_id] != record.label_index for record in external_human)
+    failures = sum(predictions[row.row_id] != row.label_indices for row in gold_rows)
+    failures += sum(
+        predictions[record.case_id] != record.label_indices for record in external_human
+    )
     return failures
 
 
@@ -1119,7 +1172,7 @@ def _constraint_violations(
     corpus: TrainingCorpus,
     adversarial: AdversarialDataset | None,
     records: tuple[_CaseRecord, ...],
-    predictions: Mapping[str, int],
+    predictions: Mapping[str, tuple[int, ...]],
 ) -> int:
     try:
         constraints = compile_constraints(ir)
@@ -1139,7 +1192,7 @@ def _constraint_violations(
         {} if adversarial is None else {case.case_id: case for case in adversarial.cases}
     )
     for record in records:
-        predicted_output = corpus.head.support[predictions[record.case_id]]
+        predicted_output = predicted_output_value(corpus.output_heads, predictions[record.case_id])
         try:
             active, case_violations = constraints.evaluate_output_contract(
                 record.inputs,
@@ -1164,21 +1217,39 @@ def _constraint_violations(
 def _pair_consistency(
     corpus: TrainingCorpus,
     adversarial: AdversarialDataset | None,
-    predictions: Mapping[str, int],
-) -> tuple[float, int]:
+    predictions: Mapping[str, tuple[int, ...]],
+) -> tuple[tuple[float, ...], int]:
+    """Per-head pair consistency: both members of a pair right on that head."""
+
+    head_count = len(corpus.output_heads)
     if adversarial is None or not adversarial.pairs:
-        return 1.0, 0
+        return tuple(1.0 for _ in range(head_count)), 0
     by_id = {row.row_id: row for row in corpus.rows}
-    passed = 0
+    passed = [0] * head_count
     for pair in adversarial.pairs:
         anchor = by_id[pair.anchor_case_id]
         twin = by_id[pair.twin_case_id]
-        if (
-            predictions[anchor.row_id] == anchor.label_index
-            and predictions[twin.row_id] == twin.label_index
-        ):
-            passed += 1
-    return passed / len(adversarial.pairs), len(adversarial.pairs)
+        for index in range(head_count):
+            if (
+                predictions[anchor.row_id][index] == anchor.label_indices[index]
+                and predictions[twin.row_id][index] == twin.label_indices[index]
+            ):
+                passed[index] += 1
+    return tuple(count / len(adversarial.pairs) for count in passed), len(adversarial.pairs)
+
+
+def predicted_output_value(heads: Sequence[OutputHead], indices: Sequence[int]) -> JsonValue:
+    """The output value a prediction denotes: a support member or a flat object of them."""
+
+    if len(heads) == 1 and heads[0].output_path == "":
+        return heads[0].contract.support[indices[0]]
+    value: dict[str, JsonValue] = {}
+    for head, index in zip(heads, indices, strict=True):
+        name = head.field_name
+        if name is None:
+            raise VerificationConfigurationError("object output head has no field name")
+        value[name] = head.contract.support[index]
+    return value
 
 
 def _gate_failures(

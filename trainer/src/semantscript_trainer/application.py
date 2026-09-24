@@ -30,9 +30,9 @@ from semantscript_trainer.training import (
     TrainingExecutionError,
     TrainingResult,
     _accuracy,
-    _build_head,
+    _batch_loss,
+    _build_heads,
     _build_sentence_encoder,
-    _classification_loss,
     _load_tokenizer,
     _prepare_rows,
     _PreparedRow,
@@ -48,7 +48,7 @@ from semantscript_trainer.training_contract import (
     TrainingCorpus,
     TrainingSplit,
     assemble_training_corpus,
-    derive_training_head,
+    derive_output_heads,
     split_training_corpus,
 )
 
@@ -74,11 +74,11 @@ class FunctionCorpus:
         ):
             raise TrainingConfigurationError("function corpus identity does not match its IR")
         try:
-            head = derive_training_head(self.ir)
+            heads = derive_output_heads(self.ir)
         except ValueError as error:
             raise TrainingConfigurationError(str(error)) from error
-        if head != self.corpus.head:
-            raise TrainingConfigurationError("function corpus head does not match its IR output")
+        if heads != self.corpus.output_heads:
+            raise TrainingConfigurationError("function corpus heads do not match its IR output")
         if not isinstance(self.ir.get("inputs"), list):
             raise TrainingConfigurationError("function IR inputs must be an array")
 
@@ -135,7 +135,6 @@ class _FunctionState:
     split: TrainingSplit
     prepared: dict[str, tuple[_PreparedRow, ...]]
     logit_count: int
-    ordinal: bool
 
 
 def train_application(
@@ -161,8 +160,8 @@ def train_application(
         application_module, sentence_encoder.hidden_size, adapter_bottleneck_size
     )
     heads = {
-        state.function.function_id: _build_head(
-            state.function.corpus.head, sentence_encoder.hidden_size, resolved
+        state.function.function_id: _build_heads(
+            state.function.corpus.output_heads, sentence_encoder.hidden_size, resolved
         )
         for state in states
     }
@@ -214,7 +213,7 @@ def add_function_head(
     _seed_torch(torch, resolved.seed)
     tokenizer = _load_tokenizer(resolved) if tokenizer is None else tokenizer
     model = application.model
-    head = _build_head(states[0].function.corpus.head, model.hidden_size, resolved)
+    head = _build_heads(states[0].function.corpus.output_heads, model.hidden_size, resolved)
     try:
         model.add_head(function.function_id, head)
     except (RuntimeError, TypeError, ValueError) as error:
@@ -319,8 +318,7 @@ def _function_states(
                 function=function,
                 split=split,
                 prepared=prepared,
-                logit_count=function.corpus.head.logit_count,
-                ordinal=function.corpus.head.ordinal,
+                logit_count=function.corpus.logit_count,
             )
         )
     if total_steps > MAXIMUM_OPTIMIZATION_STEPS:
@@ -408,9 +406,7 @@ def _fit(
             except (RuntimeError, TypeError, ValueError) as error:
                 raise TrainingExecutionError(f"application forward pass failed: {error}") from error
             _validate_logits(logits, torch, batch_size=len(batch), logit_count=state.logit_count)
-            loss = _classification_loss(
-                logits, targets, ordinal=state.ordinal, loss_name=config.loss
-            )
+            loss = _batch_loss(logits, targets, state.function.corpus.output_heads, config.loss)
             if not bool(torch.isfinite(loss).item()):
                 raise TrainingExecutionError("training loss became non-finite")
             try:
@@ -434,8 +430,8 @@ def _fit(
                 device,
                 config.maximum_sequence_length,
                 config.batch_size,
-                state.logit_count,
-            )
+                state.function.corpus.output_heads,
+            )[0]
             for state in states
         }
         metrics.append(
@@ -489,6 +485,7 @@ def _function_results(
             base_dataset_sha256=state.function.corpus.base_dataset_sha256,
             adversarial_dataset_sha256=state.function.corpus.adversarial_dataset_sha256,
             selected_epoch=selected_epoch,
+            output_heads=state.function.corpus.output_heads,
         )
     return results
 

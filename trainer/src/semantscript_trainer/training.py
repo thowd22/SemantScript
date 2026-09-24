@@ -20,12 +20,13 @@ from semantscript_trainer.teacher import NeuralFunctionIr
 from semantscript_trainer.training_contract import (
     MAXIMUM_SPLIT_SEED,
     HeldOutSplitConfig,
+    OutputHead,
     TrainingCorpus,
     TrainingHeadContract,
     TrainingRow,
     TrainingSplit,
     assemble_training_corpus,
-    derive_training_head,
+    derive_output_heads,
     split_training_corpus,
 )
 
@@ -169,11 +170,17 @@ class TrainingConfig:
 
 @dataclass(frozen=True, slots=True)
 class EpochMetrics:
-    """Scalar metrics retained without keeping computation graphs alive."""
+    """Scalar metrics retained without keeping computation graphs alive.
+
+    ``held_out_accuracy`` is exact-match accuracy over every output head (the
+    only head for a scalar output); ``held_out_field_accuracy`` lists each
+    head's own accuracy for flat object outputs.
+    """
 
     epoch: int
     mean_training_loss: float
     held_out_accuracy: float
+    held_out_field_accuracy: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,6 +198,16 @@ class TrainingResult:
     base_dataset_sha256: str
     adversarial_dataset_sha256: str | None
     selected_epoch: int | None = None
+    # Every output head in IR order; None means the scalar head in ``head``.
+    output_heads: tuple[OutputHead, ...] | None = None
+
+    @property
+    def heads(self) -> tuple[OutputHead, ...]:
+        return self.output_heads if self.output_heads is not None else (OutputHead("", self.head),)
+
+    @property
+    def logit_count(self) -> int:
+        return sum(item.contract.logit_count for item in self.heads)
 
     @property
     def held_out_accuracy(self) -> float:
@@ -250,11 +267,11 @@ def train_corpus(
     if ir.get("id") != corpus.function_id or ir.get("semanticSha256") != corpus.semantic_sha256:
         raise TrainingConfigurationError("training corpus identity does not match the IR")
     try:
-        ir_head = derive_training_head(ir)
+        ir_heads = derive_output_heads(ir)
     except ValueError as error:
         raise TrainingConfigurationError(str(error)) from error
-    if ir_head != corpus.head:
-        raise TrainingConfigurationError("training corpus head does not match the IR output spec")
+    if ir_heads != corpus.output_heads:
+        raise TrainingConfigurationError("training corpus heads do not match the IR output spec")
     raw_schema = ir.get("inputs")
     if not isinstance(raw_schema, list):
         raise TrainingConfigurationError("IR inputs must be an array")
@@ -270,7 +287,7 @@ def train_corpus(
         raise TrainingConfigurationError(
             "held-out accuracy requires at least two independent row groups"
         )
-    if resolved.batch_size * len(corpus.head.support) > _MAXIMUM_BATCH_CLASS_VALUES:
+    if resolved.batch_size * corpus.logit_count > _MAXIMUM_BATCH_CLASS_VALUES:
         raise TrainingConfigurationError(
             "batch_size * head cardinality exceeds maximum class values "
             f"{_MAXIMUM_BATCH_CLASS_VALUES}"
@@ -293,7 +310,8 @@ def train_corpus(
     _seed_torch(torch, resolved.seed)
     device = _resolve_device(torch, resolved.device)
     tokenizer = _load_tokenizer(resolved) if tokenizer is None else tokenizer
-    model = _build_model(corpus.head, resolved, encoder)
+    heads = corpus.output_heads
+    model = _build_model(heads, resolved, encoder)
     parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
     if not parameters:
         raise TrainingConfigurationError("classifier has no trainable parameters")
@@ -358,14 +376,9 @@ def train_corpus(
                 logits,
                 torch,
                 batch_size=len(batch),
-                logit_count=corpus.head.logit_count,
+                logit_count=corpus.logit_count,
             )
-            loss = _classification_loss(
-                logits,
-                targets,
-                ordinal=corpus.head.ordinal,
-                loss_name=resolved.loss,
-            )
+            loss = _batch_loss(logits, targets, heads, resolved.loss)
             if not bool(torch.isfinite(loss).item()):
                 raise TrainingExecutionError("training loss became non-finite")
             try:
@@ -392,7 +405,7 @@ def train_corpus(
             loss_total += float(loss.detach().cpu().item()) * size
             example_count += size
 
-        held_out_accuracy = _accuracy(
+        held_out_accuracy, field_accuracy = _accuracy(
             model,
             evaluation_rows,
             tokenizer,
@@ -400,13 +413,14 @@ def train_corpus(
             device,
             resolved.maximum_sequence_length,
             resolved.batch_size,
-            corpus.head.logit_count,
+            heads,
         )
         metrics.append(
             EpochMetrics(
                 epoch=epoch,
                 mean_training_loss=loss_total / example_count,
                 held_out_accuracy=held_out_accuracy,
+                held_out_field_accuracy=field_accuracy if len(heads) > 1 else None,
             )
         )
         if resolved.select_best_epoch and (
@@ -434,6 +448,7 @@ def train_corpus(
         semantic_sha256=corpus.semantic_sha256,
         base_dataset_sha256=corpus.base_dataset_sha256,
         adversarial_dataset_sha256=corpus.adversarial_dataset_sha256,
+        output_heads=corpus.output_heads,
         selected_epoch=best_epoch if resolved.select_best_epoch else None,
     )
 
@@ -479,10 +494,10 @@ def _validate_no_canonical_leakage(
         for entry in prepared[partition]:
             previous = seen.get(entry.text)
             if previous is None:
-                seen[entry.text] = (entry.row.label_index, partition, entry.row.row_id)
+                seen[entry.text] = (entry.row.label_indices, partition, entry.row.row_id)
                 continue
             previous_label, previous_partition, previous_row_id = previous
-            if previous_label != entry.row.label_index:
+            if previous_label != entry.row.label_indices:
                 raise TrainingConfigurationError(
                     "canonical input has conflicting labels in rows "
                     f"{previous_row_id!r} and {entry.row.row_id!r}"
@@ -494,7 +509,11 @@ def _validate_no_canonical_leakage(
                 )
 
 
-def _build_model(head: TrainingHeadContract, config: TrainingConfig, encoder: Any | None) -> Any:
+def _build_model(
+    heads: TrainingHeadContract | Sequence[OutputHead],
+    config: TrainingConfig,
+    encoder: Any | None,
+) -> Any:
     try:
         from semantscript_model.classifier import SemanticClassifier
     except (ImportError, OSError) as error:
@@ -502,11 +521,70 @@ def _build_model(head: TrainingHeadContract, config: TrainingConfig, encoder: An
             "fine-tuning requires the optional training dependencies; install the training extra"
         ) from error
     sentence_encoder = _build_sentence_encoder(config, encoder)
-    model_head = _build_head(head, sentence_encoder.hidden_size, config)
+    resolved = (OutputHead("", heads),) if isinstance(heads, TrainingHeadContract) else tuple(heads)
+    model_head = _build_heads(resolved, sentence_encoder.hidden_size, config)
     try:
         return SemanticClassifier(sentence_encoder, model_head)
     except (ImportError, RuntimeError, TypeError, ValueError) as error:
         raise TrainingExecutionError(f"could not construct classifier: {error}") from error
+
+
+def _build_heads(heads: Sequence[OutputHead], input_size: int, config: TrainingConfig) -> Any:
+    """One ClassificationHead for a scalar output, FieldHeads for a flat object."""
+
+    modules = [_build_head(item.contract, input_size, config) for item in heads]
+    if len(modules) == 1 and heads[0].output_path == "":
+        return modules[0]
+    try:
+        from semantscript_model.heads import FieldHeads
+    except (ImportError, OSError) as error:
+        raise TrainingExecutionError(
+            "fine-tuning requires the optional training dependencies; install the training extra"
+        ) from error
+    try:
+        return FieldHeads(modules)
+    except (RuntimeError, TypeError, ValueError) as error:
+        raise TrainingExecutionError(f"could not construct field heads: {error}") from error
+
+
+def head_slices(heads: Sequence[OutputHead]) -> tuple[tuple[int, int], ...]:
+    """Where each head's logits live in the concatenated logit tensor."""
+
+    slices: list[tuple[int, int]] = []
+    offset = 0
+    for item in heads:
+        slices.append((offset, offset + item.contract.logit_count))
+        offset += item.contract.logit_count
+    return tuple(slices)
+
+
+def predict_indices(logits: Any, heads: Sequence[OutputHead], torch: Any) -> Any:
+    """Predicted support index per head, shape [batch, heads], with runtime tie rules."""
+
+    columns = []
+    for item, (start, end) in zip(heads, head_slices(heads), strict=True):
+        head_logits = logits[:, start:end]
+        if item.contract.logit_count == 1:
+            # Runtime ABI ties select the earlier support member (false).
+            columns.append((head_logits[:, 0] > 0).to(dtype=torch.long))
+        else:
+            columns.append(torch.argmax(head_logits, dim=-1))
+    return torch.stack(columns, dim=1)
+
+
+def _batch_loss(logits: Any, targets: Any, heads: Sequence[OutputHead], loss_name: LossName) -> Any:
+    total = None
+    for index, (item, (start, end)) in enumerate(zip(heads, head_slices(heads), strict=True)):
+        loss = _classification_loss(
+            logits[:, start:end],
+            targets[:, index],
+            ordinal=item.contract.ordinal,
+            loss_name=loss_name,
+        )
+        total = loss if total is None else total + loss
+    if total is None:
+        raise TrainingConfigurationError("training requires at least one output head")
+    return total
 
 
 def _build_sentence_encoder(config: TrainingConfig, encoder: Any | None) -> Any:
@@ -627,7 +705,7 @@ def _tensorize_batch(
     if bool((attention_mask.sum(dim=1) == 0).any().item()):
         raise TrainingExecutionError("every tokenized row must contain at least one attended token")
     targets = torch.tensor(
-        [entry.row.label_index for entry in batch],
+        [list(entry.row.label_indices) for entry in batch],
         dtype=torch.long,
     )
     return input_ids.to(device), attention_mask.to(device), targets.to(device)
@@ -657,10 +735,14 @@ def _accuracy(
     device: Any,
     maximum_sequence_length: int,
     batch_size: int,
-    logit_count: int,
-) -> float:
+    heads: Sequence[OutputHead],
+) -> tuple[float, tuple[float, ...]]:
+    """Exact-match accuracy over every head, plus each head's own accuracy."""
+
     model.eval()
-    correct = 0
+    logit_count = sum(item.contract.logit_count for item in heads)
+    exact = 0
+    per_head = [0] * len(heads)
     with torch.no_grad():
         for offset in range(0, len(rows), batch_size):
             batch = rows[offset : offset + batch_size]
@@ -678,13 +760,11 @@ def _accuracy(
                 batch_size=len(batch),
                 logit_count=logit_count,
             )
-            if logit_count == 1:
-                # Runtime ABI ties select the earlier support member (false).
-                predictions = (logits[:, 0] > 0).to(dtype=torch.long)
-            else:
-                predictions = torch.argmax(logits, dim=-1)
-            correct += int((predictions == targets).sum().detach().cpu().item())
-    return correct / len(rows)
+            matches = predict_indices(logits, heads, torch) == targets
+            exact += int(matches.all(dim=1).sum().detach().cpu().item())
+            for index in range(len(heads)):
+                per_head[index] += int(matches[:, index].sum().detach().cpu().item())
+    return exact / len(rows), tuple(count / len(rows) for count in per_head)
 
 
 def _forward_model(model: Any, input_ids: Any, attention_mask: Any) -> Any:

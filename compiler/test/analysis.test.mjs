@@ -489,7 +489,16 @@ const result = sema.withConfidence<Result>\`Judge: \${message}; payload: \${payl
   assert.equal(roundTripped.runtime.resultMode, "diagnostic");
   assert.equal(roundTripped.inputs[1].type.fields[0].name, "");
   assert.equal(roundTripped.output.fields[0].name, "");
-  assert.equal(roundTripped.model.heads[0].outputPath, "/");
+  // A flat interface output compiles to exactly one head per field, in field order.
+  assert.deepEqual(
+    roundTripped.output.fields.map(({ name }) => name),
+    ["", "accepted", "score"],
+  );
+  assert.deepEqual(roundTripped.model.heads, [
+    { outputPath: "/", ref: "head.site.empty" },
+    { outputPath: "/accepted", ref: "head.site.accepted" },
+    { outputPath: "/score", ref: "head.site.score" },
+  ]);
 });
 
 async function createFixtureProgram(files) {

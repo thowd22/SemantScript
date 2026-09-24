@@ -1,0 +1,429 @@
+{
+  "completedAt": "2026-09-24T20:10:22Z",
+  "corpus": {
+    "adversarialDatasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+    "baseDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+    "manifest": "benchmarks/refund/data/pooled-v4-2026-09-24/manifest.json",
+    "manifestSha256": "f36dde2ef406a1f0a954ed84c3b1261f213899bcd4d0abe15ab52323658fe640"
+  },
+  "environment": {
+    "accelerator": "AMD Radeon RX 9070 XT",
+    "capturedAt": "2026-09-24T20:10:10Z",
+    "commit": "f0d23e0356c24851782604b8cce41aaf8facfe35",
+    "cpu": "x86_64 x24",
+    "device": "cuda",
+    "gpuMemoryBytes": 16974905344,
+    "onnxruntimeProviders": [
+      "AzureExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "versions": {
+      "onnxruntime": "1.30.0",
+      "python": "3.12.3",
+      "torch": "2.9.1+rocm7.2.0.git7e1940d4",
+      "transformers": "5.17.0"
+    }
+  },
+  "function": {
+    "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+    "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
+  },
+  "kind": "semantscript.encoder-sweep",
+  "latency": {
+    "batch": 1,
+    "cpu": "onnxruntime CPUExecutionProvider, default threads",
+    "gpu": "PyTorch eager (onnxruntime has no GPU provider on this machine)",
+    "headCounts": [
+      1,
+      10,
+      50
+    ],
+    "iterations": 200,
+    "warmup": 20
+  },
+  "points": {
+    "deberta-v2-xlarge": {
+      "point": {
+        "encoder_name": "microsoft/deberta-v2-xlarge",
+        "encoder_revision": "1d134961d4db8e7e8eb1bc1ab81cb370244c57f7",
+        "initialisation": "pretrained DeBERTa-v2-xlarge (the ~1B point)",
+        "name": "deberta-v2-xlarge",
+        "nominal_parameters": "~0.9B"
+      },
+      "recipe": {
+        "batchSize": 8,
+        "epochs": 4,
+        "head": "linear",
+        "learningRate": 1e-05,
+        "loss": "proper"
+      },
+      "status": "not-trained",
+      "trainingAttempts": [
+        {
+          "batchSize": 8,
+          "error": "classifier logits became non-finite",
+          "outcome": "failed",
+          "seconds": 10.4
+        }
+      ],
+      "untrainedMeasurement": {
+        "cpuPytorch": {
+          "count": 20,
+          "meanMs": 847.866,
+          "minMs": 809.957,
+          "p50Ms": 849.79,
+          "p95Ms": 866.087
+        },
+        "export": {
+          "error": "e.onnx ONNX output failed PyTorch parity",
+          "status": "failed"
+        },
+        "gpu": {
+          "available": true,
+          "count": 200,
+          "framework": "pytorch-eager",
+          "meanMs": 12.132,
+          "minMs": 10.246,
+          "p50Ms": 11.079,
+          "p95Ms": 15.066
+        },
+        "latencyTokens": 32,
+        "parameters": 884597763,
+        "untrained": true
+      }
+    },
+    "modernbert-base": {
+      "artifactBytes": {
+        "adapter": 189,
+        "encoder": 596679464,
+        "head": 9676,
+        "total": 596689329
+      },
+      "cpuOnnx": {
+        "chain": {
+          "count": 200,
+          "meanMs": 30.487,
+          "minMs": 17.856,
+          "p50Ms": 27.644,
+          "p95Ms": 44.582
+        },
+        "encoderOnly": {
+          "count": 200,
+          "meanMs": 41.699,
+          "minMs": 33.201,
+          "p50Ms": 40.028,
+          "p95Ms": 54.853
+        },
+        "headOnly": {
+          "count": 200,
+          "meanMs": 0.006,
+          "minMs": 0.005,
+          "p50Ms": 0.005,
+          "p95Ms": 0.006
+        },
+        "headsPerStage": {
+          "1": {
+            "count": 200,
+            "meanMs": 45.614,
+            "minMs": 30.833,
+            "p50Ms": 41.474,
+            "p95Ms": 70.993,
+            "perDecisionP50Ms": 41.474
+          },
+          "10": {
+            "count": 40,
+            "meanMs": 48.448,
+            "minMs": 34.557,
+            "p50Ms": 47.236,
+            "p95Ms": 69.338,
+            "perDecisionP50Ms": 4.724
+          },
+          "50": {
+            "count": 40,
+            "meanMs": 42.082,
+            "minMs": 34.052,
+            "p50Ms": 40.395,
+            "p95Ms": 49.66,
+            "perDecisionP50Ms": 0.808
+          }
+        },
+        "threads": "onnxruntime default"
+      },
+      "gpu": {
+        "available": true,
+        "count": 200,
+        "framework": "pytorch-eager",
+        "meanMs": 11.392,
+        "minMs": 7.584,
+        "p50Ms": 8.106,
+        "p95Ms": 23.46
+      },
+      "heldOutCurve": [
+        0.9872,
+        0.9883,
+        0.9862,
+        0.9904
+      ],
+      "latencyTokens": 35,
+      "parameters": 149016579,
+      "point": {
+        "encoder_name": "answerdotai/ModernBERT-base",
+        "encoder_revision": "8949b909ec900327062f0ebf497f51aef5e6f0c8",
+        "initialisation": "pretrained ModernBERT-base (decision-3 default)",
+        "name": "modernbert-base",
+        "nominal_parameters": "~150M"
+      },
+      "recipe": {
+        "batchSize": 16,
+        "epochs": 4,
+        "head": "linear",
+        "learningRate": 3e-05,
+        "loss": "proper"
+      },
+      "selectedEpoch": 4,
+      "status": "measured",
+      "trainingAttempts": [
+        {
+          "batchSize": 16,
+          "outcome": "trained",
+          "seconds": 159.5
+        }
+      ],
+      "verification": {
+        "brier": 0.0082,
+        "calibratedAccuracy": 0.9904,
+        "constraintViolations": 42,
+        "ece": 0.0038,
+        "failures": [],
+        "pairConsistency": 0.9724,
+        "releaseAccuracy": 1.0,
+        "releaseMisses": 0,
+        "status": "passed"
+      }
+    },
+    "modernbert-large": {
+      "artifactBytes": {
+        "adapter": 189,
+        "encoder": 1579971490,
+        "head": 12748,
+        "total": 1579984427
+      },
+      "cpuOnnx": {
+        "chain": {
+          "count": 200,
+          "meanMs": 93.562,
+          "minMs": 52.093,
+          "p50Ms": 87.57,
+          "p95Ms": 139.999
+        },
+        "encoderOnly": {
+          "count": 200,
+          "meanMs": 67.611,
+          "minMs": 41.162,
+          "p50Ms": 66.417,
+          "p95Ms": 88.066
+        },
+        "headOnly": {
+          "count": 200,
+          "meanMs": 0.007,
+          "minMs": 0.005,
+          "p50Ms": 0.005,
+          "p95Ms": 0.018
+        },
+        "headsPerStage": {
+          "1": {
+            "count": 200,
+            "meanMs": 80.334,
+            "minMs": 47.471,
+            "p50Ms": 81.345,
+            "p95Ms": 103.547,
+            "perDecisionP50Ms": 81.345
+          },
+          "10": {
+            "count": 40,
+            "meanMs": 90.015,
+            "minMs": 79.449,
+            "p50Ms": 88.104,
+            "p95Ms": 96.491,
+            "perDecisionP50Ms": 8.81
+          },
+          "50": {
+            "count": 40,
+            "meanMs": 85.71,
+            "minMs": 79.914,
+            "p50Ms": 86.186,
+            "p95Ms": 91.195,
+            "perDecisionP50Ms": 1.724
+          }
+        },
+        "threads": "onnxruntime default"
+      },
+      "gpu": {
+        "available": true,
+        "count": 200,
+        "framework": "pytorch-eager",
+        "meanMs": 14.251,
+        "minMs": 13.243,
+        "p50Ms": 14.091,
+        "p95Ms": 15.576
+      },
+      "heldOutCurve": [
+        0.9756,
+        0.9926,
+        0.9947,
+        0.9957
+      ],
+      "latencyTokens": 35,
+      "parameters": 394784771,
+      "point": {
+        "encoder_name": "answerdotai/ModernBERT-large",
+        "encoder_revision": "45bb4654a4d5aaff24dd11d4781fa46d39bf8c13",
+        "initialisation": "pretrained ModernBERT-large",
+        "name": "modernbert-large",
+        "nominal_parameters": "~400M"
+      },
+      "recipe": {
+        "batchSize": 16,
+        "epochs": 4,
+        "head": "linear",
+        "learningRate": 3e-05,
+        "loss": "proper"
+      },
+      "selectedEpoch": 4,
+      "status": "measured",
+      "trainingAttempts": [
+        {
+          "batchSize": 16,
+          "outcome": "trained",
+          "seconds": 355.7
+        }
+      ],
+      "verification": {
+        "brier": 0.0045,
+        "calibratedAccuracy": 0.9957,
+        "constraintViolations": 48,
+        "ece": 0.0037,
+        "failures": [
+          "3 gold/human example prediction(s) failed:\n  - attested case human:43: inputs {\"customer\":{\"priorRefunds\":1.0,\"tier\":\"standard\"},\"order\":{\"ageDays\":49.0,\"status\":\"paid\",\"total\":237.36}} expected \"deny\", predicted \"approve\"\n  - attested case human:63: inputs {\"customer\":{\"priorRefunds\":0.0,\"tier\":\"enterprise\"},\"order\":{\"ageDays\":67.0,\"status\":\"paid\",\"total\":1444.05}} expected \"deny\", predicted \"approve\"\n  - attested case human:67: inputs {\"customer\":{\"priorRefunds\":1.0,\"tier\":\"enterprise\"},\"order\":{\"ageDays\":67.0,\"status\":\"paid\",\"total\":854.72}} expected \"deny\", predicted \"approve\""
+        ],
+        "pairConsistency": 0.989,
+        "releaseAccuracy": 0.9625,
+        "releaseMisses": 3,
+        "status": "failed"
+      }
+    },
+    "modernbert-large-laya-init": {
+      "artifactBytes": {
+        "adapter": 189,
+        "encoder": 1579971490,
+        "head": 12748,
+        "total": 1579984427
+      },
+      "cpuOnnx": {
+        "chain": {
+          "count": 200,
+          "meanMs": 95.527,
+          "minMs": 81.138,
+          "p50Ms": 93.703,
+          "p95Ms": 121.525
+        },
+        "encoderOnly": {
+          "count": 200,
+          "meanMs": 90.725,
+          "minMs": 54.53,
+          "p50Ms": 88.957,
+          "p95Ms": 114.182
+        },
+        "headOnly": {
+          "count": 200,
+          "meanMs": 0.027,
+          "minMs": 0.005,
+          "p50Ms": 0.005,
+          "p95Ms": 0.018
+        },
+        "headsPerStage": {
+          "1": {
+            "count": 200,
+            "meanMs": 80.93,
+            "minMs": 47.684,
+            "p50Ms": 87.908,
+            "p95Ms": 102.774,
+            "perDecisionP50Ms": 87.908
+          },
+          "10": {
+            "count": 40,
+            "meanMs": 88.446,
+            "minMs": 79.502,
+            "p50Ms": 87.654,
+            "p95Ms": 95.085,
+            "perDecisionP50Ms": 8.765
+          },
+          "50": {
+            "count": 40,
+            "meanMs": 89.248,
+            "minMs": 80.527,
+            "p50Ms": 88.734,
+            "p95Ms": 96.193,
+            "perDecisionP50Ms": 1.775
+          }
+        },
+        "threads": "onnxruntime default"
+      },
+      "gpu": {
+        "available": true,
+        "count": 200,
+        "framework": "pytorch-eager",
+        "meanMs": 15.369,
+        "minMs": 13.021,
+        "p50Ms": 13.52,
+        "p95Ms": 21.81
+      },
+      "heldOutCurve": [
+        0.9883,
+        0.9926,
+        0.9883,
+        0.9936
+      ],
+      "latencyTokens": 35,
+      "parameters": 394784771,
+      "point": {
+        "encoder_name": "/home/admin2/SemantScript/benchmarks/refund/data/encoders/laya-typed-decisions-encoder",
+        "encoder_revision": "dd079950600224fb459af2a0cb1d74e1e57ee9cf",
+        "initialisation": "ModernBERT-large weights taken from the Laya typed-decisions checkpoint (decision-trained)",
+        "name": "modernbert-large-laya-init",
+        "nominal_parameters": "~400M"
+      },
+      "recipe": {
+        "batchSize": 16,
+        "epochs": 4,
+        "head": "linear",
+        "learningRate": 3e-05,
+        "loss": "proper"
+      },
+      "selectedEpoch": 4,
+      "status": "measured",
+      "trainingAttempts": [
+        {
+          "batchSize": 16,
+          "outcome": "trained",
+          "seconds": 357.2
+        }
+      ],
+      "verification": {
+        "brier": 0.0055,
+        "calibratedAccuracy": 0.9936,
+        "constraintViolations": 22,
+        "ece": 0.003,
+        "failures": [],
+        "pairConsistency": 0.9779,
+        "releaseAccuracy": 1.0,
+        "releaseMisses": 0,
+        "status": "passed"
+      }
+    }
+  },
+  "releaseCases": 80,
+  "resultVersion": 1,
+  "startedAt": "2026-09-24T19:39:53Z"
+}

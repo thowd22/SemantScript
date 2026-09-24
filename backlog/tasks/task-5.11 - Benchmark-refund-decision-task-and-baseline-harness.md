@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-24 02:06'
+updated_date: '2026-09-24 05:36'
 labels:
   - benchmark
 milestone: m-1
@@ -36,12 +36,12 @@ Phase 1 exit criterion. The refund-decision expression from the transcript is th
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A held-out labeled test set for refund decision exists and is not used in training
+- [x] #1 A held-out labeled test set for refund decision exists and is not used in training
 - [ ] #2 Harness reports accuracy, calibration error, p50/p95 latency, throughput and memory for our model and each baseline
-- [ ] #3 Results are committed under benchmarks/ with the exact model versions used
-- [ ] #4 A written go/no-go against the exit criterion (p50 < 10ms, accuracy >= 7B baseline) is recorded
-- [ ] #5 Laya (laya-typed-decisions checkpoint) is included as a baseline with the same inputs
-- [ ] #6 Held-out set includes a slice of real, de-identified public transaction inputs whose labels were adjudicated by an independent model judge under a committed rubric (independent-judge origin with a judge attestation naming the model, session and rubric digest), and accuracy is reported separately on that attested slice
+- [x] #3 Results are committed under benchmarks/ with the exact model versions used
+- [x] #4 A written go/no-go against the exit criterion (p50 < 10ms, accuracy >= 7B baseline) is recorded
+- [x] #5 Laya (laya-typed-decisions checkpoint) is included as a baseline with the same inputs
+- [x] #6 Held-out set includes a slice of real, de-identified public transaction inputs whose labels were adjudicated by an independent model judge under a committed rubric (independent-judge origin with a judge attestation naming the model, session and rubric digest), and accuracy is reported separately on that attested slice
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -122,6 +122,20 @@ Pooled corpus result (sweep, 6 epochs, lr 3e-5, calibration split 10 percent, 57
 12-epoch run with a 5 percent calibration split did not help (3 release misses, 41 violations, pair consistency 0.989), so the release run uses 6 epochs, lr 3e-5, 10 percent calibration split, seed 1, with maximum_constraint_violation_rate 0.01. Release pipeline started on the pooled corpus.
 
 Release attempts on the pooled corpus (8 epochs, best-epoch selection, tolerance 0.01): seeds 1, 2, 3 reached calibration accuracy 0.9935 / 0.9891 / 0.9924 with ECE 0.003 and the violation rate under 1 percent, but missed 1, 2 and 1 attested release cases respectively, so run-to-run GPU nondeterminism is the remaining obstacle. Trainer now supports a linear learning-rate schedule with warmup (commit ede18c7) and the driver dumps per-case release predictions; a new attempt loop (seeds 1-4, linear schedule, warmup 0.05) is running.
+
+Attempt loop with linear schedule and best-epoch selection (seeds 1-5, 8 epochs): calibration accuracy 0.990-0.9957, ECE 0.002-0.005, violation rate under 1 percent every time, but every seed missed the same attested release case uci-r-0db9a757 (enterprise, 3 prior refunds, fraudulent, 99 days, total 15.0: expected deny because the stale rule overrides fraud; the model answers review). Systematic, not variance. Response: pooled teacher option stale_status_twins emits the status-flipped twin of every real stale order (commit 9628a6d); v4 corpus generating with it.
+
+Miss diagnosis (v3 corpus model, seed 1, 8 epochs, selected epoch 6): sweeping the missed case uci-r-0db9a757 one field at a time shows the wrong 'review' is specific to ageDays 99 with status fraudulent (91, 95, 105, 120 and 200 days all deny with p >= 0.945; total, priorRefunds and tier do not move it; status paid at 99 days denies). The v3 corpus has zero fraudulent rows at exactly 99 days (three paid ones), so the encoder learned no stale-deny evidence for that number token. The v4 corpus (stale status twins, decision-7 pooled teacher) has three fraudulent rows at 99 days and denser fraudulent coverage across 91-107 days; release attempts on v4 are running. Interpretation caveat for the write-up: the student learns thresholds from number tokens and can hold isolated gaps at unseen values, so production hard rules stay as deterministic guards.
+
+2026-09-24 04:39 UTC: v4 corpus seed 1 passed verification (calibration accuracy 0.9915, ECE 0.0062, zero attested misses under the 0.01 violation tolerance) but the driver crashed at 'binding verified IR' with 'source IR must be neural-function IR v1': the strict JSON reader rounds every number to binary64, so the compiler's irVersion 1 reached the lifecycle builder as 1.0 and the builder demanded a Python int. No earlier run had passed verification, so this path had never executed on a real bundle. Fixed in the lifecycle builder (commit 8d8d407): it accepts the binary64 form and restores the compiler's integral spelling in the exact verified bytes; re-parsing the bundle with exact integers was rejected because the frozen corpora's cache keys were computed from the binary64 form. Regression tests: strict-parsed fixture builds byte-identical IR to the integer build; the real compiled refund bundle builds a verified IR. The passing model was not retained, so the v4 attempt loop restarted from seed 1.
+
+2026-09-24 05:31 UTC: release pipeline PASSED on the v4 corpus with seed 2 (best epoch 6 of 8, linear schedule, 5 percent warmup, calibration split 941 rows, temperature 1.97): calibration accuracy 0.9904, ECE 0.0043, pair consistency 1.0, zero attested release misses, 14 constraint violations across 9,489 records (0.15 percent, under the 0.01 tolerance). Artifact manifest 0ee80669..., training key 8bd1db20..., ledger ed55947b...; the 571 MB bundle is git-ignored and bound by digest. The seed 1 rerun missed one release case (enterprise fraudulent order at 68 days: expected review, got deny), the same fraud-inside-90-days-outside-window region where the corpus is thin.
+
+Final benchmark (results-v2-2026-09-23, commit 8844483): SemantScript 159/160 = 0.994 (single miss: standard tier, 1 prior refund, fraudulent at 62 days, expected review, predicted deny p=0.87), ECE 0.011, p50 38.40 ms, p95 50.49 ms, 24.5 req/s, client RSS 1,646 MiB, CPU onnxruntime-node; Qwen 2.5 7B 0.538 (p50 569 ms), Qwen 2.5 1.5B 0.519 (p50 319 ms), Laya 0.225 (p50 28 ms); per-rule SemantScript 28/28, 25/26, 39/39, 20/20, 47/47. Leakage audit: 9,291 training inputs, 0 overlap with the 160 final cases. Mechanical goNoGo is 'incomplete' (missingSystems: structured-api). Written decision in benchmarks/refund/data/results-v2-2026-09-23/README.md: accuracy criterion met (0.994 vs 0.538 comparator); latency criterion NOT met as deployed (p50 38.4 ms vs < 10 ms; steady-state re-measurement 36.6 ms; cost is fp32 ModernBERT-base at ~110 canonical tokens, not session configuration). Superseded Sonnet-era results-2026-09-23 removed.
+
+Validation: trainer lifecycle 11 passed; artifact + strict JSON + pipeline suites 41 passed; pipeline suite 15 passed after the new compiled-IR regression test; refund-benchmark workspace 82 passed; CPU dry run of lifecycle -> export -> Node runtime with the real encoder passed in 16 s.
+
+Blocked item: acceptance criterion 2 requires metrics for the traditional structured-output API baseline, which needs ANTHROPIC_API_KEY on the runner (never in Backlog or chat). The harness adapter is implemented and tested; once the key is exposed, run run-benchmark.mjs with --systems structured-api into results-v2-2026-09-23 and re-run assemble, which also completes the mechanical decision. Follow-up candidates needing user approval: (1) latency work to reach p50 < 10 ms on CPU (int8 dynamic quantization of the encoder, a compact canonical input encoding, a smaller or distilled encoder, or a GPU execution provider); (2) a status-twin partition for orders inside 90 days but outside the tier window to close the remaining fraud/window gap.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
@@ -233,3 +247,9 @@ created: 2026-09-23 20:54
 Handoff step 1 done: approved-by-user pilot corpus generated and frozen after fixing the CLI teacher (version pin, empty argv, envelope protocol, transport retries) and the prompt diversity gap (TASK-5.15). Next steps are user-gated: authoring the two disjoint human-attested sets (release verification and final evaluation) and providing an API key for the traditional structured-output baseline. Training and the benchmark runs can proceed once the release set exists.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Ran the Phase 1 refund benchmark end to end. Built a real-input, judge-attested held-out pair (decision-5), made the policy fully explicit with six constraints (decision-6), trained on real-distribution inputs labeled by the compiled constraints plus Opus 5.5 adversarial pairs (decision-7), and added a bounded constraint-violation tolerance to the release gate (decision-8). The v4 corpus release artifact (seed 2) passed verification with zero attested misses, ECE 0.004 and 0.15 percent violations. On the 160-case final set SemantScript scores 0.994 (Qwen 2.5 7B 0.538, 1.5B 0.519, Laya 0.225) with ECE 0.011, but the CPU Node runtime measures p50 38.4 ms against the 10 ms bar, so the written go/no-go records accuracy met and latency not met as deployed; the mechanical decision is incomplete because the structured-output API baseline could not run without ANTHROPIC_API_KEY (criterion 2 left unchecked). Verified with the trainer, pipeline and benchmark-workspace suites (82 + 41 + 15 + 11 passed), a CPU dry run of the export path, and the committed digest-bound records under benchmarks/refund/data (commits 262333a, 8d8d407, 8844483).
+<!-- SECTION:FINAL_SUMMARY:END -->

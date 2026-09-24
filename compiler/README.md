@@ -29,19 +29,18 @@ offending `sema` site.
 
 Every diagnostic the compiler emits carries the source file, line and column of
 the `sema` site, its code and the site text (`file:line:column: message (site:
-sema<...>\`...\`)`), so `semantscript build` output points at the expression to
-fix. `findMalformedSemaSites` reports core `sema` and `sema.withConfidence`
-tagged templates that are not canonical sites (no or several output type
+sema<...>\`...\`)`), so `semantscript build`output points at the expression to
+fix.`findMalformedSemaSites`reports core`sema`and`sema.withConfidence`tagged templates that are not canonical sites (no or several output type
 arguments, a configured call with zero or several options arguments, optional
 chaining); they are compile errors rather than untransformed runtime tags.
 Codes: 9100 malformed site; 9101 unsupported output type; 9102 invalid enum;
 9103 invalid ordinal; 9104 invalid bounds; 9105 invalid flat output field;
 9110 invalid interpolation; 9111 duplicate interpolation; 9112 unsupported
 input type; 9120 invalid options; 9121 invalid example; 9122 invalid
-constraint; 9123 invalid `@confidence`; 9124 empty behavior; 9125 contradictory
+constraint; 9123 invalid`@confidence`; 9124 empty behavior; 9125 contradictory
 constraints; 9130 compilation configuration; 9131 execution plan. The rendered
 output of one fixture per family is snapshot-tested in
-`test/fixtures/diagnostics.snapshot.txt` (regenerate with `UPDATE_SNAPSHOTS=1`).
+`test/fixtures/diagnostics.snapshot.txt`(regenerate with`UPDATE_SNAPSHOTS=1`).
 
 `createSourceNeuralFunctionIr(analysis, options)` wraps a successful analysis in a
 complete source-stage NeuralFunction record. The caller supplies build identities,

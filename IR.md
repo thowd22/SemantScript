@@ -117,7 +117,13 @@ The stable function ID is `nf_` followed by SHA-256 of the semantic JSON encodin
 of:
 
 ```json
-["semantscript-function-id", 1, "<normalized-source-path>", 3, "<semanticSha256>"]
+[
+  "semantscript-function-id",
+  1,
+  "<normalized-source-path>",
+  3,
+  "<semanticSha256>"
+]
 ```
 
 The integer is the zero-based duplicate ordinal among earlier `sema` sites in that
@@ -206,8 +212,8 @@ MUST also enforce these relational rules:
    consumer functions and an existing consumer input, is unique and canonically
    ordered, and points from an earlier stage to a later one.
 10. An artifact can be published only from IR with passing verification, no example
-   failures, no constraint violations, no output type errors, and complete
-   function-level and per-head accuracy, calibration, and pair-consistency metrics.
+    failures, no constraint violations, no output type errors, and complete
+    function-level and per-head accuracy, calibration, and pair-consistency metrics.
 
 ## 3. Canonical input serialization
 
@@ -283,7 +289,24 @@ For example, both `{b: 2, a: 1, text: "a\n\"é", zero: -0}` and the same object
 constructed with another insertion order encode as:
 
 ```json
-["semantscript-input",1,[["obj",["object",[["a",["number","3ff0000000000000"]],["b",["number","4000000000000000"]],["text",["string","a\n\"é"]],["zero",["number","8000000000000000"]]]]]]]
+[
+  "semantscript-input",
+  1,
+  [
+    [
+      "obj",
+      [
+        "object",
+        [
+          ["a", ["number", "3ff0000000000000"]],
+          ["b", ["number", "4000000000000000"]],
+          ["text", ["string", "a\n\"é"]],
+          ["zero", ["number", "8000000000000000"]]
+        ]
+      ]
+    ]
+  ]
+]
 ```
 
 The SHA-256 digest of those exact UTF-8 bytes is
@@ -295,6 +318,23 @@ bytes and the complete generator configuration. An inference-cache key MUST
 combine function `id`, the active manifest digest, and the canonical input bytes.
 This prevents values from different functions or retrained artifacts from sharing
 an inference result.
+
+### 3.1 Compact encoding (`semantscript.canonical-input/v2`)
+
+`semantscript.canonical-input/v2` renders the same validated, typed tree as
+compact text so that the encoder spends tokens on values rather than on envelope
+syntax. Input pairs appear in IR `index` order as `name=value`, separated by one
+space. Objects are `{key=value,...}` with the same UTF-8-sorted keys, arrays and
+tuples are `[value,...]`, booleans and null are `true`, `false` and `null`,
+numbers use ECMAScript `Number` spelling with `-0` preserved, and a string or key
+is written bare when it matches `[A-Za-z_][A-Za-z0-9_.-]*` and is not `true`,
+`false` or `null`; otherwise it is quoted with the v1 escape rules. The literal,
+enum and union tags of v1 are dropped because the schema fixes them per path,
+which keeps the encoding injective. An artifact declares the encoding its
+functions were trained with in `compatibility.canonicalInput`, and every verified
+record repeats it in `trainingProvenance.canonicalInput`; a runtime MUST use
+exactly that encoding for the artifact. The golden vectors are in
+`examples/serialization/canonical-input.v2.json`.
 
 ## 4. Application artifact
 

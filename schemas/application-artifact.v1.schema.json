@@ -100,7 +100,10 @@
           "const": 1
         },
         "canonicalInput": {
-          "const": "semantscript.canonical-input/v1"
+          "enum": [
+            "semantscript.canonical-input/v1",
+            "semantscript.canonical-input/v2"
+          ]
         },
         "minimumRuntimeVersion": {
           "$ref": "#/$defs/semver"
@@ -793,7 +796,12 @@
     "runtimePolicy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["resultMode", "confidenceThreshold", "policy", "fallbackRef"],
+      "required": [
+        "resultMode",
+        "confidenceThreshold",
+        "policy",
+        "fallbackRef"
+      ],
       "properties": {
         "resultMode": {
           "enum": ["value", "diagnostic"]
@@ -862,7 +870,12 @@
     "functionProvenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["datasetSha256", "trainingKeySha256", "teacher", "baseModel"],
+      "required": [
+        "datasetSha256",
+        "trainingKeySha256",
+        "teacher",
+        "baseModel"
+      ],
       "properties": {
         "datasetSha256": {
           "$ref": "#/$defs/sha256"

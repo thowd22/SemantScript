@@ -33,8 +33,10 @@ from semantscript_model.export import (
     ONNX_OPSET,
     ExportedOnnxComponent,
     ExportedOnnxComponents,
+    QuantizedOnnxComponent,
     TensorMetadata,
     export_onnx_components,
+    quantize_onnx_encoder,
 )
 from semantscript_model.heads import (
     ClassificationHead,
@@ -84,6 +86,7 @@ __all__ = [
     "HeadConfig",
     "HeadKind",
     "LossName",
+    "QuantizedOnnxComponent",
     "Reduction",
     "SemanticClassifier",
     "SentenceEncoder",
@@ -94,5 +97,6 @@ __all__ = [
     "export_onnx_components",
     "fit_temperature",
     "proper_scoring_loss",
+    "quantize_onnx_encoder",
     "temperature_scaled_probabilities",
 ]

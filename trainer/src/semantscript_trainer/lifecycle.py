@@ -212,7 +212,7 @@ def build_verified_ir(
         document = deepcopy(source_ir)
     except (TypeError, ValueError, RecursionError) as error:
         raise VerifiedIrBuildError(f"source IR cannot be snapshotted: {error}") from error
-    _restore_integral_numbers(document)
+    restore_integral_numbers(document)
     document["stage"] = "verified"
     document["trainingProvenance"] = provenance.to_document()
     document["verification"] = verification.to_ir_document()
@@ -312,7 +312,7 @@ def _validate_training_provenance(
         raise VerifiedIrBuildError("provenance trained_at cannot be later than verified_at")
 
 
-def _restore_integral_numbers(document: NeuralFunctionIr) -> None:
+def restore_integral_numbers(document: NeuralFunctionIr) -> None:
     """Write integral binary64 values back as integers, as the compiler emitted them.
 
     The compiler serializes IR with JavaScript number formatting, which never

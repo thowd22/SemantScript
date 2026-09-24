@@ -275,6 +275,57 @@
         },
         "externalData": {
           "const": false
+        },
+        "precision": {
+          "enum": ["float32", "int8-dynamic"]
+        },
+        "quantization": {
+          "$ref": "#/$defs/onnxQuantization"
+        }
+      }
+    },
+    "onnxQuantization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "weightType",
+        "perChannel",
+        "reduceRange",
+        "argmaxDisagreementTolerance",
+        "attestedDisagreementTolerance",
+        "eceThreshold",
+        "sourceManifestSha256"
+      ],
+      "properties": {
+        "method": {
+          "const": "dynamic"
+        },
+        "weightType": {
+          "enum": ["int8", "uint8"]
+        },
+        "perChannel": {
+          "type": "boolean"
+        },
+        "reduceRange": {
+          "type": "boolean"
+        },
+        "argmaxDisagreementTolerance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "attestedDisagreementTolerance": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eceThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sourceManifestSha256": {
+          "$ref": "#/$defs/sha256"
         }
       }
     },

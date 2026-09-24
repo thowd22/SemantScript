@@ -1006,6 +1006,8 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
             raise ArtifactConfigurationError("manifest resource refs and paths must be unique")
         refs.add(reference)
         paths.add(relative_path)
+        if resource.get("format") == "onnx":
+            _validate_onnx_precision(resource.get("onnx"), f"manifest resource {reference}")
 
     function = functions[0]
     inputs = function.get("inputs")
@@ -1034,6 +1036,62 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
         raise ArtifactConfigurationError("thresholded scalar manifest policy must be scalar-top1")
     if runtime.get("resultMode") == "diagnostic" and runtime.get("fallbackRef") is not None:
         raise ArtifactConfigurationError("diagnostic manifest policy cannot set fallbackRef")
+
+
+ONNX_PRECISIONS = ("float32", "int8-dynamic")
+_ONNX_QUANTIZATION_FIELDS = {
+    "method",
+    "weightType",
+    "perChannel",
+    "reduceRange",
+    "argmaxDisagreementTolerance",
+    "attestedDisagreementTolerance",
+    "eceThreshold",
+    "sourceManifestSha256",
+}
+
+
+def _validate_onnx_precision(onnx: Any, label: str) -> None:
+    """Precision is optional (float32 when absent); quantization goes with a quantized precision."""
+
+    if not isinstance(onnx, dict):
+        raise ArtifactConfigurationError(f"{label} onnx block must be an object")
+    precision = onnx.get("precision", "float32")
+    if precision not in ONNX_PRECISIONS:
+        raise ArtifactConfigurationError(f"{label} onnx precision is unsupported")
+    quantization = onnx.get("quantization")
+    if precision == "float32":
+        if "quantization" in onnx:
+            raise ArtifactConfigurationError(f"{label} float32 graph cannot carry quantization")
+        return
+    if not isinstance(quantization, dict) or set(quantization) != _ONNX_QUANTIZATION_FIELDS:
+        raise ArtifactConfigurationError(
+            f"{label} quantized graph must carry exactly the quantization fields"
+        )
+    if quantization.get("method") != "dynamic":
+        raise ArtifactConfigurationError(f"{label} quantization method is unsupported")
+    if quantization.get("weightType") not in ("int8", "uint8"):
+        raise ArtifactConfigurationError(f"{label} quantization weightType is unsupported")
+    for name in ("perChannel", "reduceRange"):
+        if not isinstance(quantization.get(name), bool):
+            raise ArtifactConfigurationError(f"{label} quantization {name} must be a boolean")
+    for name in ("argmaxDisagreementTolerance", "eceThreshold"):
+        value = quantization.get(name)
+        if not _is_finite_number(value) or not 0 <= value <= 1:
+            raise ArtifactConfigurationError(f"{label} quantization {name} must be within [0, 1]")
+    attested = quantization.get("attestedDisagreementTolerance")
+    if (
+        isinstance(attested, bool)
+        or not isinstance(attested, (int, float))
+        or attested < 0
+        or attested != int(attested)
+    ):
+        raise ArtifactConfigurationError(
+            f"{label} quantization attestedDisagreementTolerance must be a non-negative integer"
+        )
+    _require_sha256(
+        f"{label} quantization sourceManifestSha256", quantization.get("sourceManifestSha256")
+    )
 
 
 def _validate_manifest_inputs(inputs: Any) -> None:

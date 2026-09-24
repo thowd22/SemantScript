@@ -435,6 +435,202 @@ def test_pipeline_keeps_final_benchmark_out_of_release_lifecycle(
     assert events == ["compile", "train", "verify", "bind"]
 
 
+def test_quantize_release_driver_assembles_records_and_derived_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    compiled_program: pipeline.CompiledRefundProgram,
+) -> None:
+    from types import SimpleNamespace
+
+    from semantscript_trainer import (
+        QuantizationConfig,
+        QuantizationGateError,
+        QuantizationReport,
+    )
+
+    from . import quantize_release as driver
+
+    base, _training = training_fixture(compiled_program)
+    adversarial_case = AdversarialCase(
+        case_id="ac_" + "5" * 64,
+        inputs=refund_inputs(2, 25, 90),
+        output="review",
+        tag="constraint-boundary",
+        constraint_index=0,
+        predicate_result=True,
+    )
+    adversarial = AdversarialDataset(
+        function_id=compiled_program.function_id,
+        base_dataset_sha256=base.dataset_sha256,
+        teacher=base.teacher,
+        config=AdversarialGenerationConfig(),
+        cases=(adversarial_case,),
+        pairs=(),
+        cache_key_sha256="5" * 64,
+        payload_sha256="6" * 64,
+        dataset_sha256="7" * 64,
+    )
+    release = release_record(compiled_program.source_ir)
+    corpus_manifest = tmp_path / "corpus" / "manifest.json"
+    corpus_manifest.parent.mkdir()
+    corpus_manifest.write_text(
+        json.dumps(
+            {
+                "synthetic": {"requestedCaseCount": 2},
+                "adversarial": {"config": {"counterfactualRatio": 0.1, "maximumAttempts": 3}},
+                "teacher": {"configuration": {}, "configurationSha256": "9" * 64},
+            }
+        )
+    )
+    heldout = tmp_path / "heldout"
+    heldout.mkdir()
+    (heldout / "release-verification.json").write_bytes(b"{}")
+    source_manifest = {
+        "kind": "semantscript.refund-release-pipeline-manifest",
+        "function": {
+            "id": compiled_program.function_id,
+            "semanticSha256": compiled_program.semantic_sha256,
+        },
+        "corpus": {
+            "manifestPath": str(corpus_manifest),
+            "syntheticDatasetSha256": base.dataset_sha256,
+            "adversarialDatasetSha256": adversarial.dataset_sha256,
+            "teacher": "9" * 64,
+        },
+        "release": {"payloadSha256": release.payload_sha256, "caseCount": 1},
+        "artifact": {
+            "root": str(tmp_path / "source-artifact"),
+            "releaseDirectory": str(
+                tmp_path / "source-artifact" / "releases" / ("sha256-" + "a" * 64)
+            ),
+            "manifestSha256": "a" * 64,
+        },
+        "ledger": {"payloadSha256": "c" * 64, "trainingKeySha256": "d" * 64, "sources": {}},
+    }
+    pipeline_manifest = tmp_path / "pipeline-manifest.json"
+    pipeline_manifest.write_text(json.dumps(source_manifest))
+
+    class Generator:
+        def __init__(self, result: Any) -> None:
+            self.result = result
+
+        def generate(self, *args: Any, **kwargs: Any) -> Any:
+            return self.result
+
+    captured: dict[str, Any] = {}
+
+    def fake_quantize(
+        root: Any, digest: str, *, records: Any, quantization: Any, artifact_root: Any
+    ) -> Any:
+        captured.update(
+            root=root, digest=digest, records=list(records), artifact_root=Path(artifact_root)
+        )
+        if quantization.maximum_attested_disagreements == 0:
+            raise QuantizationGateError("quantization gate failed: 1 attested record(s)", report)
+        return SimpleNamespace(
+            artifact_root=Path(artifact_root),
+            release_directory=Path(artifact_root) / "releases" / ("sha256-" + "b" * 64),
+            manifest_sha256="b" * 64,
+            report=report,
+        )
+
+    report = QuantizationReport(
+        source_manifest_sha256="a" * 64,
+        method="dynamic",
+        weight_type="int8",
+        per_channel=False,
+        reduce_range=False,
+        records_checked=4,
+        labeled_records=4,
+        attested_records=1,
+        argmax_disagreements=1,
+        attested_disagreements=1,
+        argmax_disagreement_rate=0.25,
+        source_accuracy=1.0,
+        quantized_accuracy=0.75,
+        source_ece=0.01,
+        quantized_ece=0.02,
+        temperature=1.5,
+        ece_bins=15,
+        source_encoder_byte_length=100,
+        quantized_encoder_byte_length=30,
+        quantized_matmul_count=4,
+        elapsed_seconds=1.0,
+    )
+    monkeypatch.setattr(driver, "compile_refund_program", lambda *args, **kwargs: compiled_program)
+    monkeypatch.setattr(driver, "_teacher_from_manifest", lambda manifest: object())
+    monkeypatch.setattr(
+        driver, "SyntheticDatasetGenerator", lambda *args, **kwargs: Generator(base)
+    )
+    monkeypatch.setattr(
+        driver, "AdversarialDatasetGenerator", lambda *args, **kwargs: Generator(adversarial)
+    )
+    monkeypatch.setattr(driver, "parse_release_verification_record", lambda payload, ir: release)
+    monkeypatch.setattr(driver, "quantize_release_artifact", fake_quantize)
+    monkeypatch.setattr(
+        driver, "run_refund_runtime", lambda *args, **kwargs: {"value": "review", "confidence": 0.9}
+    )
+
+    derived = driver.quantize_release(
+        pipeline_manifest,
+        heldout,
+        tmp_path / "out",
+        quantization=QuantizationConfig(
+            maximum_attested_disagreements=1, maximum_argmax_disagreement_rate=0.5
+        ),
+    )
+
+    records = captured["records"]
+    support = ["approve", "deny", "review"]
+    assert [record.label_index for record in records] == [
+        support.index(base.cases[0].output),
+        support.index(base.cases[1].output),
+        support.index("review"),
+        support.index("review"),
+    ]
+    assert [record.attested for record in records] == [False, False, False, True]
+    assert records[-1].inputs == release.generated_cases[0].inputs
+    assert captured["root"] == str(tmp_path / "source-artifact") and captured["digest"] == "a" * 64
+    assert captured["artifact_root"] == tmp_path / "out" / "artifact"
+    assert derived["artifact"] == {
+        "root": str(tmp_path / "out" / "artifact"),
+        "releaseDirectory": str(
+            tmp_path / "out" / "artifact" / "releases" / ("sha256-" + "b" * 64)
+        ),
+        "manifestSha256": "b" * 64,
+        "encoderPrecision": "int8-dynamic",
+    }
+    assert derived["derivedFrom"] == {
+        "pipelineManifestPath": str(pipeline_manifest),
+        "artifactManifestSha256": "a" * 64,
+    }
+    assert derived["quantization"]["settings"]["attestedDisagreementTolerance"] == 1
+    assert derived["quantization"]["report"] == report.to_document()
+    assert derived["function"] == source_manifest["function"]
+    assert derived["ledger"] == source_manifest["ledger"]
+    written = json.loads((tmp_path / "out" / "pipeline-manifest.json").read_text())
+    assert written["artifact"] == derived["artifact"]
+    written_report = json.loads((tmp_path / "out" / "quantization-report.json").read_text())
+    assert written_report["status"] == "passed" and written_report["report"] == report.to_document()
+
+    # The strict default refuses through the same driver and still records the report.
+    code = driver.main(
+        [
+            "--pipeline-manifest",
+            str(pipeline_manifest),
+            "--heldout-dir",
+            str(heldout),
+            "--output-dir",
+            str(tmp_path / "strict"),
+        ]
+    )
+    assert code == 2
+    failed = json.loads((tmp_path / "strict" / "quantization-report.json").read_text())
+    assert failed["status"] == "failed" and "attested" in failed["reason"]
+    assert failed["report"]["attestedDisagreements"] == 1
+    assert not (tmp_path / "strict" / "pipeline-manifest.json").exists()
+
+
 def test_pipeline_rejects_same_final_and_release_before_training(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

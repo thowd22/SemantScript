@@ -12,7 +12,9 @@ from semantscript_model.export import (
     MAXIMUM_PARITY_ABSOLUTE_TOLERANCE,
     MAXIMUM_PARITY_RELATIVE_TOLERANCE,
     ONNX_OPSET,
+    QuantizedOnnxComponent,
     export_onnx_components,
+    quantize_onnx_encoder,
 )
 from semantscript_model.heads import ClassificationHead, HeadConfig
 
@@ -307,3 +309,125 @@ def test_export_rejects_parity_tolerance_above_hard_limit(
             head_path=tmp_path / "head.onnx",
             **{keyword: value},
         )
+
+
+@pytest.mark.skipif(
+    not EXPORT_DEPENDENCIES_AVAILABLE,
+    reason="optional ONNX export dependencies are not installed",
+)
+def test_quantizes_exported_encoder_into_standard_int8_graph(tmp_path) -> None:
+    import onnx
+    import torch
+
+    from semantscript_model.encoder import SentenceEncoder
+
+    class LinearTokenEncoder(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.config = SimpleNamespace(hidden_size=8)
+            self.embedding = torch.nn.Embedding(16, 8)
+            self.projection = torch.nn.Linear(8, 8)
+
+        def forward(self, *, input_ids, attention_mask, return_dict):
+            del attention_mask
+            assert return_dict is True
+            return SimpleNamespace(last_hidden_state=self.projection(self.embedding(input_ids)))
+
+    torch.manual_seed(3)
+    encoder = SentenceEncoder(encoder=LinearTokenEncoder())
+    head = ClassificationHead(HeadConfig(input_size=8, kind="categorical-softmax", cardinality=3))
+    export_onnx_components(
+        encoder,
+        head,
+        torch.tensor([[1, 2, 3]], dtype=torch.int64),
+        torch.tensor([[1, 1, 1]], dtype=torch.int64),
+        encoder_path=tmp_path / "encoder.onnx",
+        adapter_path=tmp_path / "adapter.onnx",
+        head_path=tmp_path / "head.onnx",
+    )
+
+    component = quantize_onnx_encoder(tmp_path / "encoder.onnx", tmp_path / "encoder-int8.onnx")
+
+    assert isinstance(component, QuantizedOnnxComponent)
+    assert component.role == "encoder"
+    assert component.method == "dynamic" and component.weight_type == "int8"
+    assert component.quantized_matmul_count >= 1
+    assert component.opset == ONNX_OPSET
+    assert component.path == tmp_path / "encoder-int8.onnx"
+    assert component.byte_length == (tmp_path / "encoder-int8.onnx").stat().st_size
+    assert component.sha256 == sha256((tmp_path / "encoder-int8.onnx").read_bytes()).hexdigest()
+    assert component.source_sha256 == sha256((tmp_path / "encoder.onnx").read_bytes()).hexdigest()
+    model = onnx.load(str(tmp_path / "encoder-int8.onnx"))
+    assert [(item.domain, item.version) for item in model.opset_import] == [("", ONNX_OPSET)]
+    operators = {node.op_type for node in model.graph.node}
+    assert "MatMulInteger" in operators
+    assert {node.domain for node in model.graph.node} == {""}
+
+    # The quantized graph keeps the runtime ABI: same inputs, one float32 output.
+    import numpy
+    import onnxruntime
+
+    session = onnxruntime.InferenceSession(
+        str(tmp_path / "encoder-int8.onnx"), providers=["CPUExecutionProvider"]
+    )
+    output = session.run(
+        None,
+        {
+            "input_ids": numpy.array([[1, 2, 3]], dtype=numpy.int64),
+            "attention_mask": numpy.array([[1, 1, 1]], dtype=numpy.int64),
+        },
+    )
+    assert len(output) == 1 and output[0].dtype == numpy.float32 and output[0].shape == (1, 8)
+
+    with pytest.raises(FileExistsError):
+        quantize_onnx_encoder(tmp_path / "encoder.onnx", tmp_path / "encoder-int8.onnx")
+    with pytest.raises(ValueError, match="weight_type"):
+        quantize_onnx_encoder(
+            tmp_path / "encoder.onnx", tmp_path / "other.onnx", weight_type="int4"
+        )
+    with pytest.raises(TypeError, match="per_channel"):
+        quantize_onnx_encoder(
+            tmp_path / "encoder.onnx",
+            tmp_path / "other.onnx",
+            per_channel="yes",  # type: ignore[arg-type]
+        )
+    assert not (tmp_path / "other.onnx").exists()
+    with pytest.raises(FileNotFoundError):
+        quantize_onnx_encoder(tmp_path / "missing.onnx", tmp_path / "other.onnx")
+
+
+@pytest.mark.skipif(
+    not EXPORT_DEPENDENCIES_AVAILABLE,
+    reason="optional ONNX export dependencies are not installed",
+)
+def test_quantizer_removes_destination_when_nothing_is_quantizable(tmp_path) -> None:
+    import torch
+
+    from semantscript_model.encoder import SentenceEncoder
+
+    class EmbeddingOnlyEncoder(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.config = SimpleNamespace(hidden_size=4)
+            self.embedding = torch.nn.Embedding(8, 4)
+
+        def forward(self, *, input_ids, attention_mask, return_dict):
+            del attention_mask
+            assert return_dict is True
+            return SimpleNamespace(last_hidden_state=self.embedding(input_ids))
+
+    encoder = SentenceEncoder(encoder=EmbeddingOnlyEncoder())
+    head = ClassificationHead(HeadConfig(input_size=4, kind="categorical-softmax", cardinality=2))
+    export_onnx_components(
+        encoder,
+        head,
+        torch.tensor([[1, 2]], dtype=torch.int64),
+        torch.tensor([[1, 1]], dtype=torch.int64),
+        encoder_path=tmp_path / "encoder.onnx",
+        adapter_path=tmp_path / "adapter.onnx",
+        head_path=tmp_path / "head.onnx",
+    )
+
+    with pytest.raises(ValueError, match="no MatMulInteger"):
+        quantize_onnx_encoder(tmp_path / "encoder.onnx", tmp_path / "encoder-int8.onnx")
+    assert not (tmp_path / "encoder-int8.onnx").exists()

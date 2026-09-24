@@ -189,6 +189,92 @@ test("rejects invalid relational metadata", async (context) => {
   });
 });
 
+function quantizationBlock(overrides = {}) {
+  return {
+    method: "dynamic",
+    weightType: "int8",
+    perChannel: false,
+    reduceRange: false,
+    argmaxDisagreementTolerance: 0,
+    attestedDisagreementTolerance: 0,
+    eceThreshold: 0.1,
+    sourceManifestSha256: "a".repeat(64),
+    ...overrides,
+  };
+}
+
+test("validates encoder precision and quantization metadata", async (context) => {
+  await context.test("float32 without precision is the historical default", async () => {
+    await withArtifact(async (artifact) => {
+      const loaded = await loadArtifact(artifact.root);
+      assert.equal(loaded.manifest.resources[1].onnx.precision, undefined);
+    });
+  });
+
+  await context.test("explicit float32 precision loads", async () => {
+    await withArtifact(async (artifact) => {
+      await republish(artifact, (manifest) => {
+        manifest.resources[1].onnx.precision = "float32";
+      });
+      const loaded = await loadArtifact(artifact.root);
+      assert.equal(loaded.manifest.resources[1].onnx.precision, "float32");
+    });
+  });
+
+  await context.test("int8-dynamic precision with its quantization block loads", async () => {
+    await withArtifact(async (artifact) => {
+      await republish(artifact, (manifest) => {
+        manifest.resources[1].onnx.precision = "int8-dynamic";
+        manifest.resources[1].onnx.quantization = quantizationBlock();
+      });
+      const loaded = await loadArtifact(artifact.root);
+      assert.equal(loaded.manifest.resources[1].onnx.precision, "int8-dynamic");
+      assert.deepEqual(loaded.manifest.resources[1].onnx.quantization, quantizationBlock());
+    });
+  });
+
+  const rejected = [
+    ["unknown precision", (onnx) => { onnx.precision = "int4"; }],
+    ["quantized precision without quantization", (onnx) => { onnx.precision = "int8-dynamic"; }],
+    ["quantization on float32", (onnx) => { onnx.quantization = quantizationBlock(); }],
+    ["quantization missing a field", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      const { eceThreshold, ...rest } = quantizationBlock();
+      onnx.quantization = rest;
+    }],
+    ["quantization with an extra field", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      onnx.quantization = quantizationBlock({ calibrated: true });
+    }],
+    ["unsupported method", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      onnx.quantization = quantizationBlock({ method: "static" });
+    }],
+    ["tolerance outside the unit interval", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      onnx.quantization = quantizationBlock({ argmaxDisagreementTolerance: 1.5 });
+    }],
+    ["negative attested tolerance", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      onnx.quantization = quantizationBlock({ attestedDisagreementTolerance: -1 });
+    }],
+    ["malformed source digest", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      onnx.quantization = quantizationBlock({ sourceManifestSha256: "xyz" });
+    }],
+  ];
+  for (const [name, mutate] of rejected) {
+    await context.test(name, async () => {
+      await withArtifact(async (artifact) => {
+        await republish(artifact, (manifest) => {
+          mutate(manifest.resources[1].onnx);
+        });
+        await assert.rejects(loadArtifact(artifact.root), hasCode("SEMA_ARTIFACT_INVALID_MANIFEST"));
+      });
+    });
+  }
+});
+
 test("validates every runtime confidence policy relationship", async (context) => {
   const validCases = [
     {

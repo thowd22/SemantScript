@@ -13,11 +13,28 @@ export interface TensorDescriptorV1 {
   readonly shape: readonly (number | string)[];
 }
 
+export type OnnxPrecisionV1 = "float32" | "int8-dynamic";
+
+export interface OnnxQuantizationV1 {
+  readonly method: "dynamic";
+  readonly weightType: "int8" | "uint8";
+  readonly perChannel: boolean;
+  readonly reduceRange: boolean;
+  readonly argmaxDisagreementTolerance: number;
+  readonly attestedDisagreementTolerance: number;
+  readonly eceThreshold: number;
+  readonly sourceManifestSha256: string;
+}
+
 export interface OnnxAbiV1 {
   readonly opset: number;
   readonly inputs: readonly TensorDescriptorV1[];
   readonly outputs: readonly TensorDescriptorV1[];
   readonly externalData: false;
+  /** Absent means float32: every graph published before quantization existed. */
+  readonly precision?: OnnxPrecisionV1;
+  /** Present exactly when precision is a quantized one; records how the graph was derived. */
+  readonly quantization?: OnnxQuantizationV1;
 }
 
 interface ArtifactResourceBaseV1 {

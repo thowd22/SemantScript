@@ -330,13 +330,48 @@ function validateResource(value: unknown, path: string): void {
 
 function validateOnnx(value: unknown, path: string): void {
   const onnx = object(value, path);
-  exact(onnx, ["opset", "inputs", "outputs", "externalData"], path);
+  exactWithOptional(onnx, ["opset", "inputs", "outputs", "externalData"], ["precision", "quantization"], path);
   integer(get(onnx, "opset"), `${path}.opset`, 1);
   equal(get(onnx, "externalData"), false, `${path}.externalData`);
+  validateOnnxPrecision(onnx, path);
   const inputs = list(get(onnx, "inputs"), `${path}.inputs`, 1);
   const outputs = list(get(onnx, "outputs"), `${path}.outputs`, 1);
   for (const [index, tensor] of inputs.entries()) validateTensor(tensor, `${path}.inputs[${String(index)}]`);
   for (const [index, tensor] of outputs.entries()) validateTensor(tensor, `${path}.outputs[${String(index)}]`);
+}
+
+function validateOnnxPrecision(onnx: JsonRecord, path: string): void {
+  // A graph published before quantization existed carries no precision and is float32.
+  const precision = "precision" in onnx ? choice(get(onnx, "precision"), ["float32", "int8-dynamic"], `${path}.precision`) : "float32";
+  const quantized = precision !== "float32";
+  if (!("quantization" in onnx)) {
+    if (quantized) invalid(`${path}.quantization is required for precision ${precision}`);
+    return;
+  }
+  if (!quantized) invalid(`${path}.quantization is only allowed for a quantized precision`);
+  const quantization = object(get(onnx, "quantization"), `${path}.quantization`);
+  exact(
+    quantization,
+    [
+      "method",
+      "weightType",
+      "perChannel",
+      "reduceRange",
+      "argmaxDisagreementTolerance",
+      "attestedDisagreementTolerance",
+      "eceThreshold",
+      "sourceManifestSha256",
+    ],
+    `${path}.quantization`,
+  );
+  equal(get(quantization, "method"), "dynamic", `${path}.quantization.method`);
+  choice(get(quantization, "weightType"), ["int8", "uint8"], `${path}.quantization.weightType`);
+  bool(get(quantization, "perChannel"), `${path}.quantization.perChannel`);
+  bool(get(quantization, "reduceRange"), `${path}.quantization.reduceRange`);
+  unit(get(quantization, "argmaxDisagreementTolerance"), `${path}.quantization.argmaxDisagreementTolerance`);
+  integer(get(quantization, "attestedDisagreementTolerance"), `${path}.quantization.attestedDisagreementTolerance`, 0);
+  unit(get(quantization, "eceThreshold"), `${path}.quantization.eceThreshold`);
+  matches(get(quantization, "sourceManifestSha256"), SHA256, `${path}.quantization.sourceManifestSha256`);
 }
 
 function validateTensor(value: unknown, path: string): void {
@@ -938,6 +973,22 @@ function object(
 
 function get(value: JsonRecord, key: string): unknown {
   return value[key];
+}
+
+function exactWithOptional(
+  value: JsonRecord,
+  required: readonly string[],
+  optional: readonly string[],
+  path: string,
+  code: ArtifactLoadErrorCode = "SEMA_ARTIFACT_INVALID_MANIFEST",
+): void {
+  const allowed = new Set([...required, ...optional]);
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) throw new ArtifactLoadError(code, `${path} has unsupported property ${key}`);
+  }
+  for (const key of required) {
+    if (!(key in value)) throw new ArtifactLoadError(code, `${path} is missing ${key}`);
+  }
 }
 
 function exact(

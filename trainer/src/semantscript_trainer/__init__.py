@@ -78,6 +78,14 @@ from semantscript_trainer.lifecycle import (
     VerifiedIrProvenance,
     build_verified_ir,
 )
+from semantscript_trainer.quantization import (
+    QuantizationConfig,
+    QuantizationGateError,
+    QuantizationRecord,
+    QuantizationReport,
+    QuantizedArtifact,
+    quantize_release_artifact,
+)
 from semantscript_trainer.semantic_json import (
     semantic_json_bytes,
     semantic_json_sha256,
@@ -257,6 +265,11 @@ __all__ = [
     "InputPath",
     "LossName",
     "PairRole",
+    "QuantizationConfig",
+    "QuantizationGateError",
+    "QuantizationRecord",
+    "QuantizationReport",
+    "QuantizedArtifact",
     "StrictJsonError",
     "StrictJsonLimits",
     "SyntheticDatasetGenerator",
@@ -304,6 +317,7 @@ __all__ = [
     "load_teacher_config",
     "loads_strict_json",
     "model_state_sha256",
+    "quantize_release_artifact",
     "require_passing_verification",
     "semantic_json_bytes",
     "semantic_json_sha256",

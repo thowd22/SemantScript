@@ -65,6 +65,126 @@ class ExportedOnnxComponents:
     chain_maximum_absolute_difference: float
 
 
+@dataclass(frozen=True, slots=True)
+class QuantizedOnnxComponent:
+    """Validated file identity and settings of one dynamically quantized graph."""
+
+    role: ComponentRole
+    path: Path
+    byte_length: int
+    sha256: str
+    opset: int
+    method: Literal["dynamic"]
+    weight_type: Literal["int8", "uint8"]
+    per_channel: bool
+    reduce_range: bool
+    quantized_matmul_count: int
+    source_byte_length: int
+    source_sha256: str
+
+
+def quantize_onnx_encoder(
+    source: str | Path,
+    destination: str | Path,
+    *,
+    weight_type: str = "int8",
+    per_channel: bool = False,
+    reduce_range: bool = False,
+    maximum_component_bytes: int = DEFAULT_MAXIMUM_COMPONENT_BYTES,
+) -> QuantizedOnnxComponent:
+    """Derive a dynamically quantized copy of one exported encoder graph.
+
+    Weights of every MatMul with a constant operand become 8-bit integers and
+    activations are quantized per call by ``DynamicQuantizeLinear``; both are
+    standard ONNX operators, so the result imports the same opset as the
+    source and needs no extra runtime capability. The source must already be
+    a validated exported component; the destination must not exist. Whether
+    the quantized graph still makes the same decisions is not decided here:
+    callers verify that against the source graph before publishing.
+    """
+
+    if weight_type not in ("int8", "uint8"):
+        raise ValueError('weight_type must be "int8" or "uint8"')
+    for name, flag in (("per_channel", per_channel), ("reduce_range", reduce_range)):
+        if not isinstance(flag, bool):
+            raise TypeError(f"{name} must be a boolean")
+    maximum_component_bytes = _validate_maximum_component_bytes(maximum_component_bytes)
+    onnx, quantization = _load_quantization_dependencies()
+
+    source_path = Path(source)
+    destination_path = Path(destination)
+    if not source_path.is_file() or source_path.is_symlink():
+        raise FileNotFoundError(f"quantization source is not a regular file: {source_path}")
+    if destination_path.exists() or destination_path.is_symlink():
+        raise FileExistsError(f"quantization destination already exists: {destination_path}")
+    if destination_path.resolve() == source_path.resolve():
+        raise ValueError("quantization destination must differ from the source")
+    _validate_exported_component_file(source_path, maximum_component_bytes)
+    _validate_onnx_container(onnx, source_path)
+    source_byte_length, source_sha256 = _file_identity(source_path)
+
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        quantization.quantize_dynamic(
+            str(source_path),
+            str(destination_path),
+            per_channel=per_channel,
+            reduce_range=reduce_range,
+            weight_type=(
+                quantization.QuantType.QInt8
+                if weight_type == "int8"
+                else quantization.QuantType.QUInt8
+            ),
+        )
+        _validate_exported_component_file(destination_path, maximum_component_bytes)
+        _validate_onnx_container(onnx, destination_path)
+        model = onnx.load(str(destination_path), load_external_data=False)
+        quantized_matmul_count = sum(
+            1 for node in model.graph.node if node.op_type == "MatMulInteger"
+        )
+        if quantized_matmul_count == 0:
+            raise ValueError("dynamic quantization produced no MatMulInteger node")
+    except BaseException:
+        destination_path.unlink(missing_ok=True)
+        raise
+    byte_length, digest = _file_identity(destination_path)
+    return QuantizedOnnxComponent(
+        role="encoder",
+        path=destination_path,
+        byte_length=byte_length,
+        sha256=digest,
+        opset=ONNX_OPSET,
+        method="dynamic",
+        weight_type=weight_type,
+        per_channel=per_channel,
+        reduce_range=reduce_range,
+        quantized_matmul_count=quantized_matmul_count,
+        source_byte_length=source_byte_length,
+        source_sha256=source_sha256,
+    )
+
+
+def _load_quantization_dependencies() -> tuple[Any, Any]:
+    try:
+        import onnx
+        from onnxruntime import quantization
+    except ImportError as error:
+        raise ImportError(
+            "ONNX quantization requires the optional onnx and onnxruntime dependencies"
+        ) from error
+    return onnx, quantization
+
+
+def _file_identity(path: Path) -> tuple[int, str]:
+    digest = sha256()
+    byte_length = 0
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+            byte_length += len(chunk)
+    return byte_length, digest.hexdigest()
+
+
 class _IdentityAdapter:
     """Created lazily as an ``nn.Module`` without importing PyTorch globally."""
 
@@ -568,17 +688,12 @@ def _component_metadata(
     outputs: tuple[TensorMetadata, ...],
     maximum_absolute_difference: float,
 ) -> ExportedOnnxComponent:
-    digest = sha256()
-    byte_length = 0
-    with path.open("rb") as handle:
-        while chunk := handle.read(1024 * 1024):
-            digest.update(chunk)
-            byte_length += len(chunk)
+    byte_length, digest = _file_identity(path)
     return ExportedOnnxComponent(
         role=role,
         path=path,
         byte_length=byte_length,
-        sha256=digest.hexdigest(),
+        sha256=digest,
         opset=ONNX_OPSET,
         inputs=inputs,
         outputs=outputs,

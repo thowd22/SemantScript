@@ -45,6 +45,16 @@ rules are documented in `CLAUDE_CLI_TRAINING.md`; it is never a source of
 release-verification or final benchmark cases and does not replace the
 traditional structured-output API latency baseline.
 
+`quantize_release.py` derives an int8 release from a published float32 release
+(the trained PyTorch model is not persisted, so the verified float32 ONNX chain is
+the reference). It replays the frozen corpus and the attested release record
+with teacher calls forbidden, runs the quantized encoder chain against the
+float32 chain over every record, and publishes only when attested decisions,
+the overall decision-change rate and the calibration error stay within the
+tolerances recorded in the derived manifest. The derived pipeline manifest names
+the source manifest digest and carries the full quantization report, so
+`run-benchmark.mjs` measures the int8 artifact without changes.
+
 Focused offline checks are bounded and do not train a model or publish results:
 
 ```sh

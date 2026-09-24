@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-19 18:23'
-updated_date: '2026-09-24 05:36'
+updated_date: '2026-09-24 12:13'
 labels:
   - benchmark
 milestone: m-1
@@ -136,6 +136,8 @@ Final benchmark (results-v2-2026-09-23, commit 8844483): SemantScript 159/160 = 
 Validation: trainer lifecycle 11 passed; artifact + strict JSON + pipeline suites 41 passed; pipeline suite 15 passed after the new compiled-IR regression test; refund-benchmark workspace 82 passed; CPU dry run of lifecycle -> export -> Node runtime with the real encoder passed in 16 s.
 
 Blocked item: acceptance criterion 2 requires metrics for the traditional structured-output API baseline, which needs ANTHROPIC_API_KEY on the runner (never in Backlog or chat). The harness adapter is implemented and tested; once the key is exposed, run run-benchmark.mjs with --systems structured-api into results-v2-2026-09-23 and re-run assemble, which also completes the mechanical decision. Follow-up candidates needing user approval: (1) latency work to reach p50 < 10 ms on CPU (int8 dynamic quantization of the encoder, a compact canonical input encoding, a smaller or distilled encoder, or a GPU execution provider); (2) a status-twin partition for orders inside 90 days but outside the tier window to close the remaining fraud/window gap.
+
+Latency follow-up tracked (user approved 2026-09-24): TASK-5.18 (end-to-end p50 under 10 ms) with subtasks TASK-5.18.1 (compact canonical encoding) and TASK-5.18.2 (int8 encoder export); TASK-6.7 amended with depth routing in the static adapter map.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

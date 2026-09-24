@@ -87,6 +87,18 @@ encoder per application. Heads trained incrementally sit on an encoder that
 was fine-tuned for the application's earlier expressions; run `--full` before
 a release when that matters.
 
+### Encoder size
+
+The encoder is a per-application setting: `--encoder-name` and
+`--encoder-revision` (a pinned 40-character commit) select the Hugging Face
+checkpoint every function of the application is fine-tuned from, and the
+default is `answerdotai/ModernBERT-base` at the revision the trainer pins.
+Decision-3 chose it for the Phase 1 exit criteria; the encoder sweep under
+`benchmarks/refund/data/results-encoder-sweep-2026-09-24` measures the base,
+large and ~1B points and gives the rule for choosing another: the largest
+encoder that fits the request path's latency budget, because parallel heads
+amortise one encoder pass across every decision in a request.
+
 Training options pass through unchanged: `--cases`, `--epochs`, `--batch-size`,
 `--learning-rate`, `--max-sequence-length`, `--evaluation-ratio`, `--seed`,
 `--device`, `--head-architecture`, `--select-best-epoch`, `--encoder-name`,

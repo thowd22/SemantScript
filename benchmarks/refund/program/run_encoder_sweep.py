@@ -118,7 +118,9 @@ def log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def recipe(point: EncoderPoint, device: str, epochs: int, batch_size: int) -> TrainingConfig:
+def recipe(
+    point: EncoderPoint, device: str, epochs: int, batch_size: int, learning_rate: float = 3e-5
+) -> TrainingConfig:
     """The committed compact-release recipe with the encoder swapped in."""
 
     return TrainingConfig(
@@ -127,7 +129,7 @@ def recipe(point: EncoderPoint, device: str, epochs: int, batch_size: int) -> Tr
         local_files_only=True,
         epochs=epochs,
         batch_size=batch_size,
-        learning_rate=3e-5,
+        learning_rate=learning_rate,
         weight_decay=0.01,
         maximum_sequence_length=128,
         evaluation_ratio=0.1,
@@ -275,6 +277,9 @@ def export_chain(training: Any, encoded: Any, directory: Path) -> dict[str, Path
         encoder_path=paths["encoder"],
         adapter_path=paths["adapter"],
         head_paths={"function": paths["head"]},
+        # The v1 artifact cap is 1 GiB per component; the sweep measures larger
+        # encoders anyway and reports the size so the write-up can say which fit.
+        maximum_component_bytes=4 * 1024**3,
     )
     return paths
 
@@ -288,6 +293,7 @@ def run_point(
     device: str,
     epochs: int,
     batch_size: int,
+    learning_rate: float = 3e-5,
 ) -> dict[str, Any]:
     import torch
 
@@ -296,7 +302,7 @@ def run_point(
         "recipe": {
             "epochs": epochs,
             "batchSize": batch_size,
-            "learningRate": 3e-5,
+            "learningRate": learning_rate,
             "head": "linear",
             "loss": "proper",
         },
@@ -305,7 +311,7 @@ def run_point(
     training = None
     config = None
     for attempt_batch in (batch_size, max(1, batch_size // 4)):
-        config = recipe(point, device, epochs, attempt_batch)
+        config = recipe(point, device, epochs, attempt_batch, learning_rate)
         log(f"{point.name}: training {epochs} epoch(s) at batch {attempt_batch}")
         started = time.monotonic()
         try:
@@ -371,7 +377,15 @@ def run_point(
     record["gpu"] = measure_gpu(training.model, encoded, torch)
     log(f"{point.name}: gpu {json.dumps(record['gpu'])}")
     with tempfile.TemporaryDirectory(prefix=f"semantscript-sweep-{point.name}-") as temporary:
-        paths = export_chain(training, encoded, Path(temporary))
+        try:
+            paths = export_chain(training, encoded, Path(temporary))
+        except (RuntimeError, ValueError, TypeError, OSError) as error:
+            record["export"] = {"status": "failed", "error": str(error)[:300]}
+            record["status"] = "export-failed"
+            log(f"{point.name}: ONNX export failed: {str(error)[:200]}")
+            del training
+            torch.cuda.empty_cache()
+            return record
         record["artifactBytes"] = {name: path.stat().st_size for name, path in paths.items()}
         record["artifactBytes"]["total"] = sum(record["artifactBytes"].values())
         record["cpuOnnx"] = measure_cpu_onnx(paths, encoded)
@@ -428,6 +442,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--learning-rate", type=float, default=3e-5)
     parser.add_argument("--points", default=",".join(point.name for point in POINTS))
     arguments = parser.parse_args(argv)
     selected = {name.strip() for name in arguments.points.split(",") if name.strip()}
@@ -502,6 +517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.device,
             arguments.epochs,
             arguments.batch_size,
+            arguments.learning_rate,
         )
         results["completedAt"] = _utc_now()
         results_path.write_text(

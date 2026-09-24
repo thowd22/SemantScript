@@ -95,6 +95,9 @@ class TrainingConfig:
     # envelope, 2: compact text). Recorded in the verified IR and the artifact so
     # the runtime serializes calls the same way.
     canonical_input_version: int = 2
+    # Keep the pretrained encoder fixed (no gradients, eval mode) and train only
+    # the head, and the adapter for applications: the head-only regime.
+    freeze_encoder: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -104,6 +107,8 @@ class TrainingConfig:
             raise TrainingConfigurationError("canonical_input_version must be 1 or 2")
         if not isinstance(self.select_best_epoch, bool):
             raise TrainingConfigurationError("select_best_epoch must be a boolean")
+        if not isinstance(self.freeze_encoder, bool):
+            raise TrainingConfigurationError("freeze_encoder must be a boolean")
         if self.learning_rate_schedule not in ("constant", "linear"):
             raise TrainingConfigurationError("learning_rate_schedule must be constant or linear")
         if (
@@ -312,6 +317,8 @@ def train_corpus(
     tokenizer = _load_tokenizer(resolved) if tokenizer is None else tokenizer
     heads = corpus.output_heads
     model = _build_model(heads, resolved, encoder)
+    if resolved.freeze_encoder:
+        freeze_encoder_parameters(model)
     parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
     if not parameters:
         raise TrainingConfigurationError("classifier has no trainable parameters")
@@ -358,7 +365,7 @@ def train_corpus(
     for epoch in range(1, resolved.epochs + 1):
         order = list(range(len(training_rows)))
         random.Random(resolved.seed + epoch - 1).shuffle(order)
-        model.train()
+        set_training_mode(model, resolved.freeze_encoder)
         loss_total = 0.0
         example_count = 0
         for offset in range(0, len(order), resolved.batch_size):
@@ -451,6 +458,26 @@ def train_corpus(
         output_heads=corpus.output_heads,
         selected_epoch=best_epoch if resolved.select_best_epoch else None,
     )
+
+
+def freeze_encoder_parameters(model: Any) -> None:
+    """Stop gradients for the model's encoder; the head (and adapter) keep training."""
+
+    encoder = getattr(model, "encoder", None)
+    if encoder is None:
+        raise TrainingConfigurationError("freeze_encoder requires a model with an encoder")
+    for parameter in encoder.parameters():
+        parameter.requires_grad_(False)
+
+
+def set_training_mode(model: Any, frozen_encoder: bool) -> None:
+    """Enter training mode, keeping a frozen encoder deterministic in eval mode."""
+
+    model.train()
+    if frozen_encoder:
+        encoder = getattr(model, "encoder", None)
+        if encoder is not None:
+            encoder.eval()
 
 
 def _prepare_rows(

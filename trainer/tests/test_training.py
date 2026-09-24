@@ -496,3 +496,37 @@ def test_linear_schedule_trains_and_validates_settings() -> None:
         TrainingConfig(learning_rate_schedule="cosine")  # type: ignore[arg-type]
     with pytest.raises(TrainingConfigurationError, match="warmup_ratio"):
         TrainingConfig(warmup_ratio=0.9)
+
+
+@requires_torch
+def test_freeze_encoder_trains_only_the_head() -> None:
+    contract = categorical_ir()
+    corpus = categorical_corpus()
+    encoder = TinyTokenEncoder()
+    original = encoder.embedding.weight.detach().clone()
+
+    result = train_corpus(
+        contract,
+        corpus,
+        config=TrainingConfig(
+            epochs=5,
+            batch_size=6,
+            learning_rate=0.05,
+            weight_decay=0,
+            maximum_sequence_length=8,
+            evaluation_ratio=0.25,
+            seed=19,
+            device="cpu",
+            freeze_encoder=True,
+        ),
+        tokenizer=TinyTokenizer(),
+        encoder=encoder,
+    )
+
+    assert result.config.freeze_encoder is True
+    assert torch.equal(encoder.embedding.weight.detach(), original)
+    assert all(not p.requires_grad for p in result.model.encoder.parameters())
+    assert all(p.requires_grad for p in result.model.head.parameters())
+    assert len(result.metrics) == 5
+    with pytest.raises(TrainingConfigurationError, match="freeze_encoder"):
+        TrainingConfig(freeze_encoder="yes")  # type: ignore[arg-type]

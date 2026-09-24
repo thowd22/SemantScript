@@ -42,6 +42,8 @@ from semantscript_trainer.training import (
     _tensorize_batch,
     _validate_logits,
     _validate_no_canonical_leakage,
+    freeze_encoder_parameters,
+    set_training_mode,
 )
 from semantscript_trainer.training_contract import (
     HeldOutSplitConfig,
@@ -169,6 +171,8 @@ def train_application(
         model = application_module.SharedEncoderApplication(sentence_encoder, adapter, heads)
     except (RuntimeError, TypeError, ValueError) as error:
         raise TrainingExecutionError(f"could not construct application model: {error}") from error
+    if resolved.freeze_encoder:
+        freeze_encoder_parameters(model)
     metrics, selected_epoch = _fit(model, states, resolved, tokenizer, torch, device)
     return ApplicationTrainingResult(
         model=model,
@@ -392,7 +396,7 @@ def _fit(
         # Interleave functions so the shared modules never see one function's
         # rows in a long run.
         random.Random(config.seed + 104729 * epoch).shuffle(batches)
-        model.train()
+        set_training_mode(model, config.freeze_encoder)
         loss_total = 0.0
         example_count = 0
         for state, batch in batches:

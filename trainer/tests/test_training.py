@@ -424,3 +424,46 @@ def categorical_corpus() -> TrainingCorpus:
         head=head,
         rows=tuple(rows),
     )
+
+
+def test_select_best_epoch_restores_the_best_calibration_weights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contract = categorical_ir()
+    corpus = categorical_corpus()
+    scripted = iter([0.5, 1.0, 0.7])
+    snapshots: dict[float, dict[str, object]] = {}
+
+    def fake_accuracy(model, *args, **kwargs):
+        value = next(scripted)
+        snapshots[value] = {k: v.detach().clone() for k, v in model.state_dict().items()}
+        return value
+
+    monkeypatch.setattr(training_module, "_accuracy", fake_accuracy)
+    result = train_corpus(
+        contract,
+        corpus,
+        config=TrainingConfig(
+            epochs=3,
+            batch_size=6,
+            learning_rate=0.08,
+            weight_decay=0,
+            maximum_sequence_length=8,
+            evaluation_ratio=0.25,
+            seed=19,
+            device="cpu",
+            select_best_epoch=True,
+        ),
+        tokenizer=TinyTokenizer(),
+        encoder=TinyTokenEncoder(),
+    )
+
+    assert result.selected_epoch == 2
+    assert result.held_out_accuracy == 1.0
+    assert [m.held_out_accuracy for m in result.metrics] == [0.5, 1.0, 0.7]
+    final_state = result.model.state_dict()
+    assert all(torch.equal(final_state[k], v) for k, v in snapshots[1.0].items())
+    assert not all(torch.equal(final_state[k], v) for k, v in snapshots[0.7].items())
+
+    with pytest.raises(TrainingConfigurationError, match="select_best_epoch"):
+        TrainingConfig(select_best_epoch="yes")  # type: ignore[arg-type]

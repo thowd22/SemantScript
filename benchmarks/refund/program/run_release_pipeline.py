@@ -326,6 +326,8 @@ def run_release_pipeline(
             },
             "device": training.device,
             "trainedAt": trained_at,
+            "selectedEpoch": training.selected_epoch,
+            "selectBestEpoch": training_config.select_best_epoch,
             "trainingRows": training.training_row_count,
             "calibrationRows": len(training.split.evaluation),
             "epochs": [
@@ -447,6 +449,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--ece-threshold", type=float, default=0.1)
     parser.add_argument("--maximum-constraint-violation-rate", type=float, default=0.0)
+    parser.add_argument("--select-best-epoch", action="store_true")
     arguments = parser.parse_args(argv)
     training_config = TrainingConfig(
         encoder_name=DEFAULT_ENCODER_NAME,
@@ -459,6 +462,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         evaluation_ratio=arguments.evaluation_ratio,
         seed=arguments.seed,
         device=arguments.device,
+        select_best_epoch=arguments.select_best_epoch,
     )
     try:
         run_release_pipeline(

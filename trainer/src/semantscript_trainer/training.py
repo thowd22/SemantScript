@@ -77,8 +77,13 @@ class TrainingConfig:
     head_architecture: HeadArchitecture = "linear"
     mlp_hidden_size: int | None = None
     loss: LossName = "proper"
+    # Keep the epoch with the best held-out accuracy instead of the last one. The
+    # selection uses only the calibration split, never attested or benchmark data.
+    select_best_epoch: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.select_best_epoch, bool):
+            raise TrainingConfigurationError("select_best_epoch must be a boolean")
         if not isinstance(self.encoder_name, str) or not self.encoder_name:
             raise TrainingConfigurationError("encoder_name must be nonempty")
         if (
@@ -157,9 +162,12 @@ class TrainingResult:
     semantic_sha256: str
     base_dataset_sha256: str
     adversarial_dataset_sha256: str | None
+    selected_epoch: int | None = None
 
     @property
     def held_out_accuracy(self) -> float:
+        if self.selected_epoch is not None:
+            return self.metrics[self.selected_epoch - 1].held_out_accuracy
         return self.metrics[-1].held_out_accuracy
 
     @property
@@ -287,6 +295,8 @@ def train_corpus(
     metrics: list[EpochMetrics] = []
     training_rows = prepared["training"]
     evaluation_rows = prepared["evaluation"]
+    best_epoch: int | None = None
+    best_state: dict[str, Any] | None = None
     for epoch in range(1, resolved.epochs + 1):
         order = list(range(len(training_rows)))
         random.Random(resolved.seed + epoch - 1).shuffle(order)
@@ -357,6 +367,19 @@ def train_corpus(
                 held_out_accuracy=held_out_accuracy,
             )
         )
+        if resolved.select_best_epoch and (
+            best_epoch is None or held_out_accuracy > metrics[best_epoch - 1].held_out_accuracy
+        ):
+            best_epoch = epoch
+            best_state = {
+                name: value.detach().clone() for name, value in model.state_dict().items()
+            }
+
+    if resolved.select_best_epoch and best_state is not None and best_epoch != resolved.epochs:
+        try:
+            model.load_state_dict(best_state)
+        except RuntimeError as error:
+            raise TrainingExecutionError(f"could not restore the best epoch: {error}") from error
 
     return TrainingResult(
         model=model,
@@ -369,6 +392,7 @@ def train_corpus(
         semantic_sha256=corpus.semantic_sha256,
         base_dataset_sha256=corpus.base_dataset_sha256,
         adversarial_dataset_sha256=corpus.adversarial_dataset_sha256,
+        selected_epoch=best_epoch if resolved.select_best_epoch else None,
     )
 
 

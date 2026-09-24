@@ -1,0 +1,216 @@
+{
+ "artifact": {
+  "encoderPrecision": "int8-dynamic",
+  "manifestSha256": "f01067d55fef38b24b41149b32917ff88fee9ce627213dfc83644ff2ea44050c",
+  "releaseDirectory": "/home/admin2/SemantScript/benchmarks/refund/data/release-int8-tolerant-2026-09-24/artifact/releases/sha256-f01067d55fef38b24b41149b32917ff88fee9ce627213dfc83644ff2ea44050c",
+  "root": "/home/admin2/SemantScript/benchmarks/refund/data/release-int8-tolerant-2026-09-24/artifact"
+ },
+ "completedAt": "2026-09-24T13:10:55Z",
+ "corpus": {
+  "adversarialDatasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+  "manifestPath": "benchmarks/refund/data/pooled-v4-2026-09-24/manifest.json",
+  "syntheticDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+  "teacher": "5532c8bd990fc86627f5cffe0a48b91983658f5588e11506d8dae04683aeb16f"
+ },
+ "derivedFrom": {
+  "artifactManifestSha256": "0ee80669bf6eb5d06f3c7fdff314be60c65b0774748ef100f8c58507ee55a63d",
+  "pipelineManifestPath": "benchmarks/refund/data/release-2026-09-23/pipeline-manifest.json"
+ },
+ "elapsedSeconds": 1063.325,
+ "environment": {
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "trainerCommit": "8d8d40760fa441b4dca1d81173bb10df2e54253d"
+ },
+ "finalBenchmarkDatasetSha256": "5d71fc08a357a253a540c44fac35cc85742200f2000e17a3676d548c6a6125ae",
+ "function": {
+  "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+  "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
+ },
+ "kind": "semantscript.refund-release-pipeline-manifest",
+ "ledger": {
+  "payloadSha256": "ed55947b573b62f154587d59238318b160286311c174ee6817060ee143623509",
+  "sources": {
+   "adversarialDatasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+   "baseDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+   "releaseVerificationAttestationSha256": "1427262d6c360f58e35da74a7baac4a4a76da7d874d710c4658fc7667a2ca88d",
+   "releaseVerificationPayloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2"
+  },
+  "trainingKeySha256": "8bd1db20e4f8b7fce044aa17916f203efb14a9d5933c246bcaba0a7925a2088a"
+ },
+ "manifestVersion": 1,
+ "provenanceCounts": {
+  "adversarial": 374,
+  "attestedVerification": 80,
+  "calibration": 941,
+  "examples": 0,
+  "synthetic": 9035,
+  "verification": 9489
+ },
+ "quantization": {
+  "report": {
+   "argmaxDisagreementRate": 0.0010538518284329223,
+   "argmaxDisagreements": 10,
+   "attestedDisagreements": 1,
+   "attestedRecords": 80,
+   "eceBins": 15,
+   "elapsedSeconds": 1059.394,
+   "labeledRecords": 9489,
+   "method": "dynamic",
+   "perChannel": false,
+   "quantizedAccuracy": 0.9978922963431341,
+   "quantizedEce": 0.006594692151099495,
+   "quantizedEncoderByteLength": 150073785,
+   "quantizedMatMulCount": 88,
+   "recordsChecked": 9489,
+   "reduceRange": false,
+   "sourceAccuracy": 0.9985246074401939,
+   "sourceEce": 0.004263623022359918,
+   "sourceEncoderByteLength": 596679464,
+   "sourceManifestSha256": "0ee80669bf6eb5d06f3c7fdff314be60c65b0774748ef100f8c58507ee55a63d",
+   "temperature": 1.9685963700624867,
+   "weightType": "int8"
+  },
+  "settings": {
+   "argmaxDisagreementTolerance": 0.01,
+   "attestedDisagreementTolerance": 2,
+   "eceThreshold": 0.1,
+   "method": "dynamic",
+   "perChannel": false,
+   "reduceRange": false,
+   "sourceManifestSha256": "0ee80669bf6eb5d06f3c7fdff314be60c65b0774748ef100f8c58507ee55a63d",
+   "weightType": "int8"
+  }
+ },
+ "release": {
+  "attestationSha256": "1427262d6c360f58e35da74a7baac4a4a76da7d874d710c4658fc7667a2ca88d",
+  "caseCount": 80,
+  "payloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2"
+ },
+ "runtimeDiagnostic": {
+  "confidence": 0.9882045907325072,
+  "distribution": [
+   {
+    "probability": 0.9882045907325072,
+    "value": "approve"
+   },
+   {
+    "probability": 0.005642519100674599,
+    "value": "deny"
+   },
+   {
+    "probability": 0.006152890166818291,
+    "value": "review"
+   }
+  ],
+  "expectedValue": null,
+  "uncertainty": 0.06577627532580892,
+  "value": "approve"
+ },
+ "training": {
+  "baseModelWeightsSha256": "340ac08b74eef0d7bdec2d7981a6a3d4249bf0e6aab60634b72ad02c2b8023a9",
+  "calibrationRows": 941,
+  "config": {
+   "batchSize": 16,
+   "encoderName": "answerdotai/ModernBERT-base",
+   "encoderRevision": "8949b909ec900327062f0ebf497f51aef5e6f0c8",
+   "epochs": 8,
+   "evaluationRatio": 0.1,
+   "headArchitecture": "linear",
+   "learningRate": 3e-05,
+   "loss": "proper",
+   "maximumSequenceLength": 128,
+   "seed": 2
+  },
+  "device": "cuda",
+  "elapsedSeconds": 1289.865,
+  "epochs": [
+   {
+    "epoch": 1,
+    "heldOutAccuracy": 0.9277364505844846,
+    "meanTrainingLoss": 0.5721758149822063
+   },
+   {
+    "epoch": 2,
+    "heldOutAccuracy": 0.9691817215727949,
+    "meanTrainingLoss": 0.16096875937805144
+   },
+   {
+    "epoch": 3,
+    "heldOutAccuracy": 0.9798087141339001,
+    "meanTrainingLoss": 0.07821239945045273
+   },
+   {
+    "epoch": 4,
+    "heldOutAccuracy": 0.9861849096705633,
+    "meanTrainingLoss": 0.042214825745176744
+   },
+   {
+    "epoch": 5,
+    "heldOutAccuracy": 0.9893730074388948,
+    "meanTrainingLoss": 0.021199603095952792
+   },
+   {
+    "epoch": 6,
+    "heldOutAccuracy": 0.9904357066950054,
+    "meanTrainingLoss": 0.005521502318409015
+   },
+   {
+    "epoch": 7,
+    "heldOutAccuracy": 0.9883103081827843,
+    "meanTrainingLoss": 0.0037752634650953672
+   },
+   {
+    "epoch": 8,
+    "heldOutAccuracy": 0.9893730074388948,
+    "meanTrainingLoss": 0.0007782855927860684
+   }
+  ],
+  "learningRateSchedule": "linear",
+  "selectBestEpoch": true,
+  "selectedEpoch": 6,
+  "trainedAt": "2026-09-24T05:09:45Z",
+  "trainingRows": 8468,
+  "warmupRatio": 0.05
+ },
+ "verification": {
+  "attestedCases": 80,
+  "elapsedSeconds": 97.282,
+  "failures": [],
+  "gate": {
+   "eceThreshold": 0.1,
+   "maximumConstraintViolationRate": 0.01,
+   "recordCount": 9489
+  },
+  "metrics": {
+   "accuracy": 0.9904357066950054,
+   "brier": 0.008163995322224067,
+   "constraintViolations": 14,
+   "ece": 0.004251137161329962,
+   "exampleFailures": 0,
+   "heads": [
+    {
+     "accuracy": 0.9904357066950054,
+     "calibration": {
+      "brier": 0.008163995322224067,
+      "ece": 0.004251137161329962,
+      "eceBins": 15,
+      "method": "temperature-scaling",
+      "sampleCount": 941,
+      "splitSha256": "0bdd6d048e633ac852c463b13891f416da52f392e1a49202775c52efc7a8a350",
+      "temperature": 1.9685963700624867
+     },
+     "outputPath": "",
+     "pairConsistency": 1.0
+    }
+   ],
+   "pairConsistency": 1.0,
+   "typeErrors": 0
+  },
+  "modelStateSha256": "5e3a3a17d5e7326d9b075fa8876de264ec2260d759c4006432226140ff035098",
+  "pairCount": 181,
+  "status": "passed",
+  "tokenizerSha256": "f64652c0d4292921662f8a34068ed38c9db4a8e78daae667eaff88a30494ef8b",
+  "verifiedAt": "2026-09-24T05:29:21Z"
+ }
+}

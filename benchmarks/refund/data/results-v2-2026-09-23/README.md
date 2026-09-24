@@ -162,6 +162,13 @@ the pipeline manifest and the prediction record.
 - **Missing baseline.** The structured-output API row is absent; the decision
   compares against the local 7B model as the exit criterion specifies.
 
+## Follow-up measurements
+
+- Int8 dynamic quantization of this release (TASK-5.18.2, `data/results-int8-2026-09-24/README.md`):
+  p50 27.7 ms, 1.38x faster, but the strict gate refused it because one attested
+  release decision changed; the measured artifact carries a recorded tolerance.
+  The latency criterion is still not met.
+
 ## Records
 
 - Corpus: `data/pooled-v4-2026-09-24/manifest.json`

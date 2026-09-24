@@ -1,0 +1,38 @@
+{
+ "kind": "semantscript.refund-quantization-report",
+ "reason": "quantization gate failed: 1 attested record(s) changed decision (tolerance 0); 10 of 9489 records changed decision (rate 0.001054, tolerance 0.0)",
+ "report": {
+  "argmaxDisagreementRate": 0.0010538518284329223,
+  "argmaxDisagreements": 10,
+  "attestedDisagreements": 1,
+  "attestedRecords": 80,
+  "eceBins": 15,
+  "elapsedSeconds": 1039.529,
+  "labeledRecords": 9489,
+  "method": "dynamic",
+  "perChannel": false,
+  "quantizedAccuracy": 0.9978922963431341,
+  "quantizedEce": 0.006594692151099495,
+  "quantizedEncoderByteLength": 150073785,
+  "quantizedMatMulCount": 88,
+  "recordsChecked": 9489,
+  "reduceRange": false,
+  "sourceAccuracy": 0.9985246074401939,
+  "sourceEce": 0.004263623022359918,
+  "sourceEncoderByteLength": 596679464,
+  "sourceManifestSha256": "0ee80669bf6eb5d06f3c7fdff314be60c65b0774748ef100f8c58507ee55a63d",
+  "temperature": 1.9685963700624867,
+  "weightType": "int8"
+ },
+ "settings": {
+  "argmaxDisagreementTolerance": 0.0,
+  "attestedDisagreementTolerance": 0,
+  "eceThreshold": 0.1,
+  "method": "dynamic",
+  "perChannel": false,
+  "reduceRange": false,
+  "sourceManifestSha256": "0ee80669bf6eb5d06f3c7fdff314be60c65b0774748ef100f8c58507ee55a63d",
+  "weightType": "int8"
+ },
+ "status": "failed"
+}

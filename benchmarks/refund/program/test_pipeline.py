@@ -123,6 +123,28 @@ def test_compact_encoding_keeps_refund_inputs_within_the_token_budget(
         assert compact_tokens * 2 < envelope_tokens
 
 
+def test_compile_bridge_builds_the_companion_program_under_the_application_refs(
+    tmp_path: Path,
+    compiled_program: pipeline.CompiledRefundProgram,
+) -> None:
+    companion = pipeline.compile_refund_program(
+        tmp_path / "risk", source_file="refund-risk.sem.ts", support=("high", "low", "medium")
+    )
+    assert companion.function_id != compiled_program.function_id
+    assert companion.source_ir["output"]["head"]["support"] == ["high", "low", "medium"]
+    assert companion.source_ir["model"]["encoder"] == compiled_program.source_ir["model"]["encoder"]
+    assert companion.source_ir["model"]["adapter"] == compiled_program.source_ir["model"]["adapter"]
+    assert len(companion.source_ir["definition"]["constraints"]) == 3
+    with pytest.raises(pipeline.RefundPipelineError, match="support does not match"):
+        pipeline.compile_refund_program(
+            tmp_path / "wrong-support",
+            source_file="refund-risk.sem.ts",
+            support=("low", "medium", "high"),
+        )
+    with pytest.raises(pipeline.RefundPipelineError, match="source_file must name"):
+        pipeline.compile_refund_program(tmp_path / "escape", source_file="../evil.sem.ts")
+
+
 def test_compile_bridge_refuses_nonempty_output_and_unbounded_timeout(tmp_path: Path) -> None:
     occupied = tmp_path / "occupied"
     occupied.mkdir()

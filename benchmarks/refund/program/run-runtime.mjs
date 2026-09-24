@@ -6,7 +6,7 @@ import { loadSemaArtifact } from "@semantscript/core";
 const MAXIMUM_STDIN_BYTES = 1024 * 1024;
 const REFUND_SUPPORT = ["approve", "deny", "review"];
 
-export async function runRefundDiagnostic(artifactRoot, functionId, inputs) {
+export async function runRefundDiagnostic(artifactRoot, functionId, inputs, support = REFUND_SUPPORT) {
   if (typeof artifactRoot !== "string" || artifactRoot.length === 0) {
     throw new TypeError("artifactRoot must be a nonempty string");
   }
@@ -23,14 +23,17 @@ export async function runRefundDiagnostic(artifactRoot, functionId, inputs) {
       throw new Error("compiled refund function is absent from the exported artifact");
     }
     const result = handle.call(functionId, inputs);
-    validateRefundDiagnostic(result);
+    validateRefundDiagnostic(result, support);
     return result;
   } finally {
     await handle.close();
   }
 }
 
-export function validateRefundDiagnostic(result) {
+export function validateRefundDiagnostic(result, support = REFUND_SUPPORT) {
+  if (!Array.isArray(support) || support.length < 2 || support.some((value) => typeof value !== "string")) {
+    throw new TypeError("support must list at least two string values");
+  }
   if (result === null || typeof result !== "object" || Array.isArray(result)) {
     throw new TypeError("refund runtime must return a scalar diagnostic object");
   }
@@ -39,7 +42,7 @@ export function validateRefundDiagnostic(result) {
   if (keys.length !== expectedKeys.length || keys.some((key, index) => key !== expectedKeys[index])) {
     throw new TypeError("refund runtime returned an unexpected diagnostic shape");
   }
-  if (!REFUND_SUPPORT.includes(result.value)) {
+  if (!support.includes(result.value)) {
     throw new TypeError("refund runtime returned a value outside the declared support");
   }
   if (!Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1) {
@@ -51,7 +54,7 @@ export function validateRefundDiagnostic(result) {
   if (result.expectedValue !== null) {
     throw new TypeError("nominal refund output must have a null expected value");
   }
-  if (!Array.isArray(result.distribution) || result.distribution.length !== REFUND_SUPPORT.length) {
+  if (!Array.isArray(result.distribution) || result.distribution.length !== support.length) {
     throw new TypeError("refund runtime must return the complete declared distribution");
   }
 
@@ -65,7 +68,7 @@ export function validateRefundDiagnostic(result) {
       Object.keys(entry).length !== 2 ||
       !Object.hasOwn(entry, "value") ||
       !Object.hasOwn(entry, "probability") ||
-      entry.value !== REFUND_SUPPORT[index] ||
+      entry.value !== support[index] ||
       !Number.isFinite(entry.probability) ||
       entry.probability < 0 ||
       entry.probability > 1
@@ -103,13 +106,14 @@ async function readBoundedStandardInput() {
 }
 
 async function main() {
-  const [artifactRoot, functionId] = process.argv.slice(2);
+  const [artifactRoot, functionId, supportText] = process.argv.slice(2);
   if (artifactRoot === undefined || functionId === undefined) {
-    throw new Error("usage: node run-runtime.mjs <artifact-root> <function-id> < input.json");
+    throw new Error("usage: node run-runtime.mjs <artifact-root> <function-id> [support,list] < input.json");
   }
+  const support = supportText === undefined ? REFUND_SUPPORT : supportText.split(",");
   const text = await readBoundedStandardInput();
   const inputs = JSON.parse(text);
-  const result = await runRefundDiagnostic(artifactRoot, functionId, inputs);
+  const result = await runRefundDiagnostic(artifactRoot, functionId, inputs, support);
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 

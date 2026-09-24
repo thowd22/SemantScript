@@ -50,6 +50,7 @@ from semantscript_trainer.strict_json import StrictJsonLimits
 
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _FUNCTION_ID = re.compile(r"^nf_[a-f0-9]{64}$")
+_SOURCE_FILE = re.compile(r"^[a-z][a-z0-9-]*\.sem\.ts$")
 _MAXIMUM_COMPILER_OUTPUT_BYTES = 8 * 1024 * 1024
 _MAXIMUM_RUNTIME_INPUT_BYTES = 1024 * 1024
 _MAXIMUM_SUBPROCESS_ERROR_BYTES = 64 * 1024
@@ -235,10 +236,25 @@ def compile_refund_program(
     /,
     *,
     timeout_seconds: int = 60,
+    source_file: str | None = None,
+    support: Sequence[str] | None = None,
 ) -> CompiledRefundProgram:
-    """Compile the committed diagnostic refund source into one exact source IR."""
+    """Compile the committed diagnostic refund source into one exact source IR.
+
+    ``source_file`` names another single-function program in the program
+    directory (the companion risk function of the shared-encoder experiment)
+    with its own output ``support``; such a program is not held to the
+    canonical refund identity.
+    """
 
     timeout = _bounded_timeout(timeout_seconds)
+    if source_file is not None and (
+        not isinstance(source_file, str) or _SOURCE_FILE.fullmatch(source_file) is None
+    ):
+        raise RefundPipelineError(
+            "source_file must name a .sem.ts program in the program directory"
+        )
+    expected_support = _REFUND_SUPPORT if support is None else tuple(support)
     try:
         output = Path(output_directory)
         if output.exists() and (not output.is_dir() or any(output.iterdir())):
@@ -248,6 +264,8 @@ def compile_refund_program(
     except (OSError, TypeError) as error:
         raise RefundPipelineError(f"compiler output directory is invalid: {error}") from error
     command = ["node", str(_PROGRAM_DIRECTORY / "compile-program.mjs"), str(resolved_output)]
+    if source_file is not None:
+        command.append(source_file)
     completed = _run_bounded_process(
         command,
         cwd=_REPOSITORY_ROOT,
@@ -286,7 +304,7 @@ def compile_refund_program(
         bundle = loads_strict_json(bundle_bytes)
     except (TypeError, ValueError) as error:
         raise RefundPipelineError(f"compiler IR bundle is invalid: {error}") from error
-    source_ir = _refund_source_record(bundle)
+    source_ir = _source_record(bundle, expected_support)
     function_id = source_ir.get("id")
     semantic_sha256 = source_ir.get("semanticSha256")
     if (
@@ -301,7 +319,9 @@ def compile_refund_program(
         or semantic_sha256 != summary["semanticSha256"]
     ):
         raise RefundPipelineError("compiler semantic identity is inconsistent")
-    if function_id != _REFUND_FUNCTION_ID or semantic_sha256 != _REFUND_FUNCTION_SEMANTIC_SHA256:
+    if source_file is None and (
+        function_id != _REFUND_FUNCTION_ID or semantic_sha256 != _REFUND_FUNCTION_SEMANTIC_SHA256
+    ):
         raise RefundPipelineError("compiler output is not the canonical refund function")
     return CompiledRefundProgram(
         output_directory=resolved_output,
@@ -750,12 +770,24 @@ def run_refund_runtime(
     /,
     *,
     timeout_seconds: int = 60,
+    support: Sequence[str] | None = None,
 ) -> dict[str, Any]:
-    """Execute the exported diagnostic function in the deployed Node runtime."""
+    """Execute the exported diagnostic function in the deployed Node runtime.
+
+    ``support`` names the function's output support in artifact order when it
+    is not the canonical refund decision (the companion risk function).
+    """
 
     timeout = _bounded_timeout(timeout_seconds)
     if not isinstance(function_id, str) or _FUNCTION_ID.fullmatch(function_id) is None:
         raise RefundPipelineError("runtime function ID is invalid")
+    expected_support = _REFUND_SUPPORT if support is None else tuple(support)
+    if (
+        len(expected_support) < 2
+        or any(not isinstance(v, str) or not v or "," in v for v in expected_support)
+        or len(set(expected_support)) != len(expected_support)
+    ):
+        raise RefundPipelineError("runtime support must be distinct nonempty strings")
     try:
         encoded = json.dumps(
             inputs,
@@ -774,6 +806,7 @@ def run_refund_runtime(
             str(_PROGRAM_DIRECTORY / "run-runtime.mjs"),
             str(artifact_root),
             function_id,
+            ",".join(expected_support),
         ],
         cwd=_REPOSITORY_ROOT,
         stdin=encoded,
@@ -790,11 +823,15 @@ def run_refund_runtime(
         value = loads_strict_json(completed.stdout)
     except (TypeError, ValueError) as error:
         raise RefundPipelineError("runtime returned invalid JSON") from error
-    _validate_runtime_diagnostic(value)
+    _validate_runtime_diagnostic(value, expected_support)
     return value
 
 
 def _refund_source_record(bundle: Any) -> dict[str, Any]:
+    return _source_record(bundle, _REFUND_SUPPORT)
+
+
+def _source_record(bundle: Any, support: Sequence[str]) -> dict[str, Any]:
     if not isinstance(bundle, dict) or bundle.get("kind") != "semantscript.ir-bundle":
         raise RefundPipelineError("compiler output is not a SemantScript IR bundle")
     functions = bundle.get("functions")
@@ -808,9 +845,9 @@ def _refund_source_record(bundle: Any) -> dict[str, Any]:
         raise RefundPipelineError("refund source must compile in diagnostic result mode")
     output = record.get("output")
     head = output.get("head") if isinstance(output, dict) else None
-    support = head.get("support") if isinstance(head, dict) else None
-    if not isinstance(support, list) or tuple(support) != _REFUND_SUPPORT:
-        raise RefundPipelineError("refund source output support is not canonical")
+    record_support = head.get("support") if isinstance(head, dict) else None
+    if not isinstance(record_support, list) or tuple(record_support) != tuple(support):
+        raise RefundPipelineError("program output support does not match the expected support")
     definition = record.get("definition")
     if not isinstance(definition, dict) or definition.get("examples") != []:
         raise RefundPipelineError("benchmark held-out cases must not be compiler examples")
@@ -1218,7 +1255,7 @@ def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
             process.wait(timeout=1)
 
 
-def _validate_runtime_diagnostic(value: Any) -> None:
+def _validate_runtime_diagnostic(value: Any, support: Sequence[str] = _REFUND_SUPPORT) -> None:
     if not isinstance(value, dict) or set(value) != {
         "value",
         "confidence",
@@ -1227,7 +1264,7 @@ def _validate_runtime_diagnostic(value: Any) -> None:
         "expectedValue",
     }:
         raise RefundPipelineError("runtime returned an unexpected diagnostic shape")
-    if value["value"] not in _REFUND_SUPPORT:
+    if value["value"] not in support:
         raise RefundPipelineError("runtime value is outside the canonical support")
     for name in ("confidence", "uncertainty"):
         measurement = value[name]
@@ -1241,11 +1278,9 @@ def _validate_runtime_diagnostic(value: Any) -> None:
     if value["expectedValue"] is not None:
         raise RefundPipelineError("nominal refund output must have a null expected value")
     distribution = value.get("distribution")
-    if (
-        not isinstance(distribution, list)
-        or tuple(item.get("value") if isinstance(item, dict) else None for item in distribution)
-        != _REFUND_SUPPORT
-    ):
+    if not isinstance(distribution, list) or tuple(
+        item.get("value") if isinstance(item, dict) else None for item in distribution
+    ) != tuple(support):
         raise RefundPipelineError("runtime distribution is not in canonical support order")
     if any(set(item) != {"value", "probability"} for item in distribution):
         raise RefundPipelineError("runtime distribution entries have an unexpected shape")

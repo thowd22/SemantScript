@@ -55,6 +55,19 @@ tolerances recorded in the derived manifest. The derived pipeline manifest names
 the source manifest digest and carries the full quantization report, so
 `run-benchmark.mjs` measures the int8 artifact without changes.
 
+`refund-risk.sem.ts` is a companion function over the same customer and order
+records that answers a different question (refund risk: high, low, medium in the
+compiler's support order) with every rule as a constraint, so its corpus can be
+labeled from the compiled constraints on the real UCI pool without a language
+model. `run_application_experiment.py` uses it for the shared-encoder experiment
+(TASK-6.1): it replays the refund corpus for the decision function, labels the
+pool for the risk function, trains the risk function alone, both functions
+jointly over one encoder and adapter, and the risk head on the frozen decision
+encoder, verifies both functions of the joint application, exports one
+artifact with two heads and calls both through the Node runtime. The risk
+function's attested set is the release inputs relabeled by its constraints,
+which the report marks as rule-labeled, not judge-adjudicated.
+
 Focused offline checks are bounded and do not train a model or publish results:
 
 ```sh

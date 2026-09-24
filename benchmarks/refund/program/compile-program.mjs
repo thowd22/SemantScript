@@ -6,12 +6,22 @@ import { compileSemantScriptProgram } from "@semantscript/compiler";
 import ts from "typescript";
 
 const programDirectory = dirname(fileURLToPath(import.meta.url));
-const sourcePath = join(programDirectory, "refund-with-confidence.sem.ts");
+const defaultSourcePath = join(programDirectory, "refund-with-confidence.sem.ts");
 
-export async function compileRefundProgram(outputDirectory) {
+/**
+ * Compile one single-function sema program from this directory. The default
+ * is the canonical refund decision; the companion risk function used by the
+ * shared-encoder experiment compiles the same way under the same application
+ * encoder and adapter refs, so both can share one artifact.
+ */
+export async function compileRefundProgram(outputDirectory, sourceFile = "refund-with-confidence.sem.ts") {
   if (typeof outputDirectory !== "string" || outputDirectory.length === 0) {
     throw new TypeError("outputDirectory must be a nonempty string");
   }
+  if (typeof sourceFile !== "string" || !/^[a-z][a-z0-9-]*\.sem\.ts$/u.test(sourceFile)) {
+    throw new TypeError("sourceFile must name a .sem.ts program in the program directory");
+  }
+  const sourcePath = sourceFile === "refund-with-confidence.sem.ts" ? defaultSourcePath : join(programDirectory, sourceFile);
 
   const outDir = resolve(outputDirectory);
   await mkdir(outDir, { recursive: true });
@@ -66,10 +76,13 @@ function formatDiagnostics(diagnostics) {
 
 async function main() {
   const outputDirectory = process.argv[2];
+  const sourceFile = process.argv[3];
   if (outputDirectory === undefined) {
     throw new Error("usage: node compile-program.mjs <output-directory>");
   }
-  const compiled = await compileRefundProgram(outputDirectory);
+  const compiled = sourceFile === undefined
+    ? await compileRefundProgram(outputDirectory)
+    : await compileRefundProgram(outputDirectory, sourceFile);
   const exactBundle = await readFile(compiled.bundlePath, "utf8");
   if (exactBundle !== compiled.bundleText) {
     throw new Error("emitted bundle bytes differ from the compiler plan");

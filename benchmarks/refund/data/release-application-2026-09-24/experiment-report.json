@@ -1,0 +1,446 @@
+{
+ "artifact": {
+  "functions": [
+   "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+   "nf_3fb6038f6c6ef1ed5a2e8c674511fcfe8bf9b58d4a1f60af537eb620aaf07dbc"
+  ],
+  "manifestSha256": "9ec23d46a37c02f60be4a69f0a8b0d48fe85a22112db4ee13779d421ec3b87e2",
+  "releaseDirectory": "/home/admin2/SemantScript/benchmarks/refund/data/release-application-2026-09-24/artifact/releases/sha256-9ec23d46a37c02f60be4a69f0a8b0d48fe85a22112db4ee13779d421ec3b87e2",
+  "resources": [
+   "tokenizer",
+   "encoder",
+   "adapter",
+   "head",
+   "head"
+  ],
+  "root": "/home/admin2/SemantScript/benchmarks/refund/data/release-application-2026-09-24/artifact",
+  "trainingKeySha256": "8bd1db20e4f8b7fce044aa17916f203efb14a9d5933c246bcaba0a7925a2088a"
+ },
+ "completedAt": "2026-09-24T16:16:03Z",
+ "config": {
+  "adapterBottleneckSize": 64,
+  "batchSize": 16,
+  "canonicalInputVersion": 2,
+  "epochs": 8,
+  "evaluationRatio": 0.1,
+  "learningRate": 3e-05,
+  "seed": 1,
+  "warmupRatio": 0.05
+ },
+ "functions": {
+  "A": {
+   "attested": "judge-adjudicated release record",
+   "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+   "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f",
+   "support": [
+    "approve",
+    "deny",
+    "review"
+   ]
+  },
+  "B": {
+   "adversarial": {
+    "cases": 300,
+    "datasetSha256": "d9faf96a6aa34dd1040ae66f8abbc0da47d6b91652fe602578bbe472c3bbb979",
+    "pairs": 147
+   },
+   "attested": "release inputs relabeled by B's constraints (rule-labeled)",
+   "corpus": {
+    "ambiguous": 0,
+    "duplicateInputs": 17,
+    "excludedHeldOut": 240,
+    "labelCounts": {
+     "high": 1053,
+     "low": 3443,
+     "medium": 2844
+    },
+    "labeled": 7340,
+    "poolRows": 7597
+   },
+   "id": "nf_3fb6038f6c6ef1ed5a2e8c674511fcfe8bf9b58d4a1f60af537eb620aaf07dbc",
+   "semanticSha256": "cbf7a083e4e7b4a9a3f2e30c44c4f37b51d29b04bae38d78a87e43d352e20b23",
+   "support": [
+    "high",
+    "low",
+    "medium"
+   ],
+   "teacher": "074d06bd57270e18c74603e770c6a2d02ac798a692d5437d0117a327a9e7a1bb"
+  }
+ },
+ "kind": "semantscript.refund-shared-encoder-experiment",
+ "regimes": {
+  "a-then-b": {
+   "A": {
+    "attestedAccuracy": 1.0,
+    "attestedCases": 80,
+    "epochs": [
+     {
+      "epoch": 1,
+      "heldOutAccuracy": 0.9744952178533475,
+      "meanTrainingLoss": 0.40197107689706457
+     },
+     {
+      "epoch": 2,
+      "heldOutAccuracy": 0.9925611052072264,
+      "meanTrainingLoss": 0.06397550068594518
+     },
+     {
+      "epoch": 3,
+      "heldOutAccuracy": 0.9798087141339001,
+      "meanTrainingLoss": 0.02180353723559248
+     },
+     {
+      "epoch": 4,
+      "heldOutAccuracy": 0.9925611052072264,
+      "meanTrainingLoss": 0.010902916517872473
+     },
+     {
+      "epoch": 5,
+      "heldOutAccuracy": 0.9925611052072264,
+      "meanTrainingLoss": 0.010061382430732591
+     },
+     {
+      "epoch": 6,
+      "heldOutAccuracy": 0.9936238044633369,
+      "meanTrainingLoss": 0.0025967999035108806
+     },
+     {
+      "epoch": 7,
+      "heldOutAccuracy": 0.9946865037194474,
+      "meanTrainingLoss": 0.00010545431022110176
+     },
+     {
+      "epoch": 8,
+      "heldOutAccuracy": 0.9946865037194474,
+      "meanTrainingLoss": 2.3190302943542288e-05
+     }
+    ],
+    "heldOutAccuracy": 0.9946865037194474,
+    "heldOutRows": 941,
+    "selectedEpoch": 7,
+    "trainingRows": 8468
+   },
+   "B": {
+    "attestedAccuracy": 0.8625,
+    "attestedCases": 80,
+    "epochs": [
+     {
+      "epoch": 1,
+      "heldOutAccuracy": 0.918848167539267,
+      "meanTrainingLoss": 0.940182220318624
+     },
+     {
+      "epoch": 2,
+      "heldOutAccuracy": 0.9620418848167539,
+      "meanTrainingLoss": 0.19013193875135134
+     },
+     {
+      "epoch": 3,
+      "heldOutAccuracy": 0.9646596858638743,
+      "meanTrainingLoss": 0.12992717333489062
+     },
+     {
+      "epoch": 4,
+      "heldOutAccuracy": 0.9725130890052356,
+      "meanTrainingLoss": 0.11495848331186506
+     },
+     {
+      "epoch": 5,
+      "heldOutAccuracy": 0.975130890052356,
+      "meanTrainingLoss": 0.10684650470982152
+     },
+     {
+      "epoch": 6,
+      "heldOutAccuracy": 0.975130890052356,
+      "meanTrainingLoss": 0.10149639740005491
+     },
+     {
+      "epoch": 7,
+      "heldOutAccuracy": 0.975130890052356,
+      "meanTrainingLoss": 0.09858961488429616
+     },
+     {
+      "epoch": 8,
+      "heldOutAccuracy": 0.975130890052356,
+      "meanTrainingLoss": 0.09711384571711638
+     }
+    ],
+    "heldOutAccuracy": 0.975130890052356,
+    "heldOutRows": 764,
+    "selectedEpoch": 5,
+    "trainingRows": 6876
+   },
+   "aStateUnchangedAfterAddingB": true,
+   "seconds": 690.7
+  },
+  "b-alone": {
+   "B": {
+    "attestedAccuracy": 1.0,
+    "attestedCases": 80,
+    "epochs": [
+     {
+      "epoch": 1,
+      "heldOutAccuracy": 0.981675392670157,
+      "meanTrainingLoss": 0.28210252443995365
+     },
+     {
+      "epoch": 2,
+      "heldOutAccuracy": 0.9947643979057592,
+      "meanTrainingLoss": 0.024510264018808674
+     },
+     {
+      "epoch": 3,
+      "heldOutAccuracy": 0.9986910994764397,
+      "meanTrainingLoss": 0.007318188161631278
+     },
+     {
+      "epoch": 4,
+      "heldOutAccuracy": 0.9986910994764397,
+      "meanTrainingLoss": 0.0014799517653947855
+     },
+     {
+      "epoch": 5,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 0.0022494975130306254
+     },
+     {
+      "epoch": 6,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 2.1944435512042403e-05
+     },
+     {
+      "epoch": 7,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 1.0149271950977172e-05
+     },
+     {
+      "epoch": 8,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 8.323195480332667e-06
+     }
+    ],
+    "heldOutAccuracy": 1.0,
+    "heldOutRows": 764,
+    "selectedEpoch": 5,
+    "trainingRows": 6876
+   },
+   "seconds": 394.0
+  },
+  "joint": {
+   "A": {
+    "attestedAccuracy": 1.0,
+    "attestedCases": 80,
+    "epochs": [
+     {
+      "epoch": 1,
+      "heldOutAccuracy": 0.9872476089266737,
+      "meanTrainingLoss": 0.3312829298621211
+     },
+     {
+      "epoch": 2,
+      "heldOutAccuracy": 0.9946865037194474,
+      "meanTrainingLoss": 0.026624521721226285
+     },
+     {
+      "epoch": 3,
+      "heldOutAccuracy": 0.9925611052072264,
+      "meanTrainingLoss": 0.010244343964165653
+     },
+     {
+      "epoch": 4,
+      "heldOutAccuracy": 0.9904357066950054,
+      "meanTrainingLoss": 0.005454365679975387
+     },
+     {
+      "epoch": 5,
+      "heldOutAccuracy": 0.9946865037194474,
+      "meanTrainingLoss": 0.004434568806037391
+     },
+     {
+      "epoch": 6,
+      "heldOutAccuracy": 0.9968119022316685,
+      "meanTrainingLoss": 0.0013533407841507192
+     },
+     {
+      "epoch": 7,
+      "heldOutAccuracy": 0.9957492029755579,
+      "meanTrainingLoss": 7.46471099495422e-05
+     },
+     {
+      "epoch": 8,
+      "heldOutAccuracy": 0.9957492029755579,
+      "meanTrainingLoss": 2.0228003831632745e-05
+     }
+    ],
+    "heldOutAccuracy": 0.9968119022316685,
+    "heldOutRows": 941,
+    "selectedEpoch": 6,
+    "trainingRows": 8468,
+    "verification": {
+     "metrics": {
+      "accuracy": 0.9968119022316685,
+      "brier": 0.0034017618855500266,
+      "constraintViolations": 3,
+      "ece": 0.0019325240846257883,
+      "exampleFailures": 0,
+      "heads": [
+       {
+        "accuracy": 0.9968119022316685,
+        "calibration": {
+         "brier": 0.0034017618855500266,
+         "ece": 0.0019325240846257883,
+         "eceBins": 15,
+         "method": "temperature-scaling",
+         "sampleCount": 941,
+         "splitSha256": "1834ae91946b1db1eb116a09516c2209b68a4c917147eb940ec9e0b6b4209062",
+         "temperature": 1.750356038280946
+        },
+        "outputPath": "",
+        "pairConsistency": 0.994475138121547
+       }
+      ],
+      "pairConsistency": 0.994475138121547,
+      "typeErrors": 0
+     },
+     "status": "passed",
+     "verifiedAt": "2026-09-24T16:14:01Z"
+    }
+   },
+   "B": {
+    "attestedAccuracy": 1.0,
+    "attestedCases": 80,
+    "epochs": [
+     {
+      "epoch": 1,
+      "heldOutAccuracy": 0.9921465968586387,
+      "meanTrainingLoss": 0.3312829298621211
+     },
+     {
+      "epoch": 2,
+      "heldOutAccuracy": 0.9960732984293194,
+      "meanTrainingLoss": 0.026624521721226285
+     },
+     {
+      "epoch": 3,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 0.010244343964165653
+     },
+     {
+      "epoch": 4,
+      "heldOutAccuracy": 0.9973821989528796,
+      "meanTrainingLoss": 0.005454365679975387
+     },
+     {
+      "epoch": 5,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 0.004434568806037391
+     },
+     {
+      "epoch": 6,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 0.0013533407841507192
+     },
+     {
+      "epoch": 7,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 7.46471099495422e-05
+     },
+     {
+      "epoch": 8,
+      "heldOutAccuracy": 1.0,
+      "meanTrainingLoss": 2.0228003831632745e-05
+     }
+    ],
+    "heldOutAccuracy": 1.0,
+    "heldOutRows": 764,
+    "selectedEpoch": 6,
+    "trainingRows": 6876,
+    "verification": {
+     "metrics": {
+      "accuracy": 1.0,
+      "brier": 0.0,
+      "constraintViolations": 0,
+      "ece": 0.0,
+      "exampleFailures": 0,
+      "heads": [
+       {
+        "accuracy": 1.0,
+        "calibration": {
+         "brier": 0.0,
+         "ece": 0.0,
+         "eceBins": 15,
+         "method": "temperature-scaling",
+         "sampleCount": 764,
+         "splitSha256": "e593a42694889f744048788119e7f692632bc26addce583d185db7f654cddd48",
+         "temperature": 0.14999018291851854
+        },
+        "outputPath": "",
+        "pairConsistency": 1.0
+       }
+      ],
+      "pairConsistency": 1.0,
+      "typeErrors": 0
+     },
+     "status": "passed",
+     "verifiedAt": "2026-09-24T16:14:27Z"
+    }
+   },
+   "seconds": 858.5,
+   "selectedEpoch": 6
+  }
+ },
+ "runtimeDiagnostics": {
+  "A": {
+   "confidence": 0.9823368691687419,
+   "distribution": [
+    {
+     "probability": 0.9823368691687419,
+     "value": "approve"
+    },
+    {
+     "probability": 0.005367701151505987,
+     "value": "deny"
+    },
+    {
+     "probability": 0.012295429679752279,
+     "value": "review"
+    }
+   ],
+   "expectedValue": null,
+   "uncertainty": 0.09070249990710248,
+   "value": "approve"
+  },
+  "B": {
+   "confidence": 1.0,
+   "distribution": [
+    {
+     "probability": 6.809752127249285e-30,
+     "value": "high"
+    },
+    {
+     "probability": 1.8687649661356405e-32,
+     "value": "low"
+    },
+    {
+     "probability": 1.0,
+     "value": "medium"
+    }
+   ],
+   "expectedValue": null,
+   "uncertainty": 4.175292428232864e-28,
+   "value": "medium"
+  }
+ },
+ "sampleInputs": {
+  "customer": {
+   "priorRefunds": 2.0,
+   "tier": "enterprise"
+  },
+  "order": {
+   "ageDays": 59.75,
+   "status": "paid",
+   "total": 4999.99
+  }
+ },
+ "startedAt": "2026-09-24T15:59:39Z"
+}

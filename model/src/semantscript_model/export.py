@@ -8,6 +8,7 @@ so importing :mod:`semantscript_model` remains safe in compiler-only installs.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from math import isfinite
@@ -212,6 +213,18 @@ def _load_export_dependencies() -> tuple[Any, Any, Any, Any]:
     return torch, onnx, onnxruntime, numpy
 
 
+@dataclass(frozen=True, slots=True)
+class ExportedApplicationComponents:
+    """One encoder, one adapter and one head per function with chained parity."""
+
+    encoder: ExportedOnnxComponent
+    adapter: ExportedOnnxComponent
+    heads: Mapping[str, ExportedOnnxComponent]
+    parity_batch_size: int
+    parity_sequence_length: int
+    chain_maximum_absolute_differences: Mapping[str, float]
+
+
 def export_onnx_components(
     encoder: Any,
     head: Any,
@@ -221,6 +234,7 @@ def export_onnx_components(
     encoder_path: str | Path,
     adapter_path: str | Path,
     head_path: str | Path,
+    adapter: Any | None = None,
     relative_tolerance: float = DEFAULT_PARITY_RELATIVE_TOLERANCE,
     absolute_tolerance: float = DEFAULT_PARITY_ABSOLUTE_TOLERANCE,
     maximum_component_bytes: int = DEFAULT_MAXIMUM_COMPONENT_BYTES,
@@ -229,7 +243,56 @@ def export_onnx_components(
 
     The parity batch is intentionally restricted to one bounded sequence, which
     matches the v1 runtime.  Destination files must not already exist and must
-    resolve to three distinct paths.
+    resolve to three distinct paths.  Without an explicit ``adapter`` the
+    identity adapter is exported.
+    """
+
+    destinations = _prepare_destinations(encoder_path, adapter_path, head_path)
+    exported = export_application_components(
+        encoder,
+        adapter,
+        {"function": head},
+        input_ids,
+        attention_mask,
+        encoder_path=destinations[0],
+        adapter_path=destinations[1],
+        head_paths={"function": destinations[2]},
+        relative_tolerance=relative_tolerance,
+        absolute_tolerance=absolute_tolerance,
+        maximum_component_bytes=maximum_component_bytes,
+        _destinations_prepared=True,
+    )
+    return ExportedOnnxComponents(
+        encoder=exported.encoder,
+        adapter=exported.adapter,
+        head=exported.heads["function"],
+        parity_batch_size=exported.parity_batch_size,
+        parity_sequence_length=exported.parity_sequence_length,
+        chain_maximum_absolute_difference=exported.chain_maximum_absolute_differences["function"],
+    )
+
+
+def export_application_components(
+    encoder: Any,
+    adapter: Any | None,
+    heads: Mapping[str, Any],
+    input_ids: Any,
+    attention_mask: Any,
+    *,
+    encoder_path: str | Path,
+    adapter_path: str | Path,
+    head_paths: Mapping[str, str | Path],
+    relative_tolerance: float = DEFAULT_PARITY_RELATIVE_TOLERANCE,
+    absolute_tolerance: float = DEFAULT_PARITY_ABSOLUTE_TOLERANCE,
+    maximum_component_bytes: int = DEFAULT_MAXIMUM_COMPONENT_BYTES,
+    _destinations_prepared: bool = False,
+) -> ExportedApplicationComponents:
+    """Export one shared encoder and adapter plus one head per function.
+
+    Every head is parity-checked on its own and through the exported
+    encoder-adapter-head chain, exactly as the single-function export does.
+    ``heads`` and ``head_paths`` must name the same functions; the destinations
+    must be distinct and absent.
     """
 
     relative_tolerance = _validate_parity_tolerance(
@@ -243,24 +306,38 @@ def export_onnx_components(
         MAXIMUM_PARITY_ABSOLUTE_TOLERANCE,
     )
     maximum_component_bytes = _validate_maximum_component_bytes(maximum_component_bytes)
+    if not isinstance(heads, Mapping) or not heads:
+        raise ValueError("heads must be a nonempty mapping of function ids to head modules")
+    if not isinstance(head_paths, Mapping) or set(head_paths) != set(heads):
+        raise ValueError("head_paths must name exactly the functions in heads")
+    function_ids = tuple(heads)
 
     torch, onnx, onnxruntime, numpy = _load_export_dependencies()
-    destinations = _prepare_destinations(encoder_path, adapter_path, head_path)
+    if _destinations_prepared:
+        encoder_destination = Path(encoder_path)
+        adapter_destination = Path(adapter_path)
+        head_destinations = {name: Path(head_paths[name]) for name in function_ids}
+    else:
+        prepared = _prepare_destination_paths(
+            [encoder_path, adapter_path, *(head_paths[name] for name in function_ids)]
+        )
+        encoder_destination, adapter_destination = prepared[0], prepared[1]
+        head_destinations = dict(zip(function_ids, prepared[2:], strict=True))
     _validate_parity_inputs(torch, input_ids, attention_mask)
+    adapter_module = _IdentityAdapter.create(torch) if adapter is None else adapter
 
     encoder_inputs = (
         TensorMetadata("input_ids", "int64", ("BATCH", "SEQUENCE")),
         TensorMetadata("attention_mask", "int64", ("BATCH", "SEQUENCE")),
     )
-
+    roots = (encoder, adapter_module, *heads.values())
     training_states = tuple(
-        (module, bool(module.training)) for root in (encoder, head) for module in root.modules()
+        (module, bool(module.training)) for root in roots for module in root.modules()
     )
-    adapter = _IdentityAdapter.create(torch)
     exported_paths: list[Path] = []
     try:
-        encoder.eval()
-        head.eval()
+        for root in roots:
+            root.eval()
         # ``no_grad`` keeps intermediate tensors usable by the legacy tracer;
         # tensors created by ``inference_mode`` cannot subsequently be traced
         # through a parameterized head.
@@ -268,29 +345,39 @@ def export_onnx_components(
             sentence_embedding = encoder(input_ids, attention_mask)
             _validate_float_output(torch, sentence_embedding, "encoder", expected_batch=1)
             hidden_size = int(sentence_embedding.shape[1])
-            function_embedding = adapter(sentence_embedding)
-            logits = head(function_embedding)
+            function_embedding = adapter_module(sentence_embedding)
             _validate_float_output(
                 torch,
-                logits,
-                "head",
+                function_embedding,
+                "adapter",
                 expected_batch=1,
-                expected_width=getattr(getattr(head, "config", None), "output_size", None),
+                expected_width=hidden_size,
             )
-            logit_width = int(logits.shape[1])
+            head_logits: dict[str, Any] = {}
+            logit_widths: dict[str, int] = {}
+            for name, head in heads.items():
+                logits = head(function_embedding)
+                _validate_float_output(
+                    torch,
+                    logits,
+                    f"head {name}",
+                    expected_batch=1,
+                    expected_width=getattr(getattr(head, "config", None), "output_size", None),
+                )
+                head_logits[name] = logits
+                logit_widths[name] = int(logits.shape[1])
 
         encoder_outputs = (TensorMetadata("sentence_embedding", "float32", ("BATCH", hidden_size)),)
         adapter_inputs = (TensorMetadata("sentence_embedding", "float32", ("BATCH", hidden_size)),)
         adapter_outputs = (TensorMetadata("function_embedding", "float32", ("BATCH", hidden_size)),)
         head_inputs = (TensorMetadata("function_embedding", "float32", ("BATCH", hidden_size)),)
-        head_outputs = (TensorMetadata("logits", "float32", ("BATCH", logit_width)),)
 
-        exported_paths.append(destinations[0])
+        exported_paths.append(encoder_destination)
         _export_graph(
             torch,
             encoder,
             (input_ids, attention_mask),
-            destinations[0],
+            encoder_destination,
             input_names=("input_ids", "attention_mask"),
             output_names=("sentence_embedding",),
             dynamic_axes={
@@ -299,12 +386,12 @@ def export_onnx_components(
                 "sentence_embedding": {0: "BATCH"},
             },
         )
-        _validate_exported_component_file(destinations[0], maximum_component_bytes)
+        _validate_exported_component_file(encoder_destination, maximum_component_bytes)
         encoder_difference, ort_sentence_embedding = _validate_and_run(
             onnx,
             onnxruntime,
             numpy,
-            destinations[0],
+            encoder_destination,
             encoder_inputs,
             encoder_outputs,
             {
@@ -317,18 +404,18 @@ def export_onnx_components(
         )
         encoder_metadata = _component_metadata(
             "encoder",
-            destinations[0],
+            encoder_destination,
             encoder_inputs,
             encoder_outputs,
             encoder_difference,
         )
 
-        exported_paths.append(destinations[1])
+        exported_paths.append(adapter_destination)
         _export_graph(
             torch,
-            adapter,
+            adapter_module,
             (sentence_embedding,),
-            destinations[1],
+            adapter_destination,
             input_names=("sentence_embedding",),
             output_names=("function_embedding",),
             dynamic_axes={
@@ -336,12 +423,12 @@ def export_onnx_components(
                 "function_embedding": {0: "BATCH"},
             },
         )
-        _validate_exported_component_file(destinations[1], maximum_component_bytes)
+        _validate_exported_component_file(adapter_destination, maximum_component_bytes)
         adapter_difference, _ = _validate_and_run(
             onnx,
             onnxruntime,
             numpy,
-            destinations[1],
+            adapter_destination,
             adapter_inputs,
             adapter_outputs,
             {"sentence_embedding": sentence_embedding.detach().cpu().numpy()},
@@ -351,62 +438,67 @@ def export_onnx_components(
         )
         adapter_metadata = _component_metadata(
             "adapter",
-            destinations[1],
+            adapter_destination,
             adapter_inputs,
             adapter_outputs,
             adapter_difference,
         )
-
-        exported_paths.append(destinations[2])
-        _export_graph(
-            torch,
-            head,
-            (function_embedding,),
-            destinations[2],
-            input_names=("function_embedding",),
-            output_names=("logits",),
-            dynamic_axes={"function_embedding": {0: "BATCH"}, "logits": {0: "BATCH"}},
-        )
-        _validate_exported_component_file(destinations[2], maximum_component_bytes)
-        head_difference, _ = _validate_and_run(
-            onnx,
-            onnxruntime,
-            numpy,
-            destinations[2],
-            head_inputs,
-            head_outputs,
-            {"function_embedding": function_embedding.detach().cpu().numpy()},
-            logits.detach().cpu().numpy(),
-            relative_tolerance,
-            absolute_tolerance,
-        )
-        head_metadata = _component_metadata(
-            "head",
-            destinations[2],
-            head_inputs,
-            head_outputs,
-            head_difference,
-        )
-
         # Exercise the actual adjacent edge, rather than only independent graph inputs.
         chained_adapter = _run_onnx(
             onnxruntime,
-            destinations[1],
+            adapter_destination,
             {"sentence_embedding": ort_sentence_embedding},
         )
-        chain_logits = _run_onnx(
-            onnxruntime,
-            destinations[2],
-            {"function_embedding": chained_adapter},
-        )
-        chain_difference = _assert_parity(
-            numpy,
-            "encoder-adapter-head chain",
-            logits.detach().cpu().numpy(),
-            chain_logits,
-            relative_tolerance,
-            absolute_tolerance,
-        )
+
+        head_metadata: dict[str, ExportedOnnxComponent] = {}
+        chain_differences: dict[str, float] = {}
+        for name, head in heads.items():
+            destination = head_destinations[name]
+            head_outputs = (TensorMetadata("logits", "float32", ("BATCH", logit_widths[name])),)
+            exported_paths.append(destination)
+            _export_graph(
+                torch,
+                head,
+                (function_embedding,),
+                destination,
+                input_names=("function_embedding",),
+                output_names=("logits",),
+                dynamic_axes={"function_embedding": {0: "BATCH"}, "logits": {0: "BATCH"}},
+            )
+            _validate_exported_component_file(destination, maximum_component_bytes)
+            expected_logits = head_logits[name].detach().cpu().numpy()
+            head_difference, _ = _validate_and_run(
+                onnx,
+                onnxruntime,
+                numpy,
+                destination,
+                head_inputs,
+                head_outputs,
+                {"function_embedding": function_embedding.detach().cpu().numpy()},
+                expected_logits,
+                relative_tolerance,
+                absolute_tolerance,
+            )
+            head_metadata[name] = _component_metadata(
+                "head",
+                destination,
+                head_inputs,
+                head_outputs,
+                head_difference,
+            )
+            chain_logits = _run_onnx(
+                onnxruntime,
+                destination,
+                {"function_embedding": chained_adapter},
+            )
+            chain_differences[name] = _assert_parity(
+                numpy,
+                f"encoder-adapter-head chain for {name}",
+                expected_logits,
+                chain_logits,
+                relative_tolerance,
+                absolute_tolerance,
+            )
     except BaseException:
         for path in exported_paths:
             path.unlink(missing_ok=True)
@@ -415,13 +507,13 @@ def export_onnx_components(
         for module, training in training_states:
             module.training = training
 
-    return ExportedOnnxComponents(
+    return ExportedApplicationComponents(
         encoder=encoder_metadata,
         adapter=adapter_metadata,
-        head=head_metadata,
-        parity_batch_size=1,
+        heads=head_metadata,
+        parity_batch_size=int(input_ids.shape[0]),
         parity_sequence_length=int(input_ids.shape[1]),
-        chain_maximum_absolute_difference=chain_difference,
+        chain_maximum_absolute_differences=chain_differences,
     )
 
 
@@ -447,15 +539,13 @@ def _prepare_destinations(
     adapter_path: str | Path,
     head_path: str | Path,
 ) -> tuple[Path, Path, Path]:
-    paths = tuple(
-        Path(os.path.abspath(Path(value).expanduser()))
-        for value in (
-            encoder_path,
-            adapter_path,
-            head_path,
-        )
-    )
-    if len(set(paths)) != 3:
+    prepared = _prepare_destination_paths([encoder_path, adapter_path, head_path])
+    return prepared[0], prepared[1], prepared[2]
+
+
+def _prepare_destination_paths(values: Sequence[str | Path]) -> tuple[Path, ...]:
+    paths = tuple(Path(os.path.abspath(Path(value).expanduser())) for value in values)
+    if len(set(paths)) != len(paths):
         raise ValueError("encoder, adapter, and head ONNX destinations must be distinct")
     destination_identities: set[tuple[int, int, str]] = set()
     for path in paths:
@@ -710,8 +800,10 @@ __all__ = [
     "MAXIMUM_PARITY_RELATIVE_TOLERANCE",
     "MAXIMUM_PARITY_SEQUENCE_LENGTH",
     "ONNX_OPSET",
+    "ExportedApplicationComponents",
     "ExportedOnnxComponent",
     "ExportedOnnxComponents",
     "TensorMetadata",
+    "export_application_components",
     "export_onnx_components",
 ]

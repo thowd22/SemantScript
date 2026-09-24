@@ -431,3 +431,120 @@ def test_quantizer_removes_destination_when_nothing_is_quantizable(tmp_path) -> 
     with pytest.raises(ValueError, match="no MatMulInteger"):
         quantize_onnx_encoder(tmp_path / "encoder.onnx", tmp_path / "encoder-int8.onnx")
     assert not (tmp_path / "encoder-int8.onnx").exists()
+
+
+@pytest.mark.skipif(
+    not EXPORT_DEPENDENCIES_AVAILABLE,
+    reason="optional ONNX export dependencies are not installed",
+)
+def test_exports_shared_encoder_adapter_and_one_head_per_function(tmp_path) -> None:
+    import numpy
+    import onnxruntime
+    import torch
+
+    from semantscript_model.application import (
+        AdapterConfig,
+        ApplicationAdapter,
+        SharedEncoderApplication,
+    )
+    from semantscript_model.encoder import SentenceEncoder
+    from semantscript_model.export import export_application_components
+
+    class TokenEncoder(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.config = SimpleNamespace(hidden_size=8)
+            self.embedding = torch.nn.Embedding(16, 8)
+
+        def forward(self, *, input_ids, attention_mask, return_dict):
+            del attention_mask
+            assert return_dict is True
+            return SimpleNamespace(last_hidden_state=self.embedding(input_ids))
+
+    torch.manual_seed(11)
+    encoder = SentenceEncoder(encoder=TokenEncoder())
+    adapter = ApplicationAdapter(AdapterConfig(hidden_size=8, bottleneck_size=4))
+    with torch.no_grad():
+        adapter.up.weight.normal_()
+    application = SharedEncoderApplication(
+        encoder,
+        adapter,
+        {
+            "nf_a": ClassificationHead(
+                HeadConfig(input_size=8, kind="categorical-softmax", cardinality=3)
+            ),
+            "nf_b": ClassificationHead(
+                HeadConfig(input_size=8, kind="binary-sigmoid", cardinality=2)
+            ),
+        },
+    )
+    input_ids = torch.tensor([[1, 2, 3]], dtype=torch.int64)
+    attention_mask = torch.tensor([[1, 1, 1]], dtype=torch.int64)
+
+    exported = export_application_components(
+        application.encoder,
+        application.adapter,
+        dict(application.heads.items()),
+        input_ids,
+        attention_mask,
+        encoder_path=tmp_path / "encoder.onnx",
+        adapter_path=tmp_path / "adapter.onnx",
+        head_paths={"nf_a": tmp_path / "a.onnx", "nf_b": tmp_path / "b.onnx"},
+    )
+
+    assert set(exported.heads) == {"nf_a", "nf_b"}
+    assert exported.heads["nf_a"].outputs[0].shape == ("BATCH", 3)
+    assert exported.heads["nf_b"].outputs[0].shape == ("BATCH", 1)
+    assert exported.adapter.inputs[0].shape == ("BATCH", 8)
+    assert set(exported.chain_maximum_absolute_differences) == {"nf_a", "nf_b"}
+    # The exported adapter is the real bottleneck, not the identity.
+    session = onnxruntime.InferenceSession(
+        str(tmp_path / "adapter.onnx"), providers=["CPUExecutionProvider"]
+    )
+    probe = numpy.ones((1, 8), dtype=numpy.float32)
+    assert not numpy.allclose(session.run(None, {"sentence_embedding": probe})[0], probe)
+    # Each function view agrees with its exported chain.
+    for function_id, head_path in (("nf_a", "a.onnx"), ("nf_b", "b.onnx")):
+        view = application.function_model(function_id).eval()
+        with torch.no_grad():
+            expected = view(input_ids, attention_mask).numpy()
+        encoder_session = onnxruntime.InferenceSession(
+            str(tmp_path / "encoder.onnx"), providers=["CPUExecutionProvider"]
+        )
+        head_session = onnxruntime.InferenceSession(
+            str(tmp_path / head_path), providers=["CPUExecutionProvider"]
+        )
+        embedding = encoder_session.run(
+            None, {"input_ids": input_ids.numpy(), "attention_mask": attention_mask.numpy()}
+        )[0]
+        adapted = session.run(None, {"sentence_embedding": embedding})[0]
+        numpy.testing.assert_allclose(
+            head_session.run(None, {"function_embedding": adapted})[0],
+            expected,
+            rtol=1e-4,
+            atol=1e-5,
+        )
+
+    with pytest.raises(ValueError, match="head_paths must name exactly"):
+        export_application_components(
+            application.encoder,
+            application.adapter,
+            dict(application.heads.items()),
+            input_ids,
+            attention_mask,
+            encoder_path=tmp_path / "e2.onnx",
+            adapter_path=tmp_path / "ad2.onnx",
+            head_paths={"nf_a": tmp_path / "a2.onnx"},
+        )
+    with pytest.raises(ValueError, match="destinations must be distinct"):
+        export_application_components(
+            application.encoder,
+            application.adapter,
+            dict(application.heads.items()),
+            input_ids,
+            attention_mask,
+            encoder_path=tmp_path / "e3.onnx",
+            adapter_path=tmp_path / "ad3.onnx",
+            head_paths={"nf_a": tmp_path / "same.onnx", "nf_b": tmp_path / "same.onnx"},
+        )
+    assert not (tmp_path / "e3.onnx").exists()

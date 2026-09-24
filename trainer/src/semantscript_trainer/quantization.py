@@ -422,7 +422,10 @@ def _source_resources(
 ) -> dict[str, tuple[dict[str, Any], Path]]:
     resources = manifest.get("resources")
     if not isinstance(resources, list) or len(resources) != 4:
-        raise ArtifactConfigurationError("source manifest must contain exactly four resources")
+        raise ArtifactConfigurationError(
+            "quantized derivation supports single-function artifacts only "
+            "(one tokenizer, encoder, adapter and head resource)"
+        )
     by_role: dict[str, tuple[dict[str, Any], Path]] = {}
     for resource in resources:
         if not isinstance(resource, dict):

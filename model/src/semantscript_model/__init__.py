@@ -1,5 +1,13 @@
 """Encoder, adapter, typed-head, and artifact-export components."""
 
+from semantscript_model.application import (
+    DEFAULT_ADAPTER_BOTTLENECK_SIZE,
+    MAXIMUM_APPLICATION_FUNCTIONS,
+    AdapterConfig,
+    ApplicationAdapter,
+    FunctionModel,
+    SharedEncoderApplication,
+)
 from semantscript_model.calibration import (
     DEFAULT_ECE_BIN_COUNT,
     DEFAULT_MAXIMUM_TEMPERATURE,
@@ -31,10 +39,12 @@ from semantscript_model.export import (
     MAXIMUM_PARITY_RELATIVE_TOLERANCE,
     MAXIMUM_PARITY_SEQUENCE_LENGTH,
     ONNX_OPSET,
+    ExportedApplicationComponents,
     ExportedOnnxComponent,
     ExportedOnnxComponents,
     QuantizedOnnxComponent,
     TensorMetadata,
+    export_application_components,
     export_onnx_components,
     quantize_onnx_encoder,
 )
@@ -56,6 +66,7 @@ from semantscript_model.losses import (
 PACKAGE_NAME = "semantscript_model"
 
 __all__ = [
+    "DEFAULT_ADAPTER_BOTTLENECK_SIZE",
     "DEFAULT_ECE_BIN_COUNT",
     "DEFAULT_ENCODER",
     "DEFAULT_ENCODER_REVISION",
@@ -65,6 +76,7 @@ __all__ = [
     "DEFAULT_PARITY_ABSOLUTE_TOLERANCE",
     "DEFAULT_PARITY_RELATIVE_TOLERANCE",
     "DEFAULT_TEMPERATURE_ITERATIONS",
+    "MAXIMUM_APPLICATION_FUNCTIONS",
     "MAXIMUM_ECE_BIN_COUNT",
     "MAXIMUM_PARITY_ABSOLUTE_TOLERANCE",
     "MAXIMUM_PARITY_RELATIVE_TOLERANCE",
@@ -76,12 +88,16 @@ __all__ = [
     "PACKAGE_NAME",
     "RPS_WEIGHT",
     "SPHERICAL_WEIGHT",
+    "AdapterConfig",
+    "ApplicationAdapter",
     "CalibrationMetrics",
     "CalibrationResult",
     "ClassificationHead",
     "EncoderConfig",
+    "ExportedApplicationComponents",
     "ExportedOnnxComponent",
     "ExportedOnnxComponents",
+    "FunctionModel",
     "HeadArchitecture",
     "HeadConfig",
     "HeadKind",
@@ -90,10 +106,12 @@ __all__ = [
     "Reduction",
     "SemanticClassifier",
     "SentenceEncoder",
+    "SharedEncoderApplication",
     "TensorMetadata",
     "calibrate",
     "calibration_metrics",
     "classification_loss",
+    "export_application_components",
     "export_onnx_components",
     "fit_temperature",
     "proper_scoring_loss",

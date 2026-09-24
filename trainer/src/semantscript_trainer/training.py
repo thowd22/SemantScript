@@ -497,15 +497,27 @@ def _validate_no_canonical_leakage(
 def _build_model(head: TrainingHeadContract, config: TrainingConfig, encoder: Any | None) -> Any:
     try:
         from semantscript_model.classifier import SemanticClassifier
-        from semantscript_model.encoder import EncoderConfig, SentenceEncoder
-        from semantscript_model.heads import ClassificationHead, HeadConfig
     except (ImportError, OSError) as error:
         raise TrainingExecutionError(
             "fine-tuning requires the optional training dependencies; install the training extra"
         ) from error
-
+    sentence_encoder = _build_sentence_encoder(config, encoder)
+    model_head = _build_head(head, sentence_encoder.hidden_size, config)
     try:
-        sentence_encoder = SentenceEncoder(
+        return SemanticClassifier(sentence_encoder, model_head)
+    except (ImportError, RuntimeError, TypeError, ValueError) as error:
+        raise TrainingExecutionError(f"could not construct classifier: {error}") from error
+
+
+def _build_sentence_encoder(config: TrainingConfig, encoder: Any | None) -> Any:
+    try:
+        from semantscript_model.encoder import EncoderConfig, SentenceEncoder
+    except (ImportError, OSError) as error:
+        raise TrainingExecutionError(
+            "fine-tuning requires the optional training dependencies; install the training extra"
+        ) from error
+    try:
+        return SentenceEncoder(
             EncoderConfig(
                 model_name=config.encoder_name,
                 revision=config.encoder_revision,
@@ -516,14 +528,22 @@ def _build_model(head: TrainingHeadContract, config: TrainingConfig, encoder: An
         )
     except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
         raise TrainingExecutionError(f"could not construct sentence encoder: {error}") from error
-    input_size = sentence_encoder.hidden_size
+
+
+def _build_head(head: TrainingHeadContract, input_size: int, config: TrainingConfig) -> Any:
+    try:
+        from semantscript_model.heads import ClassificationHead, HeadConfig
+    except (ImportError, OSError) as error:
+        raise TrainingExecutionError(
+            "fine-tuning requires the optional training dependencies; install the training extra"
+        ) from error
     head_parameter_count = _head_parameter_count(input_size, head, config)
     if head_parameter_count > _MAXIMUM_HEAD_PARAMETER_COUNT:
         raise TrainingConfigurationError(
             f"classification head exceeds maximum parameter count {_MAXIMUM_HEAD_PARAMETER_COUNT}"
         )
     try:
-        model_head = ClassificationHead(
+        return ClassificationHead(
             HeadConfig(
                 input_size=input_size,
                 kind=head.parameterization,
@@ -532,9 +552,8 @@ def _build_model(head: TrainingHeadContract, config: TrainingConfig, encoder: An
                 mlp_hidden_size=config.mlp_hidden_size,
             )
         )
-        return SemanticClassifier(sentence_encoder, model_head)
     except (ImportError, RuntimeError, TypeError, ValueError) as error:
-        raise TrainingExecutionError(f"could not construct classifier: {error}") from error
+        raise TrainingExecutionError(f"could not construct classification head: {error}") from error
 
 
 def _head_parameter_count(

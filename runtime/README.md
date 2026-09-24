@@ -74,3 +74,16 @@ membership uses `Object.is`, so `-0` and `0` remain distinct. Callback-thrown er
 propagate unchanged. Recursive fallback invocation is rejected with
 `SemaFallbackError` reason `cycle`, while non-recursive calls to other semantic
 functions remain valid.
+
+## Stages and execution plans
+
+`handle.callStage(entries)` (also `__sema.callStage`) runs several functions as
+one execution-plan stage. Entries whose canonical inputs are byte-identical share
+one encoder pass, and one adapter pass per adapter, before every function's heads
+run; the returned `passes` counts (`encoder`, `adapter`, `head`) make the fusion
+observable and the results are exactly what independent calls return, including
+each function's confidence policy and fallback. `executeSemaPlan(plan, provide)`
+runs the compiler's execution plan stage by stage: `provide(stage, resultsSoFar)`
+returns the inputs of every function in the stage, so a later stage's inputs can
+be built from earlier results, and the outcome maps every function id to its
+result with per-stage pass counts.

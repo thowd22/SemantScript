@@ -1,12 +1,22 @@
-import { dispatchSemaCall } from "./artifact-runtime.js";
+import { dispatchSemaCall, dispatchSemaStage } from "./artifact-runtime.js";
+import type { SemaStageEntry, SemaStageOutcome } from "./artifact-runtime.js";
 
 export {
   closeSemaArtifact,
+  executeSemaPlan,
   loadSemaArtifact,
   SemaArtifactInactiveError,
   SemaRuntimeNotLoadedError,
   type LoadSemaArtifactOptions,
   type SemaArtifactHandle,
+  type SemaExecutionPlan,
+  type SemaExecutionPlanDependency,
+  type SemaExecutionPlanStage,
+  type SemaPlanOutcome,
+  type SemaStageEntry,
+  type SemaStageInputsProvider,
+  type SemaStageOutcome,
+  type SemaStagePasses,
 } from "./artifact-runtime.js";
 export {
   ArtifactLoadError,
@@ -121,6 +131,8 @@ export interface SemaRuntimeDispatcher {
   // The compiler preserves each site's static result type across this internal ABI.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
   call<T>(functionId: string, inputs: Readonly<Record<string, unknown>>): T;
+  /** One execution-plan stage: identical inputs share one encoder pass. */
+  callStage(entries: readonly SemaStageEntry[]): SemaStageOutcome;
 }
 
 /** Compiler-internal call ABI populated by the artifact runtime in TASK-5.9. */
@@ -128,6 +140,9 @@ export const __sema: SemaRuntimeDispatcher = {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
   call<T>(functionId: string, inputs: Readonly<Record<string, unknown>>): T {
     return dispatchSemaCall<T>(functionId, inputs);
+  },
+  callStage(entries: readonly SemaStageEntry[]): SemaStageOutcome {
+    return dispatchSemaStage(entries);
   },
 };
 

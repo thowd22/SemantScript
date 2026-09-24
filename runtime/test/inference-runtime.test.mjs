@@ -893,3 +893,107 @@ test("worker initialization errors and timeouts reject create", async () => {
     (error) => error instanceof SemaInferenceTimeoutError && error.code === "timeout",
   );
 });
+
+test("a stage shares one encoder pass across functions with identical inputs", async (t) => {
+  const plan = await fixturePlan({ id: "stage-a" });
+  plan.functions.push({ ...plan.functions[0], id: "stage-b", model: undefined });
+  const runtime = await createInferenceRuntime({
+    kind: "onnx",
+    tokenizerJson: await fixtureBytes("tokenizer.json"),
+    encoderModel: await fixtureBytes("encoder.onnx"),
+    encoderAbi,
+    adapters: [
+      { ref: "fixture-adapter", model: await fixtureBytes("adapter.onnx"), abi: adapterAbi },
+    ],
+    functions: [
+      {
+        id: "stage-a",
+        adapterRef: "fixture-adapter",
+        diagnosticsRequired: true,
+        heads: [
+          {
+            outputPath: [],
+            parameterization: "categorical-softmax",
+            support: ["approve", "deny", "review"],
+            temperature: 1,
+            expectedValueMode: "none",
+            model: await fixtureBytes("head.onnx"),
+            abi: headAbi,
+          },
+        ],
+      },
+      {
+        id: "stage-b",
+        adapterRef: "fixture-adapter",
+        diagnosticsRequired: false,
+        heads: [
+          {
+            outputPath: [],
+            parameterization: "categorical-softmax",
+            support: ["approve", "deny", "review"],
+            temperature: 1,
+            expectedValueMode: "none",
+            model: await fixtureBytes("head.onnx"),
+            abi: headAbi,
+          },
+        ],
+      },
+    ],
+    maximumSequenceLength: 128,
+  });
+  t.after(async () => runtime.close());
+  const otherInput = new TextEncoder().encode('["semantscript-input",1,[["message",["string","other"]]]]');
+
+  const single = {
+    a: runtime.call("stage-a", canonicalInput),
+    b: runtime.call("stage-b", canonicalInput),
+    bOther: runtime.call("stage-b", otherInput),
+  };
+  const fused = runtime.callStage([
+    { functionId: "stage-a", canonicalInput },
+    { functionId: "stage-b", canonicalInput },
+  ]);
+  assert.deepEqual(fused.passes, { encoder: 1, adapter: 1, head: 2 });
+  assert.deepEqual(fused.results, [single.a, single.b]);
+
+  const split = runtime.callStage([
+    { functionId: "stage-a", canonicalInput },
+    { functionId: "stage-b", canonicalInput: otherInput },
+    { functionId: "stage-b", canonicalInput },
+  ]);
+  assert.deepEqual(split.passes, { encoder: 2, adapter: 2, head: 3 });
+  assert.deepEqual(split.results, [single.a, single.bOther, single.b]);
+
+  assert.throws(() => runtime.callStage([]), SemaInferenceInputError);
+  assert.throws(
+    () => runtime.callStage([{ functionId: "missing", canonicalInput }]),
+    (error) => error instanceof SemaUnknownFunctionError && error.functionId === "missing",
+  );
+  assert.equal(runtime.call("stage-a", canonicalInput).value, single.a.value, "the facade stays usable after a rejected stage");
+});
+
+test("test backend stages report distinct inputs and keep per-function results", async (t) => {
+  const runtime = await createInferenceRuntime({
+    kind: "test",
+    functions: [
+      {
+        id: "left",
+        diagnosticsRequired: false,
+        heads: [{ outputPath: [], parameterization: "categorical-softmax", support: ["x", "y"], temperature: 1, expectedValueMode: "none", logits: [0.2, 0.9] }],
+      },
+      {
+        id: "right",
+        diagnosticsRequired: false,
+        heads: [{ outputPath: [], parameterization: "categorical-softmax", support: ["p", "q"], temperature: 1, expectedValueMode: "none", logits: [1.5, 0.1] }],
+      },
+    ],
+  });
+  t.after(async () => runtime.close());
+  const outcome = runtime.callStage([
+    { functionId: "left", canonicalInput },
+    { functionId: "right", canonicalInput },
+    { functionId: "right", canonicalInput: new TextEncoder().encode("other") },
+  ]);
+  assert.deepEqual(outcome.results, ["y", "p", "p"]);
+  assert.deepEqual(outcome.passes, { encoder: 2, adapter: 2, head: 3 });
+});

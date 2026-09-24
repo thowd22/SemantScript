@@ -559,3 +559,79 @@ test("serializes calls with the compact encoding when the artifact declares it",
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("stages fuse identical inputs and execution plans feed later stages", async () => {
+  const runtime = await import("../dist/index.js");
+  const root = await mkdtemp(join(tmpdir(), "semantscript-runtime-stage-"));
+  const secondId = `nf_${"2".repeat(64)}`;
+  try {
+    await createFixtureArtifact(root, {
+      extraFunctions: [{ id: secondId, headRef: "head.fixture.second" }],
+    });
+    const handle = await runtime.loadSemaArtifact(root);
+    assert.deepEqual([...handle.functionIds].sort(), [fixtureFunctionId, secondId].sort());
+
+    const single = handle.call(fixtureFunctionId, { facts: { a: 1, b: 2 } });
+    const fused = handle.callStage([
+      { functionId: fixtureFunctionId, inputs: { facts: { a: 1, b: 2 } } },
+      { functionId: secondId, inputs: { facts: { b: 2, a: 1 } } },
+    ]);
+    assert.deepEqual(fused.passes, { encoder: 1, adapter: 1, head: 2 }, "reordered keys canonicalize to one input");
+    assert.deepEqual(fused.results, [single, single]);
+    const split = runtime.__sema.callStage([
+      { functionId: fixtureFunctionId, inputs: { facts: { a: 1, b: 2 } } },
+      { functionId: secondId, inputs: { facts: { a: 3, b: 4 } } },
+    ]);
+    assert.equal(split.passes.encoder, 2);
+    assert.deepEqual(split.results, [single, handle.call(secondId, { facts: { a: 3, b: 4 } })]);
+
+    const provided = [];
+    const plan = {
+      stages: [
+        { index: 0, functionIds: [fixtureFunctionId] },
+        { index: 1, functionIds: [secondId] },
+      ],
+      dependencies: [
+        { producerFunctionId: fixtureFunctionId, consumerFunctionId: secondId, consumerInput: "facts" },
+      ],
+    };
+    const outcome = runtime.executeSemaPlan(plan, (stage, results) => {
+      provided.push([stage.index, [...results.keys()]]);
+      if (stage.index === 0) return { [fixtureFunctionId]: { facts: { a: 1, b: 2 } } };
+      const earlier = results.get(fixtureFunctionId);
+      return { [secondId]: { facts: { a: earlier === "review" ? 5 : 6, b: 7 } } };
+    });
+    assert.deepEqual(provided, [[0, []], [1, [fixtureFunctionId]]]);
+    assert.equal(outcome.results.get(fixtureFunctionId), "review");
+    assert.equal(outcome.results.get(secondId), handle.call(secondId, { facts: { a: 5, b: 7 } }));
+    assert.deepEqual(outcome.stages.map((passes) => passes.encoder), [1, 1]);
+
+    assert.throws(
+      () => runtime.executeSemaPlan({ stages: [{ index: 0, functionIds: [fixtureFunctionId] }] }, () => ({})),
+      /cover exactly its functions/u,
+    );
+    assert.throws(
+      () =>
+        runtime.executeSemaPlan(
+          {
+            stages: [{ index: 0, functionIds: [fixtureFunctionId, secondId] }],
+            dependencies: [{ producerFunctionId: fixtureFunctionId, consumerFunctionId: secondId, consumerInput: "facts" }],
+          },
+          () => ({}),
+        ),
+      /not satisfiable in stage order/u,
+    );
+    assert.throws(() => handle.callStage([]), TypeError);
+    assert.throws(
+      () => handle.callStage([{ functionId: `nf_${"f".repeat(64)}`, inputs: { facts: { a: 1, b: 2 } } }]),
+      runtime.SemaUnknownFunctionError,
+    );
+    assert.throws(
+      () => handle.callStage([{ functionId: fixtureFunctionId, inputs: { facts: { a: 1 } } }]),
+      runtime.SemaInputError,
+    );
+    await handle.close();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

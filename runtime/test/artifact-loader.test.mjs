@@ -261,7 +261,8 @@ test("validates encoder precision and quantization metadata", async (context) =>
     ["quantization on float32", (onnx) => { onnx.quantization = quantizationBlock(); }],
     ["quantization missing a field", (onnx) => {
       onnx.precision = "int8-dynamic";
-      const { eceThreshold, ...rest } = quantizationBlock();
+      const rest = quantizationBlock();
+      delete rest.eceThreshold;
       onnx.quantization = rest;
     }],
     ["quantization with an extra field", (onnx) => {

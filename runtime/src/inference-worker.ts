@@ -16,7 +16,11 @@ import {
   type InferenceWorkerPlan,
   type InferenceWorkerRequest,
   type InferenceWorkerResponse,
+  type InferenceStagePasses,
+  type InferenceStageRequest,
   type InvokeInferenceMessage,
+  type InvokeStageInferenceMessage,
+  MAXIMUM_STAGE_REQUESTS,
   type StagedFunctionPlan,
   type StagedInferencePlan,
   type TestFunctionPlan,
@@ -29,9 +33,16 @@ const port = parentPort ?? missingParentPort();
 const textDecoder = new TextDecoder("utf-8", { fatal: true });
 const textEncoder = new TextEncoder();
 
+interface StageOutcome {
+  readonly results: readonly InferenceWorkerResult[];
+  readonly passes: InferenceStagePasses;
+}
+
 interface InferenceBackend {
   readonly functionIds: readonly string[];
   invoke(functionId: string, canonicalInput: Uint8Array): Promise<InferenceWorkerResult>;
+  /** One stage: identical canonical inputs share one encoder pass and one adapter pass per adapter. */
+  invokeStage(requests: readonly InferenceStageRequest[]): Promise<StageOutcome>;
   close(): Promise<void>;
 }
 
@@ -60,6 +71,9 @@ async function handleRequest(request: InferenceWorkerRequest): Promise<void> {
       return;
     case "invoke":
       await invoke(request);
+      return;
+    case "invoke-stage":
+      await invokeStage(request);
       return;
     case "shutdown":
       await shutdown();
@@ -151,6 +165,71 @@ async function invoke(request: InvokeInferenceMessage): Promise<void> {
   }
 }
 
+async function invokeStage(request: InvokeStageInferenceMessage): Promise<void> {
+  let control: Int32Array;
+  let response: Uint8Array;
+  try {
+    control = new Int32Array(request.controlBuffer);
+    response = new Uint8Array(request.responseBuffer);
+  } catch (error) {
+    throw new Error(`invalid inference synchronization buffers: ${errorMessage(error)}`, {
+      cause: error,
+    });
+  }
+  if (
+    control.length !== INFERENCE_CONTROL.length ||
+    Atomics.load(control, INFERENCE_CONTROL.state) !== INFERENCE_STATE.pending ||
+    Atomics.load(control, INFERENCE_CONTROL.sequence) !== request.sequence
+  ) {
+    complete(control, response, INFERENCE_STATE.error, INFERENCE_ERROR.protocol, "invalid invocation sequence");
+    return;
+  }
+  if (invocationInProgress) {
+    complete(control, response, INFERENCE_STATE.error, INFERENCE_ERROR.busy, "the inference worker is busy");
+    return;
+  }
+  const activeBackend = backend;
+  if (activeBackend === undefined) {
+    complete(control, response, INFERENCE_STATE.error, INFERENCE_ERROR.protocol, "the inference worker is not initialized");
+    return;
+  }
+  if (!Array.isArray(request.requests) || request.requests.length === 0 || request.requests.length > MAXIMUM_STAGE_REQUESTS) {
+    complete(control, response, INFERENCE_STATE.error, INFERENCE_ERROR.protocol, "a stage carries between 1 and 64 requests");
+    return;
+  }
+
+  invocationInProgress = true;
+  try {
+    const outcome = await activeBackend.invokeStage(request.requests);
+    completeBytes(control, response, INFERENCE_STATE.success, INFERENCE_ERROR.none, frameStageOutcome(outcome));
+  } catch (error) {
+    const errorCode = error instanceof WorkerInvocationError ? error.errorCode : INFERENCE_ERROR.backend;
+    complete(control, response, INFERENCE_STATE.error, errorCode, errorMessage(error));
+  } finally {
+    invocationInProgress = false;
+  }
+}
+
+/**
+ * Stage responses are framed as one JSON header line (`passes` and the byte
+ * length of every result) followed by the results' exact single-call wire
+ * payloads, so each result is decoded by the same parser a single call uses.
+ */
+function frameStageOutcome(outcome: StageOutcome): Uint8Array {
+  const payloads = outcome.results.map((value) => textEncoder.encode(stringifyInferenceResult(value)));
+  const header = textEncoder.encode(
+    `${JSON.stringify({ passes: outcome.passes, lengths: payloads.map((payload) => payload.length) })}\n`,
+  );
+  const framed = new Uint8Array(header.length + payloads.reduce((total, payload) => total + payload.length, 0));
+  framed.set(header, 0);
+  let offset = header.length;
+  for (const payload of payloads) {
+    framed.set(payload, offset);
+    offset += payload.length;
+  }
+  return framed;
+}
+
 function complete(
   control: Int32Array,
   response: Uint8Array,
@@ -158,7 +237,17 @@ function complete(
   errorCode: number,
   payload: string,
 ): void {
-  let encoded = textEncoder.encode(payload);
+  completeBytes(control, response, state, errorCode, textEncoder.encode(payload));
+}
+
+function completeBytes(
+  control: Int32Array,
+  response: Uint8Array,
+  state: number,
+  errorCode: number,
+  bytes: Uint8Array,
+): void {
+  let encoded = bytes;
   if (encoded.length > response.length) {
     state = INFERENCE_STATE.error;
     errorCode = INFERENCE_ERROR.responseTooLarge;
@@ -234,6 +323,21 @@ class TestBackend implements InferenceBackend {
       functionPlan.heads.map((head) => head.logits),
       functionPlan.diagnosticsRequired,
     );
+  }
+
+  async invokeStage(requests: readonly InferenceStageRequest[]): Promise<StageOutcome> {
+    const results: InferenceWorkerResult[] = [];
+    const distinctInputs = new Set<string>();
+    let headPasses = 0;
+    for (const request of requests) {
+      distinctInputs.add(decodeCanonicalInput(request.canonicalInput));
+      results.push(await this.invoke(request.functionId, request.canonicalInput));
+      headPasses += this.#functions.get(request.functionId)?.heads.length ?? 0;
+    }
+    return {
+      results,
+      passes: { encoder: distinctInputs.size, adapter: distinctInputs.size, head: headPasses },
+    };
   }
 
   async close(): Promise<void> {}
@@ -330,15 +434,107 @@ class OnnxBackend implements InferenceBackend {
   }
 
   async invoke(functionId: string, canonicalInput: Uint8Array): Promise<InferenceWorkerResult> {
-    const functionPlan = this.#functions.get(functionId);
-    if (functionPlan === undefined) {
-      throw new WorkerInvocationError(
-        INFERENCE_ERROR.unknownFunction,
-        `unknown semantic function ${JSON.stringify(functionId)}`,
-      );
+    const outcome = await this.invokeStage([{ functionId, canonicalInput }]);
+    const [result] = outcome.results;
+    if (result === undefined) {
+      throw new WorkerInvocationError(INFERENCE_ERROR.backend, "stage of one produced no result");
     }
+    return result;
+  }
 
-    const canonicalText = decodeCanonicalInput(canonicalInput);
+  async invokeStage(requests: readonly InferenceStageRequest[]): Promise<StageOutcome> {
+    const plans = requests.map((request) => {
+      const functionPlan = this.#functions.get(request.functionId);
+      if (functionPlan === undefined) {
+        throw new WorkerInvocationError(
+          INFERENCE_ERROR.unknownFunction,
+          `unknown semantic function ${JSON.stringify(request.functionId)}`,
+        );
+      }
+      return functionPlan;
+    });
+    const texts = requests.map((request) => decodeCanonicalInput(request.canonicalInput));
+
+    const sentenceEmbeddings = new Map<string, OrtTensor>();
+    const functionEmbeddings = new Map<string, OrtTensor>();
+    const passes = { encoder: 0, adapter: 0, head: 0 };
+    const results: InferenceWorkerResult[] = [];
+    try {
+      // One encoder pass per distinct canonical input.
+      for (const text of texts) {
+        if (sentenceEmbeddings.has(text)) continue;
+        sentenceEmbeddings.set(text, await this.#encode(text));
+        passes.encoder += 1;
+      }
+      // One adapter pass per distinct (input, adapter).
+      for (const [index, functionPlan] of plans.entries()) {
+        const text = texts[index] ?? "";
+        const key = `${functionPlan.adapterRef}\u0000${text}`;
+        if (functionEmbeddings.has(key)) continue;
+        const adapter = this.#adapters.get(functionPlan.adapterRef);
+        if (adapter === undefined) {
+          throw new WorkerInvocationError(
+            INFERENCE_ERROR.backend,
+            `adapter ${JSON.stringify(functionPlan.adapterRef)} is not loaded`,
+          );
+        }
+        const sentenceEmbedding = sentenceEmbeddings.get(text);
+        if (sentenceEmbedding === undefined) {
+          throw new WorkerInvocationError(INFERENCE_ERROR.backend, "stage lost a sentence embedding");
+        }
+        let adapterOutput;
+        try {
+          adapterOutput = await adapter.run({ sentence_embedding: sentenceEmbedding });
+        } catch (error) {
+          throw new WorkerInvocationError(INFERENCE_ERROR.backend, `ONNX inference failed: ${errorMessage(error)}`);
+        }
+        functionEmbeddings.set(
+          key,
+          requireFloatTensor(adapterOutput["function_embedding"], "adapter output function_embedding"),
+        );
+        passes.adapter += 1;
+      }
+      // Every head of every function.
+      for (const [index, functionPlan] of plans.entries()) {
+        const text = texts[index] ?? "";
+        const functionEmbedding = functionEmbeddings.get(`${functionPlan.adapterRef}\u0000${text}`);
+        if (functionEmbedding === undefined) {
+          throw new WorkerInvocationError(INFERENCE_ERROR.backend, "stage lost a function embedding");
+        }
+        const evaluations: HeadEvaluation[] = [];
+        for (const head of functionPlan.heads) {
+          let headOutput;
+          try {
+            headOutput = await head.session.run({ function_embedding: functionEmbedding });
+          } catch (error) {
+            throw new WorkerInvocationError(INFERENCE_ERROR.backend, `ONNX inference failed: ${errorMessage(error)}`);
+          }
+          const logitsTensor = requireFloatTensor(headOutput["logits"], "head output logits");
+          try {
+            evaluations.push(
+              evaluateHead(head.plan, Array.from(logitsTensor.data, Number), functionPlan.diagnosticsRequired),
+            );
+          } finally {
+            logitsTensor.dispose();
+          }
+          passes.head += 1;
+        }
+        results.push(
+          mapHeadEvaluations(
+            functionPlan.heads.map((head) => head.plan),
+            evaluations,
+            functionPlan.diagnosticsRequired,
+          ),
+        );
+      }
+      return { results, passes };
+    } finally {
+      for (const tensor of functionEmbeddings.values()) tensor.dispose();
+      for (const tensor of sentenceEmbeddings.values()) tensor.dispose();
+    }
+  }
+
+  async #encode(canonicalText: string): Promise<OrtTensor> {
     let encoding;
     try {
       encoding = await this.#tokenizer.encode(canonicalText, null, { addSpecialTokens: true });
@@ -348,74 +544,24 @@ class OnnxBackend implements InferenceBackend {
         `tokenization failed: ${errorMessage(error)}`,
       );
     }
-
     const ids = encoding.getIds();
     const attentionMask = encoding.getAttentionMask();
     validateTokens(ids, attentionMask, this.#maximumSequenceLength);
-
     const inputIds = new BigInt64Array(ids.length);
     const inputMask = new BigInt64Array(attentionMask.length);
     for (let index = 0; index < ids.length; index += 1) {
       inputIds[index] = BigInt(ids[index] ?? 0);
       inputMask[index] = BigInt(attentionMask[index] ?? 0);
     }
-
     const idsTensor = new this.#ort.Tensor("int64", inputIds, [1, ids.length]);
     const maskTensor = new this.#ort.Tensor("int64", inputMask, [1, attentionMask.length]);
-    let sentenceEmbedding: OrtTensor | undefined;
-    let functionEmbedding: OrtTensor | undefined;
     try {
-      const encoderOutput = await this.#encoder.run({
-        input_ids: idsTensor,
-        attention_mask: maskTensor,
-      });
-      sentenceEmbedding = requireFloatTensor(
-        encoderOutput["sentence_embedding"],
-        "encoder output sentence_embedding",
-      );
-
-      const adapter = this.#adapters.get(functionPlan.adapterRef);
-      if (adapter === undefined) {
-        throw new WorkerInvocationError(
-          INFERENCE_ERROR.backend,
-          `adapter ${JSON.stringify(functionPlan.adapterRef)} is not loaded`,
-        );
-      }
-      const adapterOutput = await adapter.run({ sentence_embedding: sentenceEmbedding });
-      functionEmbedding = requireFloatTensor(
-        adapterOutput["function_embedding"],
-        "adapter output function_embedding",
-      );
-
-      const evaluations: HeadEvaluation[] = [];
-      for (const head of functionPlan.heads) {
-        const headOutput = await head.session.run({ function_embedding: functionEmbedding });
-        const logitsTensor = requireFloatTensor(headOutput["logits"], "head output logits");
-        try {
-          evaluations.push(
-            evaluateHead(
-              head.plan,
-              Array.from(logitsTensor.data, Number),
-              functionPlan.diagnosticsRequired,
-            ),
-          );
-        } finally {
-          logitsTensor.dispose();
-        }
-      }
-      return mapHeadEvaluations(
-        functionPlan.heads.map((head) => head.plan),
-        evaluations,
-        functionPlan.diagnosticsRequired,
-      );
+      const encoderOutput = await this.#encoder.run({ input_ids: idsTensor, attention_mask: maskTensor });
+      return requireFloatTensor(encoderOutput["sentence_embedding"], "encoder output sentence_embedding");
     } catch (error) {
-      if (error instanceof WorkerInvocationError) {
-        throw error;
-      }
+      if (error instanceof WorkerInvocationError) throw error;
       throw new WorkerInvocationError(INFERENCE_ERROR.backend, `ONNX inference failed: ${errorMessage(error)}`);
     } finally {
-      functionEmbedding?.dispose();
-      sentenceEmbedding?.dispose();
       idsTensor.dispose();
       maskTensor.dispose();
     }

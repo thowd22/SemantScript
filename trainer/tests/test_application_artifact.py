@@ -314,6 +314,16 @@ for (const functionId of functionIds) {
   const value = runtime.__sema.call(functionId, { text: 'semantscript input true' });
   if (typeof value !== 'string') throw new Error(`unexpected value for ${functionId}`);
 }
+// Both functions as one stage: one encoder pass, one adapter pass, two heads.
+const stage = handle.callStage(functionIds.map((functionId) => ({ functionId, inputs: { text: 'semantscript input true' } })));
+if (stage.passes.encoder !== 1 || stage.passes.adapter !== 1 || stage.passes.head !== functionIds.length) {
+  throw new Error(`unexpected stage passes ${JSON.stringify(stage.passes)}`);
+}
+for (const [index, functionId] of functionIds.entries()) {
+  if (stage.results[index] !== runtime.__sema.call(functionId, { text: 'semantscript input true' })) {
+    throw new Error(`stage result differs from a single call for ${functionId}`);
+  }
+}
 await handle.close();
 """
     result = subprocess.run(

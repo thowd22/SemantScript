@@ -864,58 +864,57 @@ function writeExactJson(value: ExactJson): string {
 const BARE_TOKEN = /^[A-Za-z_][A-Za-z0-9_.-]*$/u;
 const RESERVED_TOKENS = new Set(["true", "false", "null"]);
 
+function expectList(value: ExactJson | undefined): readonly ExactJson[] {
+  // ExactJson objects are only arrays, so the typeof check narrows without `any`.
+  if (value === undefined || typeof value !== "object") {
+    throw new TypeError("canonical input typed value is malformed");
+  }
+  return value;
+}
+
+function compactPair(pair: ExactJson): string {
+  const entry = expectList(pair);
+  const [key, value] = entry;
+  if (entry.length !== 2 || typeof key !== "string" || value === undefined) {
+    throw new TypeError("canonical input pair is malformed");
+  }
+  return `${compactString(key)}=${compactValue(value)}`;
+}
+
 function writeCompact(envelope: ExactJson): string {
-  if (!Array.isArray(envelope) || envelope.length !== 3 || !Array.isArray(envelope[2])) {
+  const parts = expectList(envelope);
+  if (parts.length !== 3) {
     throw new TypeError("canonical input envelope is malformed");
   }
-  return envelope[2]
-    .map((pair) => {
-      if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== "string" || pair[1] === undefined) {
-        throw new TypeError("canonical input envelope pair is malformed");
-      }
-      return `${compactString(pair[0])}=${compactValue(pair[1])}`;
-    })
-    .join(" ");
+  return expectList(parts[2]).map(compactPair).join(" ");
 }
 
 function compactValue(value: ExactJson): string {
-  if (!Array.isArray(value) || typeof value[0] !== "string") {
+  const typed = expectList(value);
+  const [tag] = typed;
+  if (typeof tag !== "string") {
     throw new TypeError("canonical input typed value is malformed");
   }
-  const [tag] = value;
   switch (tag) {
     case "null":
       return "null";
     case "boolean":
-      return value[1] === true ? "true" : "false";
+      return typed[1] === true ? "true" : "false";
     case "string":
-      return compactString(expectString(value[1]));
+      return compactString(expectString(typed[1]));
     case "number":
-      return compactNumber(hexToDouble(expectString(value[1])));
+      return compactNumber(hexToDouble(expectString(typed[1])));
     case "literal":
-      return compactValue(expectJson(value[1]));
+      return compactValue(expectJson(typed[1]));
     case "enum":
-      return compactValue(expectJson(value[3]));
+      return compactValue(expectJson(typed[3]));
     case "union":
-      return compactValue(expectJson(value[2]));
+      return compactValue(expectJson(typed[2]));
     case "array":
-    case "tuple": {
-      const items = expectJson(value[1]);
-      if (!Array.isArray(items)) throw new TypeError("canonical input sequence is malformed");
-      return `[${items.map(compactValue).join(",")}]`;
-    }
-    case "object": {
-      const pairs = expectJson(value[1]);
-      if (!Array.isArray(pairs)) throw new TypeError("canonical input object is malformed");
-      return `{${pairs
-        .map((pair) => {
-          if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== "string" || pair[1] === undefined) {
-            throw new TypeError("canonical input object pair is malformed");
-          }
-          return `${compactString(pair[0])}=${compactValue(pair[1])}`;
-        })
-        .join(",")}}`;
-    }
+    case "tuple":
+      return `[${expectList(typed[1]).map(compactValue).join(",")}]`;
+    case "object":
+      return `{${expectList(typed[1]).map(compactPair).join(",")}}`;
     default:
       throw new TypeError(`canonical input typed value has unknown tag ${JSON.stringify(tag)}`);
   }

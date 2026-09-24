@@ -2,6 +2,9 @@ import { isMarkedAsUntransferable, Worker } from "node:worker_threads";
 
 import {
   INFERENCE_CONTROL,
+  type InferenceStagePasses,
+  type InferenceStageRequest,
+  MAXIMUM_STAGE_REQUESTS,
   INFERENCE_STATE,
   type InferenceDistributionEntry,
   type InferenceExpectedValueMode,
@@ -45,10 +48,18 @@ export interface InferenceRuntimeOptions {
   readonly transferModelBuffers?: boolean;
 }
 
+export interface InferenceStageResult {
+  /** One decoded result per request, in request order. */
+  readonly results: readonly unknown[];
+  readonly passes: InferenceStagePasses;
+}
+
 export interface InferenceRuntime {
   readonly functionIds: ReadonlySet<string>;
   readonly maximumInputBytes: number;
   call(functionId: string, canonicalInput: Uint8Array): unknown;
+  /** Executes several functions as one stage; identical inputs share the encoder pass. */
+  callStage(requests: readonly InferenceStageRequest[]): InferenceStageResult;
   close(): Promise<void>;
 }
 
@@ -274,6 +285,99 @@ class WorkerInferenceRuntime implements InferenceRuntime {
     }
   }
 
+  callStage(requests: readonly InferenceStageRequest[]): InferenceStageResult {
+    this.#assertUsable();
+    if (!isRequestList(requests) || requests.length === 0 || requests.length > MAXIMUM_STAGE_REQUESTS) {
+      throw new SemaInferenceInputError(
+        `a stage carries between 1 and ${String(MAXIMUM_STAGE_REQUESTS)} requests`,
+      );
+    }
+    const schemas = requests.map((request) => {
+      const responseSchema = this.#responseSchemas.get(request.functionId);
+      if (responseSchema === undefined) {
+        throw new SemaUnknownFunctionError(request.functionId);
+      }
+      validateCanonicalInput(request.canonicalInput, this.maximumInputBytes);
+      return responseSchema;
+    });
+    // Every single-call result fits the configured response buffer, so a stage
+    // of N fits N buffers plus the framing header.
+    const response = new Uint8Array(
+      new SharedArrayBuffer(this.#response.length * requests.length + 64 + 24 * requests.length),
+    );
+
+    const sequence = this.#nextSequence();
+    Atomics.store(this.#control, INFERENCE_CONTROL.payloadLength, 0);
+    Atomics.store(this.#control, INFERENCE_CONTROL.errorCode, 0);
+    Atomics.store(this.#control, INFERENCE_CONTROL.sequence, sequence);
+    Atomics.store(this.#control, INFERENCE_CONTROL.state, INFERENCE_STATE.pending);
+    try {
+      this.#worker.postMessage({
+        kind: "invoke-stage",
+        sequence,
+        requests: requests.map((request) => ({
+          functionId: request.functionId,
+          canonicalInput: request.canonicalInput,
+        })),
+        controlBuffer: this.#control.buffer,
+        responseBuffer: response.buffer,
+      });
+    } catch (error) {
+      this.#fault = `failed to send inference request: ${errorMessage(error)}`;
+      throw new SemaInferenceError("worker-failed", this.#fault, { cause: error });
+    }
+
+    const waitResult = Atomics.wait(
+      this.#control,
+      INFERENCE_CONTROL.state,
+      INFERENCE_STATE.pending,
+      this.#inferenceTimeoutMilliseconds,
+    );
+    if (waitResult === "timed-out") {
+      this.#fault =
+        `inference request ${String(sequence)} timed out after ` +
+        `${String(this.#inferenceTimeoutMilliseconds)}ms`;
+      throw new SemaInferenceTimeoutError(this.#fault);
+    }
+    const observedSequence = Atomics.load(this.#control, INFERENCE_CONTROL.sequence);
+    const state = Atomics.load(this.#control, INFERENCE_CONTROL.state);
+    const payloadLength = Atomics.load(this.#control, INFERENCE_CONTROL.payloadLength);
+    if (
+      observedSequence !== sequence ||
+      (state !== INFERENCE_STATE.success && state !== INFERENCE_STATE.error) ||
+      payloadLength < 0 ||
+      payloadLength > response.length
+    ) {
+      this.#fault = "the inference worker returned an invalid synchronization response";
+      throw new SemaInferenceError("protocol", this.#fault);
+    }
+    try {
+      const responseBytes = response.subarray(0, payloadLength);
+      if (state === INFERENCE_STATE.error) {
+        let payload: string;
+        try {
+          payload = textDecoder.decode(responseBytes);
+        } catch (error) {
+          this.#fault = "the inference worker returned an invalid UTF-8 response";
+          throw new SemaInferenceError("protocol", this.#fault, { cause: error });
+        }
+        const workerCode = workerErrorCodeName(Atomics.load(this.#control, INFERENCE_CONTROL.errorCode));
+        if (workerCode === "unknown-function") {
+          throw new SemaUnknownFunctionError(requests[0]?.functionId ?? "");
+        }
+        throw new SemaInferenceError(workerCode, payload || "the inference worker failed");
+      }
+      try {
+        return decodeStageResponse(responseBytes, schemas);
+      } catch (error) {
+        this.#fault = "the inference worker returned an invalid result payload";
+        throw new SemaInferenceError("protocol", this.#fault, { cause: error });
+      }
+    } finally {
+      Atomics.store(this.#control, INFERENCE_CONTROL.state, INFERENCE_STATE.idle);
+    }
+  }
+
   async close(): Promise<void> {
     if (this.#closed) {
       return;
@@ -453,6 +557,56 @@ function missingSchemaField(): never {
 }
 
 /** Test-facing entry point for the same plan-aware success decoder used by the runtime. */
+function isRequestList(value: readonly InferenceStageRequest[]): boolean {
+  // Plain JavaScript callers can pass anything; keep the runtime check without
+  // letting Array.isArray widen the element type to any.
+  return Array.isArray(value);
+}
+
+function decodeStageResponse(
+  bytes: Uint8Array,
+  schemas: readonly InferenceResponseSchema[],
+): InferenceStageResult {
+  const newline = bytes.indexOf(0x0a);
+  if (newline < 0) throw new Error("stage response has no header line");
+  const header = JSON.parse(textDecoder.decode(bytes.subarray(0, newline))) as unknown;
+  if (header === null || typeof header !== "object" || Array.isArray(header)) {
+    throw new Error("stage response header is not an object");
+  }
+  const { passes, lengths } = header as { passes?: unknown; lengths?: unknown };
+  if (
+    !Array.isArray(lengths) ||
+    lengths.length !== schemas.length ||
+    lengths.some((length) => !Number.isSafeInteger(length) || (length as number) < 0)
+  ) {
+    throw new Error("stage response lengths do not match the request count");
+  }
+  if (passes === null || typeof passes !== "object" || Array.isArray(passes)) {
+    throw new Error("stage response passes are missing");
+  }
+  const counts = passes as { encoder?: unknown; adapter?: unknown; head?: unknown };
+  for (const value of [counts.encoder, counts.adapter, counts.head]) {
+    if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error("stage pass counts are invalid");
+  }
+  let offset = newline + 1;
+  const results: unknown[] = [];
+  for (const [index, schema] of schemas.entries()) {
+    const length = lengths[index] as number;
+    if (offset + length > bytes.length) throw new Error("stage response is truncated");
+    results.push(parseInferenceResultBytes(bytes.subarray(offset, offset + length), schema));
+    offset += length;
+  }
+  if (offset !== bytes.length) throw new Error("stage response has trailing bytes");
+  return {
+    results,
+    passes: {
+      encoder: counts.encoder as number,
+      adapter: counts.adapter as number,
+      head: counts.head as number,
+    },
+  };
+}
+
 export function parseInferenceResultPayload(
   payload: string,
   plan: InferenceResponsePlan,

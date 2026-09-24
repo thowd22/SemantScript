@@ -402,6 +402,26 @@ export interface InvokeInferenceMessage {
   readonly responseBuffer: SharedArrayBuffer;
 }
 
+export interface InferenceStageRequest {
+  readonly functionId: string;
+  readonly canonicalInput: Uint8Array;
+}
+
+/** Model passes one stage actually performed: the fusion is observable, not assumed. */
+export interface InferenceStagePasses {
+  readonly encoder: number;
+  readonly adapter: number;
+  readonly head: number;
+}
+
+export interface InvokeStageInferenceMessage {
+  readonly kind: "invoke-stage";
+  readonly sequence: number;
+  readonly requests: readonly InferenceStageRequest[];
+  readonly controlBuffer: SharedArrayBuffer;
+  readonly responseBuffer: SharedArrayBuffer;
+}
+
 export interface ShutdownInferenceMessage {
   readonly kind: "shutdown";
 }
@@ -409,7 +429,10 @@ export interface ShutdownInferenceMessage {
 export type InferenceWorkerRequest =
   | InitializeInferenceMessage
   | InvokeInferenceMessage
+  | InvokeStageInferenceMessage
   | ShutdownInferenceMessage;
+
+export const MAXIMUM_STAGE_REQUESTS = 64;
 
 export interface InferenceReadyMessage {
   readonly kind: "ready";

@@ -64,12 +64,57 @@ export interface LoadSemaArtifactOptions {
   readonly fallbacks?: ReadonlyMap<string, SemaFallback>;
 }
 
+export interface SemaStageEntry {
+  readonly functionId: string;
+  readonly inputs: Readonly<Record<string, unknown>>;
+}
+
+export interface SemaStagePasses {
+  readonly encoder: number;
+  readonly adapter: number;
+  readonly head: number;
+}
+
+export interface SemaStageOutcome {
+  /** One result per entry, in entry order, after each function's confidence policy. */
+  readonly results: readonly unknown[];
+  readonly passes: SemaStagePasses;
+}
+
+export interface SemaExecutionPlanStage {
+  readonly index: number;
+  readonly functionIds: readonly string[];
+}
+
+export interface SemaExecutionPlanDependency {
+  readonly producerFunctionId: string;
+  readonly consumerFunctionId: string;
+  readonly consumerInput: string;
+}
+
+/** The compiler's execution plan as emitted in the IR bundle. */
+export interface SemaExecutionPlan {
+  readonly stages: readonly SemaExecutionPlanStage[];
+  readonly dependencies?: readonly SemaExecutionPlanDependency[];
+}
+
+export type SemaStageInputsProvider = (
+  stage: SemaExecutionPlanStage,
+  results: ReadonlyMap<string, unknown>,
+) => Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+
+export interface SemaPlanOutcome {
+  readonly results: ReadonlyMap<string, unknown>;
+  readonly stages: readonly SemaStagePasses[];
+}
+
 export interface SemaArtifactHandle {
   readonly manifestSha256: string;
   readonly functionIds: ReadonlySet<string>;
   // The caller supplies the compiled semantic function's static result type.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
   call<T>(functionId: string, inputs: Readonly<Record<string, unknown>>): T;
+  callStage(entries: readonly SemaStageEntry[]): SemaStageOutcome;
   close(): Promise<void>;
 }
 
@@ -169,6 +214,126 @@ function canonicalInputVersionOfManifest(encoding: string): CanonicalInputVersio
   return version;
 }
 
+/** @internal Compiler-generated code may call this through the exported __sema object. */
+export function dispatchSemaStage(entries: readonly SemaStageEntry[]): SemaStageOutcome {
+  const current = activeArtifact;
+  if (current === undefined) {
+    throw new SemaRuntimeNotLoadedError();
+  }
+  return dispatchArtifactStage(current, entries);
+}
+
+/**
+ * Runs the compiler's execution plan stage by stage. `provide` returns the
+ * inputs of every function in a stage and receives the results so far, which
+ * is how one stage's outputs feed the next.
+ */
+export function executeSemaPlan(plan: SemaExecutionPlan, provide: SemaStageInputsProvider): SemaPlanOutcome {
+  const current = activeArtifact;
+  if (current === undefined) {
+    throw new SemaRuntimeNotLoadedError();
+  }
+  return executeArtifactPlan(current, plan, provide);
+}
+
+function executeArtifactPlan(
+  artifact: ActiveArtifact,
+  plan: SemaExecutionPlan,
+  provide: SemaStageInputsProvider,
+): SemaPlanOutcome {
+  validateExecutionPlan(plan);
+  const results = new Map<string, unknown>();
+  const stagePasses: SemaStagePasses[] = [];
+  for (const stage of plan.stages) {
+    const inputsByFunction: Readonly<Record<string, Readonly<Record<string, unknown>>>> =
+      provide(stage, results);
+    const provided = Object.keys(inputsByFunction);
+    if (provided.length !== stage.functionIds.length || stage.functionIds.some((id) => !(id in inputsByFunction))) {
+      throw new TypeError(`stage ${String(stage.index)} inputs must cover exactly its functions`);
+    }
+    const outcome = dispatchArtifactStage(
+      artifact,
+      stage.functionIds.map((functionId) => ({ functionId, inputs: inputsByFunction[functionId] ?? {} })),
+    );
+    for (const [position, functionId] of stage.functionIds.entries()) {
+      results.set(functionId, outcome.results[position]);
+    }
+    stagePasses.push(outcome.passes);
+  }
+  return { results, stages: stagePasses };
+}
+
+function isList(value: readonly unknown[]): boolean {
+  // Callers from plain JavaScript can pass anything; the parameter type keeps
+  // element types intact for TypeScript while the runtime check stays.
+  return Array.isArray(value);
+}
+
+function validateExecutionPlan(plan: SemaExecutionPlan): void {
+  if (!isList(plan.stages) || plan.stages.length === 0) {
+    throw new TypeError("execution plan must list at least one stage");
+  }
+  const seen = new Set<string>();
+  const stageOf = new Map<string, number>();
+  for (const [position, stage] of plan.stages.entries()) {
+    if (stage.index !== position) {
+      throw new TypeError("execution plan stages must be indexed consecutively from zero");
+    }
+    if (!isList(stage.functionIds) || stage.functionIds.length === 0) {
+      throw new TypeError(`execution plan stage ${String(position)} must name at least one function`);
+    }
+    for (const functionId of stage.functionIds) {
+      if (typeof functionId !== "string" || seen.has(functionId)) {
+        throw new TypeError(`execution plan function ${JSON.stringify(functionId)} is not unique`);
+      }
+      seen.add(functionId);
+      stageOf.set(functionId, position);
+    }
+  }
+  for (const dependency of plan.dependencies ?? []) {
+    const producer = stageOf.get(dependency.producerFunctionId);
+    const consumer = stageOf.get(dependency.consumerFunctionId);
+    if (producer === undefined || consumer === undefined || producer >= consumer) {
+      throw new TypeError(
+        `execution plan dependency ${dependency.producerFunctionId} -> ${dependency.consumerFunctionId} is not satisfiable in stage order`,
+      );
+    }
+  }
+}
+
+function dispatchArtifactStage(artifact: ActiveArtifact, entries: readonly SemaStageEntry[]): SemaStageOutcome {
+  if (!isList(entries) || entries.length === 0) {
+    throw new TypeError("a stage must carry at least one entry");
+  }
+  const resolved = entries.map((entry) => {
+    const activeFunction = artifact.functions.get(entry.functionId);
+    if (activeFunction === undefined) {
+      throw new SemaUnknownFunctionError(entry.functionId);
+    }
+    return {
+      activeFunction,
+      inputs: entry.inputs,
+      canonicalInput: serializeCanonicalInputs(
+        activeFunction.artifact.inputs satisfies readonly CanonicalInputEntry[],
+        entry.inputs,
+        { maximumBytes: artifact.runtime.maximumInputBytes, version: artifact.canonicalInputVersion },
+      ),
+    };
+  });
+  const stage = artifact.runtime.callStage(
+    resolved.map((entry, index) => ({
+      functionId: entries[index]?.functionId ?? "",
+      canonicalInput: entry.canonicalInput,
+    })),
+  );
+  return {
+    results: resolved.map((entry, index) =>
+      applyConfidencePolicy(artifact, entry.activeFunction, entry.inputs, stage.results[index]),
+    ),
+    passes: stage.passes,
+  };
+}
+
 function dispatchArtifactCall(
   artifact: ActiveArtifact,
   functionId: string,
@@ -186,6 +351,17 @@ function dispatchArtifactCall(
     { maximumBytes: artifact.runtime.maximumInputBytes, version: artifact.canonicalInputVersion },
   );
   const inferenceResult = artifact.runtime.call(functionId, canonicalInput);
+  return applyConfidencePolicy(artifact, activeFunction, inputs, inferenceResult);
+}
+
+function applyConfidencePolicy(
+  artifact: ActiveArtifact,
+  activeFunction: ActiveFunction,
+  inputs: Readonly<Record<string, unknown>>,
+  inferenceResult: unknown,
+): unknown {
+  const semanticFunction = activeFunction.artifact;
+  const functionId = semanticFunction.id;
   const { confidenceThreshold, resultMode } = semanticFunction.runtime;
 
   if (resultMode === "value" && confidenceThreshold === null) {
@@ -246,6 +422,12 @@ function createHandle(artifact: ActiveArtifact): SemaArtifactHandle {
         throw new SemaArtifactInactiveError(artifact.manifestSha256);
       }
       return dispatchArtifactCall(artifact, functionId, inputs) as T;
+    },
+    callStage(entries: readonly SemaStageEntry[]): SemaStageOutcome {
+      if (closed || activeArtifact?.token !== artifact.token) {
+        throw new SemaArtifactInactiveError(artifact.manifestSha256);
+      }
+      return dispatchArtifactStage(artifact, entries);
     },
     async close(): Promise<void> {
       if (closed) {

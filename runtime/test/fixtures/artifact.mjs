@@ -210,6 +210,24 @@ export async function createFixtureArtifact(root, options = {}) {
       },
     ],
   };
+  for (const extra of options.extraFunctions ?? []) {
+    // A second function sharing the encoder and adapter with its own head copy.
+    const headPath = `models/heads/${extra.id}/head-000.onnx`;
+    resources.push(
+      await resource(staging, extra.headSource ?? "head.onnx", headPath, extra.headRef, "head", {
+        opset: 17,
+        inputs: [{ name: "function_embedding", dtype: "float32", shape: ["BATCH", 1] }],
+        outputs: [{ name: "logits", dtype: "float32", shape: ["BATCH", 3] }],
+        externalData: false,
+      }),
+    );
+    manifest.functions.push({
+      ...manifest.functions[0],
+      id: extra.id,
+      semanticSha256: extra.semanticSha256 ?? "7".repeat(64),
+      heads: [{ ...manifest.functions[0].heads[0], headRef: extra.headRef }],
+    });
+  }
   if (typeof options.transformManifest === "function") {
     await options.transformManifest(manifest);
   }

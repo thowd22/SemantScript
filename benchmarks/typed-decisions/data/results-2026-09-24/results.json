@@ -1,0 +1,600 @@
+{
+  "bundleSha256": "b2fb7cf56af72614b4f4bd671c8f0f9ed4d40e62269d41f8624bb4e6c8d1620c",
+  "completedAt": "2026-09-24T21:05:09Z",
+  "dataset": {
+    "name": "LocalLLaMA/typed-decisions",
+    "revision": "c76749ec58bd8c3d2ea706b31c333a9059c38f90"
+  },
+  "environment": {
+    "accelerator": "AMD Radeon RX 9070 XT",
+    "capturedAt": "2026-09-24T20:21:30Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "torch": "2.9.1+rocm7.2.0.git7e1940d4"
+  },
+  "kind": "semantscript.typed-decisions-result",
+  "overall": {
+    "accuracy": 0.701,
+    "correct": 1402,
+    "decisions": 2000,
+    "workflows": 4
+  },
+  "published": {
+    "MiniLM-L6 specialist (dataset card)": 0.587,
+    "ModernBERT-base specialist (dataset card)": 0.646,
+    "TypeSafe Jev 1.13.0 (general, dataset card)": 0.727,
+    "laya-typed-decisions (fine-tuned, Laya README)": 0.766,
+    "meraGPT Decider 1 (general, dataset card)": 0.768,
+    "prior (dataset card)": 0.47,
+    "teacher self-agreement ceiling (dataset card)": 0.735
+  },
+  "recipe": {
+    "batchSize": 16,
+    "encoder": "answerdotai/ModernBERT-base",
+    "epochs": 8,
+    "head": "linear",
+    "learningRate": 3e-05,
+    "loss": "proper",
+    "maxSequenceLength": 768,
+    "selectBestEpoch": true
+  },
+  "resultVersion": 1,
+  "startedAt": "2026-09-24T20:21:30Z",
+  "workflows": {
+    "agent_trace_observability": {
+      "artifact": {
+        "failedQuestions": [
+          "action",
+          "needs_review",
+          "risk",
+          "urgency"
+        ],
+        "status": "gate-refused"
+      },
+      "attestedPerQuestion": 5,
+      "cpuOnnx": {
+        "artifactBytes": {
+          "adapter": 397723,
+          "encoder": 596679464,
+          "heads": 54532
+        },
+        "count": 90,
+        "maxTokens": 132,
+        "meanMs": 53.158,
+        "meanTokens": 118.4,
+        "p50Ms": 53.093,
+        "p95Ms": 73.21,
+        "provider": "CPUExecutionProvider",
+        "questionsPerCase": 5
+      },
+      "gpu": {
+        "available": true,
+        "count": 90,
+        "framework": "pytorch-eager",
+        "meanMs": 13.301,
+        "p50Ms": 12.452,
+        "p95Ms": 20.723,
+        "questionsPerCase": 5
+      },
+      "heldOutCurve": [
+        0.4214,
+        0.6429,
+        0.7143,
+        0.75,
+        0.7,
+        0.75,
+        0.7571,
+        0.7786
+      ],
+      "score": {
+        "accuracy": 0.73,
+        "correct": 365,
+        "decisions": 500,
+        "questions": {
+          "action": {
+            "accuracy": 0.68,
+            "brier": 0.0914,
+            "functionId": "nf_4f2fe000866e115b198e945ab1016ac6cce21f6f22e8dd2be2aafc2bf9c0cb86",
+            "gate": "failed",
+            "gateAccuracy": 0.75,
+            "gateEce": 0.1474,
+            "support": [
+              "continue",
+              "human_review",
+              "observe",
+              "stop"
+            ],
+            "temperature": 1.7958,
+            "type": "choice"
+          },
+          "needs_review": {
+            "accuracy": 0.88,
+            "brier": 0.0526,
+            "functionId": "nf_30a8f2c50f86cc9da60d874ea8a8d709b63cbed20a20ebc65f46f2d83adb1b0c",
+            "gate": "failed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.1111,
+            "support": [
+              false,
+              true
+            ],
+            "temperature": 1.8128,
+            "type": "noul"
+          },
+          "outcome": {
+            "accuracy": 0.65,
+            "brier": 0.1041,
+            "functionId": "nf_10a31327d26b90e820617f17d5bf15e14937c2d4dc07d77fbcda67bcb97cab70",
+            "gate": "passed",
+            "gateAccuracy": 0.7857,
+            "gateEce": 0.0801,
+            "support": [
+              "failure",
+              "harmful",
+              "partial",
+              "success"
+            ],
+            "temperature": 1.3245,
+            "type": "choice"
+          },
+          "risk": {
+            "accuracy": 0.81,
+            "brier": 0.0901,
+            "functionId": "nf_c123aa73b70c8436b5316c55e9e9a46d76e7d90808043f89faaa0b4fea0e6769",
+            "gate": "failed",
+            "gateAccuracy": 0.8214,
+            "gateEce": 0.1787,
+            "scoreMae": 0.3089,
+            "support": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "temperature": 1.5239,
+            "type": "score",
+            "withinOneLevel": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.63,
+            "brier": 0.0514,
+            "functionId": "nf_314d5b5e2406c5516a51c3fee62b44421a6e7e4db2ef4b460cbdde5bf5a29704",
+            "gate": "failed",
+            "gateAccuracy": 0.6429,
+            "gateEce": 0.2064,
+            "scoreMae": 0.2603,
+            "support": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "temperature": 1.9108,
+            "type": "score",
+            "withinOneLevel": 1.0
+          }
+        }
+      },
+      "selectedEpoch": 8,
+      "testCases": 100,
+      "trainSeconds": 198.6,
+      "trainingCases": 280
+    },
+    "customer_service": {
+      "artifact": {
+        "failedQuestions": [
+          "action",
+          "churn_risk",
+          "needs_human",
+          "urgency"
+        ],
+        "status": "gate-refused"
+      },
+      "attestedPerQuestion": 5,
+      "cpuOnnx": {
+        "artifactBytes": {
+          "adapter": 397723,
+          "encoder": 596679464,
+          "heads": 60684
+        },
+        "count": 90,
+        "maxTokens": 516,
+        "meanMs": 145.669,
+        "meanTokens": 288.0,
+        "p50Ms": 128.795,
+        "p95Ms": 361.556,
+        "provider": "CPUExecutionProvider",
+        "questionsPerCase": 5
+      },
+      "gpu": {
+        "available": true,
+        "count": 90,
+        "framework": "pytorch-eager",
+        "meanMs": 26.378,
+        "p50Ms": 25.188,
+        "p95Ms": 45.26,
+        "questionsPerCase": 5
+      },
+      "heldOutCurve": [
+        0.4786,
+        0.5929,
+        0.5643,
+        0.6786,
+        0.7429,
+        0.7643,
+        0.7571,
+        0.7357
+      ],
+      "score": {
+        "accuracy": 0.738,
+        "correct": 369,
+        "decisions": 500,
+        "questions": {
+          "action": {
+            "accuracy": 0.65,
+            "brier": 0.084,
+            "functionId": "nf_3d0db564eddd4180a7ec5fafe84156223493741f382a80b5de24da9719a59291",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.1652,
+            "support": [
+              "answer_directly",
+              "close_no_action",
+              "escalate_to_human",
+              "execute_refund",
+              "request_information"
+            ],
+            "temperature": 2.0352,
+            "type": "choice"
+          },
+          "category": {
+            "accuracy": 0.91,
+            "brier": 0.0466,
+            "functionId": "nf_e3e1f5484ab8e849a26011e0e71b93bfd5fafc45c2c98c224c5bef2f91edb919",
+            "gate": "passed",
+            "gateAccuracy": 0.9286,
+            "gateEce": 0.0919,
+            "support": [
+              "account",
+              "billing",
+              "delivery",
+              "refund",
+              "technical"
+            ],
+            "temperature": 0.8965,
+            "type": "choice"
+          },
+          "churn_risk": {
+            "accuracy": 0.74,
+            "brier": 0.1264,
+            "functionId": "nf_2cd476e964d6a38f6577570282b103d4d2a5ff9d5fcba30103e236e4e41308c8",
+            "gate": "failed",
+            "gateAccuracy": 0.75,
+            "gateEce": 0.2268,
+            "scoreMae": 0.3114,
+            "support": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "temperature": 1.0853,
+            "type": "score",
+            "withinOneLevel": 0.98
+          },
+          "needs_human": {
+            "accuracy": 0.74,
+            "brier": 0.0795,
+            "functionId": "nf_cc448ec6edb9acea6f20ff5fdcaeff0a731ec84899feca37b5dcc2aacd1aace3",
+            "gate": "failed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.1318,
+            "support": [
+              false,
+              true
+            ],
+            "temperature": 2.243,
+            "type": "noul"
+          },
+          "urgency": {
+            "accuracy": 0.65,
+            "brier": 0.0681,
+            "functionId": "nf_66a31396a80a642589110e404098902e0e847278abfc61137715e87db823acc5",
+            "gate": "failed",
+            "gateAccuracy": 0.6429,
+            "gateEce": 0.2062,
+            "scoreMae": 0.2595,
+            "support": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "temperature": 1.7053,
+            "type": "score",
+            "withinOneLevel": 0.99
+          }
+        }
+      },
+      "selectedEpoch": 6,
+      "testCases": 100,
+      "trainSeconds": 1048.2,
+      "trainingCases": 280
+    },
+    "invoice_processing": {
+      "artifact": {
+        "failedQuestions": [
+          "discrepancy_severity",
+          "disposition",
+          "duplicate",
+          "matches_order"
+        ],
+        "status": "gate-refused"
+      },
+      "attestedPerQuestion": 5,
+      "cpuOnnx": {
+        "artifactBytes": {
+          "adapter": 397723,
+          "encoder": 596679464,
+          "heads": 45304
+        },
+        "count": 90,
+        "maxTokens": 361,
+        "meanMs": 169.082,
+        "meanTokens": 311.7,
+        "p50Ms": 171.01,
+        "p95Ms": 217.992,
+        "provider": "CPUExecutionProvider",
+        "questionsPerCase": 5
+      },
+      "gpu": {
+        "available": true,
+        "count": 90,
+        "framework": "pytorch-eager",
+        "meanMs": 27.944,
+        "p50Ms": 27.968,
+        "p95Ms": 29.926,
+        "questionsPerCase": 5
+      },
+      "heldOutCurve": [
+        0.5,
+        0.5429,
+        0.5,
+        0.5429,
+        0.65,
+        0.6714,
+        0.7071,
+        0.6643
+      ],
+      "score": {
+        "accuracy": 0.652,
+        "correct": 326,
+        "decisions": 500,
+        "questions": {
+          "discrepancy_severity": {
+            "accuracy": 0.49,
+            "brier": 0.1398,
+            "functionId": "nf_216ddf7e901467bec12d9accab708e7fda161721c98ae768203ce777c5801c62",
+            "gate": "failed",
+            "gateAccuracy": 0.5357,
+            "gateEce": 0.2231,
+            "scoreMae": 0.6112,
+            "support": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "temperature": 1.0654,
+            "type": "score",
+            "withinOneLevel": 0.82
+          },
+          "disposition": {
+            "accuracy": 0.68,
+            "brier": 0.1313,
+            "functionId": "nf_33601fa0537e05b763ed61573326c1b3a35fc5b869e89b40177cba654ee21eb1",
+            "gate": "failed",
+            "gateAccuracy": 0.7857,
+            "gateEce": 0.1411,
+            "support": [
+              "approve",
+              "hold",
+              "manual_review",
+              "reject"
+            ],
+            "temperature": 0.6998,
+            "type": "choice"
+          },
+          "duplicate": {
+            "accuracy": 0.9,
+            "brier": 0.0306,
+            "functionId": "nf_74c781f60dd4eb948b3955fd163bea58e13f2cc3c8926a138b9c9de68ee615d8",
+            "gate": "failed",
+            "gateAccuracy": 0.8571,
+            "gateEce": 0.1038,
+            "support": [
+              false,
+              true
+            ],
+            "temperature": 1.0335,
+            "type": "noul"
+          },
+          "matches_order": {
+            "accuracy": 0.87,
+            "brier": 0.0811,
+            "functionId": "nf_e85e053ddd37b24b5a08427f989331a8c0d2bce7fec53ec54d62d9503ec4eba5",
+            "gate": "failed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.1172,
+            "support": [
+              false,
+              true
+            ],
+            "temperature": 1.2391,
+            "type": "noul"
+          },
+          "urgency": {
+            "accuracy": 0.32,
+            "brier": 0.0884,
+            "functionId": "nf_81836690e602359995b431ec8a56bd9e255eecd57dd2c44781e11e7743b5833f",
+            "gate": "passed",
+            "gateAccuracy": 0.4643,
+            "gateEce": 0.0605,
+            "scoreMae": 0.4308,
+            "support": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "temperature": 1.5766,
+            "type": "score",
+            "withinOneLevel": 0.83
+          }
+        }
+      },
+      "selectedEpoch": 7,
+      "testCases": 100,
+      "trainSeconds": 532.5,
+      "trainingCases": 280
+    },
+    "security_incidents": {
+      "artifact": {
+        "failedQuestions": [
+          "credential_compromise",
+          "disposition",
+          "severity",
+          "true_positive",
+          "urgency"
+        ],
+        "status": "gate-refused"
+      },
+      "attestedPerQuestion": 5,
+      "cpuOnnx": {
+        "artifactBytes": {
+          "adapter": 397723,
+          "encoder": 596679464,
+          "heads": 48380
+        },
+        "count": 90,
+        "maxTokens": 292,
+        "meanMs": 126.582,
+        "meanTokens": 243.7,
+        "p50Ms": 112.516,
+        "p95Ms": 329.874,
+        "provider": "CPUExecutionProvider",
+        "questionsPerCase": 5
+      },
+      "gpu": {
+        "available": true,
+        "count": 90,
+        "framework": "pytorch-eager",
+        "meanMs": 22.341,
+        "p50Ms": 22.52,
+        "p95Ms": 24.983,
+        "questionsPerCase": 5
+      },
+      "heldOutCurve": [
+        0.6357,
+        0.65,
+        0.6286,
+        0.5929,
+        0.6286,
+        0.6286,
+        0.6571,
+        0.6714
+      ],
+      "score": {
+        "accuracy": 0.684,
+        "correct": 342,
+        "decisions": 500,
+        "questions": {
+          "credential_compromise": {
+            "accuracy": 0.7,
+            "brier": 0.0285,
+            "functionId": "nf_dfd48b877bf9a417cafd4e262b2b5fead4adfd0afed63b7b0fc4bd1feff1b53a",
+            "gate": "failed",
+            "gateAccuracy": 0.7143,
+            "gateEce": 0.2465,
+            "support": [
+              false,
+              true
+            ],
+            "temperature": 6.7707,
+            "type": "noul"
+          },
+          "disposition": {
+            "accuracy": 0.75,
+            "brier": 0.0728,
+            "functionId": "nf_4dcaf92083c6a3bfe1c4b65110adf2a64a0fc249ce254ea14f85034cade76e94",
+            "gate": "failed",
+            "gateAccuracy": 0.7143,
+            "gateEce": 0.1542,
+            "support": [
+              "close_benign",
+              "contain",
+              "investigate",
+              "monitor"
+            ],
+            "temperature": 2.2027,
+            "type": "choice"
+          },
+          "severity": {
+            "accuracy": 0.64,
+            "brier": 0.0675,
+            "functionId": "nf_eb20b68385ea01fd078e8313fd61cd87aac7baa1b7d4be9f4ed7d359097ebb2f",
+            "gate": "failed",
+            "gateAccuracy": 0.5714,
+            "gateEce": 0.0723,
+            "scoreMae": 0.4112,
+            "support": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "temperature": 1.4895,
+            "type": "score",
+            "withinOneLevel": 0.97
+          },
+          "true_positive": {
+            "accuracy": 0.76,
+            "brier": 0.0689,
+            "functionId": "nf_bfd941c294c815b36c2135e91733743d5ed5b2be082ffba31e448033831719e4",
+            "gate": "failed",
+            "gateAccuracy": 0.75,
+            "gateEce": 0.1519,
+            "support": [
+              false,
+              true
+            ],
+            "temperature": 2.6759,
+            "type": "noul"
+          },
+          "urgency": {
+            "accuracy": 0.57,
+            "brier": 0.0731,
+            "functionId": "nf_8fe6e4c1e9edcb39f81fb1f4ff14f5833003d5b137c2dd93f461bbe224dab8d9",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.201,
+            "scoreMae": 0.3848,
+            "support": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "temperature": 2.0797,
+            "type": "score",
+            "withinOneLevel": 0.96
+          }
+        }
+      },
+      "selectedEpoch": 8,
+      "testCases": 100,
+      "trainSeconds": 424.6,
+      "trainingCases": 280
+    }
+  }
+}

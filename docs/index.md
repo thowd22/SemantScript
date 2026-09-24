@@ -70,6 +70,9 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
 - [Benchmarks overview](../benchmarks/README.md) and the
   [refund benchmark](../benchmarks/refund/README.md) with its
   [program guide](../benchmarks/refund/program/README.md).
+- [Typed-decisions benchmark](../benchmarks/typed-decisions/README.md): the
+  external multi-question suite compiled to sema programs, with its results
+  under `benchmarks/typed-decisions/data/`.
 - Committed results under `benchmarks/refund/data/`: the Phase 1 go/no-go
   (`results-v2-2026-09-23`), the int8 experiment (`results-int8-2026-09-24`),
   the compact encoding run (`results-compact-2026-09-24`), the shared-encoder

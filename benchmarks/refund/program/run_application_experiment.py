@@ -651,6 +651,7 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
     training_key = derive_refund_artifact_training_key_sha256(ledger["sources"])
     joint.model.to("cpu")
     sample_inputs = dict(base_a.cases[0].inputs)
+    report["sampleInputs"] = sample_inputs
     parity_text = serialize_canonical_inputs(ir_a["inputs"], sample_inputs, version=2).decode(
         "utf-8"
     )
@@ -694,15 +695,6 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
         f"exported artifact {exported.manifest_sha256} with {len(exported.manifest['functions'])} functions and {len(exported.manifest['resources'])} resources"
     )
 
-    log("running one diagnostic call per function through the Node runtime")
-    diagnostics = {
-        "A": run_refund_runtime(exported.artifact_root, compiled_a.function_id, sample_inputs),
-        "B": run_refund_runtime(
-            exported.artifact_root, compiled_b.function_id, sample_inputs, support=RISK_SUPPORT
-        ),
-    }
-    for label, diagnostic in diagnostics.items():
-        log(f"runtime {label}: {diagnostic['value']} (confidence {diagnostic['confidence']:.4f})")
     report["artifact"] = {
         "root": str(exported.artifact_root),
         "releaseDirectory": str(exported.release_directory),
@@ -711,12 +703,43 @@ def run_experiment(arguments: argparse.Namespace) -> dict[str, Any]:
         "resources": [r["role"] for r in exported.manifest["resources"]],
         "trainingKeySha256": training_key,
     }
+    (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
+    finalize_report(output, log, sample_inputs, started)
+    return json.loads((output / "experiment-report.json").read_text(encoding="utf-8"))
+
+
+def finalize_report(
+    output: Path, log: _Logger, sample_inputs: dict[str, Any], started: float | None
+) -> None:
+    """Run one runtime call per function of the exported artifact and seal the report.
+
+    Runs standalone (``--finalize-only``) when the export succeeded but the
+    runtime step failed for an environmental reason: it reads the report,
+    the artifact and the verified IRs already on disk and adds nothing that
+    was not measured by this driver.
+    """
+
+    report_path = output / "experiment-report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    artifact = report["artifact"]
+    function_a = report["functions"]["A"]["id"]
+    function_b = report["functions"]["B"]["id"]
+    for label, name in (("A", "a"), ("B", "b")):
+        verified = json.loads((output / f"verified-ir-{name}.json").read_text(encoding="utf-8"))
+        report["regimes"]["joint"][label]["verification"] = verified["verification"]
+    log("running one diagnostic call per function through the Node runtime")
+    diagnostics = {
+        "A": run_refund_runtime(artifact["root"], function_a, sample_inputs),
+        "B": run_refund_runtime(artifact["root"], function_b, sample_inputs, support=RISK_SUPPORT),
+    }
+    for label, diagnostic in diagnostics.items():
+        log(f"runtime {label}: {diagnostic['value']} (confidence {diagnostic['confidence']:.4f})")
     report["runtimeDiagnostics"] = diagnostics
     report["completedAt"] = _utc_now()
-    report["elapsedSeconds"] = round(time.monotonic() - started, 1)
-    (output / "experiment-report.json").write_text(_dump(report), encoding="utf-8")
-    log(f"done in {report['elapsedSeconds']}s")
-    return report
+    if started is not None:
+        report["elapsedSeconds"] = round(time.monotonic() - started, 1)
+    report_path.write_text(_dump(report), encoding="utf-8")
+    log("report sealed")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -738,9 +761,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--adapter-bottleneck-size", type=int, default=64)
     parser.add_argument("--counterfactual-ratio", type=float, default=0.02)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--finalize-only", action="store_true")
     arguments = parser.parse_args(argv)
     try:
-        run_experiment(arguments)
+        if arguments.finalize_only:
+            output = Path(arguments.output_dir)
+            report = json.loads((output / "experiment-report.json").read_text(encoding="utf-8"))
+            finalize_report(output, _Logger(output / "pipeline.log"), report["sampleInputs"], None)
+        else:
+            run_experiment(arguments)
     except Exception as error:
         print(f"experiment failed: {type(error).__name__}: {error}", file=sys.stderr)
         return 1

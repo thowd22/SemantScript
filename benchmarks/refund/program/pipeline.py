@@ -1298,7 +1298,7 @@ def _validate_runtime_diagnostic(value: Any, support: Sequence[str] = _REFUND_SU
     maximum = max(probabilities)
     if abs(value["confidence"] - maximum) > 8 * math.ulp(1.0):
         raise RefundPipelineError("runtime confidence is not the top probability")
-    expected_value = _REFUND_SUPPORT[probabilities.index(maximum)]
+    expected_value = tuple(support)[probabilities.index(maximum)]
     if value["value"] != expected_value:
         raise RefundPipelineError("runtime value is not the stable top-probability decision")
 

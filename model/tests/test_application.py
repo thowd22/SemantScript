@@ -69,7 +69,13 @@ def test_application_shares_encoder_and_adapter_across_function_views() -> None:
     assert view_a.head is application.heads["nf_a"] and view_b.head is application.heads["nf_b"]
     application_state = application.state_dict()
     for key, value in view_a.state_dict().items():
-        shared_key = key.replace("head.", "heads.nf_a.", 1) if key.startswith("head.") else key
+        shared_key = (
+            key.replace("head.", "heads.nf_a.", 1)
+            if key.startswith("head.")
+            else key.replace("adapter.", "adapters.adapter__application.", 1)
+            if key.startswith("adapter.")
+            else key
+        )
         assert torch.equal(application_state[shared_key], value), key
     assert not any(key.startswith("heads.nf_b.") for key in view_a.state_dict())
 

@@ -225,6 +225,33 @@ class ExportedApplicationComponents:
     chain_maximum_absolute_differences: Mapping[str, float]
 
 
+@dataclass(frozen=True, slots=True)
+class ExportedRoutedApplicationComponents:
+    """One encoder per depth, one adapter per domain and one head per function.
+
+    ``encoders`` is keyed by depth key (``"full"`` or ``"depth-006"``), ``adapters``
+    by adapter ref and ``heads`` by function name; every head was parity-checked
+    through its own function's encoder-adapter-head chain.
+    """
+
+    encoders: Mapping[str, ExportedOnnxComponent]
+    adapters: Mapping[str, ExportedOnnxComponent]
+    heads: Mapping[str, ExportedOnnxComponent]
+    parity_batch_size: int
+    parity_sequence_length: int
+    chain_maximum_absolute_differences: Mapping[str, float]
+
+
+def depth_key(depth: int | None) -> str:
+    """The resource key of the encoder prefix a depth runs (``None``: the full stack)."""
+
+    if depth is None:
+        return "full"
+    if isinstance(depth, bool) or not isinstance(depth, int) or depth < 1:
+        raise ValueError("encoder depth must be a positive integer or None")
+    return f"depth-{depth:03d}"
+
+
 def export_onnx_components(
     encoder: Any,
     head: Any,
@@ -510,6 +537,274 @@ def export_application_components(
     return ExportedApplicationComponents(
         encoder=encoder_metadata,
         adapter=adapter_metadata,
+        heads=head_metadata,
+        parity_batch_size=int(input_ids.shape[0]),
+        parity_sequence_length=int(input_ids.shape[1]),
+        chain_maximum_absolute_differences=chain_differences,
+    )
+
+
+def export_routed_application_components(
+    encoder: Any,
+    adapters: Mapping[str, Any],
+    adapter_depths: Mapping[str, int | None],
+    heads: Mapping[str, Any],
+    function_adapters: Mapping[str, str],
+    input_ids: Any,
+    attention_mask: Any,
+    *,
+    encoder_paths: Mapping[str, str | Path],
+    adapter_paths: Mapping[str, str | Path],
+    head_paths: Mapping[str, str | Path],
+    relative_tolerance: float = DEFAULT_PARITY_RELATIVE_TOLERANCE,
+    absolute_tolerance: float = DEFAULT_PARITY_ABSOLUTE_TOLERANCE,
+    maximum_component_bytes: int = DEFAULT_MAXIMUM_COMPONENT_BYTES,
+) -> ExportedRoutedApplicationComponents:
+    """Export a depth-routed application: an encoder prefix per depth, an adapter per domain.
+
+    ``adapter_depths`` gives each adapter ref the encoder depth its functions run
+    (``None`` for the full stack); ``encoder_paths`` is keyed by ``depth_key`` and
+    must name exactly the depths in use. Every adapter is parity-checked against
+    the embedding of its depth and every head through its function's full chain.
+    Depth routing measured on this stack (ONNX Runtime executes a graph whole
+    regardless of which outputs are fetched) needs one graph per depth; prefixes
+    share their weights in training and differ only in how many layers they keep.
+    """
+
+    relative_tolerance = _validate_parity_tolerance(
+        relative_tolerance, "relative_tolerance", MAXIMUM_PARITY_RELATIVE_TOLERANCE
+    )
+    absolute_tolerance = _validate_parity_tolerance(
+        absolute_tolerance, "absolute_tolerance", MAXIMUM_PARITY_ABSOLUTE_TOLERANCE
+    )
+    maximum_component_bytes = _validate_maximum_component_bytes(maximum_component_bytes)
+    if not isinstance(adapters, Mapping) or not adapters:
+        raise ValueError("adapters must be a nonempty mapping of adapter refs to modules")
+    torch_module, _, _, _ = _load_export_dependencies()
+    # A ref without a trained adapter (single-function classifiers) exports the identity.
+    adapters = {
+        ref: (_IdentityAdapter.create(torch_module) if module is None else module)
+        for ref, module in adapters.items()
+    }
+    if not isinstance(heads, Mapping) or not heads:
+        raise ValueError("heads must be a nonempty mapping of function ids to head modules")
+    if set(adapter_depths) != set(adapters):
+        raise ValueError("adapter_depths must name exactly the adapters")
+    if set(function_adapters) != set(heads):
+        raise ValueError("function_adapters must name exactly the functions in heads")
+    if any(ref not in adapters for ref in function_adapters.values()):
+        raise ValueError("function_adapters must reference declared adapters")
+    if set(adapter_paths) != set(adapters):
+        raise ValueError("adapter_paths must name exactly the adapters")
+    if set(head_paths) != set(heads):
+        raise ValueError("head_paths must name exactly the functions in heads")
+    depths_in_use = {depth_key(adapter_depths[ref]): adapter_depths[ref] for ref in adapters}
+    if set(encoder_paths) != set(depths_in_use):
+        raise ValueError(
+            f"encoder_paths must name exactly the depths in use: {sorted(depths_in_use)}"
+        )
+
+    torch, onnx, onnxruntime, numpy = _load_export_dependencies()
+    from .encoder import PrefixSentenceEncoder, SentenceEncoder
+
+    if not isinstance(encoder, SentenceEncoder):
+        raise TypeError("encoder must be a SentenceEncoder")
+    encoder_keys = sorted(depths_in_use, key=lambda key: (key != "full", key))
+    adapter_refs = tuple(adapters)
+    function_ids = tuple(heads)
+    prepared = _prepare_destination_paths(
+        [
+            *(encoder_paths[key] for key in encoder_keys),
+            *(adapter_paths[ref] for ref in adapter_refs),
+            *(head_paths[name] for name in function_ids),
+        ]
+    )
+    encoder_destinations = dict(zip(encoder_keys, prepared[: len(encoder_keys)], strict=True))
+    offset = len(encoder_keys)
+    adapter_destinations = dict(
+        zip(adapter_refs, prepared[offset : offset + len(adapter_refs)], strict=True)
+    )
+    head_destinations = dict(zip(function_ids, prepared[offset + len(adapter_refs) :], strict=True))
+    _validate_parity_inputs(torch, input_ids, attention_mask)
+
+    encoder_inputs = (
+        TensorMetadata("input_ids", "int64", ("BATCH", "SEQUENCE")),
+        TensorMetadata("attention_mask", "int64", ("BATCH", "SEQUENCE")),
+    )
+    roots = (encoder, *adapters.values(), *heads.values())
+    training_states = tuple(
+        (module, bool(module.training)) for root in roots for module in root.modules()
+    )
+    exported_paths: list[Path] = []
+    try:
+        for root in roots:
+            root.eval()
+        prefixes = {
+            key: (encoder if depth is None else PrefixSentenceEncoder(encoder, depth))
+            for key, depth in depths_in_use.items()
+        }
+        with torch.no_grad():
+            sentence_embeddings: dict[str, Any] = {}
+            for key, prefix in prefixes.items():
+                embedding = prefix(input_ids, attention_mask)
+                _validate_float_output(torch, embedding, f"encoder {key}", expected_batch=1)
+                sentence_embeddings[key] = embedding
+            hidden_size = int(next(iter(sentence_embeddings.values())).shape[1])
+            function_embeddings: dict[str, Any] = {}
+            for ref, adapter in adapters.items():
+                embedding = adapter(sentence_embeddings[depth_key(adapter_depths[ref])])
+                _validate_float_output(
+                    torch, embedding, f"adapter {ref}", expected_batch=1, expected_width=hidden_size
+                )
+                function_embeddings[ref] = embedding
+            head_logits: dict[str, Any] = {}
+            logit_widths: dict[str, int] = {}
+            for name, head in heads.items():
+                logits = head(function_embeddings[function_adapters[name]])
+                _validate_float_output(
+                    torch,
+                    logits,
+                    f"head {name}",
+                    expected_batch=1,
+                    expected_width=getattr(getattr(head, "config", None), "output_size", None),
+                )
+                head_logits[name] = logits
+                logit_widths[name] = int(logits.shape[1])
+
+        embedding_metadata = TensorMetadata("sentence_embedding", "float32", ("BATCH", hidden_size))
+        function_metadata = TensorMetadata("function_embedding", "float32", ("BATCH", hidden_size))
+        feeds = {
+            "input_ids": input_ids.detach().cpu().numpy(),
+            "attention_mask": attention_mask.detach().cpu().numpy(),
+        }
+        encoder_metadata: dict[str, ExportedOnnxComponent] = {}
+        ort_embeddings: dict[str, Any] = {}
+        for key in encoder_keys:
+            destination = encoder_destinations[key]
+            exported_paths.append(destination)
+            _export_graph(
+                torch,
+                prefixes[key],
+                (input_ids, attention_mask),
+                destination,
+                input_names=("input_ids", "attention_mask"),
+                output_names=("sentence_embedding",),
+                dynamic_axes={
+                    "input_ids": {0: "BATCH", 1: "SEQUENCE"},
+                    "attention_mask": {0: "BATCH", 1: "SEQUENCE"},
+                    "sentence_embedding": {0: "BATCH"},
+                },
+            )
+            _validate_exported_component_file(destination, maximum_component_bytes)
+            difference, ort_embeddings[key] = _validate_and_run(
+                onnx,
+                onnxruntime,
+                numpy,
+                destination,
+                encoder_inputs,
+                (embedding_metadata,),
+                feeds,
+                sentence_embeddings[key].detach().cpu().numpy(),
+                relative_tolerance,
+                absolute_tolerance,
+            )
+            encoder_metadata[key] = _component_metadata(
+                "encoder", destination, encoder_inputs, (embedding_metadata,), difference
+            )
+
+        adapter_metadata: dict[str, ExportedOnnxComponent] = {}
+        chained_adapters: dict[str, Any] = {}
+        for ref in adapter_refs:
+            destination = adapter_destinations[ref]
+            key = depth_key(adapter_depths[ref])
+            exported_paths.append(destination)
+            _export_graph(
+                torch,
+                adapters[ref],
+                (sentence_embeddings[key],),
+                destination,
+                input_names=("sentence_embedding",),
+                output_names=("function_embedding",),
+                dynamic_axes={
+                    "sentence_embedding": {0: "BATCH"},
+                    "function_embedding": {0: "BATCH"},
+                },
+            )
+            _validate_exported_component_file(destination, maximum_component_bytes)
+            difference, _ = _validate_and_run(
+                onnx,
+                onnxruntime,
+                numpy,
+                destination,
+                (embedding_metadata,),
+                (function_metadata,),
+                {"sentence_embedding": sentence_embeddings[key].detach().cpu().numpy()},
+                function_embeddings[ref].detach().cpu().numpy(),
+                relative_tolerance,
+                absolute_tolerance,
+            )
+            adapter_metadata[ref] = _component_metadata(
+                "adapter", destination, (embedding_metadata,), (function_metadata,), difference
+            )
+            chained_adapters[ref] = _run_onnx(
+                onnxruntime, destination, {"sentence_embedding": ort_embeddings[key]}
+            )
+
+        head_metadata: dict[str, ExportedOnnxComponent] = {}
+        chain_differences: dict[str, float] = {}
+        for name in function_ids:
+            destination = head_destinations[name]
+            ref = function_adapters[name]
+            head_outputs = (TensorMetadata("logits", "float32", ("BATCH", logit_widths[name])),)
+            exported_paths.append(destination)
+            _export_graph(
+                torch,
+                heads[name],
+                (function_embeddings[ref],),
+                destination,
+                input_names=("function_embedding",),
+                output_names=("logits",),
+                dynamic_axes={"function_embedding": {0: "BATCH"}, "logits": {0: "BATCH"}},
+            )
+            _validate_exported_component_file(destination, maximum_component_bytes)
+            expected_logits = head_logits[name].detach().cpu().numpy()
+            difference, _ = _validate_and_run(
+                onnx,
+                onnxruntime,
+                numpy,
+                destination,
+                (function_metadata,),
+                head_outputs,
+                {"function_embedding": function_embeddings[ref].detach().cpu().numpy()},
+                expected_logits,
+                relative_tolerance,
+                absolute_tolerance,
+            )
+            head_metadata[name] = _component_metadata(
+                "head", destination, (function_metadata,), head_outputs, difference
+            )
+            chain_logits = _run_onnx(
+                onnxruntime, destination, {"function_embedding": chained_adapters[ref]}
+            )
+            chain_differences[name] = _assert_parity(
+                numpy,
+                f"encoder-adapter-head chain for {name}",
+                expected_logits,
+                chain_logits,
+                relative_tolerance,
+                absolute_tolerance,
+            )
+    except BaseException:
+        for path in exported_paths:
+            path.unlink(missing_ok=True)
+        raise
+    finally:
+        for module, training in training_states:
+            module.training = training
+
+    return ExportedRoutedApplicationComponents(
+        encoders=encoder_metadata,
+        adapters=adapter_metadata,
         heads=head_metadata,
         parity_batch_size=int(input_ids.shape[0]),
         parity_sequence_length=int(input_ids.shape[1]),

@@ -1,7 +1,13 @@
 import ts from "typescript";
 
 import { collectCoreExportSymbols, symbolMatches } from "./core-symbols.js";
-import type { HeadSpec, InputEntry, InputType, OutputSpec, TemplatePart } from "./ir-types.js";
+import type {
+  HeadSpec,
+  InputEntry,
+  InputType,
+  OutputSpec,
+  TemplatePart,
+} from "./ir-types.js";
 import { semanticJsonString, type JsonValue } from "./semantic-json.js";
 import type { SemaSite } from "./sema-sites.js";
 
@@ -12,17 +18,23 @@ const DIAGNOSTIC_CODE = {
   invalidConfidence: 9123,
   emptyBehavior: 9124,
   contradictoryConstraint: 9125,
+  invalidDomain: 9126,
 } as const;
 
 const CONFIDENCE_LINE =
   /^\s*@confidence\(\s*(0(?:\.[0-9]+)?|1(?:\.0+)?)\s*\)\s*$/;
+/** `@domain(name)`: the routed domain of a site; a lowercase identifier with dashes. */
+const DOMAIN_LINE = /^\s*@domain\(\s*([a-z][a-z0-9-]*)\s*\)\s*$/;
 const UNKNOWN_CONSTANT = Symbol("unknown-constraint-constant");
 const MAX_DEFINITION_DEPTH = 100;
 const MAX_DEFINITION_NODES = 100_000;
 const MAX_DIAGNOSTIC_SITE_CHARACTERS = 200;
 
 export type ConstraintExpression =
-  | { readonly node: "literal"; readonly value: string | number | boolean | null }
+  | {
+      readonly node: "literal";
+      readonly value: string | number | boolean | null;
+    }
   | { readonly node: "input"; readonly name: string }
   | {
       readonly node: "property";
@@ -86,6 +98,8 @@ export interface ResolvedDefinition {
 export interface ResolvedDefinitionConfiguration {
   readonly definition: ResolvedDefinition;
   readonly confidenceThreshold: number | null;
+  /** The `@domain(name)` header, or null when the compiler assigns the default domain. */
+  readonly domain: string | null;
 }
 
 export interface DefinitionDiagnostic extends ts.DiagnosticWithLocation {
@@ -94,7 +108,10 @@ export interface DefinitionDiagnostic extends ts.DiagnosticWithLocation {
 
 export type ResolveDefinitionConfigurationResult =
   | { readonly ok: true; readonly value: ResolvedDefinitionConfiguration }
-  | { readonly ok: false; readonly diagnostics: readonly DefinitionDiagnostic[] };
+  | {
+      readonly ok: false;
+      readonly diagnostics: readonly DefinitionDiagnostic[];
+    };
 
 interface DefinitionContext {
   readonly checker: ts.TypeChecker;
@@ -143,7 +160,10 @@ export function resolveDefinitionConfiguration(
     output,
     inputTypes: inputTypesForSite(site, checker),
     outputType: checker.getTypeFromTypeNode(site.outputTypeNode),
-    constraintSymbols: collectCoreExportSymbols(program, checker, ["always", "never"]),
+    constraintSymbols: collectCoreExportSymbols(program, checker, [
+      "always",
+      "never",
+    ]),
     constraintScalarTypes: new Map(),
     constraintJsonDataTypes: new Map(),
     budget: { remaining: MAX_DEFINITION_NODES },
@@ -151,7 +171,10 @@ export function resolveDefinitionConfiguration(
 
   try {
     const parsedTemplate = parseTemplate(site, inputs);
-    const { confidenceThreshold, template } = parseConfidence(parsedTemplate, site);
+    const { confidenceThreshold, domain, template } = parseConfidence(
+      parsedTemplate,
+      site,
+    );
     const { examples, constraints } = parseOptions(context);
 
     return {
@@ -159,6 +182,7 @@ export function resolveDefinitionConfiguration(
       value: {
         definition: { template, examples, constraints },
         confidenceThreshold,
+        domain,
       },
     };
   } catch (error) {
@@ -188,7 +212,11 @@ function parseOptions(context: DefinitionContext): {
     );
   }
 
-  const properties = objectProperties(options, "sema options", DIAGNOSTIC_CODE.invalidOptions);
+  const properties = objectProperties(
+    options,
+    "sema options",
+    DIAGNOSTIC_CODE.invalidOptions,
+  );
 
   for (const name of properties.keys()) {
     if (name !== "examples" && name !== "constraints") {
@@ -203,7 +231,9 @@ function parseOptions(context: DefinitionContext): {
   const examplesProperty = properties.get("examples");
   const constraintsProperty = properties.get("constraints");
   return {
-    examples: examplesProperty ? parseExamples(examplesProperty.expression, context) : [],
+    examples: examplesProperty
+      ? parseExamples(examplesProperty.expression, context)
+      : [],
     constraints: constraintsProperty
       ? parseConstraints(constraintsProperty.expression, context)
       : [],
@@ -224,7 +254,9 @@ function parseExamples(
     );
   }
 
-  const examples = array.elements.map((element) => parseExample(element, context));
+  const examples = array.elements.map((element) =>
+    parseExample(element, context),
+  );
   const outputsByInputs = new Map<string, string>();
 
   for (const [index, example] of examples.entries()) {
@@ -246,7 +278,10 @@ function parseExamples(
   return examples;
 }
 
-function parseExample(expression: ts.Expression, context: DefinitionContext): ResolvedExample {
+function parseExample(
+  expression: ts.Expression,
+  context: DefinitionContext,
+): ResolvedExample {
   const example = unwrapStaticExpression(expression);
 
   if (!ts.isObjectLiteralExpression(example)) {
@@ -257,9 +292,17 @@ function parseExample(expression: ts.Expression, context: DefinitionContext): Re
     );
   }
 
-  const properties = objectProperties(example, "example", DIAGNOSTIC_CODE.invalidExample);
+  const properties = objectProperties(
+    example,
+    "example",
+    DIAGNOSTIC_CODE.invalidExample,
+  );
 
-  if (properties.size !== 2 || !properties.has("inputs") || !properties.has("output")) {
+  if (
+    properties.size !== 2 ||
+    !properties.has("inputs") ||
+    !properties.has("output")
+  ) {
     fail(
       DIAGNOSTIC_CODE.invalidExample,
       example,
@@ -317,7 +360,9 @@ function parseExample(expression: ts.Expression, context: DefinitionContext): Re
     const targetType = context.inputTypes.get(input.name);
 
     if (!targetType) {
-      throw new Error(`missing resolved TypeScript input type for ${input.name}`);
+      throw new Error(
+        `missing resolved TypeScript input type for ${input.name}`,
+      );
     }
 
     // `SemaExample.inputs` is intentionally `Record<string, unknown>`, so nested
@@ -325,7 +370,11 @@ function parseExample(expression: ts.Expression, context: DefinitionContext): Re
     // Recursively contextualize literal members against the target while still
     // enforcing nominal properties such as brands, then validate the exact value
     // against the resolved IR schema.
-    assertStaticExampleInputAssignable(property.expression, targetType, context);
+    assertStaticExampleInputAssignable(
+      property.expression,
+      targetType,
+      context,
+    );
     const value = evaluateStaticValue(
       property.expression,
       context,
@@ -379,7 +428,9 @@ function parseConstraints(
     );
   }
 
-  const constraints = array.elements.map((element) => parseConstraint(element, context));
+  const constraints = array.elements.map((element) =>
+    parseConstraint(element, context),
+  );
   validateConstraintContradictions(constraints);
   return constraints.map(({ value }) => value);
 }
@@ -407,9 +458,17 @@ function parseConstraint(
   }
 
   const symbol = symbolForCallable(candidate.expression, context.checker);
-  const kind = symbolMatches(symbol, context.constraintSymbols.get("always"), context.checker)
+  const kind = symbolMatches(
+    symbol,
+    context.constraintSymbols.get("always"),
+    context.checker,
+  )
     ? "always"
-    : symbolMatches(symbol, context.constraintSymbols.get("never"), context.checker)
+    : symbolMatches(
+          symbol,
+          context.constraintSymbols.get("never"),
+          context.checker,
+        )
       ? "never"
       : undefined;
 
@@ -479,7 +538,10 @@ function parseConstraint(
     );
   }
 
-  const constant = evaluateConstantConstraint(predicate, predicateArgument.body);
+  const constant = evaluateConstantConstraint(
+    predicate,
+    predicateArgument.body,
+  );
   const overlapKey =
     constant === false
       ? undefined
@@ -498,7 +560,12 @@ function parseConstraintExpression(
   context: DefinitionContext,
   depth = 0,
 ): ConstraintExpression {
-  consumeDefinitionNode(context, expression, DIAGNOSTIC_CODE.invalidConstraint, depth);
+  consumeDefinitionNode(
+    context,
+    expression,
+    DIAGNOSTIC_CODE.invalidConstraint,
+    depth,
+  );
 
   if (ts.isParenthesizedExpression(expression)) {
     return parseConstraintExpression(expression.expression, context, depth + 1);
@@ -522,7 +589,10 @@ function parseConstraintExpression(
     return { node: "input", name: expression.text };
   }
 
-  if (ts.isPropertyAccessExpression(expression) && !expression.questionDotToken) {
+  if (
+    ts.isPropertyAccessExpression(expression) &&
+    !expression.questionDotToken
+  ) {
     if (ts.isPrivateIdentifier(expression.name)) {
       fail(
         DIAGNOSTIC_CODE.invalidConstraint,
@@ -535,7 +605,11 @@ function parseConstraintExpression(
     assertConstraintValueIsDefinitelyPresent(expression.expression, context);
     return {
       node: "property",
-      object: parseConstraintExpression(expression.expression, context, depth + 1),
+      object: parseConstraintExpression(
+        expression.expression,
+        context,
+        depth + 1,
+      ),
       property: expression.name.text,
     };
   }
@@ -546,11 +620,22 @@ function parseConstraintExpression(
   ) {
     assertConstraintJsonDataAccess(expression, context);
     assertConstraintValueIsDefinitelyPresent(expression.expression, context);
-    assertConstraintValueIsDefinitelyPresent(expression.argumentExpression, context);
+    assertConstraintValueIsDefinitelyPresent(
+      expression.argumentExpression,
+      context,
+    );
     return {
       node: "index",
-      object: parseConstraintExpression(expression.expression, context, depth + 1),
-      index: parseConstraintExpression(expression.argumentExpression, context, depth + 1),
+      object: parseConstraintExpression(
+        expression.expression,
+        context,
+        depth + 1,
+      ),
+      index: parseConstraintExpression(
+        expression.argumentExpression,
+        context,
+        depth + 1,
+      ),
     };
   }
 
@@ -566,7 +651,9 @@ function parseConstraintExpression(
     }
 
     const expectedType =
-      operator === "!" ? context.checker.getBooleanType() : context.checker.getNumberType();
+      operator === "!"
+        ? context.checker.getBooleanType()
+        : context.checker.getNumberType();
     assertDefinitelyPresentAssignable(
       expression.operand,
       expectedType,
@@ -576,7 +663,11 @@ function parseConstraintExpression(
     const result: ConstraintExpression = {
       node: "unary",
       operator,
-      operand: parseConstraintExpression(expression.operand, context, depth + 1),
+      operand: parseConstraintExpression(
+        expression.operand,
+        context,
+        depth + 1,
+      ),
     };
     return result;
   }
@@ -722,16 +813,24 @@ function constraintAccessMayBeMissing(
     return constraintAccessMayBeMissing(expression.expression, context);
   }
 
-  if (ts.isPropertyAccessExpression(expression) && !expression.questionDotToken) {
+  if (
+    ts.isPropertyAccessExpression(expression) &&
+    !expression.questionDotToken
+  ) {
     if (constraintAccessMayBeMissing(expression.expression, context)) {
       return true;
     }
 
     const property = context.checker.getSymbolAtLocation(expression.name);
-    return property !== undefined && (property.flags & ts.SymbolFlags.Optional) !== 0;
+    return (
+      property !== undefined && (property.flags & ts.SymbolFlags.Optional) !== 0
+    );
   }
 
-  if (!ts.isElementAccessExpression(expression) || expression.questionDotToken) {
+  if (
+    !ts.isElementAccessExpression(expression) ||
+    expression.questionDotToken
+  ) {
     return false;
   }
 
@@ -742,13 +841,20 @@ function constraintAccessMayBeMissing(
     return true;
   }
 
-  const property = context.checker.getSymbolAtLocation(expression.argumentExpression);
-  if (property !== undefined && (property.flags & ts.SymbolFlags.Optional) !== 0) {
+  const property = context.checker.getSymbolAtLocation(
+    expression.argumentExpression,
+  );
+  if (
+    property !== undefined &&
+    (property.flags & ts.SymbolFlags.Optional) !== 0
+  ) {
     return true;
   }
 
   const objectType = context.checker.getTypeAtLocation(expression.expression);
-  const indexType = context.checker.getTypeAtLocation(expression.argumentExpression);
+  const indexType = context.checker.getTypeAtLocation(
+    expression.argumentExpression,
+  );
   return indexedAccessMayBeMissing(objectType, indexType, context, new Set());
 }
 
@@ -772,23 +878,38 @@ function indexedAccessMayBeMissing(
 
   if (context.checker.isTupleType(objectType)) {
     const keys = constraintIndexKeys(indexType, context.checker, new Set());
-    const length = context.checker.getTypeArguments(objectType as ts.TypeReference).length;
-    return keys === undefined || keys.some((key) => key !== "length" && key >= length);
+    const length = context.checker.getTypeArguments(
+      objectType as ts.TypeReference,
+    ).length;
+    return (
+      keys === undefined ||
+      keys.some((key) => key !== "length" && key >= length)
+    );
   }
 
   if (
     context.checker.isArrayType(objectType) ||
-    context.checker.isTypeAssignableTo(objectType, context.checker.getStringType())
+    context.checker.isTypeAssignableTo(
+      objectType,
+      context.checker.getStringType(),
+    )
   ) {
     const keys = constraintIndexKeys(indexType, context.checker, new Set());
     return keys === undefined || keys.some((key) => key !== "length");
   }
 
-  const propertyKeys = constraintPropertyKeys(indexType, context.checker, new Set());
+  const propertyKeys = constraintPropertyKeys(
+    indexType,
+    context.checker,
+    new Set(),
+  );
   if (propertyKeys !== undefined) {
     return propertyKeys.some((key) => {
       const property = context.checker.getPropertyOfType(objectType, key);
-      return property === undefined || (property.flags & ts.SymbolFlags.Optional) !== 0;
+      return (
+        property === undefined ||
+        (property.flags & ts.SymbolFlags.Optional) !== 0
+      );
     });
   }
 
@@ -813,7 +934,11 @@ function constraintPropertyKeys(
     const keys: string[] = [];
 
     for (const member of type.types) {
-      const memberKeys = constraintPropertyKeys(member, checker, nextActiveTypes);
+      const memberKeys = constraintPropertyKeys(
+        member,
+        checker,
+        nextActiveTypes,
+      );
 
       if (memberKeys === undefined) {
         return undefined;
@@ -893,7 +1018,9 @@ function arrayIndexFromString(value: string): number | undefined {
     return undefined;
   }
   const result = Number(value);
-  return Number.isSafeInteger(result) && result < 2 ** 32 - 1 ? result : undefined;
+  return Number.isSafeInteger(result) && result < 2 ** 32 - 1
+    ? result
+    : undefined;
 }
 
 function assertConstraintJsonDataAccess(
@@ -999,9 +1126,14 @@ function isConstraintJsonDataType(
     nextActiveTypes.add(type);
     result = context.checker
       .getTypeArguments(type as ts.TypeReference)
-      .every((member) => isConstraintJsonDataType(member, context, nextActiveTypes));
+      .every((member) =>
+        isConstraintJsonDataType(member, context, nextActiveTypes),
+      );
   } else if (context.checker.isArrayType(type)) {
-    const itemType = context.checker.getIndexTypeOfType(type, ts.IndexKind.Number);
+    const itemType = context.checker.getIndexTypeOfType(
+      type,
+      ts.IndexKind.Number,
+    );
 
     if (!itemType) {
       result = false;
@@ -1019,8 +1151,10 @@ function isConstraintJsonDataType(
       result = isConstraintJsonDataType(constraint, context, nextActiveTypes);
     } else if (
       (type.flags & ts.TypeFlags.Object) === 0 ||
-      context.checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0 ||
-      context.checker.getSignaturesOfType(type, ts.SignatureKind.Construct).length > 0 ||
+      context.checker.getSignaturesOfType(type, ts.SignatureKind.Call).length >
+        0 ||
+      context.checker.getSignaturesOfType(type, ts.SignatureKind.Construct)
+        .length > 0 ||
       context.checker.getIndexInfosOfType(type).length > 0
     ) {
       result = false;
@@ -1028,7 +1162,8 @@ function isConstraintJsonDataType(
       const nextActiveTypes = new Set(activeTypes);
       nextActiveTypes.add(type);
       result = context.checker.getPropertiesOfType(type).every((property) => {
-        const declaration = property.valueDeclaration ?? property.declarations?.[0];
+        const declaration =
+          property.valueDeclaration ?? property.declarations?.[0];
 
         if (
           !declaration ||
@@ -1052,7 +1187,9 @@ function isConstraintJsonDataType(
   return result;
 }
 
-function validateConstraintContradictions(constraints: readonly ParsedConstraint[]): void {
+function validateConstraintContradictions(
+  constraints: readonly ParsedConstraint[],
+): void {
   const alwaysByPredicate = new Map<string, string>();
   const neverByPredicate = new Map<string, Set<string>>();
 
@@ -1094,7 +1231,8 @@ function validateConstraintContradictions(constraints: readonly ParsedConstraint
       );
     }
 
-    const outputs = neverByPredicate.get(constraint.overlapKey) ?? new Set<string>();
+    const outputs =
+      neverByPredicate.get(constraint.overlapKey) ?? new Set<string>();
     outputs.add(outputKey);
     neverByPredicate.set(constraint.overlapKey, outputs);
   }
@@ -1108,11 +1246,19 @@ function evaluateStaticValue(
   depth = 0,
 ): JsonValue {
   consumeDefinitionNode(context, expression, code, depth);
-  const unwrapped = unwrapStaticExpressionWithBudget(expression, context, code, depth);
+  const unwrapped = unwrapStaticExpressionWithBudget(
+    expression,
+    context,
+    code,
+    depth,
+  );
   const current = unwrapped.expression;
   const childDepth = unwrapped.depth + 1;
 
-  if (ts.isStringLiteral(current) || ts.isNoSubstitutionTemplateLiteral(current)) {
+  if (
+    ts.isStringLiteral(current) ||
+    ts.isNoSubstitutionTemplateLiteral(current)
+  ) {
     assertUnicodeScalarString(current.text, current, code);
     return current.text;
   }
@@ -1154,7 +1300,8 @@ function evaluateStaticValue(
       );
     }
 
-    const value = current.operator === ts.SyntaxKind.MinusToken ? -operand : operand;
+    const value =
+      current.operator === ts.SyntaxKind.MinusToken ? -operand : operand;
 
     if (!Number.isFinite(value)) {
       fail(code, current, "definition numbers must be finite");
@@ -1179,23 +1326,31 @@ function evaluateStaticValue(
         );
       }
 
-      return evaluateStaticValue(element, context, activeSymbols, code, childDepth);
+      return evaluateStaticValue(
+        element,
+        context,
+        activeSymbols,
+        code,
+        childDepth,
+      );
     });
   }
 
   if (ts.isObjectLiteralExpression(current)) {
-    const properties = objectProperties(
-      current,
-      "compile-time object",
-      code,
-    );
+    const properties = objectProperties(current, "compile-time object", code);
     const value: Record<string, JsonValue> = {};
 
     for (const [name, property] of properties) {
       defineJsonProperty(
         value,
         name,
-        evaluateStaticValue(property.expression, context, activeSymbols, code, childDepth),
+        evaluateStaticValue(
+          property.expression,
+          context,
+          activeSymbols,
+          code,
+          childDepth,
+        ),
       );
     }
 
@@ -1299,10 +1454,19 @@ function validateInputValue(
       return;
     case "tuple":
       if (!isJsonArray(value) || value.length !== type.items.length) {
-        invalidExampleValue(node, `tuple of length ${String(type.items.length)}`);
+        invalidExampleValue(
+          node,
+          `tuple of length ${String(type.items.length)}`,
+        );
       }
       type.items.forEach((itemType, index) => {
-        validateInputValue(value[index] as JsonValue, itemType, node, budget, depth + 1);
+        validateInputValue(
+          value[index] as JsonValue,
+          itemType,
+          node,
+          budget,
+          depth + 1,
+        );
       });
       return;
     case "object": {
@@ -1315,14 +1479,20 @@ function validateInputValue(
 
       for (const key of keys) {
         if (!fields.has(key)) {
-          invalidExampleValue(node, `object ${type.name} without extra property ${key}`);
+          invalidExampleValue(
+            node,
+            `object ${type.name} without extra property ${key}`,
+          );
         }
       }
 
       for (const field of type.fields) {
         if (!Object.hasOwn(value, field.name)) {
           if (!field.optional) {
-            invalidExampleValue(node, `object ${type.name} with required property ${field.name}`);
+            invalidExampleValue(
+              node,
+              `object ${type.name} with required property ${field.name}`,
+            );
           }
           continue;
         }
@@ -1389,20 +1559,33 @@ function validateOutputValue(
 
   for (const key of Object.keys(value)) {
     if (!fields.has(key)) {
-      invalidDefinitionValue(code, node, `flat output without extra property ${key}`);
+      invalidDefinitionValue(
+        code,
+        node,
+        `flat output without extra property ${key}`,
+      );
     }
   }
 
   for (const field of output.fields) {
     if (!Object.hasOwn(value, field.name)) {
-      invalidDefinitionValue(code, node, `flat output with required property ${field.name}`);
+      invalidDefinitionValue(
+        code,
+        node,
+        `flat output with required property ${field.name}`,
+      );
     }
 
     validateHeadValue(value[field.name] as JsonValue, field.head, node, code);
   }
 }
 
-function validateHeadValue(value: JsonValue, head: HeadSpec, node: ts.Node, code: number): void {
+function validateHeadValue(
+  value: JsonValue,
+  head: HeadSpec,
+  node: ts.Node,
+  code: number,
+): void {
   if (head.sourceKind === "boolean") {
     if (typeof value !== "boolean") {
       invalidDefinitionValue(code, node, "boolean output");
@@ -1410,7 +1593,10 @@ function validateHeadValue(value: JsonValue, head: HeadSpec, node: ts.Node, code
     return;
   }
 
-  if (head.sourceKind === "bounded-int" || head.sourceKind === "bounded-number") {
+  if (
+    head.sourceKind === "bounded-int" ||
+    head.sourceKind === "bounded-number"
+  ) {
     if (
       typeof value !== "number" ||
       !Number.isFinite(value) ||
@@ -1430,7 +1616,10 @@ function validateHeadValue(value: JsonValue, head: HeadSpec, node: ts.Node, code
   }
 }
 
-function parseTemplate(site: SemaSite, inputs: readonly InputEntry[]): readonly TemplatePart[] {
+function parseTemplate(
+  site: SemaSite,
+  inputs: readonly InputEntry[],
+): readonly TemplatePart[] {
   const template = site.node.template;
 
   if (ts.isNoSubstitutionTemplateLiteral(template)) {
@@ -1442,7 +1631,11 @@ function parseTemplate(site: SemaSite, inputs: readonly InputEntry[]): readonly 
   for (const [index, span] of template.templateSpans.entries()) {
     const input = inputs[index];
 
-    if (!input || !ts.isIdentifier(span.expression) || span.expression.text !== input.name) {
+    if (
+      !input ||
+      !ts.isIdentifier(span.expression) ||
+      span.expression.text !== input.name
+    ) {
       fail(
         DIAGNOSTIC_CODE.invalidOptions,
         span.expression,
@@ -1460,8 +1653,13 @@ function parseTemplate(site: SemaSite, inputs: readonly InputEntry[]): readonly 
 function parseConfidence(
   template: readonly TemplatePart[],
   site: SemaSite,
-): { readonly confidenceThreshold: number | null; readonly template: readonly TemplatePart[] } {
+): {
+  readonly confidenceThreshold: number | null;
+  readonly domain: string | null;
+  readonly template: readonly TemplatePart[];
+} {
   let confidenceThreshold: number | null = null;
+  let domain: string | null = null;
   let encounteredContent = false;
   let hasBehaviorText = false;
   const rewritten: TemplatePart[] = [];
@@ -1473,7 +1671,11 @@ function parseConfidence(
       continue;
     }
 
-    assertUnicodeScalarString(part.text, site.node.template, DIAGNOSTIC_CODE.invalidConfidence);
+    assertUnicodeScalarString(
+      part.text,
+      site.node.template,
+      DIAGNOSTIC_CODE.invalidConfidence,
+    );
     let rewrittenText = "";
 
     for (const line of splitLines(part.text)) {
@@ -1484,12 +1686,35 @@ function parseConfidence(
         continue;
       }
 
+      if (trimmed.startsWith("@domain")) {
+        if (encounteredContent || domain !== null) {
+          fail(
+            DIAGNOSTIC_CODE.invalidDomain,
+            site.node.template,
+            "@domain must appear at most once among the header lines before the behavior text",
+          );
+        }
+
+        const match = DOMAIN_LINE.exec(line.content);
+
+        if (!match?.[1]) {
+          fail(
+            DIAGNOSTIC_CODE.invalidDomain,
+            site.node.template,
+            "malformed @domain header; expected @domain(name) with a lowercase name of letters, digits and dashes",
+          );
+        }
+
+        domain = match[1];
+        continue;
+      }
+
       if (trimmed.startsWith("@confidence")) {
         if (encounteredContent || confidenceThreshold !== null) {
           fail(
             DIAGNOSTIC_CODE.invalidConfidence,
             site.node.template,
-            "@confidence must appear at most once as the first nonblank template line",
+            "@confidence must appear at most once among the header lines before the behavior text",
           );
         }
 
@@ -1523,17 +1748,23 @@ function parseConfidence(
     );
   }
 
-  return { confidenceThreshold, template: rewritten };
+  return { confidenceThreshold, domain, template: rewritten };
 }
 
-function inputTypesForSite(site: SemaSite, checker: ts.TypeChecker): ReadonlyMap<string, ts.Type> {
+function inputTypesForSite(
+  site: SemaSite,
+  checker: ts.TypeChecker,
+): ReadonlyMap<string, ts.Type> {
   const result = new Map<string, ts.Type>();
   const template = site.node.template;
 
   if (!ts.isNoSubstitutionTemplateLiteral(template)) {
     for (const span of template.templateSpans) {
       if (ts.isIdentifier(span.expression)) {
-        result.set(span.expression.text, checker.getTypeAtLocation(span.expression));
+        result.set(
+          span.expression.text,
+          checker.getTypeAtLocation(span.expression),
+        );
       }
     }
   }
@@ -1581,7 +1812,12 @@ function isStaticExampleInputAssignable(
   context: DefinitionContext,
   depth: number,
 ): boolean {
-  consumeDefinitionNode(context, expression, DIAGNOSTIC_CODE.invalidExample, depth);
+  consumeDefinitionNode(
+    context,
+    expression,
+    DIAGNOSTIC_CODE.invalidExample,
+    depth,
+  );
   const source = context.checker.getTypeAtLocation(expression);
 
   if (context.checker.isTypeAssignableTo(source, target)) {
@@ -1609,7 +1845,9 @@ function isStaticExampleInputAssignable(
     }
 
     if (context.checker.isTupleType(target)) {
-      const itemTypes = context.checker.getTypeArguments(target as ts.TypeReference);
+      const itemTypes = context.checker.getTypeArguments(
+        target as ts.TypeReference,
+      );
       return (
         itemTypes.length === current.elements.length &&
         itemTypes.every((itemType, index) => {
@@ -1627,7 +1865,10 @@ function isStaticExampleInputAssignable(
       (target.flags & ts.TypeFlags.Object) !== 0 &&
       context.checker.isArrayLikeType(target)
     ) {
-      const itemType = context.checker.getIndexTypeOfType(target, ts.IndexKind.Number);
+      const itemType = context.checker.getIndexTypeOfType(
+        target,
+        ts.IndexKind.Number,
+      );
       return (
         !!itemType &&
         current.elements.every(
@@ -1641,7 +1882,10 @@ function isStaticExampleInputAssignable(
     return false;
   }
 
-  if (!ts.isObjectLiteralExpression(current) || (target.flags & ts.TypeFlags.Object) === 0) {
+  if (
+    !ts.isObjectLiteralExpression(current) ||
+    (target.flags & ts.TypeFlags.Object) === 0
+  ) {
     return false;
   }
 
@@ -1688,8 +1932,15 @@ function constraintLiteral(
   expression: ts.Expression,
   context: DefinitionContext,
 ): string | number | boolean | null | undefined {
-  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
-    assertUnicodeScalarString(expression.text, expression, DIAGNOSTIC_CODE.invalidConstraint);
+  if (
+    ts.isStringLiteral(expression) ||
+    ts.isNoSubstitutionTemplateLiteral(expression)
+  ) {
+    assertUnicodeScalarString(
+      expression.text,
+      expression,
+      DIAGNOSTIC_CODE.invalidConstraint,
+    );
     return expression.text;
   }
 
@@ -1709,7 +1960,11 @@ function constraintLiteral(
     return finiteNumericLiteral(expression, DIAGNOSTIC_CODE.invalidConstraint);
   }
 
-  return constantEnumValue(expression, context, DIAGNOSTIC_CODE.invalidConstraint);
+  return constantEnumValue(
+    expression,
+    context,
+    DIAGNOSTIC_CODE.invalidConstraint,
+  );
 }
 
 function constantEnumValue(
@@ -1719,7 +1974,10 @@ function constantEnumValue(
 ): string | number | undefined {
   let memberName: ts.Node;
 
-  if (ts.isPropertyAccessExpression(expression) && !expression.questionDotToken) {
+  if (
+    ts.isPropertyAccessExpression(expression) &&
+    !expression.questionDotToken
+  ) {
     memberName = expression.name;
   } else if (
     ts.isElementAccessExpression(expression) &&
@@ -1751,7 +2009,10 @@ function constantEnumValue(
 
   const value = context.checker.getConstantValue(declaration);
 
-  if ((typeof value !== "string" && typeof value !== "number") || !isFinitePrimitive(value)) {
+  if (
+    (typeof value !== "string" && typeof value !== "number") ||
+    !isFinitePrimitive(value)
+  ) {
     fail(
       code,
       expression,
@@ -1770,10 +2031,19 @@ function objectProperties(
   object: ts.ObjectLiteralExpression,
   description: string,
   code: number,
-): ReadonlyMap<string, { readonly node: ts.ObjectLiteralElementLike; readonly expression: ts.Expression }> {
+): ReadonlyMap<
+  string,
+  {
+    readonly node: ts.ObjectLiteralElementLike;
+    readonly expression: ts.Expression;
+  }
+> {
   const result = new Map<
     string,
-    { readonly node: ts.ObjectLiteralElementLike; readonly expression: ts.Expression }
+    {
+      readonly node: ts.ObjectLiteralElementLike;
+      readonly expression: ts.Expression;
+    }
   >();
 
   for (const property of object.properties) {
@@ -1787,11 +2057,19 @@ function objectProperties(
       name = property.name.text;
       expression = property.name;
     } else {
-      fail(code, property, `${description} cannot contain spreads, methods, or accessors`);
+      fail(
+        code,
+        property,
+        `${description} cannot contain spreads, methods, or accessors`,
+      );
     }
 
     if (result.has(name)) {
-      fail(code, property, `${description} contains duplicate property ${JSON.stringify(name)}`);
+      fail(
+        code,
+        property,
+        `${description} contains duplicate property ${JSON.stringify(name)}`,
+      );
     }
 
     result.set(name, { node: property, expression });
@@ -1801,7 +2079,11 @@ function objectProperties(
 }
 
 function staticPropertyName(name: ts.PropertyName, code: number): string {
-  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+  if (
+    ts.isIdentifier(name) ||
+    ts.isStringLiteral(name) ||
+    ts.isNumericLiteral(name)
+  ) {
     assertUnicodeScalarString(name.text, name, code);
     return name.text;
   }
@@ -1817,14 +2099,19 @@ function symbolForCallable(
     return checker.getSymbolAtLocation(expression);
   }
 
-  if (ts.isPropertyAccessExpression(expression) && !expression.questionDotToken) {
+  if (
+    ts.isPropertyAccessExpression(expression) &&
+    !expression.questionDotToken
+  ) {
     return checker.getSymbolAtLocation(expression.name);
   }
 
   return undefined;
 }
 
-function unaryOperator(kind: ts.PrefixUnaryOperator): "!" | "+" | "-" | undefined {
+function unaryOperator(
+  kind: ts.PrefixUnaryOperator,
+): "!" | "+" | "-" | undefined {
   switch (kind) {
     case ts.SyntaxKind.ExclamationToken:
       return "!";
@@ -2026,12 +2313,10 @@ function evaluateConstantComparison(
   left: JsonValue,
   right: JsonValue,
 ): boolean | typeof UNKNOWN_CONSTANT {
-  if (
-    !(
-      (typeof left === "string" && typeof right === "string") ||
-      (typeof left === "number" && typeof right === "number")
-    )
-  ) {
+  if (!(
+    (typeof left === "string" && typeof right === "string") ||
+    (typeof left === "number" && typeof right === "number")
+  )) {
     return UNKNOWN_CONSTANT;
   }
 
@@ -2057,7 +2342,9 @@ function finiteNumericLiteral(node: ts.NumericLiteral, code: number): number {
   return value;
 }
 
-function splitLines(text: string): readonly { readonly content: string; readonly full: string }[] {
+function splitLines(
+  text: string,
+): readonly { readonly content: string; readonly full: string }[] {
   const result: Array<{ readonly content: string; readonly full: string }> = [];
   let start = 0;
 
@@ -2076,7 +2363,10 @@ function splitLines(text: string): readonly { readonly content: string; readonly
       afterEnd += 1;
     }
 
-    result.push({ content: text.slice(start, end), full: text.slice(start, afterEnd) });
+    result.push({
+      content: text.slice(start, end),
+      full: text.slice(start, afterEnd),
+    });
     start = afterEnd;
   }
 
@@ -2123,7 +2413,9 @@ function unwrapStaticExpressionWithBudget(
 
 function primitiveEquals(value: JsonValue, expected: JsonValue): boolean {
   return (
-    (typeof value === "number" && typeof expected === "number" && value === expected) ||
+    (typeof value === "number" &&
+      typeof expected === "number" &&
+      value === expected) ||
     value === expected
   );
 }
@@ -2142,7 +2434,11 @@ function isFinitePrimitive(value: string | number): boolean {
   return typeof value === "string" || Number.isFinite(value);
 }
 
-function defineJsonProperty(target: Record<string, JsonValue>, name: string, value: JsonValue): void {
+function defineJsonProperty(
+  target: Record<string, JsonValue>,
+  name: string,
+  value: JsonValue,
+): void {
   Object.defineProperty(target, name, {
     configurable: true,
     enumerable: true,
@@ -2152,16 +2448,32 @@ function defineJsonProperty(target: Record<string, JsonValue>, name: string, val
 }
 
 function invalidExampleValue(node: ts.Node, expected: string): never {
-  fail(DIAGNOSTIC_CODE.invalidExample, node, `example value must match ${expected}`);
+  fail(
+    DIAGNOSTIC_CODE.invalidExample,
+    node,
+    `example value must match ${expected}`,
+  );
 }
 
-function invalidDefinitionValue(code: number, node: ts.Node, expected: string): never {
+function invalidDefinitionValue(
+  code: number,
+  node: ts.Node,
+  expected: string,
+): never {
   fail(code, node, `definition value must match ${expected}`);
 }
 
-function assertUnicodeScalarString(value: string, node: ts.Node, code: number): void {
+function assertUnicodeScalarString(
+  value: string,
+  node: ts.Node,
+  code: number,
+): void {
   if (!isUnicodeScalarString(value)) {
-    fail(code, node, "definition strings cannot contain unpaired UTF-16 surrogates");
+    fail(
+      code,
+      node,
+      "definition strings cannot contain unpaired UTF-16 surrogates",
+    );
   }
 }
 
@@ -2185,7 +2497,10 @@ function isUnicodeScalarString(value: string): boolean {
   return true;
 }
 
-function toDiagnostic(failure: DefinitionFailure, site: SemaSite): DefinitionDiagnostic {
+function toDiagnostic(
+  failure: DefinitionFailure,
+  site: SemaSite,
+): DefinitionDiagnostic {
   const start = failure.node.getStart(site.sourceFile);
   const prefix = `${site.location.fileName}:${String(site.location.line)}:${String(site.location.column)}`;
   const siteStart = site.node.getStart(site.sourceFile);
@@ -2194,7 +2509,9 @@ function toDiagnostic(failure: DefinitionFailure, site: SemaSite): DefinitionDia
     siteEnd,
     siteStart + MAX_DIAGNOSTIC_SITE_CHARACTERS * 2,
   );
-  let siteText = truncateDiagnosticText(site.sourceFile.text.slice(siteStart, previewEnd));
+  let siteText = truncateDiagnosticText(
+    site.sourceFile.text.slice(siteStart, previewEnd),
+  );
 
   if (previewEnd < siteEnd && !siteText.endsWith("…")) {
     siteText += "…";

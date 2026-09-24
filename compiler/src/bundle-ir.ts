@@ -15,12 +15,23 @@ export interface SourceDependency {
 export interface SourceExecutionStage {
   readonly index: number;
   readonly functionIds: readonly string[];
+  readonly adapterRefs?: readonly string[];
+}
+
+/** A compile-time routed domain of the plan (present only in routed bundles). */
+export interface SourceExecutionDomain {
+  readonly name: string;
+  readonly adapterRef: string;
+  readonly encoderRef: string;
+  readonly encoderDepth: number | null;
+  readonly functionIds: readonly string[];
 }
 
 /** Human-readable data dependencies and their deterministic stage assignment. */
 export interface SourceExecutionPlan {
   readonly stages: readonly SourceExecutionStage[];
   readonly dependencies: readonly SourceDependency[];
+  readonly domains?: readonly SourceExecutionDomain[];
 }
 
 /** Versioned container for source neural-function records and their execution plan. */
@@ -44,9 +55,19 @@ export function createSourceIrBundle(
   executionPlan: SourceExecutionPlan,
 ): SourceIrBundle {
   const functionSnapshot = [...functions];
-  const stageSnapshot = executionPlan.stages.map(({ index, functionIds }) => ({
-    index,
-    functionIds: [...functionIds],
+  const stageSnapshot = executionPlan.stages.map(
+    ({ index, functionIds, adapterRefs }) => ({
+      index,
+      functionIds: [...functionIds],
+      ...(adapterRefs === undefined ? {} : { adapterRefs: [...adapterRefs] }),
+    }),
+  );
+  const domainSnapshot = executionPlan.domains?.map((domain) => ({
+    name: domain.name,
+    adapterRef: domain.adapterRef,
+    encoderRef: domain.encoderRef,
+    encoderDepth: domain.encoderDepth,
+    functionIds: [...domain.functionIds],
   }));
   const dependencySnapshot = executionPlan.dependencies.map(
     ({ producerFunctionId, consumerFunctionId, consumerInput }) => ({
@@ -67,6 +88,7 @@ export function createSourceIrBundle(
     executionPlan: {
       stages: stageSnapshot,
       dependencies: dependencySnapshot,
+      ...(domainSnapshot === undefined ? {} : { domains: domainSnapshot }),
     },
   };
 }
@@ -74,23 +96,34 @@ export function createSourceIrBundle(
 interface FunctionMetadata {
   readonly byId: ReadonlyMap<string, SourceNeuralFunctionIr>;
   readonly rankById: ReadonlyMap<string, number>;
-  readonly inputRankByFunctionId: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  readonly inputRankByFunctionId: ReadonlyMap<
+    string,
+    ReadonlyMap<string, number>
+  >;
 }
 
-function validateFunctions(functions: readonly SourceNeuralFunctionIr[]): FunctionMetadata {
+function validateFunctions(
+  functions: readonly SourceNeuralFunctionIr[],
+): FunctionMetadata {
   const byId = new Map<string, SourceNeuralFunctionIr>();
   const rankById = new Map<string, number>();
   const inputRankByFunctionId = new Map<string, ReadonlyMap<string, number>>();
 
   for (const [index, record] of functions.entries()) {
     if (!hasSourceRecordDiscriminator(record)) {
-      throw new TypeError("IR bundle functions must be source neural-function IR v1 records");
+      throw new TypeError(
+        "IR bundle functions must be source neural-function IR v1 records",
+      );
     }
     if (!FUNCTION_ID.test(record.id)) {
-      throw new TypeError(`invalid neural-function ID ${JSON.stringify(record.id)}`);
+      throw new TypeError(
+        `invalid neural-function ID ${JSON.stringify(record.id)}`,
+      );
     }
     if (byId.has(record.id)) {
-      throw new RangeError(`duplicate neural-function ID ${JSON.stringify(record.id)}`);
+      throw new RangeError(
+        `duplicate neural-function ID ${JSON.stringify(record.id)}`,
+      );
     }
     if (
       record.source.path.length === 0 ||
@@ -99,12 +132,16 @@ function validateFunctions(functions: readonly SourceNeuralFunctionIr[]): Functi
       !Number.isSafeInteger(record.source.column) ||
       record.source.column < 1
     ) {
-      throw new TypeError(`neural function ${JSON.stringify(record.id)} has an invalid source location`);
+      throw new TypeError(
+        `neural function ${JSON.stringify(record.id)} has an invalid source location`,
+      );
     }
 
     const previous = functions[index - 1];
     if (previous !== undefined && compareFunctions(previous, record) >= 0) {
-      throw new RangeError("IR bundle functions must be in canonical source order");
+      throw new RangeError(
+        "IR bundle functions must be in canonical source order",
+      );
     }
 
     const inputRanks = new Map<string, number>();
@@ -171,12 +208,17 @@ function validateDependencies(
 
     const key = dependencyKey(dependency);
     if (seen.has(key)) {
-      throw new RangeError("IR bundle dependencies must not contain duplicate labeled edges");
+      throw new RangeError(
+        "IR bundle dependencies must not contain duplicate labeled edges",
+      );
     }
     seen.add(key);
 
     const previous = dependencies[index - 1];
-    if (previous !== undefined && compareDependencies(previous, dependency, metadata) >= 0) {
+    if (
+      previous !== undefined &&
+      compareDependencies(previous, dependency, metadata) >= 0
+    ) {
       throw new RangeError("IR bundle dependencies must be in canonical order");
     }
   }
@@ -189,7 +231,9 @@ function validateStages(
 ): void {
   if (metadata.byId.size === 0) {
     if (stages.length !== 0 || dependencies.length !== 0) {
-      throw new RangeError("an empty IR bundle must have an empty execution plan");
+      throw new RangeError(
+        "an empty IR bundle must have an empty execution plan",
+      );
     }
     return;
   }
@@ -197,7 +241,9 @@ function validateStages(
   const stageByFunctionId = new Map<string, number>();
   for (const [stageOffset, stage] of stages.entries()) {
     if (stage.index !== stageOffset) {
-      throw new RangeError("execution-plan stage indexes must be dense and start at zero");
+      throw new RangeError(
+        "execution-plan stage indexes must be dense and start at zero",
+      );
     }
     if (stage.functionIds.length === 0) {
       throw new RangeError("execution-plan stages must not be empty");
@@ -207,13 +253,19 @@ function validateStages(
     for (const functionId of stage.functionIds) {
       const rank = metadata.rankById.get(functionId);
       if (rank === undefined) {
-        throw new RangeError(`execution-plan stage references unknown function ${JSON.stringify(functionId)}`);
+        throw new RangeError(
+          `execution-plan stage references unknown function ${JSON.stringify(functionId)}`,
+        );
       }
       if (stageByFunctionId.has(functionId)) {
-        throw new RangeError(`function ${JSON.stringify(functionId)} appears in more than one stage`);
+        throw new RangeError(
+          `function ${JSON.stringify(functionId)} appears in more than one stage`,
+        );
       }
       if (rank <= previousRank) {
-        throw new RangeError("function IDs within a stage must be in canonical source order");
+        throw new RangeError(
+          "function IDs within a stage must be in canonical source order",
+        );
       }
       previousRank = rank;
       stageByFunctionId.set(functionId, stage.index);
@@ -221,7 +273,9 @@ function validateStages(
   }
 
   if (stageByFunctionId.size !== metadata.byId.size) {
-    throw new RangeError("every IR bundle function must appear in exactly one execution-plan stage");
+    throw new RangeError(
+      "every IR bundle function must appear in exactly one execution-plan stage",
+    );
   }
 
   const requiredStage = new Map<string, number>();
@@ -232,14 +286,21 @@ function validateStages(
     const producerStage = stageByFunctionId.get(dependency.producerFunctionId);
     const consumerStage = stageByFunctionId.get(dependency.consumerFunctionId);
     if (producerStage === undefined || consumerStage === undefined) {
-      throw new RangeError("execution-plan dependency references an unassigned function");
+      throw new RangeError(
+        "execution-plan dependency references an unassigned function",
+      );
     }
     if (producerStage >= consumerStage) {
-      throw new RangeError("execution-plan dependencies must point from earlier to later stages");
+      throw new RangeError(
+        "execution-plan dependencies must point from earlier to later stages",
+      );
     }
     requiredStage.set(
       dependency.consumerFunctionId,
-      Math.max(requiredStage.get(dependency.consumerFunctionId) ?? 0, producerStage + 1),
+      Math.max(
+        requiredStage.get(dependency.consumerFunctionId) ?? 0,
+        producerStage + 1,
+      ),
     );
   }
 
@@ -252,7 +313,10 @@ function validateStages(
   }
 }
 
-function compareFunctions(left: SourceNeuralFunctionIr, right: SourceNeuralFunctionIr): number {
+function compareFunctions(
+  left: SourceNeuralFunctionIr,
+  right: SourceNeuralFunctionIr,
+): number {
   return (
     compareUtf8(left.source.path, right.source.path) ||
     left.source.line - right.source.line ||
@@ -267,15 +331,19 @@ function compareDependencies(
   metadata: FunctionMetadata,
 ): number {
   const leftConsumerRank = metadata.rankById.get(left.consumerFunctionId) ?? -1;
-  const rightConsumerRank = metadata.rankById.get(right.consumerFunctionId) ?? -1;
-  const leftInputRank = metadata.inputRankByFunctionId
-    .get(left.consumerFunctionId)
-    ?.get(left.consumerInput) ?? -1;
-  const rightInputRank = metadata.inputRankByFunctionId
-    .get(right.consumerFunctionId)
-    ?.get(right.consumerInput) ?? -1;
+  const rightConsumerRank =
+    metadata.rankById.get(right.consumerFunctionId) ?? -1;
+  const leftInputRank =
+    metadata.inputRankByFunctionId
+      .get(left.consumerFunctionId)
+      ?.get(left.consumerInput) ?? -1;
+  const rightInputRank =
+    metadata.inputRankByFunctionId
+      .get(right.consumerFunctionId)
+      ?.get(right.consumerInput) ?? -1;
   const leftProducerRank = metadata.rankById.get(left.producerFunctionId) ?? -1;
-  const rightProducerRank = metadata.rankById.get(right.producerFunctionId) ?? -1;
+  const rightProducerRank =
+    metadata.rankById.get(right.producerFunctionId) ?? -1;
 
   return (
     leftConsumerRank - rightConsumerRank ||

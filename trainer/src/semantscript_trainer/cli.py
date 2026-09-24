@@ -17,6 +17,7 @@ import argparse
 import copy
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -37,6 +38,7 @@ from semantscript_trainer.application import (
     FunctionCorpus,
     add_function_head,
     application_function,
+    domain_depths,
     train_application,
 )
 from semantscript_trainer.artifact import (
@@ -50,6 +52,7 @@ from semantscript_trainer.build_cache import (
     BuildCacheError,
     CachedFunction,
     cache_recipe,
+    combined_shared_sha256,
 )
 from semantscript_trainer.canonical_input import serialize_canonical_inputs
 from semantscript_trainer.dataset import SyntheticDatasetGenerator, TrainingDataset
@@ -185,16 +188,19 @@ def train_bundle(
 
     reused: dict[str, CachedFunction] = {}
     if cache is not None and not full:
-        shared_sha256 = cache.shared_state_sha256() if cache.shared_state_intact() else None
+        intact = cache.shared_state_intact()
         for ir in functions:
             function_id = cast(str, ir["id"])
+            model = cast(dict[str, Any], ir["model"])
             record = cache.cached_function(function_id)
             if (
                 record is not None
-                and shared_sha256 is not None
+                and intact
                 and record.semantic_sha256 == ir["semanticSha256"]
                 and record.recipe_sha256 == recipe.sha256
-                and record.shared_state_sha256 == shared_sha256
+                and record.model_sha256 == semantic_json_sha256(cast(Any, dict(model)))
+                and record.shared_state_sha256
+                == cache.function_shared_sha256(cast(str, model["adapter"]))
             ):
                 reused[function_id] = record
     to_train = [ir for ir in functions if cast(str, ir["id"]) not in reused]
@@ -278,6 +284,7 @@ def train_bundle(
 
     trained_at = _utc_now()
     shared_changed = not reused
+    restored_adapter_refs: tuple[str, ...] = ()
     if reused:
         say(f"build cache: restoring the shared encoder and {len(reused)} head(s)")
         application = _rehydrate_application(
@@ -290,9 +297,18 @@ def train_bundle(
             encoder,
             adapter_bottleneck_size,
         )
+        restored_adapter_refs = application.model.adapter_refs
         for ir in to_train:
             function_id = cast(str, ir["id"])
-            say(f"{function_id}: training its head on the frozen shared encoder")
+            adapter_ref = cast(str, cast(dict[str, Any], ir["model"])["adapter"])
+            say(
+                f"{function_id}: training its head on the frozen shared encoder"
+                + (
+                    ""
+                    if adapter_ref in application.model.adapter_refs
+                    else f" with a new adapter for domain {adapter_ref}"
+                )
+            )
             application = add_function_head(
                 application,
                 application_function(*by_id[function_id]),
@@ -300,7 +316,21 @@ def train_bundle(
                 tokenizer=resolved_tokenizer,
             )
     else:
-        say(f"training {len(datasets)} function(s) over one shared encoder and adapter")
+        domains = domain_depths(
+            [application_function(ir, base, adversarial) for ir, base, adversarial in datasets]
+        )
+        say(
+            f"training {len(datasets)} function(s) over one shared encoder and "
+            f"{len(domains)} adapter(s)"
+            + (
+                ""
+                if all(depth is None for depth in domains.values())
+                else " with depth routing "
+                + ", ".join(
+                    f"{ref}@{'full' if depth is None else depth}" for ref, depth in domains.items()
+                )
+            )
+        )
         application = train_application(
             [application_function(ir, base, adversarial) for ir, base, adversarial in datasets],
             config=resolved_training,
@@ -424,19 +454,32 @@ def train_bundle(
     say(f"published release {exported.manifest_sha256}")
 
     if cache is not None:
+        model_adapters = {ref: shared_model.adapter_for(ref) for ref in shared_model.adapter_refs}
         if shared_changed:
             # Records built on the previous shared weights can never be reused again.
             shutil.rmtree(cache.root / "functions", ignore_errors=True)
-            shared_sha256 = cache.store_shared_state(shared_model.encoder, shared_model.adapter)
+            digests = cache.store_shared_state(shared_model.encoder, model_adapters)
+            encoder_sha256 = digests.encoder_sha256
+            adapter_sha256 = dict(digests.adapter_sha256)
         else:
-            shared_sha256 = cast(str, cache.shared_state_sha256())
+            encoder_sha256 = cast(str, cache.shared_state_sha256())
+            index = cache.index() or {}
+            adapter_sha256 = dict(cast(dict[str, str], index.get("adapterStateSha256", {})))
+            for ref, module in model_adapters.items():
+                if ref not in restored_adapter_refs:
+                    # A domain whose adapter was (re)trained in this build on the frozen
+                    # encoder: store its new weights; the restored adapters are untouched.
+                    adapter_sha256[ref] = cache.store_adapter_state(ref, module)
         for entry in trained:
             if entry.reused:
                 continue
             cache.store_function(
                 ir=entry.ir,
                 recipe_sha256=recipe.sha256,
-                shared_state_sha256=shared_sha256,
+                shared_state_sha256=combined_shared_sha256(
+                    encoder_sha256,
+                    adapter_sha256[cast(str, cast(dict[str, Any], entry.ir["model"])["adapter"])],
+                ),
                 training=entry.training,
                 verification=entry.verification,
                 verified_ir_bytes=verified_bytes[cast(str, entry.ir["id"])],
@@ -448,8 +491,9 @@ def train_bundle(
             recipe=recipe,
             function_ids=[cast(str, entry.ir["id"]) for entry in trained],
             release_sha256=exported.manifest_sha256,
-            shared_state_sha256=shared_sha256,
+            shared_state_sha256=encoder_sha256,
             tokenizer_sha256=trained[0].verification.tokenizer_sha256,
+            adapter_state_sha256=adapter_sha256,
         )
         say(f"build cache: stored under {cache.root}")
     return TrainBundleResult(report=report, exported=exported, functions=tuple(trained))
@@ -496,24 +540,41 @@ def _rehydrate_application(
         _build_adapter,
         _function_states,
         _load_application_modules,
+        domain_depths,
     )
     from semantscript_trainer.training import _build_heads, _build_sentence_encoder
 
     application_module, _ = _load_application_modules()
     sentence_encoder = _build_sentence_encoder(config, encoder)
-    adapter = _build_adapter(
-        application_module, sentence_encoder.hidden_size, adapter_bottleneck_size
-    )
-    encoder_state, adapter_state = cache.load_shared_state()
+    encoder_state, adapter_states = cache.load_shared_state()
+    # Only adapters some reused function still reads are restored; a domain whose
+    # every function changed trains a fresh adapter on the frozen encoder.
+    depths = domain_depths([function for _, function in entries])
     heads: dict[str, Any] = {}
+    adapters: dict[str, Any] = {}
     try:
         sentence_encoder.load_state_dict(encoder_state)
-        adapter.load_state_dict(adapter_state)
+        for ref in depths:
+            if ref not in adapter_states:
+                raise KeyError(f"cached adapter {ref!r} is missing")
+            adapter = _build_adapter(
+                application_module, sentence_encoder.hidden_size, adapter_bottleneck_size
+            )
+            adapter.load_state_dict(adapter_states[ref])
+            adapters[ref] = adapter
         for record, function in entries:
             head = _build_heads(function.corpus.output_heads, sentence_encoder.hidden_size, config)
             head.load_state_dict(cache.load_head_state(record))
             heads[function.function_id] = head
-        model = application_module.SharedEncoderApplication(sentence_encoder, adapter, heads)
+        model = application_module.SharedEncoderApplication(
+            sentence_encoder,
+            adapters=adapters,
+            adapter_depths=depths,
+            heads=heads,
+            function_adapters={
+                function.function_id: function.adapter_ref for _, function in entries
+            },
+        )
     except (RuntimeError, TypeError, ValueError, KeyError) as error:
         raise BuildCacheError(
             f"cached weights do not fit the configured modules: {error}"
@@ -621,7 +682,6 @@ def _bundle_functions(bundle: Mapping[str, Any]) -> list[NeuralFunctionIr]:
     if not isinstance(functions, list) or not functions:
         raise TrainBundleError("bundle must contain at least one neural function")
     resolved: list[NeuralFunctionIr] = []
-    refs: set[tuple[str, str]] = set()
     seen: set[str] = set()
     for raw in functions:
         if not isinstance(raw, Mapping):
@@ -639,20 +699,20 @@ def _bundle_functions(bundle: Mapping[str, Any]) -> list[NeuralFunctionIr]:
         adapter_ref = model.get("adapter")
         if not isinstance(encoder_ref, str) or not isinstance(adapter_ref, str):
             raise TrainBundleError(f"{function_id} must bind encoder and adapter refs")
-        refs.add((encoder_ref, adapter_ref))
         definition = raw.get("definition")
         if not isinstance(definition, Mapping):
             raise TrainBundleError(f"{function_id} has no definition")
         resolved.append(cast(NeuralFunctionIr, copy.deepcopy(dict(raw))))
-    if len(refs) != 1:
-        raise TrainBundleError("every bundle function must bind the same encoder and adapter refs")
     return resolved
 
 
 def _application_id(ir: NeuralFunctionIr) -> str:
     encoder_ref = cast(str, cast(dict[str, Any], ir["model"])["encoder"])
     prefix = "encoder."
-    return encoder_ref[len(prefix) :] if encoder_ref.startswith(prefix) else "application"
+    if not encoder_ref.startswith(prefix):
+        return "application"
+    # A depth-routed function names its encoder prefix (`encoder.<app>.depth-NNN`).
+    return re.sub(r"\.depth-\d{3}$", "", encoder_ref[len(prefix) :])
 
 
 def _provenance_counts(entry: TrainedFunction) -> TrainingProvenanceCounts:

@@ -38,7 +38,8 @@ Codes: 9100 malformed site; 9101 unsupported output type; 9102 invalid enum;
 9110 invalid interpolation; 9111 duplicate interpolation; 9112 unsupported
 input type; 9120 invalid options; 9121 invalid example; 9122 invalid
 constraint; 9123 invalid`@confidence`; 9124 empty behavior; 9125 contradictory
-constraints; 9130 compilation configuration; 9131 execution plan. The rendered
+constraints; 9126 invalid `@domain`; 9130 compilation configuration; 9131
+execution plan. The rendered
 output of one fixture per family is snapshot-tested in
 `test/fixtures/diagnostics.snapshot.txt`(regenerate with`UPDATE_SNAPSHOTS=1`).
 
@@ -98,6 +99,24 @@ program and returns the rewrite as a `before` transformer for a caller that
 drives `program.emit` itself. `emitSemaSourceFile(program, plan, sourceFile)`
 emits one file in memory for a bundler: its JavaScript without the
 `sourceMappingURL` comment, and its map without `sourcesContent`.
+
+## Routed domains and depth routing
+
+`planSemaCompilation` takes `domainDepths`, a map of domain name to the number
+of shared-encoder layers that domain runs. Each site's domain is its
+`@domain(name)` header or, by default, its file name without `.sem.ts`
+(lowercased, dashes). When any depth is named or any site carries a header the
+plan is routed: every function's `model.adapter` becomes
+`<adapterRef>.<domain>`, a domain with a depth gets `model.encoder`
+`<encoderRef>.depth-NNN` and `model.encoderDepth`, the execution plan gains a
+`domains` list (name, adapter ref, encoder ref, depth, function ids) and each
+stage lists the `adapterRefs` it applies. Unrouted projects keep the single
+application adapter and the plan shape of before. Routing is outside the
+semantic projection, so it never changes a function id; it is part of the
+trainer's cache key, so changing a domain's depth retrains that domain only.
+Measured on this stack, ONNX Runtime executes a graph whole whatever outputs
+are fetched, so the trainer exports one encoder prefix graph per depth in use
+and the runtime runs the prefix a function's domain names.
 
 ## Build-tool adapters
 

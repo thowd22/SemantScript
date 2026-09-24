@@ -56,6 +56,44 @@
           "items": {
             "$ref": "#/$defs/dependency"
           }
+        },
+        "domains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executionDomain"
+          },
+          "$comment": "Compile-time routed domains (TASK-6.7): when present, every function belongs to exactly one."
+        }
+      }
+    },
+    "executionDomain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "adapterRef", "encoderRef", "encoderDepth", "functionIds"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "adapterRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "encoderRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "encoderDepth": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "functionIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/functionId"
+          }
         }
       }
     },
@@ -75,6 +113,15 @@
           "items": {
             "$ref": "#/$defs/functionId"
           }
+        },
+        "adapterRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "$comment": "The domain adapters this stage applies, in canonical order."
         }
       }
     },

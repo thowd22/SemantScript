@@ -88,6 +88,18 @@ propagate unchanged. Recursive fallback invocation is rejected with
 `SemaFallbackError` reason `cycle`, while non-recursive calls to other semantic
 functions remain valid.
 
+## Routed domains and encoder prefixes
+
+A manifest may carry several adapter resources and several encoder resources.
+Every function names its adapter (`adapterRef`) and, when its domain runs a
+prefix of the shared encoder (depth routing), the encoder resource it reads
+(`encoderRef`; absent means the model's encoder). The worker loads one session
+per encoder and adapter and, within a stage, runs one encoder pass per
+distinct (encoder, input) pair and one adapter pass per distinct (adapter,
+input) pair, so functions of one domain share their prefix pass while
+functions of different depths each run their own. `passes.encoder` counts
+those passes.
+
 ## Stages and execution plans
 
 `handle.callStage(entries)` (also `__sema.callStage`) runs several functions as

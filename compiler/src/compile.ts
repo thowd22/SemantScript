@@ -19,7 +19,9 @@ import { resolveDefinitionConfiguration } from "./definition.js";
 import {
   buildSemaExecutionPlan,
   ExecutionPlanError,
+  routeExecutionPlan,
   type ExecutionPlanSiteDescriptor,
+  type RoutedFunctionDescriptor,
 } from "./execution-plan.js";
 import {
   computeSemanticSha256,
@@ -54,6 +56,16 @@ export interface PlanSemaCompilationOptions {
   readonly projectRoot: string;
   readonly encoderRef?: string;
   readonly adapterRef?: string;
+  /**
+   * Compile-time depth routing (TASK-6.7): shared-encoder layers each domain
+   * runs. Naming any domain here, or any site carrying `@domain`, makes the
+   * plan routed: every function gets its domain's adapter ref
+   * (`<adapterRef>.<domain>`), its encoder ref (`<encoderRef>.depth-NNN` for a
+   * prefix) and depth, and the plan records the domains.
+   */
+  readonly domainDepths?: Readonly<Record<string, number>>;
+  /** Route domains (one adapter each) even when no depth and no `@domain` header is set. */
+  readonly routeDomains?: boolean;
   readonly readSourceBytes?: (
     sourceFile: ts.SourceFile,
   ) => Uint8Array | Promise<Uint8Array>;
@@ -63,6 +75,8 @@ export interface PlanSemaCompilationSyncOptions {
   readonly projectRoot: string;
   readonly encoderRef?: string;
   readonly adapterRef?: string;
+  readonly domainDepths?: Readonly<Record<string, number>>;
+  readonly routeDomains?: boolean;
   readonly readSourceBytesSync?: (sourceFile: ts.SourceFile) => Uint8Array;
 }
 
@@ -257,12 +271,31 @@ function preparedSourceFiles(
 
 function finishSemaCompilationPlan(
   program: ts.Program,
-  options: { readonly encoderRef?: string; readonly adapterRef?: string },
+  options: {
+    readonly encoderRef?: string;
+    readonly adapterRef?: string;
+    readonly domainDepths?: Readonly<Record<string, number>>;
+    readonly routeDomains?: boolean;
+  },
   prepared: readonly PreparedSite[],
   sourceDigests: ReadonlyMap<string, string>,
 ): PlanSemaCompilationResult {
   const duplicateCounts = new Map<string, number>();
   const plannedSites: PlannedSemaSite[] = [];
+  const encoderRef = options.encoderRef ?? "encoder.main";
+  const adapterRef = options.adapterRef ?? "adapter.application";
+  const domainDepths = options.domainDepths ?? {};
+  const depthDiagnostics = validateDomainDepths(domainDepths);
+
+  if (depthDiagnostics.length > 0) {
+    return { ok: false, diagnostics: depthDiagnostics };
+  }
+
+  const routed =
+    options.routeDomains === true ||
+    Object.keys(domainDepths).length > 0 ||
+    prepared.some(({ configuration }) => configuration.domain !== null);
+  const routing = new Map<string, RoutedFunctionDescriptor>();
 
   for (const preparedSite of prepared) {
     const { analysis, configuration, normalizedPath, site } = preparedSite;
@@ -271,6 +304,14 @@ function finishSemaCompilationPlan(
     if (sourceSha256 === undefined) {
       throw new Error(`missing source digest for ${site.sourceFile.fileName}`);
     }
+
+    const domain = configuration.domain ?? defaultDomainName(normalizedPath);
+    const depth = routed ? (domainDepths[domain] ?? null) : null;
+    const functionEncoderRef =
+      depth === null
+        ? encoderRef
+        : `${encoderRef}.depth-${String(depth).padStart(3, "0")}`;
+    const functionAdapterRef = routed ? `${adapterRef}.${domain}` : adapterRef;
 
     const configuredAnalysis: SemaSiteAnalysis = {
       ...analysis,
@@ -297,13 +338,21 @@ function finishSemaCompilationPlan(
       duplicateOrdinal,
       semanticSha256,
     );
+    routing.set(functionId, {
+      functionId,
+      domain,
+      adapterRef: functionAdapterRef,
+      encoderRef: functionEncoderRef,
+      encoderDepth: depth,
+    });
     const record = createSourceNeuralFunctionIr(configuredAnalysis, {
       id: functionId,
       semanticSha256,
       sourcePath: normalizedPath,
       sourceSha256,
-      encoderRef: options.encoderRef ?? "encoder.main",
-      adapterRef: options.adapterRef ?? "adapter.application",
+      encoderRef: functionEncoderRef,
+      adapterRef: functionAdapterRef,
+      encoderDepth: depth,
       headRefs: createHeadRefs(
         functionId,
         analysis.ir.output.kind === "scalar"
@@ -337,6 +386,10 @@ function finishSemaCompilationPlan(
       plannedSites.map(createExecutionPlanDescriptor),
       { sourceFiles: program.getSourceFiles() },
     );
+
+    if (routed) {
+      executionPlan = routeExecutionPlan(executionPlan, [...routing.values()]);
+    }
   } catch (error) {
     if (!(error instanceof ExecutionPlanError)) {
       throw error;
@@ -571,6 +624,45 @@ function compareLocatedSites(
     textEncoder.encode(right.normalizedPath),
   );
   return pathOrder || left.site.location.start - right.site.location.start;
+}
+
+const DOMAIN_NAME = /^[a-z][a-z0-9-]*$/u;
+
+/** The default domain of a site: its file name without `.sem.ts`, lowercased with dashes. */
+function defaultDomainName(normalizedPath: string): string {
+  const base = normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1);
+  const stem = base.replace(/\.sem\.ts$/u, "").replace(/\.[^.]*$/u, "");
+  const slug = stem
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-+|-+$/gu, "");
+  return DOMAIN_NAME.test(slug) ? slug : `domain-${slug || "default"}`;
+}
+
+function validateDomainDepths(
+  domainDepths: Readonly<Record<string, number>>,
+): ts.Diagnostic[] {
+  const diagnostics: ts.Diagnostic[] = [];
+
+  for (const [domain, depth] of Object.entries(domainDepths)) {
+    if (!DOMAIN_NAME.test(domain)) {
+      diagnostics.push(
+        configurationDiagnostic(
+          `domain name ${JSON.stringify(domain)} must be lowercase letters, digits and dashes`,
+        ),
+      );
+    }
+
+    if (!Number.isInteger(depth) || depth < 1) {
+      diagnostics.push(
+        configurationDiagnostic(
+          `domain ${domain} depth must be a positive integer, received ${String(depth)}`,
+        ),
+      );
+    }
+  }
+
+  return diagnostics;
 }
 
 function createHeadRefs(functionId: string, count: number): readonly string[] {

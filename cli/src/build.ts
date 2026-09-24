@@ -23,9 +23,12 @@ export async function buildCommand(
       project: { type: "string", short: "p" },
       application: { type: "string" },
       bundle: { type: "string" },
+      "domain-depth": { type: "string", multiple: true },
+      "route-domains": { type: "boolean" },
     },
     allowPositionals: false,
   });
+  const domainDepths = parseDomainDepths(values["domain-depth"] ?? []);
   const result = await compileProject(
     {
       ...(values.project === undefined ? {} : { project: values.project }),
@@ -33,16 +36,44 @@ export async function buildCommand(
         ? {}
         : { application: values.application }),
       ...(values.bundle === undefined ? {} : { bundle: values.bundle }),
+      ...(domainDepths === undefined ? {} : { domainDepths }),
+      ...(values["route-domains"] === true ? { routeDomains: true } : {}),
     },
     io,
   );
   return result.status;
 }
 
+/** `--domain-depth name=n`, repeatable: the shared-encoder layers a domain runs. */
+export function parseDomainDepths(
+  entries: readonly string[],
+): Readonly<Record<string, number>> | undefined {
+  if (entries.length === 0) return undefined;
+  const depths: Record<string, number> = {};
+  for (const entry of entries) {
+    const separator = entry.indexOf("=");
+    const name = separator < 0 ? "" : entry.slice(0, separator);
+    const depth = Number(entry.slice(separator + 1));
+    if (
+      !/^[a-z][a-z0-9-]*$/u.test(name) ||
+      !Number.isInteger(depth) ||
+      depth < 1
+    ) {
+      throw new CliUsageError(
+        `--domain-depth expects name=<positive integer> with a lowercase name, not ${JSON.stringify(entry)}`,
+      );
+    }
+    depths[name] = depth;
+  }
+  return depths;
+}
+
 export interface CompileProjectOptions {
   readonly project?: string;
   readonly application?: string;
   readonly bundle?: string;
+  readonly domainDepths?: Readonly<Record<string, number>>;
+  readonly routeDomains?: boolean;
 }
 
 export interface CompileProjectResult {
@@ -120,6 +151,10 @@ export async function compileProject(
     encoderRef: `encoder.${application}`,
     adapterRef: `adapter.${application}`,
     bundlePath,
+    ...(options.domainDepths === undefined
+      ? {}
+      : { domainDepths: options.domainDepths }),
+    ...(options.routeDomains === true ? { routeDomains: true } : {}),
   });
   if (!result.ok) {
     io.stderr(formatDiagnostics(result.diagnostics, io.cwd));
@@ -133,6 +168,17 @@ export async function compileProject(
     const heads = record.model.heads.length;
     lines.push(
       `  ${record.id}  ${record.source.path}:${String(record.source.line)}:${String(record.source.column)}  ${record.output.tsType}  (${String(heads)} head${heads === 1 ? "" : "s"})`,
+    );
+  }
+  const domains = plan.bundle.executionPlan.domains;
+  if (domains !== undefined) {
+    lines.push(
+      `domains: ${domains
+        .map(
+          (domain) =>
+            `${domain.name} (${String(domain.functionIds.length)} function${domain.functionIds.length === 1 ? "" : "s"}, ${domain.encoderDepth === null ? "full depth" : `depth ${String(domain.encoderDepth)}`})`,
+        )
+        .join(", ")}`,
     );
   }
   lines.push(

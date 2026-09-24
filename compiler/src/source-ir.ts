@@ -9,6 +9,8 @@ export interface SourceIrOptions {
   readonly sourceSha256: string;
   readonly encoderRef: string;
   readonly adapterRef: string;
+  /** Shared-encoder layers this function's domain runs; absent or null is the full stack. */
+  readonly encoderDepth?: number | null;
   readonly headRefs: readonly string[];
   readonly confidenceThreshold?: number | null;
   readonly fallbackRef?: string | null;
@@ -38,6 +40,7 @@ export interface SourceNeuralFunctionIr {
   readonly model: {
     readonly encoder: string;
     readonly adapter: string;
+    readonly encoderDepth?: number;
     readonly heads: readonly {
       readonly outputPath: string;
       readonly ref: string;
@@ -87,6 +90,9 @@ export function createSourceNeuralFunctionIr(
     model: {
       encoder: options.encoderRef,
       adapter: options.adapterRef,
+      ...(options.encoderDepth === undefined || options.encoderDepth === null
+        ? {}
+        : { encoderDepth: options.encoderDepth }),
       heads: outputPaths.map((outputPath, index) => ({
         outputPath,
         ref: options.headRefs[index] ?? "",

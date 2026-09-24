@@ -695,9 +695,27 @@ function buildInferencePlan(
         abi: prepared.metadata.onnx,
       };
     });
+  const encoders = staged.manifest.resources
+    .filter(
+      (resource) =>
+        resource.role === "encoder" &&
+        resource.ref !== staged.manifest.model.encoderRef,
+    )
+    .map((resource) => {
+      const prepared = requireOnnxResource(resources, resource.ref, "encoder");
+      return {
+        ref: resource.ref,
+        model: validatedModel(prepared),
+        abi: prepared.metadata.onnx,
+      };
+    });
   const functions = staged.functions.map((entry) => ({
     id: entry.id,
     adapterRef: entry.adapterRef,
+    ...(entry.encoderRef === undefined ||
+    entry.encoderRef === staged.manifest.model.encoderRef
+      ? {}
+      : { encoderRef: entry.encoderRef }),
     diagnosticsRequired:
       entry.runtime.resultMode === "diagnostic" ||
       entry.runtime.confidenceThreshold !== null,
@@ -709,6 +727,7 @@ function buildInferencePlan(
     tokenizerJson: tokenizer.prepared,
     encoderModel: validatedModel(encoder),
     encoderAbi: encoder.metadata.onnx,
+    ...(encoders.length === 0 ? {} : { encoders }),
     adapters,
     functions,
     maximumSequenceLength: (tokenizer.metadata as TokenizerResourceV1)

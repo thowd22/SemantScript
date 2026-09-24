@@ -16,6 +16,7 @@ export const USAGE = `usage: semantscript <command> [options]
   init   [--tool next|vite|esbuild|tsc] [--no-example]
          wire the compiler into the project's build tool and add a starter expression
   build  [--project tsconfig.json] [--application <id>] [--bundle <path>]
+         [--route-domains] [--domain-depth <name>=<layers>]...
          compile .sem.ts sites to runtime calls and one IR bundle
   train  [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>]
          [--cache-dir <dir>] [--report <path>] [--python <exe>] [--cases <n>]

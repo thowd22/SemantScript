@@ -20,7 +20,9 @@ export function collectCoreExportSymbols(
         continue;
       }
 
-      const moduleSymbol = checker.getSymbolAtLocation(statement.moduleSpecifier);
+      const moduleSymbol = checker.getSymbolAtLocation(
+        statement.moduleSpecifier,
+      );
 
       if (!moduleSymbol) {
         continue;
@@ -53,11 +55,17 @@ export function symbolMatches(
   );
 }
 
-export function resolveAliases(symbol: ts.Symbol, checker: ts.TypeChecker): ts.Symbol {
+export function resolveAliases(
+  symbol: ts.Symbol,
+  checker: ts.TypeChecker,
+): ts.Symbol {
   const visited = new Set<ts.Symbol>();
   let current = symbol;
 
-  while ((current.flags & ts.SymbolFlags.Alias) !== 0 && !visited.has(current)) {
+  while (
+    (current.flags & ts.SymbolFlags.Alias) !== 0 &&
+    !visited.has(current)
+  ) {
     visited.add(current);
     const resolved = checker.getAliasedSymbol(current);
 
@@ -71,12 +79,15 @@ export function resolveAliases(symbol: ts.Symbol, checker: ts.TypeChecker): ts.S
   return current;
 }
 
-function hasCoreModuleSpecifier(
-  statement: ts.Statement,
-): statement is (ts.ImportDeclaration | ts.ExportDeclaration) & {
+function hasCoreModuleSpecifier(statement: ts.Statement): statement is (
+  ts.ImportDeclaration | ts.ExportDeclaration
+) & {
   readonly moduleSpecifier: ts.StringLiteral;
 } {
-  if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) {
+  if (
+    !ts.isImportDeclaration(statement) &&
+    !ts.isExportDeclaration(statement)
+  ) {
     return false;
   }
 

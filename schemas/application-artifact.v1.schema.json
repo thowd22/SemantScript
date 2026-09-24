@@ -564,6 +564,10 @@
         "adapterRef": {
           "$ref": "#/$defs/logicalRef"
         },
+        "encoderRef": {
+          "$ref": "#/$defs/logicalRef",
+          "$comment": "The encoder resource this function's adapter reads when it is not the model's encoderRef: a depth-routed prefix of the shared encoder."
+        },
         "heads": {
           "type": "array",
           "minItems": 1,

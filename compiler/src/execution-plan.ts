@@ -27,11 +27,23 @@ export interface ExecutionPlanDependency {
 export interface ExecutionPlanStage {
   readonly index: number;
   readonly functionIds: readonly string[];
+  /** The domain adapters this stage applies, in canonical order (routed plans only). */
+  readonly adapterRefs?: readonly string[];
+}
+
+/** A compile-time routed domain: one adapter and one encoder depth for its functions. */
+export interface ExecutionPlanDomain {
+  readonly name: string;
+  readonly adapterRef: string;
+  readonly encoderRef: string;
+  readonly encoderDepth: number | null;
+  readonly functionIds: readonly string[];
 }
 
 export interface SemaExecutionPlan {
   readonly dependencies: readonly ExecutionPlanDependency[];
   readonly stages: readonly ExecutionPlanStage[];
+  readonly domains?: readonly ExecutionPlanDomain[];
 }
 
 export interface BuildSemaExecutionPlanOptions {
@@ -65,7 +77,10 @@ export function buildSemaExecutionPlan(
   const sites = [...descriptors].sort(compareSites);
   validateDescriptors(sites);
 
-  const sitesByExpression = new Map<ts.TaggedTemplateExpression, ExecutionPlanSiteDescriptor>();
+  const sitesByExpression = new Map<
+    ts.TaggedTemplateExpression,
+    ExecutionPlanSiteDescriptor
+  >();
   const sitesById = new Map<string, ExecutionPlanSiteDescriptor>();
   const siteRankById = new Map<string, number>();
   const inputRankBySiteId = new Map<string, ReadonlyMap<string, number>>();
@@ -83,7 +98,8 @@ export function buildSemaExecutionPlan(
     checker,
     sitesByExpression,
     limits,
-    options.sourceFiles ?? sites.map(({ expression }) => expression.getSourceFile()),
+    options.sourceFiles ??
+      sites.map(({ expression }) => expression.getSourceFile()),
   );
   const labelsByEdge = new Map<string, Set<string>>();
   for (const consumer of sites) {
@@ -123,6 +139,78 @@ export function buildSemaExecutionPlan(
   return { dependencies, stages };
 }
 
+export interface RoutedFunctionDescriptor {
+  readonly functionId: string;
+  readonly domain: string;
+  readonly adapterRef: string;
+  readonly encoderRef: string;
+  readonly encoderDepth: number | null;
+}
+
+/**
+ * Records the routed domains on a plan: one entry per domain in first-function
+ * order, and per stage the adapters it applies, so the runtime and trainer read
+ * the routing from the bundle instead of recomputing it.
+ */
+export function routeExecutionPlan(
+  plan: SemaExecutionPlan,
+  functions: readonly RoutedFunctionDescriptor[],
+): SemaExecutionPlan {
+  const byId = new Map(functions.map((entry) => [entry.functionId, entry]));
+  const domains = new Map<
+    string,
+    ExecutionPlanDomain & { readonly functionIds: string[] }
+  >();
+  for (const stage of plan.stages) {
+    for (const functionId of stage.functionIds) {
+      const entry = byId.get(functionId);
+      if (entry === undefined) {
+        throw new ExecutionPlanError(
+          "SEMA_EXECUTION_PLAN_INVALID",
+          `routed plan lacks a domain for function ${functionId}`,
+        );
+      }
+      const existing = domains.get(entry.domain);
+      if (existing === undefined) {
+        domains.set(entry.domain, {
+          name: entry.domain,
+          adapterRef: entry.adapterRef,
+          encoderRef: entry.encoderRef,
+          encoderDepth: entry.encoderDepth,
+          functionIds: [functionId],
+        });
+      } else {
+        if (
+          existing.adapterRef !== entry.adapterRef ||
+          existing.encoderRef !== entry.encoderRef ||
+          existing.encoderDepth !== entry.encoderDepth
+        ) {
+          throw new ExecutionPlanError(
+            "SEMA_EXECUTION_PLAN_INVALID",
+            `domain ${entry.domain} is routed inconsistently across its functions`,
+          );
+        }
+        existing.functionIds.push(functionId);
+      }
+    }
+  }
+  const stages = plan.stages.map((stage) => ({
+    ...stage,
+    adapterRefs: [
+      ...new Set(
+        stage.functionIds.map(
+          (functionId) => byId.get(functionId)?.adapterRef ?? "",
+        ),
+      ),
+    ],
+  }));
+  return {
+    dependencies: plan.dependencies,
+    stages,
+    domains: [...domains.values()],
+  };
+}
+
 interface ResolvedLimits {
   readonly maximumDepth: number;
   readonly maximumWork: number;
@@ -148,22 +236,35 @@ function positiveSafeInteger(value: number, name: string): number {
   return value;
 }
 
-function validateDescriptors(sites: readonly ExecutionPlanSiteDescriptor[]): void {
+function validateDescriptors(
+  sites: readonly ExecutionPlanSiteDescriptor[],
+): void {
   const ids = new Set<string>();
   const expressions = new Set<ts.TaggedTemplateExpression>();
 
   for (const site of sites) {
-    if (site.functionId.length === 0 || site.normalizedSourcePath.length === 0) {
-      invalid("execution-plan sites require nonempty function IDs and normalized source paths");
+    if (
+      site.functionId.length === 0 ||
+      site.normalizedSourcePath.length === 0
+    ) {
+      invalid(
+        "execution-plan sites require nonempty function IDs and normalized source paths",
+      );
     }
     if (!Number.isSafeInteger(site.start) || site.start < 0) {
-      invalid(`execution-plan site ${JSON.stringify(site.functionId)} has an invalid start`);
+      invalid(
+        `execution-plan site ${JSON.stringify(site.functionId)} has an invalid start`,
+      );
     }
     if (ids.has(site.functionId)) {
-      invalid(`duplicate execution-plan function ID ${JSON.stringify(site.functionId)}`);
+      invalid(
+        `duplicate execution-plan function ID ${JSON.stringify(site.functionId)}`,
+      );
     }
     if (expressions.has(site.expression)) {
-      invalid(`duplicate execution-plan expression for ${JSON.stringify(site.functionId)}`);
+      invalid(
+        `duplicate execution-plan expression for ${JSON.stringify(site.functionId)}`,
+      );
     }
     ids.add(site.functionId);
     expressions.add(site.expression);
@@ -198,7 +299,10 @@ class ProvenanceResolver {
 
   constructor(
     checker: ts.TypeChecker,
-    sitesByExpression: ReadonlyMap<ts.TaggedTemplateExpression, ExecutionPlanSiteDescriptor>,
+    sitesByExpression: ReadonlyMap<
+      ts.TaggedTemplateExpression,
+      ExecutionPlanSiteDescriptor
+    >,
     limits: ResolvedLimits,
     sourceFiles: readonly ts.SourceFile[],
   ) {
@@ -279,7 +383,10 @@ class ProvenanceResolver {
         const variable = containingInitializedVariable(declaration);
         if (variable?.initializer !== undefined) {
           this.#merge(result, this.#forNode(variable.initializer, depth + 1));
-          for (const initializer of bindingInitializers(declaration, variable)) {
+          for (const initializer of bindingInitializers(
+            declaration,
+            variable,
+          )) {
             this.#merge(result, this.#forNode(initializer, depth + 1));
           }
         }
@@ -338,7 +445,8 @@ class ProvenanceResolver {
       if (!sourceFile.isDeclarationFile) this.#sourceFiles.add(sourceFile);
     }
     for (const sourceFile of this.#sourceFiles) {
-      if (!this.#indexedSourceFiles.has(sourceFile)) this.#indexWrites(sourceFile);
+      if (!this.#indexedSourceFiles.has(sourceFile))
+        this.#indexWrites(sourceFile);
     }
 
     const consumer = this.#consumerExpression;
@@ -387,7 +495,10 @@ interface AssignmentWrite {
 function resolveAliases(symbol: ts.Symbol, checker: ts.TypeChecker): ts.Symbol {
   const visited = new Set<ts.Symbol>();
   let current = symbol;
-  while ((current.flags & ts.SymbolFlags.Alias) !== 0 && !visited.has(current)) {
+  while (
+    (current.flags & ts.SymbolFlags.Alias) !== 0 &&
+    !visited.has(current)
+  ) {
     visited.add(current);
     const resolved = checker.getAliasedSymbol(current);
     if (resolved === current) break;
@@ -407,7 +518,10 @@ function containingInitializedVariable(
   ) {
     current = current.parent;
   }
-  if (!ts.isVariableDeclaration(current) || !ts.isVariableDeclarationList(current.parent)) {
+  if (
+    !ts.isVariableDeclaration(current) ||
+    !ts.isVariableDeclarationList(current.parent)
+  ) {
     return undefined;
   }
   return current;
@@ -454,7 +568,10 @@ function assignmentTargetSymbols(
       if (symbol !== undefined) result.add(resolveAliases(symbol, checker));
       return;
     }
-    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    if (
+      ts.isPropertyAccessExpression(node) ||
+      ts.isElementAccessExpression(node)
+    ) {
       visit(node.expression);
       return;
     }
@@ -467,7 +584,10 @@ function assignmentTargetSymbols(
       visit(node.expression);
       return;
     }
-    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+    ) {
       visit(node.left);
       return;
     }
@@ -497,7 +617,10 @@ function assignmentTargetSymbols(
   return result;
 }
 
-function writeMayReachConsumer(write: ts.Node, consumer: ts.Expression): boolean {
+function writeMayReachConsumer(
+  write: ts.Node,
+  consumer: ts.Expression,
+): boolean {
   const writeSource = write.getSourceFile();
   const consumerSource = consumer.getSourceFile();
   if (writeSource !== consumerSource) return true;
@@ -531,12 +654,19 @@ function createStages(
     outgoing.set(site.functionId, new Set());
   }
   for (const dependency of dependencies) {
-    incoming.get(dependency.consumerFunctionId)?.add(dependency.producerFunctionId);
-    outgoing.get(dependency.producerFunctionId)?.add(dependency.consumerFunctionId);
+    incoming
+      .get(dependency.consumerFunctionId)
+      ?.add(dependency.producerFunctionId);
+    outgoing
+      .get(dependency.producerFunctionId)
+      ?.add(dependency.consumerFunctionId);
   }
 
   const remaining = new Map(
-    sites.map((site) => [site.functionId, incoming.get(site.functionId)?.size ?? 0]),
+    sites.map((site) => [
+      site.functionId,
+      incoming.get(site.functionId)?.size ?? 0,
+    ]),
   );
   const ready: ExecutionPlanSiteDescriptor[] = [];
   for (const site of sites) {
@@ -557,7 +687,10 @@ function createStages(
 
     const consumers = [...(outgoing.get(site.functionId) ?? [])]
       .map((id) => sitesById.get(id))
-      .filter((candidate): candidate is ExecutionPlanSiteDescriptor => candidate !== undefined)
+      .filter(
+        (candidate): candidate is ExecutionPlanSiteDescriptor =>
+          candidate !== undefined,
+      )
       .sort(compareSites);
     for (const consumer of consumers) {
       const count = (remaining.get(consumer.functionId) ?? 0) - 1;
@@ -585,7 +718,9 @@ function createStages(
     .sort(([left], [right]) => left - right)
     .map(([index, entries]) => ({
       index,
-      functionIds: entries.sort(compareSites).map(({ functionId }) => functionId),
+      functionIds: entries
+        .sort(compareSites)
+        .map(({ functionId }) => functionId),
     }));
 }
 
@@ -611,7 +746,8 @@ function popReadySite(
 ): ExecutionPlanSiteDescriptor | undefined {
   const first = heap[0];
   const last = heap.pop();
-  if (first === undefined || last === undefined || heap.length === 0) return first;
+  if (first === undefined || last === undefined || heap.length === 0)
+    return first;
 
   let index = 0;
   while (index < heap.length) {
@@ -647,9 +783,12 @@ function findDependencyCycle(
     sites.map((site) => [
       site.functionId,
       [...(outgoing.get(site.functionId) ?? [])]
-      .map((id) => sitesById.get(id))
-      .filter((candidate): candidate is ExecutionPlanSiteDescriptor => candidate !== undefined)
-      .sort(compareSites),
+        .map((id) => sitesById.get(id))
+        .filter(
+          (candidate): candidate is ExecutionPlanSiteDescriptor =>
+            candidate !== undefined,
+        )
+        .sort(compareSites),
     ]),
   );
 
@@ -662,7 +801,11 @@ function findDependencyCycle(
   for (const root of sites) {
     if (state.has(root.functionId)) continue;
     const frames: Frame[] = [
-      { site: root, consumers: consumersById.get(root.functionId) ?? [], next: 0 },
+      {
+        site: root,
+        consumers: consumersById.get(root.functionId) ?? [],
+        next: 0,
+      },
     ];
     state.set(root.functionId, "active");
     stack.push(root.functionId);
@@ -698,7 +841,10 @@ function findDependencyCycle(
   return ["unknown"];
 }
 
-function dependencyKey(producerFunctionId: string, consumerFunctionId: string): string {
+function dependencyKey(
+  producerFunctionId: string,
+  consumerFunctionId: string,
+): string {
   return `${producerFunctionId}\u0000${consumerFunctionId}`;
 }
 

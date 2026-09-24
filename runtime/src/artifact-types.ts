@@ -145,6 +145,8 @@ export interface ArtifactFunctionV1 {
   readonly inputSchemaSha256: string;
   readonly outputSchemaSha256: string;
   readonly adapterRef: string;
+  /** A depth-routed encoder prefix this function's adapter reads instead of the model's encoder. */
+  readonly encoderRef?: string;
   readonly heads: readonly HeadBindingV1[];
   readonly runtime: {
     readonly resultMode: "value" | "diagnostic";
@@ -178,7 +180,8 @@ export interface ApplicationArtifactManifestV1 {
   readonly compatibility: {
     readonly runtimeAbiVersion: 1;
     readonly modelAbiVersion: 1;
-    readonly canonicalInput: "semantscript.canonical-input/v1" | "semantscript.canonical-input/v2";
+    readonly canonicalInput:
+      "semantscript.canonical-input/v1" | "semantscript.canonical-input/v2";
     readonly minimumRuntimeVersion: string;
     readonly requiredCapabilities: readonly string[];
   };

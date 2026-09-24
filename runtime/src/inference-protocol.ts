@@ -8,11 +8,23 @@
 export interface StagedInferencePlan {
   readonly kind: "onnx";
   readonly tokenizerJson: Uint8Array;
+  /** The application's encoder: the full shared stack, or its deepest exported prefix. */
   readonly encoderModel: Uint8Array;
   readonly encoderAbi: InferenceOnnxAbi;
+  /**
+   * Depth-routed encoder prefixes beyond the application's encoder, keyed by
+   * ref; a function names one through `encoderRef` (TASK-6.7).
+   */
+  readonly encoders?: readonly StagedEncoderPlan[];
   readonly adapters: readonly StagedAdapterPlan[];
   readonly functions: readonly StagedFunctionPlan[];
   readonly maximumSequenceLength: number;
+}
+
+export interface StagedEncoderPlan {
+  readonly ref: string;
+  readonly model: Uint8Array;
+  readonly abi: InferenceOnnxAbi;
 }
 
 export interface StagedAdapterPlan {
@@ -24,6 +36,8 @@ export interface StagedAdapterPlan {
 export interface StagedFunctionPlan {
   readonly id: string;
   readonly adapterRef: string;
+  /** The encoder prefix this function's adapter reads; absent means the application's encoder. */
+  readonly encoderRef?: string;
   readonly diagnosticsRequired: boolean;
   readonly heads: readonly StagedHeadPlan[];
 }
@@ -47,8 +61,7 @@ export interface InferenceTensorDescriptor {
 export type InferenceSupportValue = boolean | string | number;
 
 export type InferencePlainValue =
-  | InferenceSupportValue
-  | Readonly<Record<string, InferenceSupportValue>>;
+  InferenceSupportValue | Readonly<Record<string, InferenceSupportValue>>;
 
 export type InferenceExpectedValueMode = "none" | "zero-based-rank" | "numeric";
 
@@ -72,9 +85,11 @@ export interface InferenceObjectDiagnostic {
   readonly fields: Readonly<Record<string, InferenceScalarDiagnostic>>;
 }
 
-export type InferenceDiagnosticResult = InferenceScalarDiagnostic | InferenceObjectDiagnostic;
+export type InferenceDiagnosticResult =
+  InferenceScalarDiagnostic | InferenceObjectDiagnostic;
 
-export type InferenceResultValue = InferencePlainValue | InferenceDiagnosticResult;
+export type InferenceResultValue =
+  InferencePlainValue | InferenceDiagnosticResult;
 
 export type InferenceWorkerResult =
   | { readonly kind: "value"; readonly result: InferencePlainValue }
@@ -126,7 +141,9 @@ function stringifyScalarDiagnostic(value: InferenceScalarDiagnostic): string {
     )
     .join(",");
   const expectedValue =
-    value.expectedValue === null ? "null" : stringifyFiniteNumber(value.expectedValue);
+    value.expectedValue === null
+      ? "null"
+      : stringifyFiniteNumber(value.expectedValue);
   return (
     `{"value":${stringifyInferenceSupportValue(value.value)},` +
     `"confidence":${stringifyFiniteNumber(value.confidence)},` +
@@ -138,7 +155,10 @@ function stringifyScalarDiagnostic(value: InferenceScalarDiagnostic): string {
 function stringifyObjectDiagnostic(value: InferenceObjectDiagnostic): string {
   const plainValue = stringifyInferencePlainValue(value.value);
   const fields = Object.entries(value.fields)
-    .map(([field, diagnostic]) => `${JSON.stringify(field)}:${stringifyScalarDiagnostic(diagnostic)}`)
+    .map(
+      ([field, diagnostic]) =>
+        `${JSON.stringify(field)}:${stringifyScalarDiagnostic(diagnostic)}`,
+    )
     .join(",");
   return (
     `{"value":${plainValue},` +
@@ -148,7 +168,9 @@ function stringifyObjectDiagnostic(value: InferenceObjectDiagnostic): string {
   );
 }
 
-export function stringifyInferenceSupportValue(value: InferenceSupportValue): string {
+export function stringifyInferenceSupportValue(
+  value: InferenceSupportValue,
+): string {
   if (typeof value === "number") {
     return stringifyFiniteNumber(value);
   }
@@ -205,16 +227,21 @@ export function maximumInferenceResponseBytes(
   cap = Number.MAX_SAFE_INTEGER - 1,
 ): number {
   if (!Number.isSafeInteger(cap) || cap < 1 || cap >= Number.MAX_SAFE_INTEGER) {
-    throw new RangeError("inference response byte cap must be a positive safe integer");
+    throw new RangeError(
+      "inference response byte cap must be a positive safe integer",
+    );
   }
   const counter = new ResponseSizeCounter(cap);
-  const scalar = plan.heads.length === 1 && plan.heads[0]?.outputPath.length === 0;
+  const scalar =
+    plan.heads.length === 1 && plan.heads[0]?.outputPath.length === 0;
   counter.add(plan.diagnosticsRequired ? 26 : 25);
   if (plan.diagnosticsRequired) {
     if (scalar) {
       const head = plan.heads[0];
       if (head === undefined) {
-        throw new TypeError("scalar inference response plan is missing its head");
+        throw new TypeError(
+          "scalar inference response plan is missing its head",
+        );
       }
       addScalarDiagnosticBytes(counter, head);
     } else {
@@ -272,7 +299,9 @@ function addPlainValueBytes(
     const head = heads[index];
     const field = head?.outputPath[0];
     if (head === undefined || field === undefined) {
-      throw new TypeError("object inference response heads require one-segment output paths");
+      throw new TypeError(
+        "object inference response heads require one-segment output paths",
+      );
     }
     if (index > 0) counter.add(1);
     counter.add(utf8Length(JSON.stringify(field)) + 1);
@@ -280,7 +309,10 @@ function addPlainValueBytes(
   }
 }
 
-function addScalarDiagnosticBytes(counter: ResponseSizeCounter, head: InferenceHeadPlan): void {
+function addScalarDiagnosticBytes(
+  counter: ResponseSizeCounter,
+  head: InferenceHeadPlan,
+): void {
   counter.add(9);
   addMaximumSupportValueBytes(counter, head);
   counter.add(14 + MAXIMUM_SERIALIZED_FINITE_NUMBER_BYTES);
@@ -294,7 +326,9 @@ function addScalarDiagnosticBytes(counter: ResponseSizeCounter, head: InferenceH
   }
   counter.add(18);
   counter.add(
-    head.expectedValueMode === "none" ? 4 : MAXIMUM_SERIALIZED_FINITE_NUMBER_BYTES,
+    head.expectedValueMode === "none"
+      ? 4
+      : MAXIMUM_SERIALIZED_FINITE_NUMBER_BYTES,
   );
   counter.add(1);
 }
@@ -313,7 +347,9 @@ function addObjectDiagnosticBytes(
     const head = heads[index];
     const field = head?.outputPath[0];
     if (head === undefined || field === undefined) {
-      throw new TypeError("object inference response heads require one-segment output paths");
+      throw new TypeError(
+        "object inference response heads require one-segment output paths",
+      );
     }
     if (index > 0) counter.add(1);
     counter.add(utf8Length(JSON.stringify(field)) + 1);
@@ -444,7 +480,8 @@ export interface InferenceInitializationErrorMessage {
   readonly message: string;
 }
 
-export type InferenceWorkerResponse = InferenceReadyMessage | InferenceInitializationErrorMessage;
+export type InferenceWorkerResponse =
+  InferenceReadyMessage | InferenceInitializationErrorMessage;
 
 export function workerErrorCodeName(code: number): InferenceWorkerErrorCode {
   switch (code) {

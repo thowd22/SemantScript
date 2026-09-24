@@ -781,6 +781,11 @@
         "adapter": {
           "$ref": "#/$defs/logicalRef"
         },
+        "encoderDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "$comment": "Depth routing (TASK-6.7): how many shared-encoder layers this function's domain runs before its adapter; absent means the full stack, and the encoder ref then names the exported prefix graph."
+        },
         "heads": {
           "type": "array",
           "minItems": 1,

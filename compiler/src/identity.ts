@@ -37,7 +37,9 @@ export function createSemanticProjection(
   };
 }
 
-export function computeSemanticSha256(source: NeuralFunctionSemanticProjection): string {
+export function computeSemanticSha256(
+  source: NeuralFunctionSemanticProjection,
+): string {
   return semanticJsonSha256(createSemanticProjection(source));
 }
 
@@ -58,7 +60,9 @@ export function normalizeProjectRelativeSourcePath(
     throw new TypeError("source path must not be empty");
   }
 
-  const pathApi = usesWindowsPathRules(projectRoot, sourcePath) ? path.win32 : path;
+  const pathApi = usesWindowsPathRules(projectRoot, sourcePath)
+    ? path.win32
+    : path;
   const absoluteRoot = pathApi.resolve(projectRoot);
   const absoluteSource = pathApi.isAbsolute(sourcePath)
     ? pathApi.resolve(sourcePath)
@@ -71,7 +75,9 @@ export function normalizeProjectRelativeSourcePath(
     relative === ".." ||
     relative.startsWith(`..${pathApi.sep}`)
   ) {
-    throw new RangeError("source path must name a file inside the compiler project root");
+    throw new RangeError(
+      "source path must name a file inside the compiler project root",
+    );
   }
 
   const normalized = relative.replaceAll("\\", "/");
@@ -88,11 +94,15 @@ export function createFunctionId(
   assertNormalizedSourcePath(normalizedSourcePath);
 
   if (!Number.isSafeInteger(duplicateOrdinal) || duplicateOrdinal < 0) {
-    throw new RangeError("duplicate ordinal must be a non-negative safe integer");
+    throw new RangeError(
+      "duplicate ordinal must be a non-negative safe integer",
+    );
   }
 
   if (!SHA256.test(semanticSha256)) {
-    throw new TypeError("semantic SHA-256 must contain 64 lowercase hexadecimal characters");
+    throw new TypeError(
+      "semantic SHA-256 must contain 64 lowercase hexadecimal characters",
+    );
   }
 
   return `nf_${semanticJsonSha256([
@@ -117,8 +127,14 @@ export function serializeIrBundle(bundle: SourceIrBundle): string {
   return stringifyExactJson(bundle);
 }
 
-function usesWindowsPathRules(projectRoot: string, sourcePath: string): boolean {
-  return WINDOWS_ABSOLUTE_PATH.test(projectRoot) || WINDOWS_ABSOLUTE_PATH.test(sourcePath);
+function usesWindowsPathRules(
+  projectRoot: string,
+  sourcePath: string,
+): boolean {
+  return (
+    WINDOWS_ABSOLUTE_PATH.test(projectRoot) ||
+    WINDOWS_ABSOLUTE_PATH.test(sourcePath)
+  );
 }
 
 function assertNormalizedSourcePath(value: string): void {
@@ -131,7 +147,9 @@ function assertNormalizedSourcePath(value: string): void {
     value.includes("\\") ||
     path.posix.isAbsolute(value) ||
     WINDOWS_ABSOLUTE_PATH.test(value) ||
-    segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")
+    segments.some(
+      (segment) => segment.length === 0 || segment === "." || segment === "..",
+    )
   ) {
     throw new TypeError(
       "normalized source path must be a project-relative slash-separated path without dot segments",
@@ -139,7 +157,11 @@ function assertNormalizedSourcePath(value: string): void {
   }
 }
 
-function serializeJsonValue(value: unknown, depth: number, active: Set<object>): string {
+function serializeJsonValue(
+  value: unknown,
+  depth: number,
+  active: Set<object>,
+): string {
   if (value === null) {
     return "null";
   }
@@ -162,7 +184,9 @@ function serializeJsonValue(value: unknown, depth: number, active: Set<object>):
   }
 
   if (typeof value !== "object") {
-    throw new TypeError("exact JSON values must contain only JSON-compatible data");
+    throw new TypeError(
+      "exact JSON values must contain only JSON-compatible data",
+    );
   }
 
   if (active.has(value)) {
@@ -188,7 +212,11 @@ function serializeJsonValue(value: unknown, depth: number, active: Set<object>):
   }
 }
 
-function serializeArray(value: readonly unknown[], depth: number, active: Set<object>): string {
+function serializeArray(
+  value: readonly unknown[],
+  depth: number,
+  active: Set<object>,
+): string {
   const keys = Object.keys(value);
 
   if (
@@ -219,15 +247,23 @@ function serializeArray(value: readonly unknown[], depth: number, active: Set<ob
   return `[\n${items.join(",\n")}\n${closingIndentation}]`;
 }
 
-function serializeObject(value: object, depth: number, active: Set<object>): string {
+function serializeObject(
+  value: object,
+  depth: number,
+  active: Set<object>,
+): string {
   if (Object.getOwnPropertySymbols(value).length > 0) {
-    throw new TypeError("exact JSON objects must not have symbol-keyed properties");
+    throw new TypeError(
+      "exact JSON objects must not have symbol-keyed properties",
+    );
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const keys = Object.keys(descriptors)
     .filter((key) => descriptors[key]?.enumerable)
-    .sort((left, right) => compareBytes(encoder.encode(left), encoder.encode(right)));
+    .sort((left, right) =>
+      compareBytes(encoder.encode(left), encoder.encode(right)),
+    );
 
   if (keys.length === 0) {
     return "{}";
@@ -260,12 +296,16 @@ function assertUnicodeScalarString(value: string): void {
       const next = value.charCodeAt(index + 1);
 
       if (next < 0xdc00 || next > 0xdfff) {
-        throw new TypeError("exact JSON strings cannot contain unpaired UTF-16 surrogates");
+        throw new TypeError(
+          "exact JSON strings cannot contain unpaired UTF-16 surrogates",
+        );
       }
 
       index += 1;
     } else if (code >= 0xdc00 && code <= 0xdfff) {
-      throw new TypeError("exact JSON strings cannot contain unpaired UTF-16 surrogates");
+      throw new TypeError(
+        "exact JSON strings cannot contain unpaired UTF-16 surrogates",
+      );
     }
   }
 }

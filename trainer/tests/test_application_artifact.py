@@ -358,7 +358,7 @@ def test_rejects_functions_that_do_not_share_the_application(tmp_path: Path) -> 
         export(tmp_path / "twice", [entries[0], entries[0]])
 
     mismatched = function_records(application, adapter_ref="adapter.other")[1]
-    with pytest.raises(ArtifactConfigurationError, match="encoder and adapter refs"):
+    with pytest.raises(ArtifactConfigurationError, match="more than one adapter ref"):
         export(tmp_path / "refs", [entries[0], mismatched])
 
     same_head = deepcopy(entries[1].ir)

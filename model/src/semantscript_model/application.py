@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from .encoder import SentenceEncoder
 from .heads import ClassificationHead, FieldHeads
@@ -89,45 +89,126 @@ if nn is not None:
             return adapted.to(dtype=torch.float32)
 
     class FunctionModel(nn.Module):
-        """One function's view over the shared encoder and adapter plus its own head."""
+        """One function's view over the shared encoder and its adapter plus its own head.
+
+        ``depth`` is the domain's encoder depth (``None`` for the full stack): the
+        view embeds through that many shared layers, exactly what the exported
+        prefix encoder of the domain computes.
+        """
 
         def __init__(
             self,
             encoder: SentenceEncoder,
             adapter: ApplicationAdapter,
             head: ClassificationHead | FieldHeads,
+            depth: int | None = None,
         ) -> None:
             super().__init__()
             _validate_widths(encoder, adapter, head)
             self.encoder = encoder
             self.adapter = adapter
             self.head = head
+            self.depth = encoder.validate_depth(depth)
 
         def forward(self, input_ids: Any, attention_mask: Any) -> Any:
-            sentence_embedding = self.encoder(input_ids, attention_mask)
+            sentence_embedding = self.encoder(input_ids, attention_mask, depth=self.depth)
             return self.head(self.adapter(sentence_embedding))
 
+    DEFAULT_ADAPTER_REF = "adapter.application"
+
+    def _adapter_key(ref: str) -> str:
+        # ModuleDict keys cannot contain dots; adapter refs do (adapter.app.domain).
+        return ref.replace(".", "__")
+
     class SharedEncoderApplication(nn.Module):
-        """Every function of one application over a single encoder and adapter."""
+        """Every function of one application over a single encoder and its adapters.
+
+        The common case is one adapter shared by every function. With routed
+        domains, ``adapters`` maps an adapter ref to its module, ``adapter_depths``
+        gives each adapter the number of shared encoder layers its functions run
+        (``None`` for the full stack) and every head is attached to one adapter.
+        The encoder prefixes stay shared: one encoder serves the whole application.
+        """
 
         def __init__(
             self,
             encoder: SentenceEncoder,
-            adapter: ApplicationAdapter,
+            adapter: ApplicationAdapter | None = None,
             heads: Mapping[str, ClassificationHead | FieldHeads] | None = None,
+            *,
+            adapters: Mapping[str, ApplicationAdapter] | None = None,
+            adapter_depths: Mapping[str, int | None] | None = None,
+            function_adapters: Mapping[str, str] | None = None,
         ) -> None:
             super().__init__()
             if not isinstance(encoder, SentenceEncoder):
                 raise TypeError("encoder must be a SentenceEncoder")
+            if (adapter is None) == (adapters is None):
+                raise ValueError("pass exactly one of adapter or adapters")
+            resolved = {DEFAULT_ADAPTER_REF: adapter} if adapters is None else dict(adapters)
+            if not resolved:
+                raise ValueError("an application needs at least one adapter")
+            self.encoder = encoder
+            self.adapters = nn.ModuleDict()
+            self._adapter_refs: dict[str, str] = {}
+            self._adapter_depths: dict[str, int | None] = {}
+            self._function_adapters: dict[str, str] = {}
+            depths = {} if adapter_depths is None else dict(adapter_depths)
+            for ref, module in resolved.items():
+                self.add_adapter(ref, module, depth=depths.pop(ref, None))
+            if depths:
+                raise ValueError(f"adapter_depths names unknown adapters: {sorted(depths)}")
+            bindings = {} if function_adapters is None else dict(function_adapters)
+            for function_id, head in (heads or {}).items():
+                self.add_head(function_id, head, adapter_ref=bindings.pop(function_id, None))
+            if bindings:
+                raise ValueError(f"function_adapters names unknown functions: {sorted(bindings)}")
+            self.heads: nn.ModuleDict  # declared in add_head for the type checker
+
+        # ---- adapters ----------------------------------------------------
+
+        def add_adapter(
+            self, ref: str, adapter: ApplicationAdapter, *, depth: int | None = None
+        ) -> None:
+            """Attach a domain adapter under its ref with the encoder depth it reads."""
+
+            if not isinstance(ref, str) or not ref:
+                raise ValueError("adapter ref must be a nonempty string")
             if not isinstance(adapter, ApplicationAdapter):
                 raise TypeError("adapter must be an ApplicationAdapter")
-            if encoder.hidden_size != adapter.config.hidden_size:
+            if self.encoder.hidden_size != adapter.config.hidden_size:
                 raise ValueError("adapter hidden_size must match the encoder hidden_size")
-            self.encoder = encoder
-            self.adapter = adapter
-            self.heads = nn.ModuleDict()
-            for function_id, head in (heads or {}).items():
-                self.add_head(function_id, head)
+            key = _adapter_key(ref)
+            if ref in self._adapter_refs or key in self.adapters:
+                raise ValueError(f"adapter {ref!r} is already attached")
+            self.adapters[key] = adapter
+            self._adapter_refs[ref] = key
+            self._adapter_depths[ref] = self.encoder.validate_depth(depth)
+
+        @property
+        def adapter_refs(self) -> tuple[str, ...]:
+            return tuple(self._adapter_refs)
+
+        def adapter_for(self, ref: str) -> ApplicationAdapter:
+            key = self._adapter_refs.get(ref)
+            if key is None:
+                raise KeyError(f"application has no adapter {ref!r}")
+            return cast(ApplicationAdapter, self.adapters[key])
+
+        def adapter_depth(self, ref: str) -> int | None:
+            if ref not in self._adapter_depths:
+                raise KeyError(f"application has no adapter {ref!r}")
+            return self._adapter_depths[ref]
+
+        @property
+        def adapter(self) -> ApplicationAdapter:
+            """The application's adapter when it has exactly one."""
+
+            if len(self._adapter_refs) != 1:
+                raise AttributeError("application has several adapters; use adapter_for(ref)")
+            return self.adapter_for(next(iter(self._adapter_refs)))
+
+        # ---- heads -------------------------------------------------------
 
         @property
         def hidden_size(self) -> int:
@@ -137,9 +218,17 @@ if nn is not None:
         def function_ids(self) -> tuple[str, ...]:
             return tuple(self.heads.keys())
 
-        def add_head(self, function_id: str, head: ClassificationHead | FieldHeads) -> None:
-            """Attach a new function head; the shared modules are untouched."""
+        def add_head(
+            self,
+            function_id: str,
+            head: ClassificationHead | FieldHeads,
+            *,
+            adapter_ref: str | None = None,
+        ) -> None:
+            """Attach a new function head to an adapter; the shared modules are untouched."""
 
+            if not hasattr(self, "heads"):
+                self.heads = nn.ModuleDict()
             if not isinstance(function_id, str) or not function_id or "." in function_id:
                 raise ValueError("function_id must be a nonempty string without dots")
             if function_id in self.heads:
@@ -148,26 +237,66 @@ if nn is not None:
                 raise ValueError(
                     f"application exceeds {MAXIMUM_APPLICATION_FUNCTIONS} function heads"
                 )
-            _validate_widths(self.encoder, self.adapter, head)
+            if adapter_ref is None:
+                if len(self._adapter_refs) != 1:
+                    raise ValueError(
+                        "adapter_ref is required when the application has several adapters"
+                    )
+                adapter_ref = next(iter(self._adapter_refs))
+            adapter = self.adapter_for(adapter_ref)
+            _validate_widths(self.encoder, adapter, head)
             self.heads[function_id] = head
+            self._function_adapters[function_id] = adapter_ref
+
+        def adapter_ref_of(self, function_id: str) -> str:
+            ref = self._function_adapters.get(function_id)
+            if ref is None:
+                raise KeyError(f"application has no head for function {function_id!r}")
+            return ref
+
+        def depth_of(self, function_id: str) -> int | None:
+            return self.adapter_depth(self.adapter_ref_of(function_id))
 
         def function_model(self, function_id: str) -> FunctionModel:
             """A per-function module sharing this application's encoder and adapter."""
 
             if not isinstance(function_id, str) or function_id not in self.heads:
                 raise KeyError(f"application has no head for function {function_id!r}")
-            return FunctionModel(self.encoder, self.adapter, self.heads[function_id])
+            ref = self.adapter_ref_of(function_id)
+            return FunctionModel(
+                self.encoder,
+                self.adapter_for(ref),
+                self.heads[function_id],
+                self.adapter_depth(ref),
+            )
 
-        def embed(self, input_ids: Any, attention_mask: Any) -> Any:
-            """The adapted embedding every head reads: one encoder pass per call."""
+        def embed(self, input_ids: Any, attention_mask: Any, function_id: str | None = None) -> Any:
+            """The adapted embedding a head reads: one encoder pass at the adapter's depth."""
 
-            return self.adapter(self.encoder(input_ids, attention_mask))
+            if function_id is None:
+                if len(self._adapter_refs) != 1:
+                    raise ValueError(
+                        "function_id is required when the application has several adapters"
+                    )
+                ref = next(iter(self._adapter_refs))
+            else:
+                ref = self.adapter_ref_of(function_id)
+            sentence_embedding = self.encoder(
+                input_ids, attention_mask, depth=self.adapter_depth(ref)
+            )
+            return self.adapter_for(ref)(sentence_embedding)
 
         def forward(self, input_ids: Any, attention_mask: Any) -> dict[str, Any]:
-            function_embedding = self.embed(input_ids, attention_mask)
-            return {
-                function_id: head(function_embedding) for function_id, head in self.heads.items()
-            }
+            embeddings: dict[str, Any] = {}
+            results: dict[str, Any] = {}
+            for function_id, head in self.heads.items():
+                ref = self.adapter_ref_of(function_id)
+                if ref not in embeddings:
+                    embeddings[ref] = self.adapter_for(ref)(
+                        self.encoder(input_ids, attention_mask, depth=self.adapter_depth(ref))
+                    )
+                results[function_id] = head(embeddings[ref])
+            return results
 
     def _validate_widths(encoder: Any, adapter: Any, head: Any) -> None:
         if not isinstance(head, (ClassificationHead, FieldHeads)):
@@ -190,20 +319,25 @@ else:
     class FunctionModel:  # pragma: no cover - exercised only without PyTorch
         """Deferred failure placeholder used when PyTorch is unavailable."""
 
-        def __init__(self, encoder: Any, adapter: Any, head: Any) -> None:
-            del encoder, adapter, head
+        def __init__(self, encoder: Any, adapter: Any, head: Any, depth: Any = None) -> None:
+            del encoder, adapter, head, depth
             raise _missing_torch() from _TORCH_IMPORT_ERROR
 
     class SharedEncoderApplication:  # pragma: no cover - exercised only without PyTorch
         """Deferred failure placeholder used when PyTorch is unavailable."""
 
-        def __init__(self, encoder: Any, adapter: Any, heads: Any = None) -> None:
-            del encoder, adapter, heads
+        def __init__(
+            self, encoder: Any, adapter: Any = None, heads: Any = None, **kwargs: Any
+        ) -> None:
+            del encoder, adapter, heads, kwargs
             raise _missing_torch() from _TORCH_IMPORT_ERROR
+
+    DEFAULT_ADAPTER_REF = "adapter.application"
 
 
 __all__ = [
     "DEFAULT_ADAPTER_BOTTLENECK_SIZE",
+    "DEFAULT_ADAPTER_REF",
     "MAXIMUM_APPLICATION_FUNCTIONS",
     "AdapterConfig",
     "ApplicationAdapter",

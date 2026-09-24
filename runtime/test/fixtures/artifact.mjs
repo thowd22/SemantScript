@@ -1,6 +1,13 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  rename,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +40,11 @@ function semanticNode(value) {
 }
 
 function semanticSha(value) {
-  return sha256(Buffer.from(JSON.stringify(["semantscript-semantic-json", 1, semanticNode(value)])));
+  return sha256(
+    Buffer.from(
+      JSON.stringify(["semantscript-semantic-json", 1, semanticNode(value)]),
+    ),
+  );
 }
 
 async function resource(release, source, path, ref, role, onnx) {
@@ -77,7 +88,11 @@ export async function createFixtureArtifact(root, options = {}) {
         opset: 17,
         inputs: [
           { name: "input_ids", dtype: "int64", shape: ["BATCH", "SEQUENCE"] },
-          { name: "attention_mask", dtype: "int64", shape: ["BATCH", "SEQUENCE"] },
+          {
+            name: "attention_mask",
+            dtype: "int64",
+            shape: ["BATCH", "SEQUENCE"],
+          },
         ],
         outputs: [
           { name: "sentence_embedding", dtype: "float32", shape: ["BATCH", 1] },
@@ -170,7 +185,10 @@ export async function createFixtureArtifact(root, options = {}) {
           {
             outputPath: [],
             headRef: "head.fixture.value",
-            type: { kind: "nominal-string", support: ["approve", "deny", "review"] },
+            type: {
+              kind: "nominal-string",
+              support: ["approve", "deny", "review"],
+            },
             parameterization: "categorical-softmax",
             calibration: {
               method: "temperature-scaling",
@@ -210,21 +228,101 @@ export async function createFixtureArtifact(root, options = {}) {
       },
     ],
   };
+  for (const extraEncoder of options.extraEncoders ?? []) {
+    // A depth-routed encoder prefix exported on its own (the fixture reuses the
+    // full encoder graph; the runtime only routes by ref).
+    resources.push(
+      await resource(
+        staging,
+        extraEncoder.source ?? "encoder.onnx",
+        `models/encoder/${extraEncoder.path ?? `${extraEncoder.ref}.onnx`}`,
+        extraEncoder.ref,
+        "encoder",
+        {
+          opset: 17,
+          inputs: [
+            { name: "input_ids", dtype: "int64", shape: ["BATCH", "SEQUENCE"] },
+            {
+              name: "attention_mask",
+              dtype: "int64",
+              shape: ["BATCH", "SEQUENCE"],
+            },
+          ],
+          outputs: [
+            {
+              name: "sentence_embedding",
+              dtype: "float32",
+              shape: ["BATCH", 1],
+            },
+          ],
+          externalData: false,
+        },
+      ),
+    );
+  }
+  for (const extraAdapter of options.extraAdapters ?? []) {
+    resources.push(
+      await resource(
+        staging,
+        extraAdapter.source ?? "adapter.onnx",
+        `models/adapters/${extraAdapter.ref}.onnx`,
+        extraAdapter.ref,
+        "adapter",
+        {
+          opset: 17,
+          inputs: [
+            {
+              name: "sentence_embedding",
+              dtype: "float32",
+              shape: ["BATCH", 1],
+            },
+          ],
+          outputs: [
+            {
+              name: "function_embedding",
+              dtype: "float32",
+              shape: ["BATCH", 1],
+            },
+          ],
+          externalData: false,
+        },
+      ),
+    );
+  }
   for (const extra of options.extraFunctions ?? []) {
     // A second function sharing the encoder and adapter with its own head copy.
     const headPath = `models/heads/${extra.id}/head-000.onnx`;
     resources.push(
-      await resource(staging, extra.headSource ?? "head.onnx", headPath, extra.headRef, "head", {
-        opset: 17,
-        inputs: [{ name: "function_embedding", dtype: "float32", shape: ["BATCH", 1] }],
-        outputs: [{ name: "logits", dtype: "float32", shape: ["BATCH", 3] }],
-        externalData: false,
-      }),
+      await resource(
+        staging,
+        extra.headSource ?? "head.onnx",
+        headPath,
+        extra.headRef,
+        "head",
+        {
+          opset: 17,
+          inputs: [
+            {
+              name: "function_embedding",
+              dtype: "float32",
+              shape: ["BATCH", 1],
+            },
+          ],
+          outputs: [{ name: "logits", dtype: "float32", shape: ["BATCH", 3] }],
+          externalData: false,
+        },
+      ),
     );
     manifest.functions.push({
       ...manifest.functions[0],
       id: extra.id,
       semanticSha256: extra.semanticSha256 ?? "7".repeat(64),
+      ...(extra.adapterRef === undefined
+        ? {}
+        : { adapterRef: extra.adapterRef }),
+      ...(extra.encoderRef === undefined
+        ? {}
+        : { encoderRef: extra.encoderRef }),
       heads: [{ ...manifest.functions[0].heads[0], headRef: extra.headRef }],
     });
   }
@@ -244,7 +342,10 @@ export async function createFixtureArtifact(root, options = {}) {
     release: `releases/sha256-${manifestSha256}`,
     manifestSha256,
   };
-  await writeFile(join(root, "current.json"), `${JSON.stringify(pointer, null, 2)}\n`);
+  await writeFile(
+    join(root, "current.json"),
+    `${JSON.stringify(pointer, null, 2)}\n`,
+  );
 
   if (typeof options.mutate === "function") {
     await options.mutate({ manifest, manifestSha256, release, root });

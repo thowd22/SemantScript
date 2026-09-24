@@ -1,6 +1,10 @@
 import ts from "typescript";
 
-import { collectCoreExportSymbols, resolveAliases, symbolMatches } from "./core-symbols.js";
+import {
+  collectCoreExportSymbols,
+  resolveAliases,
+  symbolMatches,
+} from "./core-symbols.js";
 import {
   buildDecimalGrid,
   parseDecimalLexeme,
@@ -15,7 +19,11 @@ import type {
   OutputSpec,
   TemplatePart,
 } from "./ir-types.js";
-import { bytesToHex, compareBytes, semanticJsonBytes } from "./semantic-json.js";
+import {
+  bytesToHex,
+  compareBytes,
+  semanticJsonBytes,
+} from "./semantic-json.js";
 import { findSemaSites, type SemaSite } from "./sema-sites.js";
 
 const DIAGNOSTIC_CODE = {
@@ -30,7 +38,8 @@ const DIAGNOSTIC_CODE = {
 } as const;
 
 const TYPE_FORMAT_FLAGS =
-  ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
+  ts.TypeFormatFlags.NoTruncation |
+  ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
 const INPUT_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 export interface ResolvedSemaSiteIr {
@@ -51,7 +60,10 @@ export interface SemaAnalysisDiagnostic extends ts.DiagnosticWithLocation {
 
 export type AnalyzeSemaSiteResult =
   | { readonly ok: true; readonly value: SemaSiteAnalysis }
-  | { readonly ok: false; readonly diagnostics: readonly SemaAnalysisDiagnostic[] };
+  | {
+      readonly ok: false;
+      readonly diagnostics: readonly SemaAnalysisDiagnostic[];
+    };
 
 export interface AnalyzeSemaSitesResult {
   readonly analyses: readonly SemaSiteAnalysis[];
@@ -116,7 +128,10 @@ class MarkerResolver {
   public resolveTransparentAliasWithEnvironment(
     node: ts.TypeNode,
     environment: ReadonlyMap<ts.Symbol, ts.TypeNode> = new Map(),
-  ): { readonly node: ts.TypeNode; readonly environment: ReadonlyMap<ts.Symbol, ts.TypeNode> } {
+  ): {
+    readonly node: ts.TypeNode;
+    readonly environment: ReadonlyMap<ts.Symbol, ts.TypeNode>;
+  } {
     return this.#resolveTransparentAlias(node, environment, new Set());
   }
 
@@ -125,7 +140,10 @@ class MarkerResolver {
     environment: ReadonlyMap<ts.Symbol, ts.TypeNode>,
     visited: ReadonlySet<ts.Symbol>,
   ): MarkerApplication | undefined {
-    const current = this.#resolveEnvironmentReference(unwrapParenthesizedType(node), environment);
+    const current = this.#resolveEnvironmentReference(
+      unwrapParenthesizedType(node),
+      environment,
+    );
 
     if (!ts.isTypeReferenceNode(current)) {
       return undefined;
@@ -174,8 +192,14 @@ class MarkerResolver {
     node: ts.TypeNode,
     environment: ReadonlyMap<ts.Symbol, ts.TypeNode>,
     visited: ReadonlySet<ts.Symbol>,
-  ): { readonly node: ts.TypeNode; readonly environment: ReadonlyMap<ts.Symbol, ts.TypeNode> } {
-    const current = this.#resolveEnvironmentReference(unwrapParenthesizedType(node), environment);
+  ): {
+    readonly node: ts.TypeNode;
+    readonly environment: ReadonlyMap<ts.Symbol, ts.TypeNode>;
+  } {
+    const current = this.#resolveEnvironmentReference(
+      unwrapParenthesizedType(node),
+      environment,
+    );
 
     if (!ts.isTypeReferenceNode(current)) {
       return { node: current, environment };
@@ -207,7 +231,11 @@ class MarkerResolver {
     );
     const nextVisited = new Set(visited);
     nextVisited.add(resolved);
-    return this.#resolveTransparentAlias(declaration.type, nextEnvironment, nextVisited);
+    return this.#resolveTransparentAlias(
+      declaration.type,
+      nextEnvironment,
+      nextVisited,
+    );
   }
 
   #resolveEnvironmentReference(
@@ -238,7 +266,10 @@ class MarkerResolver {
   }
 }
 
-export function analyzeSemaSite(program: ts.Program, site: SemaSite): AnalyzeSemaSiteResult {
+export function analyzeSemaSite(
+  program: ts.Program,
+  site: SemaSite,
+): AnalyzeSemaSiteResult {
   const checker = program.getTypeChecker();
   const context: AnalysisContext = {
     checker,
@@ -295,7 +326,12 @@ function resolveOutput(context: AnalysisContext): OutputSpec {
   const { checker, site } = context;
   const type = checker.getTypeFromTypeNode(site.outputTypeNode);
   const tsType = typeToString(type, site.outputTypeNode, checker);
-  const scalarHead = resolveScalarHead(site.outputTypeNode, type, "output", context);
+  const scalarHead = resolveScalarHead(
+    site.outputTypeNode,
+    type,
+    "output",
+    context,
+  );
 
   if (scalarHead) {
     return { kind: "scalar", tsType, head: scalarHead };
@@ -353,7 +389,11 @@ function resolveScalarHead(
       }
 
       const value = (member as ts.StringLiteralType).value;
-      assertUnicodeScalarString(value, typeNode, DIAGNOSTIC_CODE.unsupportedOutput);
+      assertUnicodeScalarString(
+        value,
+        typeNode,
+        DIAGNOSTIC_CODE.unsupportedOutput,
+      );
       values.push(value);
     }
 
@@ -395,7 +435,11 @@ function resolveMarkerHead(
       throw new Error("missing checked Ordinal argument");
     }
 
-    const support = extractOrdinalSupport(argument, marker.environment, context);
+    const support = extractOrdinalSupport(
+      argument,
+      marker.environment,
+      context,
+    );
     return {
       kind: "ordinal",
       sourceKind: "ordinal-string",
@@ -419,13 +463,21 @@ function resolveMarkerHead(
   );
   const minimum = decimalArguments[0];
   const maximum = decimalArguments[1];
-  const step = marker.kind === "BoundedInt" ? parseDecimalLexeme("1") : decimalArguments[2];
+  const step =
+    marker.kind === "BoundedInt"
+      ? parseDecimalLexeme("1")
+      : decimalArguments[2];
 
   if (!minimum || !maximum || !step) {
     throw new Error("missing checked bounded numeric argument");
   }
 
-  const grid = buildDecimalGrid(minimum, maximum, step, marker.kind === "BoundedInt");
+  const grid = buildDecimalGrid(
+    minimum,
+    maximum,
+    step,
+    marker.kind === "BoundedInt",
+  );
 
   if (typeof grid === "string") {
     fail(
@@ -450,7 +502,8 @@ function resolveFlatOutput(
 ): OutputSpec {
   const { checker, site } = context;
   const symbol = type.getSymbol();
-  const interfaceDeclarations = symbol?.declarations?.filter(ts.isInterfaceDeclaration) ?? [];
+  const interfaceDeclarations =
+    symbol?.declarations?.filter(ts.isInterfaceDeclaration) ?? [];
 
   if (
     interfaceDeclarations.length === 0 ||
@@ -468,13 +521,18 @@ function resolveFlatOutput(
     );
   }
 
-  const properties = checker.getPropertiesOfType(type).sort((left, right) =>
-    compareUnicodeScalars(left.getName(), right.getName()),
-  );
+  const properties = checker
+    .getPropertiesOfType(type)
+    .sort((left, right) =>
+      compareUnicodeScalars(left.getName(), right.getName()),
+    );
   const outputSyntax = context.markers.resolveTransparentAliasWithEnvironment(
     site.outputTypeNode,
   );
-  const interfaceEnvironments = collectInterfaceEnvironments(outputSyntax, context);
+  const interfaceEnvironments = collectInterfaceEnvironments(
+    outputSyntax,
+    context,
+  );
 
   if (properties.length === 0) {
     fail(
@@ -502,14 +560,20 @@ function resolveFlatOutput(
       );
     }
 
-    const fieldType = checker.getTypeOfSymbolAtLocation(property, site.outputTypeNode);
+    const fieldType = checker.getTypeOfSymbolAtLocation(
+      property,
+      site.outputTypeNode,
+    );
     const fieldTypeNode = declaration.type;
     const declaringContainer =
-      ts.isInterfaceDeclaration(declaration.parent) || ts.isTypeLiteralNode(declaration.parent)
+      ts.isInterfaceDeclaration(declaration.parent) ||
+      ts.isTypeLiteralNode(declaration.parent)
         ? declaration.parent
         : undefined;
     const fieldMarkerEnvironments = declaringContainer
-      ? interfaceEnvironments.get(declaringContainer) ?? [outputSyntax.environment]
+      ? (interfaceEnvironments.get(declaringContainer) ?? [
+          outputSyntax.environment,
+        ])
       : [outputSyntax.environment];
     const candidateHeads = fieldMarkerEnvironments.map((environment) =>
       resolveScalarHead(
@@ -527,7 +591,8 @@ function resolveFlatOutput(
       candidateHeads.some(
         (candidate) =>
           !candidate ||
-          bytesToHex(semanticJsonBytes(candidate)) !== bytesToHex(semanticJsonBytes(head)),
+          bytesToHex(semanticJsonBytes(candidate)) !==
+            bytesToHex(semanticJsonBytes(head)),
       )
     ) {
       fail(
@@ -545,7 +610,11 @@ function resolveFlatOutput(
       );
     }
 
-    assertUnicodeScalarString(name, declaration.name, DIAGNOSTIC_CODE.invalidFlatOutput);
+    assertUnicodeScalarString(
+      name,
+      declaration.name,
+      DIAGNOSTIC_CODE.invalidFlatOutput,
+    );
     return { name, head };
   });
 
@@ -635,7 +704,12 @@ function resolveInputType(
   const enumMember = enumMemberDeclarationForType(type);
 
   if (enumMember) {
-    const details = resolveEnumDetails(enumMember.parent, 1, site.node, context);
+    const details = resolveEnumDetails(
+      enumMember.parent,
+      1,
+      site.node,
+      context,
+    );
     const value = checker.getConstantValue(enumMember);
 
     if (typeof value !== details.base) {
@@ -650,10 +724,7 @@ function resolveInputType(
       kind: "enum",
       name: details.name,
       base: details.base,
-      values:
-        details.base === "string"
-          ? [value as string]
-          : [value as number],
+      values: details.base === "string" ? [value as string] : [value as number],
     };
   }
 
@@ -667,7 +738,11 @@ function resolveInputType(
 
   if ((type.flags & ts.TypeFlags.StringLiteral) !== 0) {
     const value = (type as ts.StringLiteralType).value;
-    assertUnicodeScalarString(value, site.node, DIAGNOSTIC_CODE.unsupportedInput);
+    assertUnicodeScalarString(
+      value,
+      site.node,
+      DIAGNOSTIC_CODE.unsupportedInput,
+    );
     return { kind: "literal", value };
   }
 
@@ -675,7 +750,11 @@ function resolveInputType(
     const value = (type as ts.NumberLiteralType).value;
 
     if (!Number.isFinite(value)) {
-      fail(DIAGNOSTIC_CODE.unsupportedInput, site.node, `${path} has a non-finite numeric type`);
+      fail(
+        DIAGNOSTIC_CODE.unsupportedInput,
+        site.node,
+        `${path} has a non-finite numeric type`,
+      );
     }
 
     return { kind: "literal", value };
@@ -704,7 +783,9 @@ function resolveInputType(
     const primitiveMembers = type.types.filter(
       (member) =>
         (member.flags &
-          (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike | ts.TypeFlags.BooleanLike)) !==
+          (ts.TypeFlags.StringLike |
+            ts.TypeFlags.NumberLike |
+            ts.TypeFlags.BooleanLike)) !==
         0,
     );
 
@@ -715,17 +796,27 @@ function resolveInputType(
         throw new Error("missing checked primitive intersection member");
       }
 
-      return resolveInputType(primitiveMember, path, context, activeTypes, allowUndefined);
+      return resolveInputType(
+        primitiveMember,
+        path,
+        context,
+        activeTypes,
+        allowUndefined,
+      );
     }
 
-    if (type.types.every((member) => (member.flags & ts.TypeFlags.Object) !== 0)) {
+    if (
+      type.types.every((member) => (member.flags & ts.TypeFlags.Object) !== 0)
+    ) {
       return resolveInputObject(type, path, context, activeTypes);
     }
   }
 
   if (type.isUnion()) {
     const members = allowUndefined
-      ? type.types.filter((member) => (member.flags & ts.TypeFlags.Undefined) === 0)
+      ? type.types.filter(
+          (member) => (member.flags & ts.TypeFlags.Undefined) === 0,
+        )
       : type.types;
 
     if (
@@ -739,7 +830,10 @@ function resolveInputType(
       );
     }
 
-    if (!allowUndefined && members.some((member) => (member.flags & ts.TypeFlags.Undefined) !== 0)) {
+    if (
+      !allowUndefined &&
+      members.some((member) => (member.flags & ts.TypeFlags.Undefined) !== 0)
+    ) {
       fail(
         DIAGNOSTIC_CODE.unsupportedInput,
         site.node,
@@ -763,7 +857,13 @@ function resolveInputType(
     >();
 
     for (const member of members) {
-      const resolved = resolveInputType(member, path, context, activeTypes, false);
+      const resolved = resolveInputType(
+        member,
+        path,
+        context,
+        activeTypes,
+        false,
+      );
       const bytes = semanticJsonBytes(resolved);
       byEncoding.set(bytesToHex(bytes), { bytes, value: resolved });
     }
@@ -786,53 +886,78 @@ function resolveInputType(
   }
 
   if (checker.isTupleType(type)) {
-    return withActiveType(type, path, context, activeTypes, (nextActiveTypes) => {
-      const tuple = type as ts.TupleTypeReference;
+    return withActiveType(
+      type,
+      path,
+      context,
+      activeTypes,
+      (nextActiveTypes) => {
+        const tuple = type as ts.TupleTypeReference;
 
-      if (
-        tuple.target.elementFlags.some(
-          (flag) =>
-            (flag & (ts.ElementFlags.Optional | ts.ElementFlags.Rest | ts.ElementFlags.Variadic)) !==
-            0,
-        )
-      ) {
-        fail(
-          DIAGNOSTIC_CODE.unsupportedInput,
-          site.node,
-          `${path} uses an optional or rest tuple element, which v1 input schemas do not support`,
-        );
-      }
+        if (
+          tuple.target.elementFlags.some(
+            (flag) =>
+              (flag &
+                (ts.ElementFlags.Optional |
+                  ts.ElementFlags.Rest |
+                  ts.ElementFlags.Variadic)) !==
+              0,
+          )
+        ) {
+          fail(
+            DIAGNOSTIC_CODE.unsupportedInput,
+            site.node,
+            `${path} uses an optional or rest tuple element, which v1 input schemas do not support`,
+          );
+        }
 
-      return {
-        kind: "tuple",
-        items: checker
-          .getTypeArguments(tuple)
-          .map((item, index) =>
-            resolveInputType(
-              item,
-              `${path}[${String(index)}]`,
-              context,
-              nextActiveTypes,
-              false,
+        return {
+          kind: "tuple",
+          items: checker
+            .getTypeArguments(tuple)
+            .map((item, index) =>
+              resolveInputType(
+                item,
+                `${path}[${String(index)}]`,
+                context,
+                nextActiveTypes,
+                false,
+              ),
             ),
-          ),
-      };
-    });
+        };
+      },
+    );
   }
 
   if (checker.isArrayType(type)) {
-    return withActiveType(type, path, context, activeTypes, (nextActiveTypes) => {
-      const itemType = checker.getIndexTypeOfType(type, ts.IndexKind.Number);
+    return withActiveType(
+      type,
+      path,
+      context,
+      activeTypes,
+      (nextActiveTypes) => {
+        const itemType = checker.getIndexTypeOfType(type, ts.IndexKind.Number);
 
-      if (!itemType) {
-        fail(DIAGNOSTIC_CODE.unsupportedInput, site.node, `${path} array element type is unresolved`);
-      }
+        if (!itemType) {
+          fail(
+            DIAGNOSTIC_CODE.unsupportedInput,
+            site.node,
+            `${path} array element type is unresolved`,
+          );
+        }
 
-      return {
-        kind: "array",
-        items: resolveInputType(itemType, `${path}[]`, context, nextActiveTypes, false),
-      };
-    });
+        return {
+          kind: "array",
+          items: resolveInputType(
+            itemType,
+            `${path}[]`,
+            context,
+            nextActiveTypes,
+            false,
+          ),
+        };
+      },
+    );
   }
 
   if ((type.flags & ts.TypeFlags.Object) !== 0) {
@@ -842,7 +967,13 @@ function resolveInputType(
   const constraint = checker.getBaseConstraintOfType(type);
 
   if (constraint && constraint !== type) {
-    return resolveInputType(constraint, path, context, activeTypes, allowUndefined);
+    return resolveInputType(
+      constraint,
+      path,
+      context,
+      activeTypes,
+      allowUndefined,
+    );
   }
 
   fail(
@@ -870,7 +1001,8 @@ function resolveInputObject(
           .getSymbol()
           ?.declarations?.some(
             (declaration) =>
-              ts.isClassDeclaration(declaration) || ts.isClassExpression(declaration),
+              ts.isClassDeclaration(declaration) ||
+              ts.isClassExpression(declaration),
           ),
     ) ||
     checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0 ||
@@ -887,9 +1019,12 @@ function resolveInputObject(
   return withActiveType(type, path, context, activeTypes, (nextActiveTypes) => {
     const fields: ObjectInputField[] = checker
       .getPropertiesOfType(type)
-      .sort((left, right) => compareUnicodeScalars(left.getName(), right.getName()))
+      .sort((left, right) =>
+        compareUnicodeScalars(left.getName(), right.getName()),
+      )
       .map((property) => {
-        const declaration = property.valueDeclaration ?? property.declarations?.[0];
+        const declaration =
+          property.valueDeclaration ?? property.declarations?.[0];
         const name = property.getName();
 
         if (
@@ -907,9 +1042,16 @@ function resolveInputObject(
           );
         }
 
-        assertUnicodeScalarString(name, declaration.name, DIAGNOSTIC_CODE.unsupportedInput);
+        assertUnicodeScalarString(
+          name,
+          declaration.name,
+          DIAGNOSTIC_CODE.unsupportedInput,
+        );
         const optional = (property.flags & ts.SymbolFlags.Optional) !== 0;
-        const propertyType = checker.getTypeOfSymbolAtLocation(property, declaration);
+        const propertyType = checker.getTypeOfSymbolAtLocation(
+          property,
+          declaration,
+        );
         return {
           name,
           optional,
@@ -923,7 +1065,8 @@ function resolveInputObject(
         };
       });
     const symbolName = symbol?.getName();
-    const name = symbolName && !symbolName.startsWith("__") ? symbolName : "anonymous";
+    const name =
+      symbolName && !symbolName.startsWith("__") ? symbolName : "anonymous";
     return { kind: "object", name, fields };
   });
 }
@@ -935,7 +1078,9 @@ function resolveEnumDetails(
   context: AnalysisContext,
 ): EnumDetails {
   const enumSymbol = context.checker.getSymbolAtLocation(declaration.name);
-  const enumDeclarations = enumSymbol?.declarations?.filter(ts.isEnumDeclaration) ?? [declaration];
+  const enumDeclarations = enumSymbol?.declarations?.filter(
+    ts.isEnumDeclaration,
+  ) ?? [declaration];
 
   if (enumDeclarations.length !== 1) {
     fail(
@@ -951,7 +1096,10 @@ function resolveEnumDetails(
   for (const member of declaration.members) {
     const value = context.checker.getConstantValue(member);
 
-    if ((typeof value !== "string" && typeof value !== "number") || !isFiniteEnumValue(value)) {
+    if (
+      (typeof value !== "string" && typeof value !== "number") ||
+      !isFiniteEnumValue(value)
+    ) {
       fail(
         DIAGNOSTIC_CODE.invalidEnum,
         member,
@@ -963,7 +1111,8 @@ function resolveEnumDetails(
       assertUnicodeScalarString(value, member, DIAGNOSTIC_CODE.invalidEnum);
     }
 
-    const memberBase: "string" | "number" = typeof value === "string" ? "string" : "number";
+    const memberBase: "string" | "number" =
+      typeof value === "string" ? "string" : "number";
 
     if (base && base !== memberBase) {
       fail(
@@ -985,7 +1134,9 @@ function resolveEnumDetails(
     );
   }
 
-  const uniqueKeys = new Set(values.map((value) => `${typeof value}:${String(value)}`));
+  const uniqueKeys = new Set(
+    values.map((value) => `${typeof value}:${String(value)}`),
+  );
 
   if (uniqueKeys.size !== values.length) {
     fail(
@@ -1012,8 +1163,14 @@ function extractOrdinalSupport(
 ): readonly string[] {
   let current = context.markers.resolveTransparentAlias(node, environment);
 
-  if (ts.isTypeOperatorNode(current) && current.operator === ts.SyntaxKind.ReadonlyKeyword) {
-    current = context.markers.resolveTransparentAlias(current.type, environment);
+  if (
+    ts.isTypeOperatorNode(current) &&
+    current.operator === ts.SyntaxKind.ReadonlyKeyword
+  ) {
+    current = context.markers.resolveTransparentAlias(
+      current.type,
+      environment,
+    );
   }
 
   if (!ts.isTupleTypeNode(current)) {
@@ -1037,9 +1194,15 @@ function extractOrdinalSupport(
       element = element.type;
     }
 
-    const resolved = context.markers.resolveTransparentAlias(element, environment);
+    const resolved = context.markers.resolveTransparentAlias(
+      element,
+      environment,
+    );
 
-    if (!ts.isLiteralTypeNode(resolved) || !ts.isStringLiteral(resolved.literal)) {
+    if (
+      !ts.isLiteralTypeNode(resolved) ||
+      !ts.isStringLiteral(resolved.literal)
+    ) {
       fail(
         DIAGNOSTIC_CODE.invalidOrdinal,
         element,
@@ -1101,7 +1264,9 @@ function enumDeclarationForType(type: ts.Type): ts.EnumDeclaration | undefined {
   return undefined;
 }
 
-function enumMemberDeclarationForType(type: ts.Type): ts.EnumMember | undefined {
+function enumMemberDeclarationForType(
+  type: ts.Type,
+): ts.EnumMember | undefined {
   return type.getSymbol()?.declarations?.find(ts.isEnumMember);
 }
 
@@ -1113,7 +1278,9 @@ function bindTypeParameters(
 ): ReadonlyMap<ts.Symbol, ts.TypeNode> {
   const next = new Map(environment);
 
-  for (const [index, parameter] of (declaration.typeParameters ?? []).entries()) {
+  for (const [index, parameter] of (
+    declaration.typeParameters ?? []
+  ).entries()) {
     const argument = arguments_[index] ?? parameter.default;
     const symbol = checker.getSymbolAtLocation(parameter.name);
 
@@ -1159,13 +1326,20 @@ function collectInterfaceEnvironments(
     node: ts.TypeNode,
     environment: ReadonlyMap<ts.Symbol, ts.TypeNode>,
   ): void {
-    const target = context.markers.resolveTransparentAliasWithEnvironment(node, environment);
+    const target = context.markers.resolveTransparentAliasWithEnvironment(
+      node,
+      environment,
+    );
 
     if (ts.isTypeReferenceNode(target.node)) {
       const symbol = context.checker.getSymbolAtLocation(target.node.typeName);
 
       if (symbol) {
-        visitSymbol(symbol, target.node.typeArguments ?? [], target.environment);
+        visitSymbol(
+          symbol,
+          target.node.typeArguments ?? [],
+          target.environment,
+        );
       }
 
       return;
@@ -1225,7 +1399,8 @@ function collectInterfaceEnvironments(
       return;
     }
 
-    const declarations = resolvedSymbol.declarations?.filter(ts.isInterfaceDeclaration) ?? [];
+    const declarations =
+      resolvedSymbol.declarations?.filter(ts.isInterfaceDeclaration) ?? [];
 
     for (const declaration of declarations) {
       if (activeInterfaces.has(declaration)) {
@@ -1251,10 +1426,16 @@ function collectInterfaceEnvironments(
         }
 
         for (const heritageType of clause.types) {
-          const heritageSymbol = context.checker.getSymbolAtLocation(heritageType.expression);
+          const heritageSymbol = context.checker.getSymbolAtLocation(
+            heritageType.expression,
+          );
 
           if (heritageSymbol) {
-            visitSymbol(heritageSymbol, heritageType.typeArguments ?? [], boundEnvironment);
+            visitSymbol(
+              heritageSymbol,
+              heritageType.typeArguments ?? [],
+              boundEnvironment,
+            );
           }
         }
       }
@@ -1267,8 +1448,11 @@ function collectInterfaceEnvironments(
   return environments;
 }
 
-function singleTypeAliasDeclaration(symbol: ts.Symbol): ts.TypeAliasDeclaration | undefined {
-  const declarations = symbol.declarations?.filter(ts.isTypeAliasDeclaration) ?? [];
+function singleTypeAliasDeclaration(
+  symbol: ts.Symbol,
+): ts.TypeAliasDeclaration | undefined {
+  const declarations =
+    symbol.declarations?.filter(ts.isTypeAliasDeclaration) ?? [];
   return declarations.length === 1 ? declarations[0] : undefined;
 }
 
@@ -1292,11 +1476,19 @@ function withActiveType<T>(
   return resolve(next);
 }
 
-function typeToString(type: ts.Type, node: ts.Node, checker: ts.TypeChecker): string {
+function typeToString(
+  type: ts.Type,
+  node: ts.Node,
+  checker: ts.TypeChecker,
+): string {
   return checker.typeToString(type, node, TYPE_FORMAT_FLAGS);
 }
 
-function quoteType(type: ts.Type, node: ts.Node, checker: ts.TypeChecker): string {
+function quoteType(
+  type: ts.Type,
+  node: ts.Node,
+  checker: ts.TypeChecker,
+): string {
   return JSON.stringify(typeToString(type, node, checker));
 }
 
@@ -1323,12 +1515,19 @@ function isFiniteEnumValue(value: string | number): boolean {
 }
 
 function compareUnicodeScalars(left: string, right: string): number {
-  const leftCodePoints = Array.from(left, (character) => character.codePointAt(0) ?? 0);
-  const rightCodePoints = Array.from(right, (character) => character.codePointAt(0) ?? 0);
+  const leftCodePoints = Array.from(
+    left,
+    (character) => character.codePointAt(0) ?? 0,
+  );
+  const rightCodePoints = Array.from(
+    right,
+    (character) => character.codePointAt(0) ?? 0,
+  );
   const length = Math.min(leftCodePoints.length, rightCodePoints.length);
 
   for (let index = 0; index < length; index += 1) {
-    const difference = (leftCodePoints[index] ?? 0) - (rightCodePoints[index] ?? 0);
+    const difference =
+      (leftCodePoints[index] ?? 0) - (rightCodePoints[index] ?? 0);
 
     if (difference !== 0) {
       return difference;
@@ -1368,8 +1567,14 @@ function isUnicodeScalarString(value: string): boolean {
   return true;
 }
 
-function toDiagnostic(failure: AnalysisFailure, site: SemaSite): SemaAnalysisDiagnostic {
-  const anchor = failure.node.getSourceFile() === site.sourceFile ? failure.node : site.outputTypeNode;
+function toDiagnostic(
+  failure: AnalysisFailure,
+  site: SemaSite,
+): SemaAnalysisDiagnostic {
+  const anchor =
+    failure.node.getSourceFile() === site.sourceFile
+      ? failure.node
+      : site.outputTypeNode;
   const start = anchor.getStart(site.sourceFile);
   const siteText = site.node.getText(site.sourceFile);
   const prefix = `${site.location.fileName}:${String(site.location.line)}:${String(site.location.column)}`;

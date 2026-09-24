@@ -224,6 +224,30 @@ low-confidence value silently. For a flat interface every field's confidence
 must reach `q`. The header is compiler syntax: it is removed from the
 behavioral text before training.
 
+## Domains
+
+A template may carry an `@domain(name)` header, alone or beside `@confidence`,
+before the behavior text. It names the compile-time routed domain of the
+expression: every expression of a domain shares one adapter over the
+application's encoder, and the `semantscript build --domain-depth name=n`
+option sets how many shared-encoder layers that domain runs before its adapter
+(the full stack by default). Without a header the domain is the file's name
+without `.sem.ts`, lowercased with dashes, so expressions grouped by file are
+grouped by domain. Naming a domain depth or using one `@domain` header makes
+the whole bundle routed; otherwise every expression shares the application's
+single adapter and the plan is unchanged.
+
+```ts
+const risk = sema<"low" | "high">`
+  @domain(fraud)
+  Whether this order looks fraudulent.
+  Order: ${order}
+`;
+```
+
+The name is lowercase letters, digits and dashes. Routing is build metadata:
+it changes neither the function's semantic identity nor its id.
+
 ## Diagnostics with `sema.withConfidence`
 
 The diagnostic form has the same text, input, option and output rules and
@@ -294,7 +318,7 @@ guide.
 The compiler rejects, with the file, line and column of the site and the site's
 text: malformed uses of `sema` (code 9100), unsupported or unresolved output
 types (9101 to 9105), invalid or duplicate interpolations and unsupported input
-types (9110 to 9112), invalid options, examples, constraints and `@confidence`
+types (9110 to 9112), invalid options, examples, constraints, `@confidence` and `@domain`
 headers (9120 to 9125), and an empty behavioral text (9124). The complete
 catalogue and a rendered sample of every family are in the
 [compiler guide](../compiler/README.md); `semantscript build` prints them and

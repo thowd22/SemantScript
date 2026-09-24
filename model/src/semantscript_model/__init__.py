@@ -2,6 +2,7 @@
 
 from semantscript_model.application import (
     DEFAULT_ADAPTER_BOTTLENECK_SIZE,
+    DEFAULT_ADAPTER_REF,
     MAXIMUM_APPLICATION_FUNCTIONS,
     AdapterConfig,
     ApplicationAdapter,
@@ -29,6 +30,7 @@ from semantscript_model.encoder import (
     DEFAULT_ENCODER,
     DEFAULT_ENCODER_REVISION,
     EncoderConfig,
+    PrefixSentenceEncoder,
     SentenceEncoder,
 )
 from semantscript_model.export import (
@@ -42,10 +44,13 @@ from semantscript_model.export import (
     ExportedApplicationComponents,
     ExportedOnnxComponent,
     ExportedOnnxComponents,
+    ExportedRoutedApplicationComponents,
     QuantizedOnnxComponent,
     TensorMetadata,
+    depth_key,
     export_application_components,
     export_onnx_components,
+    export_routed_application_components,
     quantize_onnx_encoder,
 )
 from semantscript_model.heads import (
@@ -69,6 +74,7 @@ PACKAGE_NAME = "semantscript_model"
 
 __all__ = [
     "DEFAULT_ADAPTER_BOTTLENECK_SIZE",
+    "DEFAULT_ADAPTER_REF",
     "DEFAULT_ECE_BIN_COUNT",
     "DEFAULT_ENCODER",
     "DEFAULT_ENCODER_REVISION",
@@ -99,6 +105,7 @@ __all__ = [
     "ExportedApplicationComponents",
     "ExportedOnnxComponent",
     "ExportedOnnxComponents",
+    "ExportedRoutedApplicationComponents",
     "FieldHeads",
     "FieldHeadsConfig",
     "FunctionModel",
@@ -106,6 +113,7 @@ __all__ = [
     "HeadConfig",
     "HeadKind",
     "LossName",
+    "PrefixSentenceEncoder",
     "QuantizedOnnxComponent",
     "Reduction",
     "SemanticClassifier",
@@ -115,8 +123,10 @@ __all__ = [
     "calibrate",
     "calibration_metrics",
     "classification_loss",
+    "depth_key",
     "export_application_components",
     "export_onnx_components",
+    "export_routed_application_components",
     "fit_temperature",
     "proper_scoring_loss",
     "quantize_onnx_encoder",

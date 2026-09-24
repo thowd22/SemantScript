@@ -45,11 +45,12 @@ from semantscript_trainer.verification import (
     VerificationResult,
 )
 
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 APPLICATION_KIND = "semantscript.build-cache-application"
 FUNCTION_KIND = "semantscript.build-cache-function"
 _RECIPE_KIND = "semantscript.build-cache-recipe"
 _SHARED_FILE = "shared.safetensors"
+_ADAPTERS_DIRECTORY = "adapters"
 _HEAD_FILE = "head.safetensors"
 _IR_FILE = "verified-ir.json"
 _RECORD_FILE = "function.json"
@@ -127,6 +128,8 @@ class CachedFunction:
     semantic_sha256: str
     recipe_sha256: str
     shared_state_sha256: str
+    adapter_ref: str
+    model_sha256: str
     source_path: str | None
     dataset_sha256: str
     dataset_cases: int
@@ -219,6 +222,8 @@ class ApplicationCache:
                 semantic_sha256=str(record["semanticSha256"]),
                 recipe_sha256=str(record["recipeSha256"]),
                 shared_state_sha256=str(record["sharedStateSha256"]),
+                adapter_ref=str(record["adapterRef"]),
+                model_sha256=str(record["modelSha256"]),
                 source_path=record.get("sourcePath"),
                 dataset_sha256=str(record["datasetSha256"]),
                 dataset_cases=int(record["datasetCases"]),
@@ -238,42 +243,79 @@ class ApplicationCache:
             return None
 
     def shared_state_intact(self) -> bool:
+        """The encoder file and every adapter file match the digests the index recorded."""
+
         index = self.index()
         if index is None:
             return False
         path = self.root / _SHARED_FILE
-        return path.is_file() and _file_sha256(path) == index.get("sharedStateSha256")
+        if not path.is_file() or _file_sha256(path) != index.get("sharedStateSha256"):
+            return False
+        adapters = index.get("adapterStateSha256")
+        if not isinstance(adapters, dict):
+            return False
+        for ref, digest in adapters.items():
+            adapter_path = self._adapter_path(str(ref))
+            if not adapter_path.is_file() or _file_sha256(adapter_path) != digest:
+                return False
+        return True
 
-    def load_shared_state(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Encoder and adapter state dicts, exactly as stored."""
+    def cached_adapter_refs(self) -> tuple[str, ...]:
+        index = self.index()
+        adapters = index.get("adapterStateSha256") if index is not None else None
+        return tuple(sorted(adapters)) if isinstance(adapters, dict) else ()
+
+    def function_shared_sha256(self, adapter_ref: str) -> str | None:
+        """The digest a function's record must carry: its encoder and its domain adapter."""
+
+        index = self.index()
+        if index is None:
+            return None
+        encoder = index.get("sharedStateSha256")
+        adapters = index.get("adapterStateSha256")
+        adapter = adapters.get(adapter_ref) if isinstance(adapters, dict) else None
+        if not isinstance(encoder, str) or not isinstance(adapter, str):
+            return None
+        return combined_shared_sha256(encoder, adapter)
+
+    def load_shared_state(self) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+        """The encoder state and every cached adapter's state by ref, exactly as stored."""
 
         if not self.shared_state_intact():
             raise BuildCacheError("cached shared encoder state is missing or corrupt")
-        state = _load_safetensors(self.root / _SHARED_FILE)
-        encoder = {
-            key[len("encoder.") :]: v for key, v in state.items() if key.startswith("encoder.")
+        encoder = _load_safetensors(self.root / _SHARED_FILE)
+        adapters = {
+            ref: _load_safetensors(self._adapter_path(ref)) for ref in self.cached_adapter_refs()
         }
-        adapter = {
-            key[len("adapter.") :]: v for key, v in state.items() if key.startswith("adapter.")
-        }
-        return encoder, adapter
+        return encoder, adapters
 
     def load_head_state(self, cached: CachedFunction) -> dict[str, Any]:
         return _load_safetensors(cached.head_state_path)
 
     # ---- writing -------------------------------------------------------
 
-    def store_shared_state(self, encoder: Any, adapter: Any) -> str:
-        """Persist the exact encoder and adapter weights; returns the file digest."""
+    def store_shared_state(self, encoder: Any, adapters: Mapping[str, Any]) -> SharedStateDigests:
+        """Persist the exact encoder and every adapter's weights; returns their digests.
 
-        state: dict[str, Any] = {}
-        for prefix, module in (("encoder.", encoder), ("adapter.", adapter)):
-            for name, tensor in module.state_dict().items():
-                state[prefix + name] = tensor
+        Every previously cached adapter is dropped: this is the fresh joint build.
+        """
+
         self.root.mkdir(parents=True, exist_ok=True)
-        path = self.root / _SHARED_FILE
-        _save_safetensors(state, path)
+        shutil.rmtree(self.root / _ADAPTERS_DIRECTORY, ignore_errors=True)
+        _save_safetensors(dict(encoder.state_dict()), self.root / _SHARED_FILE)
+        digests = {ref: self.store_adapter_state(ref, module) for ref, module in adapters.items()}
+        return SharedStateDigests(_file_sha256(self.root / _SHARED_FILE), digests)
+
+    def store_adapter_state(self, ref: str, adapter: Any) -> str:
+        """Persist one domain adapter's exact weights (a new domain on a cached encoder)."""
+
+        path = self._adapter_path(ref)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _save_safetensors(dict(adapter.state_dict()), path)
         return _file_sha256(path)
+
+    def _adapter_path(self, ref: str) -> Path:
+        return self.root / _ADAPTERS_DIRECTORY / f"{ref.replace('.', '__')}.safetensors"
 
     def store_function(
         self,
@@ -289,6 +331,11 @@ class ApplicationCache:
         adversarial_cases: int,
     ) -> None:
         function_id = str(ir["id"])
+        model = ir.get("model")
+        if model is None:
+            model = {"encoder": "encoder.main", "adapter": "adapter.application"}
+        if not isinstance(model, Mapping) or not isinstance(model.get("adapter"), str):
+            raise BuildCacheError("function IR must name its adapter under model.adapter")
         directory = self.root / "functions" / function_id
         if directory.exists():
             shutil.rmtree(directory)
@@ -307,6 +354,8 @@ class ApplicationCache:
             "semanticSha256": ir["semanticSha256"],
             "recipeSha256": recipe_sha256,
             "sharedStateSha256": shared_state_sha256,
+            "adapterRef": model["adapter"],
+            "modelSha256": semantic_json_sha256(cast(JsonValue, dict(model))),
             "sourcePath": source.get("path") if isinstance(source, Mapping) else None,
             "datasetSha256": training.base_dataset_sha256,
             "datasetCases": dataset_cases,
@@ -344,6 +393,7 @@ class ApplicationCache:
         release_sha256: str,
         shared_state_sha256: str,
         tokenizer_sha256: str,
+        adapter_state_sha256: Mapping[str, str],
     ) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         document = {
@@ -353,6 +403,7 @@ class ApplicationCache:
             "recipeSha256": recipe.sha256,
             "recipe": recipe.projection,
             "sharedStateSha256": shared_state_sha256,
+            "adapterStateSha256": dict(sorted(adapter_state_sha256.items())),
             "tokenizerSha256": tokenizer_sha256,
             "release": {"manifestSha256": release_sha256},
             "functions": sorted(function_ids),
@@ -364,6 +415,23 @@ class ApplicationCache:
         index = self.index()
         digest = index.get("sharedStateSha256") if index is not None else None
         return digest if isinstance(digest, str) else None
+
+
+@dataclass(frozen=True, slots=True)
+class SharedStateDigests:
+    """Digests of the cached encoder file and of each adapter file by ref."""
+
+    encoder_sha256: str
+    adapter_sha256: dict[str, str]
+
+    def for_function(self, adapter_ref: str) -> str:
+        return combined_shared_sha256(self.encoder_sha256, self.adapter_sha256[adapter_ref])
+
+
+def combined_shared_sha256(encoder_sha256: str, adapter_sha256: str) -> str:
+    """The shared-state digest of one function: its encoder and its domain adapter."""
+
+    return hashlib.sha256(f"{encoder_sha256}\n{adapter_sha256}".encode("ascii")).hexdigest()
 
 
 # ---- verification records ----------------------------------------------

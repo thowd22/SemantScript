@@ -76,7 +76,11 @@ export type SemaInferenceErrorCode =
 export class SemaInferenceError extends Error {
   readonly code: SemaInferenceErrorCode;
 
-  constructor(code: SemaInferenceErrorCode, message: string, options?: ErrorOptions) {
+  constructor(
+    code: SemaInferenceErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
     super(message, options);
     this.name = "SemaInferenceError";
     this.code = code;
@@ -108,7 +112,10 @@ export class SemaUnknownFunctionError extends SemaInferenceError {
   readonly functionId: string;
 
   constructor(functionId: string) {
-    super("unknown-function", `unknown semantic function ${JSON.stringify(functionId)}`);
+    super(
+      "unknown-function",
+      `unknown semantic function ${JSON.stringify(functionId)}`,
+    );
     this.name = "SemaUnknownFunctionError";
     this.functionId = functionId;
   }
@@ -128,7 +135,10 @@ export async function createInferenceRuntime(
   try {
     responseSchemas = buildInferenceResponseSchemas(plan);
   } catch (error) {
-    throw new SemaInferenceInitializationError("invalid inference response plan", { cause: error });
+    throw new SemaInferenceInitializationError(
+      "invalid inference response plan",
+      { cause: error },
+    );
   }
   const worker = new Worker(new URL("./inference-worker.js", import.meta.url), {
     execArgv: workerExecArgv(process.execArgv),
@@ -146,9 +156,12 @@ export async function createInferenceRuntime(
     if (error instanceof SemaInferenceError) {
       throw error;
     }
-    throw new SemaInferenceInitializationError("failed to initialize the inference worker", {
-      cause: error,
-    });
+    throw new SemaInferenceInitializationError(
+      "failed to initialize the inference worker",
+      {
+        cause: error,
+      },
+    );
   }
 
   return new WorkerInferenceRuntime(worker, responseSchemas, normalizedOptions);
@@ -184,9 +197,13 @@ class WorkerInferenceRuntime implements InferenceRuntime {
     this.#responseSchemas = responseSchemas;
     this.functionIds = new Set(responseSchemas.keys());
     this.#control = new Int32Array(
-      new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * INFERENCE_CONTROL.length),
+      new SharedArrayBuffer(
+        Int32Array.BYTES_PER_ELEMENT * INFERENCE_CONTROL.length,
+      ),
     );
-    this.#response = new Uint8Array(new SharedArrayBuffer(options.responseBufferBytes));
+    this.#response = new Uint8Array(
+      new SharedArrayBuffer(options.responseBufferBytes),
+    );
     this.#inferenceTimeoutMilliseconds = options.inferenceTimeoutMilliseconds;
     this.maximumInputBytes = options.maximumInputBytes;
 
@@ -213,7 +230,11 @@ class WorkerInferenceRuntime implements InferenceRuntime {
     Atomics.store(this.#control, INFERENCE_CONTROL.payloadLength, 0);
     Atomics.store(this.#control, INFERENCE_CONTROL.errorCode, 0);
     Atomics.store(this.#control, INFERENCE_CONTROL.sequence, sequence);
-    Atomics.store(this.#control, INFERENCE_CONTROL.state, INFERENCE_STATE.pending);
+    Atomics.store(
+      this.#control,
+      INFERENCE_CONTROL.state,
+      INFERENCE_STATE.pending,
+    );
 
     try {
       this.#worker.postMessage({
@@ -226,7 +247,9 @@ class WorkerInferenceRuntime implements InferenceRuntime {
       });
     } catch (error) {
       this.#fault = `failed to send inference request: ${errorMessage(error)}`;
-      throw new SemaInferenceError("worker-failed", this.#fault, { cause: error });
+      throw new SemaInferenceError("worker-failed", this.#fault, {
+        cause: error,
+      });
     }
 
     const waitResult = Atomics.wait(
@@ -242,16 +265,23 @@ class WorkerInferenceRuntime implements InferenceRuntime {
       throw new SemaInferenceTimeoutError(this.#fault);
     }
 
-    const observedSequence = Atomics.load(this.#control, INFERENCE_CONTROL.sequence);
+    const observedSequence = Atomics.load(
+      this.#control,
+      INFERENCE_CONTROL.sequence,
+    );
     const state = Atomics.load(this.#control, INFERENCE_CONTROL.state);
-    const payloadLength = Atomics.load(this.#control, INFERENCE_CONTROL.payloadLength);
+    const payloadLength = Atomics.load(
+      this.#control,
+      INFERENCE_CONTROL.payloadLength,
+    );
     if (
       observedSequence !== sequence ||
       (state !== INFERENCE_STATE.success && state !== INFERENCE_STATE.error) ||
       payloadLength < 0 ||
       payloadLength > this.#response.length
     ) {
-      this.#fault = "the inference worker returned an invalid synchronization response";
+      this.#fault =
+        "the inference worker returned an invalid synchronization response";
       throw new SemaInferenceError("protocol", this.#fault);
     }
 
@@ -262,8 +292,11 @@ class WorkerInferenceRuntime implements InferenceRuntime {
         try {
           payload = textDecoder.decode(responseBytes);
         } catch (error) {
-          this.#fault = "the inference worker returned an invalid UTF-8 response";
-          throw new SemaInferenceError("protocol", this.#fault, { cause: error });
+          this.#fault =
+            "the inference worker returned an invalid UTF-8 response";
+          throw new SemaInferenceError("protocol", this.#fault, {
+            cause: error,
+          });
         }
         const workerCode = workerErrorCodeName(
           Atomics.load(this.#control, INFERENCE_CONTROL.errorCode),
@@ -271,7 +304,10 @@ class WorkerInferenceRuntime implements InferenceRuntime {
         if (workerCode === "unknown-function") {
           throw new SemaUnknownFunctionError(functionId);
         }
-        throw new SemaInferenceError(workerCode, payload || "the inference worker failed");
+        throw new SemaInferenceError(
+          workerCode,
+          payload || "the inference worker failed",
+        );
       }
 
       try {
@@ -281,13 +317,21 @@ class WorkerInferenceRuntime implements InferenceRuntime {
         throw new SemaInferenceError("protocol", this.#fault, { cause: error });
       }
     } finally {
-      Atomics.store(this.#control, INFERENCE_CONTROL.state, INFERENCE_STATE.idle);
+      Atomics.store(
+        this.#control,
+        INFERENCE_CONTROL.state,
+        INFERENCE_STATE.idle,
+      );
     }
   }
 
   callStage(requests: readonly InferenceStageRequest[]): InferenceStageResult {
     this.#assertUsable();
-    if (!isRequestList(requests) || requests.length === 0 || requests.length > MAXIMUM_STAGE_REQUESTS) {
+    if (
+      !isRequestList(requests) ||
+      requests.length === 0 ||
+      requests.length > MAXIMUM_STAGE_REQUESTS
+    ) {
       throw new SemaInferenceInputError(
         `a stage carries between 1 and ${String(MAXIMUM_STAGE_REQUESTS)} requests`,
       );
@@ -303,14 +347,20 @@ class WorkerInferenceRuntime implements InferenceRuntime {
     // Every single-call result fits the configured response buffer, so a stage
     // of N fits N buffers plus the framing header.
     const response = new Uint8Array(
-      new SharedArrayBuffer(this.#response.length * requests.length + 64 + 24 * requests.length),
+      new SharedArrayBuffer(
+        this.#response.length * requests.length + 64 + 24 * requests.length,
+      ),
     );
 
     const sequence = this.#nextSequence();
     Atomics.store(this.#control, INFERENCE_CONTROL.payloadLength, 0);
     Atomics.store(this.#control, INFERENCE_CONTROL.errorCode, 0);
     Atomics.store(this.#control, INFERENCE_CONTROL.sequence, sequence);
-    Atomics.store(this.#control, INFERENCE_CONTROL.state, INFERENCE_STATE.pending);
+    Atomics.store(
+      this.#control,
+      INFERENCE_CONTROL.state,
+      INFERENCE_STATE.pending,
+    );
     try {
       this.#worker.postMessage({
         kind: "invoke-stage",
@@ -324,7 +374,9 @@ class WorkerInferenceRuntime implements InferenceRuntime {
       });
     } catch (error) {
       this.#fault = `failed to send inference request: ${errorMessage(error)}`;
-      throw new SemaInferenceError("worker-failed", this.#fault, { cause: error });
+      throw new SemaInferenceError("worker-failed", this.#fault, {
+        cause: error,
+      });
     }
 
     const waitResult = Atomics.wait(
@@ -339,16 +391,23 @@ class WorkerInferenceRuntime implements InferenceRuntime {
         `${String(this.#inferenceTimeoutMilliseconds)}ms`;
       throw new SemaInferenceTimeoutError(this.#fault);
     }
-    const observedSequence = Atomics.load(this.#control, INFERENCE_CONTROL.sequence);
+    const observedSequence = Atomics.load(
+      this.#control,
+      INFERENCE_CONTROL.sequence,
+    );
     const state = Atomics.load(this.#control, INFERENCE_CONTROL.state);
-    const payloadLength = Atomics.load(this.#control, INFERENCE_CONTROL.payloadLength);
+    const payloadLength = Atomics.load(
+      this.#control,
+      INFERENCE_CONTROL.payloadLength,
+    );
     if (
       observedSequence !== sequence ||
       (state !== INFERENCE_STATE.success && state !== INFERENCE_STATE.error) ||
       payloadLength < 0 ||
       payloadLength > response.length
     ) {
-      this.#fault = "the inference worker returned an invalid synchronization response";
+      this.#fault =
+        "the inference worker returned an invalid synchronization response";
       throw new SemaInferenceError("protocol", this.#fault);
     }
     try {
@@ -358,14 +417,22 @@ class WorkerInferenceRuntime implements InferenceRuntime {
         try {
           payload = textDecoder.decode(responseBytes);
         } catch (error) {
-          this.#fault = "the inference worker returned an invalid UTF-8 response";
-          throw new SemaInferenceError("protocol", this.#fault, { cause: error });
+          this.#fault =
+            "the inference worker returned an invalid UTF-8 response";
+          throw new SemaInferenceError("protocol", this.#fault, {
+            cause: error,
+          });
         }
-        const workerCode = workerErrorCodeName(Atomics.load(this.#control, INFERENCE_CONTROL.errorCode));
+        const workerCode = workerErrorCodeName(
+          Atomics.load(this.#control, INFERENCE_CONTROL.errorCode),
+        );
         if (workerCode === "unknown-function") {
           throw new SemaUnknownFunctionError(requests[0]?.functionId ?? "");
         }
-        throw new SemaInferenceError(workerCode, payload || "the inference worker failed");
+        throw new SemaInferenceError(
+          workerCode,
+          payload || "the inference worker failed",
+        );
       }
       try {
         return decodeStageResponse(responseBytes, schemas);
@@ -374,7 +441,11 @@ class WorkerInferenceRuntime implements InferenceRuntime {
         throw new SemaInferenceError("protocol", this.#fault, { cause: error });
       }
     } finally {
-      Atomics.store(this.#control, INFERENCE_CONTROL.state, INFERENCE_STATE.idle);
+      Atomics.store(
+        this.#control,
+        INFERENCE_CONTROL.state,
+        INFERENCE_STATE.idle,
+      );
     }
   }
 
@@ -404,7 +475,8 @@ class WorkerInferenceRuntime implements InferenceRuntime {
   }
 
   #nextSequence(): number {
-    this.#sequence = this.#sequence === MAXIMUM_SEQUENCE ? 1 : this.#sequence + 1;
+    this.#sequence =
+      this.#sequence === MAXIMUM_SEQUENCE ? 1 : this.#sequence + 1;
     return this.#sequence;
   }
 }
@@ -427,37 +499,52 @@ function buildInferenceResponseSchemas(
   const schemas = new Map<string, InferenceResponseSchema>();
   for (const functionPlan of plan.functions) {
     if (typeof functionPlan.id !== "string" || functionPlan.id.length === 0) {
-      throw new TypeError("inference response function id must be a non-empty string");
+      throw new TypeError(
+        "inference response function id must be a non-empty string",
+      );
     }
     if (schemas.has(functionPlan.id)) {
-      throw new TypeError(`duplicate inference response function id ${JSON.stringify(functionPlan.id)}`);
+      throw new TypeError(
+        `duplicate inference response function id ${JSON.stringify(functionPlan.id)}`,
+      );
     }
     schemas.set(functionPlan.id, buildInferenceResponseSchema(functionPlan));
   }
   return schemas;
 }
 
-function buildInferenceResponseSchema(plan: InferenceResponsePlan): InferenceResponseSchema {
+function buildInferenceResponseSchema(
+  plan: InferenceResponsePlan,
+): InferenceResponseSchema {
   if (typeof plan.diagnosticsRequired !== "boolean") {
-    throw new TypeError("inference response diagnosticsRequired must be boolean");
+    throw new TypeError(
+      "inference response diagnosticsRequired must be boolean",
+    );
   }
   if (plan.heads.length === 0) {
-    throw new TypeError("inference response plan must contain at least one head");
+    throw new TypeError(
+      "inference response plan must contain at least one head",
+    );
   }
 
-  const scalar = plan.heads.length === 1 && plan.heads[0]?.outputPath.length === 0;
+  const scalar =
+    plan.heads.length === 1 && plan.heads[0]?.outputPath.length === 0;
   const fields = new Set<string>();
   const insertionOrder: InferenceResponseHeadSchema[] = [];
   for (const head of plan.heads) {
     let field: string | undefined;
     if (scalar) {
       if (head.outputPath.length !== 0) {
-        throw new TypeError("scalar inference response head must have an empty output path");
+        throw new TypeError(
+          "scalar inference response head must have an empty output path",
+        );
       }
     } else {
       field = head.outputPath.length === 1 ? head.outputPath[0] : undefined;
       if (field === undefined || fields.has(field)) {
-        throw new TypeError("object inference response fields must be unique single segments");
+        throw new TypeError(
+          "object inference response fields must be unique single segments",
+        );
       }
       fields.add(field);
     }
@@ -494,13 +581,17 @@ function buildInferenceResponseHeadSchema(
   field: string | undefined,
 ): InferenceResponseHeadSchema {
   if (!Array.isArray(head.support) || head.support.length < 2) {
-    throw new TypeError("inference response support must contain at least two values");
+    throw new TypeError(
+      "inference response support must contain at least two values",
+    );
   }
   const support: InferenceSupportValue[] = [];
   const supportKeys = new Set<string>();
   for (const value of head.support) {
     if (!isInferenceSupportValue(value)) {
-      throw new TypeError("inference response support contains an invalid value");
+      throw new TypeError(
+        "inference response support contains an invalid value",
+      );
     }
     const key = inferenceSupportKey(value);
     if (supportKeys.has(key)) {
@@ -521,7 +612,9 @@ function buildInferenceResponseHeadSchema(
     expectedValueMode === "zero-based-rank" &&
     !support.every((value) => typeof value === "string")
   ) {
-    throw new TypeError("zero-based-rank response support must contain only strings");
+    throw new TypeError(
+      "zero-based-rank response support must contain only strings",
+    );
   }
   if (
     expectedValueMode === "numeric" &&
@@ -569,7 +662,9 @@ function decodeStageResponse(
 ): InferenceStageResult {
   const newline = bytes.indexOf(0x0a);
   if (newline < 0) throw new Error("stage response has no header line");
-  const header = JSON.parse(textDecoder.decode(bytes.subarray(0, newline))) as unknown;
+  const header = JSON.parse(
+    textDecoder.decode(bytes.subarray(0, newline)),
+  ) as unknown;
   if (header === null || typeof header !== "object" || Array.isArray(header)) {
     throw new Error("stage response header is not an object");
   }
@@ -577,26 +672,40 @@ function decodeStageResponse(
   if (
     !Array.isArray(lengths) ||
     lengths.length !== schemas.length ||
-    lengths.some((length) => !Number.isSafeInteger(length) || (length as number) < 0)
+    lengths.some(
+      (length) => !Number.isSafeInteger(length) || (length as number) < 0,
+    )
   ) {
     throw new Error("stage response lengths do not match the request count");
   }
   if (passes === null || typeof passes !== "object" || Array.isArray(passes)) {
     throw new Error("stage response passes are missing");
   }
-  const counts = passes as { encoder?: unknown; adapter?: unknown; head?: unknown };
+  const counts = passes as {
+    encoder?: unknown;
+    adapter?: unknown;
+    head?: unknown;
+  };
   for (const value of [counts.encoder, counts.adapter, counts.head]) {
-    if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error("stage pass counts are invalid");
+    if (!Number.isSafeInteger(value) || (value as number) < 0)
+      throw new Error("stage pass counts are invalid");
   }
   let offset = newline + 1;
   const results: unknown[] = [];
   for (const [index, schema] of schemas.entries()) {
     const length = lengths[index] as number;
-    if (offset + length > bytes.length) throw new Error("stage response is truncated");
-    results.push(parseInferenceResultBytes(bytes.subarray(offset, offset + length), schema));
+    if (offset + length > bytes.length)
+      throw new Error("stage response is truncated");
+    results.push(
+      parseInferenceResultBytes(
+        bytes.subarray(offset, offset + length),
+        schema,
+      ),
+    );
     offset += length;
   }
-  if (offset !== bytes.length) throw new Error("stage response has trailing bytes");
+  if (offset !== bytes.length)
+    throw new Error("stage response has trailing bytes");
   return {
     results,
     passes: {
@@ -638,8 +747,13 @@ function parseInferenceResultBytes(
   }
   if (schema.kind === "scalar") {
     const head = schema.heads[0];
-    if (head === undefined) throw new TypeError("scalar inference schema is missing its head");
-    return parseScalarDiagnostic(wire["result"], head, "scalar inference diagnostic");
+    if (head === undefined)
+      throw new TypeError("scalar inference schema is missing its head");
+    return parseScalarDiagnostic(
+      wire["result"],
+      head,
+      "scalar inference diagnostic",
+    );
   }
   return parseObjectDiagnostic(wire["result"], schema);
 }
@@ -651,7 +765,8 @@ function parsePlainValue(
 ): InferencePlainValue {
   if (schema.scalar) {
     const head = schema.heads[0];
-    if (head === undefined) throw new TypeError("scalar inference schema is missing its head");
+    if (head === undefined)
+      throw new TypeError("scalar inference schema is missing its head");
     return plannedSupportValue(value, head, description);
   }
   const result = inferenceRecord(value, description);
@@ -663,7 +778,11 @@ function parsePlainValue(
     Object.defineProperty(parsed, field, {
       configurable: true,
       enumerable: true,
-      value: plannedSupportValue(result[field], head, `${description}.${JSON.stringify(field)}`),
+      value: plannedSupportValue(
+        result[field],
+        head,
+        `${description}.${JSON.stringify(field)}`,
+      ),
       writable: true,
     });
   }
@@ -693,9 +812,19 @@ function parseScalarDiagnostic(
     ["value", "confidence", "uncertainty", "distribution", "expectedValue"],
     description,
   );
-  const selectedValue = plannedSupportValue(result["value"], head, `${description}.value`);
-  const confidence = unitNumber(result["confidence"], `${description}.confidence`);
-  const uncertainty = unitNumber(result["uncertainty"], `${description}.uncertainty`);
+  const selectedValue = plannedSupportValue(
+    result["value"],
+    head,
+    `${description}.value`,
+  );
+  const confidence = unitNumber(
+    result["confidence"],
+    `${description}.confidence`,
+  );
+  const uncertainty = unitNumber(
+    result["uncertainty"],
+    `${description}.uncertainty`,
+  );
   const entries = result["distribution"];
   if (!Array.isArray(entries) || entries.length !== head.support.length) {
     throw new TypeError(
@@ -717,8 +846,9 @@ function parseScalarDiagnostic(
   );
 
   let selectedIndex = 0;
-  const probabilitySum = compensatedSum(distribution.length, (index) =>
-    distribution[index]?.probability ?? 0,
+  const probabilitySum = compensatedSum(
+    distribution.length,
+    (index) => distribution[index]?.probability ?? 0,
   );
   for (let index = 1; index < distribution.length; index += 1) {
     if (
@@ -734,7 +864,9 @@ function parseScalarDiagnostic(
     !sameSupportValue(selectedEntry.value, selectedValue) ||
     !Object.is(selectedEntry.probability, confidence)
   ) {
-    throw new TypeError(`${description} top-1 value and confidence do not match its distribution`);
+    throw new TypeError(
+      `${description} top-1 value and confidence do not match its distribution`,
+    );
   }
   const tolerance = responseFloatTolerance(distribution.length);
   if (Math.abs(probabilitySum - 1) > tolerance) {
@@ -742,19 +874,31 @@ function parseScalarDiagnostic(
   }
   const calculatedUncertainty = decodedNormalizedEntropy(distribution);
   if (Math.abs(uncertainty - calculatedUncertainty) > tolerance) {
-    throw new TypeError(`${description} uncertainty does not match its distribution`);
+    throw new TypeError(
+      `${description} uncertainty does not match its distribution`,
+    );
   }
-  return { value: selectedValue, confidence, uncertainty, distribution, expectedValue };
+  return {
+    value: selectedValue,
+    confidence,
+    uncertainty,
+    distribution,
+    expectedValue,
+  };
 }
 
-function decodedNormalizedEntropy(distribution: readonly InferenceDistributionEntry[]): number {
+function decodedNormalizedEntropy(
+  distribution: readonly InferenceDistributionEntry[],
+): number {
   let sum = 0;
   let correction = 0;
   for (const { probability } of distribution) {
     const value = probability === 0 ? 0 : -probability * Math.log(probability);
     const next = sum + value;
     correction +=
-      Math.abs(sum) >= Math.abs(value) ? (sum - next) + value : (value - next) + sum;
+      Math.abs(sum) >= Math.abs(value)
+        ? sum - next + value
+        : value - next + sum;
     sum = next;
   }
   const entropy = sum + correction;
@@ -774,7 +918,9 @@ function parseDistributionEntry(
   exactOrderedKeys(entry, ["value", "probability"], description);
   const parsedValue = supportValue(entry["value"], `${description}.value`);
   if (!sameSupportValue(parsedValue, expectedSupport)) {
-    throw new TypeError(`${description}.value does not match planned support order`);
+    throw new TypeError(
+      `${description}.value does not match planned support order`,
+    );
   }
   return {
     value: parsedValue,
@@ -793,10 +939,20 @@ function parseObjectDiagnostic(
     ["value", "minimumFieldConfidence", "maximumFieldUncertainty", "fields"],
     description,
   );
-  const plainValue = parsePlainValue(result["value"], schema, `${description}.value`);
-  if (isInferenceSupportValue(plainValue)) throw new TypeError(`${description}.value must be an object`);
-  const fieldsValue = inferenceRecord(result["fields"], `${description}.fields`);
-  const fieldKeys = schema.heads.map(({ field }) => field ?? missingSchemaField());
+  const plainValue = parsePlainValue(
+    result["value"],
+    schema,
+    `${description}.value`,
+  );
+  if (isInferenceSupportValue(plainValue))
+    throw new TypeError(`${description}.value must be an object`);
+  const fieldsValue = inferenceRecord(
+    result["fields"],
+    `${description}.fields`,
+  );
+  const fieldKeys = schema.heads.map(
+    ({ field }) => field ?? missingSchemaField(),
+  );
   exactOrderedKeys(fieldsValue, fieldKeys, `${description}.fields`);
 
   const fields: Record<string, InferenceScalarDiagnostic> = {};
@@ -809,8 +965,15 @@ function parseObjectDiagnostic(
       head,
       `${description}.fields[${JSON.stringify(field)}]`,
     );
-    if (!sameSupportValue(plainValue[field] as InferenceSupportValue, diagnostic.value)) {
-      throw new TypeError(`${description}.value does not match its field diagnostic`);
+    if (
+      !sameSupportValue(
+        plainValue[field] as InferenceSupportValue,
+        diagnostic.value,
+      )
+    ) {
+      throw new TypeError(
+        `${description}.value does not match its field diagnostic`,
+      );
     }
     Object.defineProperty(fields, field, {
       configurable: true,
@@ -818,8 +981,14 @@ function parseObjectDiagnostic(
       value: diagnostic,
       writable: true,
     });
-    minimumFieldConfidence = Math.min(minimumFieldConfidence, diagnostic.confidence);
-    maximumFieldUncertainty = Math.max(maximumFieldUncertainty, diagnostic.uncertainty);
+    minimumFieldConfidence = Math.min(
+      minimumFieldConfidence,
+      diagnostic.confidence,
+    );
+    maximumFieldUncertainty = Math.max(
+      maximumFieldUncertainty,
+      diagnostic.uncertainty,
+    );
   }
 
   const encodedMinimum = unitNumber(
@@ -844,7 +1013,10 @@ function parseObjectDiagnostic(
   };
 }
 
-function inferenceRecord(value: unknown, description: string): Record<string, unknown> {
+function inferenceRecord(
+  value: unknown,
+  description: string,
+): Record<string, unknown> {
   if (value === null || Array.isArray(value) || typeof value !== "object") {
     throw new TypeError(`${description} must be an object`);
   }
@@ -857,7 +1029,10 @@ function exactOrderedKeys(
   description: string,
 ): void {
   const keys = Object.keys(value);
-  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
+  if (
+    keys.length !== expected.length ||
+    keys.some((key, index) => key !== expected[index])
+  ) {
     throw new TypeError(`${description} has invalid fields`);
   }
 }
@@ -869,16 +1044,24 @@ function parseExpectedValue(
   description: string,
 ): number | null {
   if (head.expectedValueMode === "none") {
-    if (value !== null) throw new TypeError(`${description} must be null for nominal support`);
+    if (value !== null)
+      throw new TypeError(`${description} must be null for nominal support`);
     return null;
   }
   if (!isFiniteNumber(value)) {
-    throw new TypeError(`${description} must be a finite number for ordinal support`);
+    throw new TypeError(
+      `${description} must be a finite number for ordinal support`,
+    );
   }
   const calculated = decodedExpectedValue(head, distribution);
   const scale = expectedValueScale(head, calculated, value);
-  if (Math.abs(value - calculated) > responseFloatTolerance(distribution.length, scale)) {
-    throw new TypeError(`${description} does not match its distribution and planned support`);
+  if (
+    Math.abs(value - calculated) >
+    responseFloatTolerance(distribution.length, scale)
+  ) {
+    throw new TypeError(
+      `${description} does not match its distribution and planned support`,
+    );
   }
   return value;
 }
@@ -888,8 +1071,9 @@ function decodedExpectedValue(
   distribution: readonly InferenceDistributionEntry[],
 ): number {
   if (head.expectedValueMode === "zero-based-rank") {
-    return compensatedSum(distribution.length, (index) =>
-      (distribution[index]?.probability ?? 0) * index,
+    return compensatedSum(
+      distribution.length,
+      (index) => (distribution[index]?.probability ?? 0) * index,
     );
   }
   let scale = 1;
@@ -897,7 +1081,9 @@ function decodedExpectedValue(
   let maximum = Number.NEGATIVE_INFINITY;
   for (const supportValue of head.support) {
     if (typeof supportValue !== "number") {
-      throw new TypeError("numeric expected-value support must contain only numbers");
+      throw new TypeError(
+        "numeric expected-value support must contain only numbers",
+      );
     }
     scale = Math.max(scale, Math.abs(supportValue));
     minimum = Math.min(minimum, supportValue);
@@ -906,7 +1092,9 @@ function decodedExpectedValue(
   const normalized = compensatedSum(distribution.length, (index) => {
     const supportValue = head.support[index];
     if (typeof supportValue !== "number") {
-      throw new TypeError("numeric expected-value support must contain only numbers");
+      throw new TypeError(
+        "numeric expected-value support must contain only numbers",
+      );
     }
     return (distribution[index]?.probability ?? 0) * (supportValue / scale);
   });
@@ -936,18 +1124,26 @@ function expectedValueScale(
 function responseFloatTolerance(termCount: number, scale = 1): number {
   return Math.max(
     Number.EPSILON,
-    RESPONSE_FLOAT_TOLERANCE_ULPS * Math.max(1, termCount) * Number.EPSILON * Math.max(1, scale),
+    RESPONSE_FLOAT_TOLERANCE_ULPS *
+      Math.max(1, termCount) *
+      Number.EPSILON *
+      Math.max(1, scale),
   );
 }
 
-function compensatedSum(length: number, valueAt: (index: number) => number): number {
+function compensatedSum(
+  length: number,
+  valueAt: (index: number) => number,
+): number {
   let sum = 0;
   let correction = 0;
   for (let index = 0; index < length; index += 1) {
     const value = valueAt(index);
     const next = sum + value;
     correction +=
-      Math.abs(sum) >= Math.abs(value) ? (sum - next) + value : (value - next) + sum;
+      Math.abs(sum) >= Math.abs(value)
+        ? sum - next + value
+        : value - next + sum;
     sum = next;
   }
   return sum + correction;
@@ -957,7 +1153,10 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function supportValue(value: unknown, description: string): InferenceSupportValue {
+function supportValue(
+  value: unknown,
+  description: string,
+): InferenceSupportValue {
   if (!isInferenceSupportValue(value)) {
     throw new TypeError(`${description} must be a finite support value`);
   }
@@ -965,7 +1164,12 @@ function supportValue(value: unknown, description: string): InferenceSupportValu
 }
 
 function unitNumber(value: unknown, description: string): number {
-  if (!isFiniteNumber(value) || value < 0 || value > 1 || Object.is(value, -0)) {
+  if (
+    !isFiniteNumber(value) ||
+    value < 0 ||
+    value > 1 ||
+    Object.is(value, -0)
+  ) {
     throw new TypeError(`${description} must be a number in [0,1]`);
   }
   return value;
@@ -975,8 +1179,13 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function sameSupportValue(left: InferenceSupportValue, right: InferenceSupportValue): boolean {
-  return typeof left === "number" && typeof right === "number" ? Object.is(left, right) : left === right;
+function sameSupportValue(
+  left: InferenceSupportValue,
+  right: InferenceSupportValue,
+): boolean {
+  return typeof left === "number" && typeof right === "number"
+    ? Object.is(left, right)
+    : left === right;
 }
 
 function inferenceSupportKey(value: InferenceSupportValue): string {
@@ -986,7 +1195,9 @@ function inferenceSupportKey(value: InferenceSupportValue): string {
   return `${typeof value}:${String(value)}`;
 }
 
-function isInferenceSupportValue(value: unknown): value is InferenceSupportValue {
+function isInferenceSupportValue(
+  value: unknown,
+): value is InferenceSupportValue {
   return (
     typeof value === "boolean" ||
     typeof value === "string" ||
@@ -999,7 +1210,9 @@ async function initializeWorker(
   plan: InferenceWorkerPlan,
   options: NormalizedInferenceRuntimeOptions,
 ): Promise<readonly string[]> {
-  const transferList = options.transferModelBuffers ? collectTransferableBuffers(plan) : [];
+  const transferList = options.transferModelBuffers
+    ? collectTransferableBuffers(plan)
+    : [];
 
   return new Promise<readonly string[]>((resolve, reject) => {
     let settled = false;
@@ -1028,9 +1241,12 @@ async function initializeWorker(
     const onError = (error: Error): void => {
       finish(() => {
         reject(
-          new SemaInferenceInitializationError(`inference worker failed: ${error.message}`, {
-            cause: error,
-          }),
+          new SemaInferenceInitializationError(
+            `inference worker failed: ${error.message}`,
+            {
+              cause: error,
+            },
+          ),
         );
       });
     };
@@ -1062,9 +1278,12 @@ async function initializeWorker(
     } catch (error) {
       finish(() => {
         reject(
-          new SemaInferenceInitializationError("failed to send the staged plan to the inference worker", {
-            cause: error,
-          }),
+          new SemaInferenceInitializationError(
+            "failed to send the staged plan to the inference worker",
+            {
+              cause: error,
+            },
+          ),
         );
       });
     }
@@ -1091,6 +1310,9 @@ function collectTransferableBuffers(plan: InferenceWorkerPlan): ArrayBuffer[] {
 
   consider(plan.tokenizerJson);
   consider(plan.encoderModel);
+  for (const encoder of plan.encoders ?? []) {
+    consider(encoder.model);
+  }
   for (const adapter of plan.adapters) {
     consider(adapter.model);
   }
@@ -1102,9 +1324,14 @@ function collectTransferableBuffers(plan: InferenceWorkerPlan): ArrayBuffer[] {
   return [...buffers];
 }
 
-function validateCanonicalInput(input: Uint8Array, maximumInputBytes: number): void {
+function validateCanonicalInput(
+  input: Uint8Array,
+  maximumInputBytes: number,
+): void {
   if (!(input instanceof Uint8Array) || input.length === 0) {
-    throw new SemaInferenceInputError("canonical input must be a non-empty Uint8Array");
+    throw new SemaInferenceInputError(
+      "canonical input must be a non-empty Uint8Array",
+    );
   }
   if (input.length > maximumInputBytes) {
     throw new SemaInferenceInputError(
@@ -1113,7 +1340,9 @@ function validateCanonicalInput(input: Uint8Array, maximumInputBytes: number): v
   }
 }
 
-function normalizeOptions(options: InferenceRuntimeOptions): NormalizedInferenceRuntimeOptions {
+function normalizeOptions(
+  options: InferenceRuntimeOptions,
+): NormalizedInferenceRuntimeOptions {
   return {
     initializationTimeoutMilliseconds: positiveIntegerOption(
       options.initializationTimeoutMilliseconds,
@@ -1164,7 +1393,8 @@ function workerExecArgv(arguments_: readonly string[]): string[] {
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index] ?? "";
     const flag = valueFlags.find(
-      (candidate) => argument === candidate || argument.startsWith(`${candidate}=`),
+      (candidate) =>
+        argument === candidate || argument.startsWith(`${candidate}=`),
     );
     if (flag === undefined) {
       result.push(argument);
@@ -1183,7 +1413,11 @@ function positiveIntegerOption(
   minimum = 1,
 ): number {
   const selected = value ?? defaultValue;
-  if (!Number.isSafeInteger(selected) || selected < minimum || selected > maximum) {
+  if (
+    !Number.isSafeInteger(selected) ||
+    selected < minimum ||
+    selected > maximum
+  ) {
     throw new RangeError(
       `${name} must be a safe integer between ${String(minimum)} and ${String(maximum)}`,
     );
@@ -1191,7 +1425,10 @@ function positiveIntegerOption(
   return selected;
 }
 
-async function waitForWorkerExit(worker: Worker, timeoutMilliseconds: number): Promise<void> {
+async function waitForWorkerExit(
+  worker: Worker,
+  timeoutMilliseconds: number,
+): Promise<void> {
   await new Promise<void>((resolve) => {
     let settled = false;
     const finish = (): void => {

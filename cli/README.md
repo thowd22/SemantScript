@@ -7,7 +7,7 @@ bundle driver, `test` and `run` are the runtime.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example]
-semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>]
+semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>] [--domain-depth <name>=<layers>]...
 semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
@@ -71,7 +71,10 @@ every function of one program lands in one artifact; the id is lowercase
 letters, digits and single dashes. The summary lists each function's id, source
 location, output type and head count, the execution plan's stage count and the
 emitted files. Prompt text never reaches the emitted JavaScript. Diagnostics
-exit with status 1 and emit nothing.
+exit with status 1 and emit nothing. `--domain-depth <name>=<layers>`
+(repeatable) routes the named domain (an `@domain` header or a file's name)
+through that many shared-encoder layers; see the compiler README on routed
+domains. The summary then lists the domains with their depths.
 
 ## train
 

@@ -15,7 +15,7 @@ import math
 import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from semantscript_trainer.adversarial import AdversarialDataset
 from semantscript_trainer.dataset import TrainingDataset
@@ -84,8 +84,52 @@ class FunctionCorpus:
             raise TrainingConfigurationError("function IR inputs must be an array")
 
     @property
+    def adapter_ref(self) -> str:
+        """The domain adapter this function's head reads (``model.adapter`` in the IR)."""
+
+        return model_refs(self.ir)[1]
+
+    @property
+    def encoder_ref(self) -> str:
+        return model_refs(self.ir)[0]
+
+    @property
+    def encoder_depth(self) -> int | None:
+        """Shared encoder layers this function's domain runs; None is the full stack."""
+
+        return model_refs(self.ir)[2]
+
+    @property
     def function_id(self) -> str:
         return self.corpus.function_id
+
+
+DEFAULT_ENCODER_REF = "encoder.main"
+DEFAULT_ADAPTER_REF = "adapter.application"
+
+
+def model_refs(ir: Mapping[str, Any]) -> tuple[str, str, int | None]:
+    """``(encoder ref, adapter ref, encoder depth)`` of an IR record.
+
+    A record without a ``model`` block (partial fixtures) binds the application
+    defaults at the full depth.
+    """
+
+    model = ir.get("model")
+    if model is None:
+        return DEFAULT_ENCODER_REF, DEFAULT_ADAPTER_REF, None
+    if not isinstance(model, Mapping):
+        raise TrainingConfigurationError("function IR model must be an object")
+    encoder = model.get("encoder", DEFAULT_ENCODER_REF)
+    adapter = model.get("adapter", DEFAULT_ADAPTER_REF)
+    if not isinstance(encoder, str) or not encoder or not isinstance(adapter, str) or not adapter:
+        raise TrainingConfigurationError("function IR model refs must be nonempty strings")
+    depth = model.get("encoderDepth")
+    if depth is not None and (isinstance(depth, bool) or not isinstance(depth, int) or depth < 1):
+        raise TrainingConfigurationError(
+            f"function {ir.get('id')!r} declares an invalid encoderDepth {depth!r}"
+        )
+    return encoder, adapter, depth
 
 
 def application_function(
@@ -157,9 +201,13 @@ def train_application(
     device = _resolve_device(torch, resolved.device)
     tokenizer = _load_tokenizer(resolved) if tokenizer is None else tokenizer
     sentence_encoder = _build_sentence_encoder(resolved, encoder)
-    adapter = _build_adapter(
-        application_module, sentence_encoder.hidden_size, adapter_bottleneck_size
-    )
+    domains = domain_depths(functions)
+    adapters = {
+        ref: _build_adapter(
+            application_module, sentence_encoder.hidden_size, adapter_bottleneck_size
+        )
+        for ref in domains
+    }
     heads = {
         state.function.function_id: _build_heads(
             state.function.corpus.output_heads, sentence_encoder.hidden_size, resolved
@@ -167,7 +215,15 @@ def train_application(
         for state in states
     }
     try:
-        model = application_module.SharedEncoderApplication(sentence_encoder, adapter, heads)
+        model = application_module.SharedEncoderApplication(
+            sentence_encoder,
+            adapters=adapters,
+            adapter_depths=domains,
+            heads=heads,
+            function_adapters={
+                function.function_id: function.adapter_ref for function in functions
+            },
+        )
     except (RuntimeError, TypeError, ValueError) as error:
         raise TrainingExecutionError(f"could not construct application model: {error}") from error
     if resolved.freeze_encoder:
@@ -192,11 +248,14 @@ def add_function_head(
     config: TrainingConfig | None = None,
     tokenizer: Any | None = None,
 ) -> ApplicationTrainingResult:
-    """Train one new head on the frozen shared encoder and adapter.
+    """Train one new head on the frozen shared encoder and its domain adapter.
 
     The shared modules and every existing head are byte-identical afterwards,
     so existing verification results and artifacts stay valid; only the new
-    function's head is fitted.
+    function's head is fitted. When the function belongs to a domain the
+    application has no adapter for yet, a fresh adapter for that domain is
+    attached and trained together with the head, still on the frozen encoder,
+    so a new domain never moves another domain's weights.
     """
 
     if not isinstance(application, ApplicationTrainingResult):
@@ -217,15 +276,30 @@ def add_function_head(
     tokenizer = _load_tokenizer(resolved) if tokenizer is None else tokenizer
     model = application.model
     head = _build_heads(states[0].function.corpus.output_heads, model.hidden_size, resolved)
+    trainable: list[Any] = list(head.parameters())
     try:
-        model.add_head(function.function_id, head)
+        if function.adapter_ref not in model.adapter_refs:
+            application_module, _ = _load_application_modules()
+            adapter = _build_adapter(
+                application_module, model.hidden_size, application.adapter_bottleneck_size
+            )
+            model.add_adapter(function.adapter_ref, adapter, depth=function.encoder_depth)
+            trainable.extend(adapter.parameters())
+        elif model.adapter_depth(function.adapter_ref) != _normalized_depth(
+            model, function.encoder_depth
+        ):
+            raise TrainingConfigurationError(
+                f"function {function.function_id!r} declares encoderDepth "
+                f"{function.encoder_depth!r} but its domain {function.adapter_ref!r} "
+                f"trained at {model.adapter_depth(function.adapter_ref)!r}"
+            )
+        model.add_head(function.function_id, head, adapter_ref=function.adapter_ref)
     except (RuntimeError, TypeError, ValueError) as error:
         raise TrainingExecutionError(f"could not attach the new head: {error}") from error
     frozen = [
         parameter
         for parameter in model.parameters()
-        if parameter.requires_grad
-        and not any(parameter is candidate for candidate in head.parameters())
+        if parameter.requires_grad and not any(parameter is candidate for candidate in trainable)
     ]
     for parameter in frozen:
         parameter.requires_grad_(False)
@@ -247,6 +321,24 @@ def add_function_head(
         metrics=metrics,
         selected_epoch=selected_epoch,
     )
+
+
+def domain_depths(functions: Sequence[FunctionCorpus]) -> dict[str, int | None]:
+    """Adapter ref to encoder depth over ``functions``; a domain has one depth."""
+
+    depths: dict[str, int | None] = {}
+    for function in functions:
+        depth = function.encoder_depth
+        if function.adapter_ref in depths and depths[function.adapter_ref] != depth:
+            raise TrainingConfigurationError(
+                f"domain {function.adapter_ref!r} declares several encoder depths"
+            )
+        depths[function.adapter_ref] = depth
+    return depths
+
+
+def _normalized_depth(model: Any, depth: int | None) -> int | None:
+    return cast(int | None, model.encoder.validate_depth(depth))
 
 
 def _resolve_config(config: TrainingConfig | None) -> TrainingConfig:
@@ -405,7 +497,7 @@ def _fit(
             )
             optimizer.zero_grad(set_to_none=True)
             try:
-                embedding = model.embed(input_ids, attention_mask)
+                embedding = model.embed(input_ids, attention_mask, state.function.function_id)
                 logits = model.heads[state.function.function_id](embedding)
             except (RuntimeError, TypeError, ValueError) as error:
                 raise TrainingExecutionError(f"application forward pass failed: {error}") from error
@@ -502,5 +594,7 @@ __all__ = [
     "FunctionCorpus",
     "add_function_head",
     "application_function",
+    "domain_depths",
+    "model_refs",
     "train_application",
 ]

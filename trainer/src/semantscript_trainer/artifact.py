@@ -272,7 +272,7 @@ def export_multi_function_artifact(
     for entry in entries[1:]:
         if entry.verification.tokenizer_sha256 != entries[0].verification.tokenizer_sha256:
             raise ArtifactConfigurationError("every function must be verified with one tokenizer")
-    encoder, adapter = _shared_modules(entries)
+    routing = _shared_modules(entries)
     encoding = _canonical_input_encoding(entries[0].ir, entries[0].training)
     for entry in entries[1:]:
         if _canonical_input_encoding(entry.ir, entry.training) != encoding:
@@ -294,18 +294,21 @@ def export_multi_function_artifact(
         _require_directory_identity(releases, releases_descriptor, "artifact releases")
         _require_directory_identity(staging, staging_descriptor, "artifact staging")
         staging_io_root = _descriptor_directory_path(staging, staging_descriptor)
-        paths = _application_resource_paths(staging_io_root, function_heads)
-        _write_exclusive(paths["tokenizer"], tokenizer_bytes)
-        _export_application_onnx(
-            entries, encoder, adapter, input_ids, attention_mask, paths, resolved
+        paths = _application_resource_paths(
+            staging_io_root,
+            function_heads,
+            encoder_keys=tuple(routing.encoder_refs),
+            adapter_refs=tuple(routing.adapters),
         )
+        _write_exclusive(paths["tokenizer"], tokenizer_bytes)
+        _export_application_onnx(entries, routing, input_ids, attention_mask, paths, resolved)
         for entry in entries:
             if model_state_sha256(entry.training.model) != entry.verification.model_state_sha256:
                 raise ArtifactConfigurationError(
                     "trained model state changed during export; run verification again"
                 )
-        resources = _resource_documents(entries, paths, resolved)
-        manifest = _manifest_document(entries, provenance, encoding, resources)
+        resources = _resource_documents(entries, paths, resolved, routing)
+        manifest = _manifest_document(entries, provenance, encoding, resources, routing)
         _validate_manifest_document(manifest)
         manifest_bytes = _json_bytes(manifest)
         if len(manifest_bytes) > resolved.maximum_manifest_bytes:
@@ -365,7 +368,6 @@ def _validate_functions(functions: Sequence[ArtifactFunction]) -> tuple[Artifact
     entries = tuple(functions)
     seen_ids: set[str] = set()
     seen_heads: set[str] = set()
-    application: tuple[str, str] | None = None
     for entry in entries:
         if not isinstance(entry, ArtifactFunction):
             raise ArtifactConfigurationError("functions must be ArtifactFunction instances")
@@ -387,13 +389,13 @@ def _validate_functions(functions: Sequence[ArtifactFunction]) -> tuple[Artifact
             raise ArtifactConfigurationError(f"function {function_id} appears more than once")
         seen_ids.add(function_id)
         model = cast(dict[str, JsonValue], entry.ir["model"])
-        refs = (cast(str, model["encoder"]), cast(str, model["adapter"]))
-        if application is None:
-            application = refs
-        elif refs != application:
-            raise ArtifactConfigurationError(
-                "every function must bind the application's encoder and adapter refs"
-            )
+        for name in ("encoder", "adapter"):
+            _require_logical_ref(f"IR model.{name}", model.get(name))
+        depth = model.get("encoderDepth")
+        if depth is not None and (
+            isinstance(depth, bool) or not isinstance(depth, int) or depth < 1
+        ):
+            raise ArtifactConfigurationError("IR model.encoderDepth must be a positive integer")
         for binding in cast(list[Any], model["heads"]):
             head_ref = cast(str, cast(dict[str, JsonValue], binding)["ref"])
             if head_ref in seen_heads:
@@ -404,15 +406,75 @@ def _validate_functions(functions: Sequence[ArtifactFunction]) -> tuple[Artifact
     return entries
 
 
-def _shared_modules(entries: Sequence[ArtifactFunction]) -> tuple[Any, Any | None]:
+@dataclass(frozen=True, slots=True)
+class _Routing:
+    """The application's shared modules as the functions bind them."""
+
+    encoder: Any
+    adapters: dict[str, Any]
+    adapter_depths: dict[str, int | None]
+    encoder_refs: dict[str, str]  # depth key -> IR encoder ref
+    function_adapters: dict[str, str]
+
+    def encoder_key_of(self, function_id: str) -> str:
+        return _depth_key(self.adapter_depths[self.function_adapters[function_id]])
+
+
+def _shared_modules(entries: Sequence[ArtifactFunction]) -> _Routing:
     encoder = entries[0].training.model.encoder
-    adapter = getattr(entries[0].training.model, "adapter", None)
-    for entry in entries[1:]:
+    adapters: dict[str, Any] = {}
+    depths: dict[str, int | None] = {}
+    encoder_refs: dict[str, str] = {}
+    function_adapters: dict[str, str] = {}
+    for entry in entries:
         if entry.training.model.encoder is not encoder:
             raise ArtifactConfigurationError("every function must share one encoder module")
-        if getattr(entry.training.model, "adapter", None) is not adapter:
-            raise ArtifactConfigurationError("every function must share one adapter module")
-    return encoder, adapter
+        model = cast(dict[str, JsonValue], entry.ir["model"])
+        adapter_ref = cast(str, model["adapter"])
+        # A classifier without an adapter module exports the identity adapter.
+        adapter = getattr(entry.training.model, "adapter", None)
+        depth = cast(int | None, getattr(entry.training.model, "depth", None))
+        declared = model.get("encoderDepth")
+        normalized = encoder.validate_depth(cast(int | None, declared))
+        if normalized != depth:
+            raise ArtifactConfigurationError(
+                f"function {model['adapter']} declares encoderDepth {declared!r} "
+                f"but trained at {depth!r}"
+            )
+        if adapter_ref in adapters:
+            if adapters[adapter_ref] is not adapter:
+                raise ArtifactConfigurationError(
+                    f"functions of domain {adapter_ref} must share one adapter module"
+                )
+            if depths[adapter_ref] != depth:
+                raise ArtifactConfigurationError(
+                    f"functions of domain {adapter_ref} must share one encoder depth"
+                )
+        else:
+            if adapter is not None and any(existing is adapter for existing in adapters.values()):
+                raise ArtifactConfigurationError(
+                    f"one adapter module is bound under more than one adapter ref ({adapter_ref})"
+                )
+            adapters[adapter_ref] = adapter
+            depths[adapter_ref] = depth
+        key = _depth_key(depth)
+        encoder_ref = cast(str, model["encoder"])
+        if encoder_refs.setdefault(key, encoder_ref) != encoder_ref:
+            raise ArtifactConfigurationError(
+                f"functions at encoder depth {key} must share one encoder ref"
+            )
+        function_adapters[cast(str, entry.ir["id"])] = adapter_ref
+    if len(set(encoder_refs.values())) != len(encoder_refs):
+        raise ArtifactConfigurationError("each encoder depth needs its own encoder ref")
+    return _Routing(encoder, adapters, depths, encoder_refs, function_adapters)
+
+
+def _depth_key(depth: int | None) -> str:
+    return "full" if depth is None else f"depth-{depth:03d}"
+
+
+def _safe_ref(ref: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", ref)
 
 
 def validate_verified_ir_binding(
@@ -613,7 +675,12 @@ def _validate_closed_ir_shape(ir: NeuralFunctionIr) -> None:
 
     model = ir.get("model")
     runtime = ir.get("runtime")
-    if not isinstance(model, dict) or set(model) != {"encoder", "adapter", "heads"}:
+    if not isinstance(model, dict) or not {"encoder", "adapter", "heads"} <= set(model) <= {
+        "encoder",
+        "adapter",
+        "heads",
+        "encoderDepth",
+    }:
         raise ArtifactConfigurationError("IR model binding is not closed")
     if not isinstance(runtime, dict) or set(runtime) != {
         "resultMode",
@@ -797,13 +864,29 @@ def _ir_head_specs(ir: NeuralFunctionIr) -> tuple[dict[str, Any], ...]:
 
 
 def _application_resource_paths(
-    staging: Path, functions: Sequence[tuple[str, int]]
+    staging: Path,
+    functions: Sequence[tuple[str, int]],
+    *,
+    encoder_keys: Sequence[str] = ("full",),
+    adapter_refs: Sequence[str] | None = None,
 ) -> dict[str, Path]:
-    paths = {
-        "tokenizer": staging / "tokenizer" / "tokenizer.json",
-        "encoder": staging / "models" / "encoder" / "model.onnx",
-        "adapter": staging / "models" / "adapters" / "application.onnx",
-    }
+    """Resource paths: the full encoder is ``model.onnx`` and a prefix ``depth-NNN.onnx``;
+    a single adapter keeps ``application.onnx`` and several are named by their refs."""
+
+    paths = {"tokenizer": staging / "tokenizer" / "tokenizer.json"}
+    for key in encoder_keys:
+        paths[f"encoder:{key}"] = (
+            staging / "models" / "encoder" / ("model.onnx" if key == "full" else f"{key}.onnx")
+        )
+    if adapter_refs is None or len(adapter_refs) <= 1:
+        paths["adapter"] = staging / "models" / "adapters" / "application.onnx"
+        if adapter_refs:
+            paths[f"adapter:{adapter_refs[0]}"] = paths["adapter"]
+    else:
+        for ref in adapter_refs:
+            paths[f"adapter:{ref}"] = staging / "models" / "adapters" / f"{_safe_ref(ref)}.onnx"
+    if "encoder:full" in paths:
+        paths["encoder"] = paths["encoder:full"]
     for function_id, head_count in functions:
         for index in range(head_count):
             paths[f"head:{function_id}:{index}"] = (
@@ -820,34 +903,37 @@ def _resource_paths(staging: Path, function_id: str) -> dict[str, Path]:
 
 def _export_application_onnx(
     entries: Sequence[ArtifactFunction],
-    encoder: Any,
-    adapter: Any | None,
+    routing: _Routing,
     input_ids: Any,
     attention_mask: Any,
     paths: dict[str, Path],
     config: ArtifactExportConfig,
 ) -> None:
     try:
-        from semantscript_model.export import export_application_components
+        from semantscript_model.export import export_routed_application_components
     except ImportError as error:
         raise ArtifactConfigurationError(
             "artifact export requires the optional ONNX training dependencies"
         ) from error
     head_modules: dict[str, Any] = {}
     head_paths: dict[str, Path] = {}
+    head_adapters: dict[str, str] = {}
     for entry in entries:
         function_id = cast(str, entry.ir["id"])
         for index, module in enumerate(_head_modules(entry.training)):
             head_modules[f"{function_id}:{index}"] = module
             head_paths[f"{function_id}:{index}"] = paths[f"head:{function_id}:{index}"]
-    export_application_components(
-        encoder,
-        adapter,
+            head_adapters[f"{function_id}:{index}"] = routing.function_adapters[function_id]
+    export_routed_application_components(
+        routing.encoder,
+        routing.adapters,
+        routing.adapter_depths,
         head_modules,
+        head_adapters,
         input_ids,
         attention_mask,
-        encoder_path=paths["encoder"],
-        adapter_path=paths["adapter"],
+        encoder_paths={key: paths[f"encoder:{key}"] for key in routing.encoder_refs},
+        adapter_paths={ref: paths[f"adapter:{ref}"] for ref in routing.adapters},
         head_paths=head_paths,
         relative_tolerance=config.parity_relative_tolerance,
         absolute_tolerance=config.parity_absolute_tolerance,
@@ -859,9 +945,9 @@ def _resource_documents(
     entries: Sequence[ArtifactFunction],
     paths: dict[str, Path],
     config: ArtifactExportConfig,
+    routing: _Routing,
 ) -> list[dict[str, JsonValue]]:
     first = entries[0]
-    model = cast(dict[str, JsonValue], first.ir["model"])
     hidden_size = getattr(first.training.model.encoder, "hidden_size", None)
     if isinstance(hidden_size, bool) or not isinstance(hidden_size, int) or hidden_size < 1:
         raise ArtifactConfigurationError("trained encoder hidden_size is invalid")
@@ -873,34 +959,45 @@ def _resource_documents(
     }
     definitions: list[tuple[str, str, str, str, dict[str, Any] | None]] = [
         ("tokenizer", "tokenizer.main", "tokenizer", "tokenizer/tokenizer.json", None),
-        (
-            "encoder",
-            cast(str, model["encoder"]),
-            "encoder",
-            "models/encoder/model.onnx",
-            {
-                "opset": ONNX_OPSET_VERSION,
-                "inputs": [
-                    {"name": "input_ids", "dtype": "int64", "shape": ["BATCH", "SEQUENCE"]},
-                    {"name": "attention_mask", "dtype": "int64", "shape": ["BATCH", "SEQUENCE"]},
-                ],
-                "outputs": [dict(embedding)],
-                "externalData": False,
-            },
-        ),
-        (
-            "adapter",
-            cast(str, model["adapter"]),
-            "adapter",
-            "models/adapters/application.onnx",
-            {
-                "opset": ONNX_OPSET_VERSION,
-                "inputs": [dict(embedding)],
-                "outputs": [dict(function_embedding)],
-                "externalData": False,
-            },
-        ),
     ]
+    staging = paths["tokenizer"].parent.parent
+    for key, encoder_ref in routing.encoder_refs.items():
+        definitions.append(
+            (
+                f"encoder:{key}",
+                encoder_ref,
+                "encoder",
+                paths[f"encoder:{key}"].relative_to(staging).as_posix(),
+                {
+                    "opset": ONNX_OPSET_VERSION,
+                    "inputs": [
+                        {"name": "input_ids", "dtype": "int64", "shape": ["BATCH", "SEQUENCE"]},
+                        {
+                            "name": "attention_mask",
+                            "dtype": "int64",
+                            "shape": ["BATCH", "SEQUENCE"],
+                        },
+                    ],
+                    "outputs": [dict(embedding)],
+                    "externalData": False,
+                },
+            )
+        )
+    for adapter_ref in routing.adapters:
+        definitions.append(
+            (
+                f"adapter:{adapter_ref}",
+                adapter_ref,
+                "adapter",
+                paths[f"adapter:{adapter_ref}"].relative_to(staging).as_posix(),
+                {
+                    "opset": ONNX_OPSET_VERSION,
+                    "inputs": [dict(embedding)],
+                    "outputs": [dict(function_embedding)],
+                    "externalData": False,
+                },
+            )
+        )
     for entry in entries:
         function_id = cast(str, entry.ir["id"])
         bindings = cast(list[Any], cast(dict[str, Any], entry.ir["model"])["heads"])
@@ -958,7 +1055,12 @@ def _manifest_document(
     provenance: ArtifactProvenance,
     encoding: str,
     resources: list[dict[str, JsonValue]],
+    routing: _Routing,
 ) -> dict[str, JsonValue]:
+    # The model's encoder is the full stack when any domain runs it, else the deepest prefix.
+    application_encoder = routing.encoder_refs.get(
+        "full", routing.encoder_refs[max(routing.encoder_refs)]
+    )
     functions: list[JsonValue] = []
     for entry in entries:
         ir, training, verification = entry.ir, entry.training, entry.verification
@@ -992,6 +1094,11 @@ def _manifest_document(
                 "inputSchemaSha256": semantic_json_sha256(inputs),
                 "outputSchemaSha256": semantic_json_sha256(output),
                 "adapterRef": cast(str, model["adapter"]),
+                **(
+                    {}
+                    if cast(str, model["encoder"]) == application_encoder
+                    else {"encoderRef": cast(str, model["encoder"])}
+                ),
                 "heads": head_documents,
                 "runtime": _runtime_policy(ir),
                 "verification": verification.to_manifest_function_verification(),
@@ -1023,7 +1130,7 @@ def _manifest_document(
         "resources": cast(JsonValue, resources),
         "model": {
             "tokenizerRef": "tokenizer.main",
-            "encoderRef": cast(str, first_model["encoder"]),
+            "encoderRef": application_encoder,
             "adapterRef": cast(str, first_model["adapter"]),
         },
         "functions": functions,
@@ -1186,7 +1293,7 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
         len(function.get("heads", [])) if isinstance(function, dict) else 0
         for function in functions
     )
-    if not isinstance(resources, list) or len(resources) != 3 + head_total:
+    if not isinstance(resources, list) or len(resources) < 3 + head_total:
         raise ArtifactConfigurationError(
             "manifest must contain a tokenizer, an encoder, an adapter and one resource per head"
         )
@@ -1211,9 +1318,16 @@ def _validate_manifest_document(manifest: dict[str, JsonValue]) -> None:
         roles[role] = roles.get(role, 0) + 1
         if resource.get("format") == "onnx":
             _validate_onnx_precision(resource.get("onnx"), f"manifest resource {reference}")
-    if roles != {"tokenizer": 1, "encoder": 1, "adapter": 1, "head": head_total}:
+    if (
+        roles.get("tokenizer") != 1
+        or roles.get("encoder", 0) < 1
+        or roles.get("adapter", 0) < 1
+        or roles.get("head") != head_total
+        or set(roles) - {"tokenizer", "encoder", "adapter", "head"}
+    ):
         raise ArtifactConfigurationError(
-            "manifest resources must be one tokenizer, one encoder, one adapter and one per head"
+            "manifest resources must be one tokenizer, at least one encoder and adapter, "
+            "and one per head"
         )
 
     function_ids: set[str] = set()

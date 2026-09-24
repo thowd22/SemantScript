@@ -270,7 +270,9 @@ def training_config() -> TrainingConfig:
     )
 
 
-def compile_project(root: Path, sources: dict[str, str], application: str) -> dict[str, Any]:
+def compile_project(
+    root: Path, sources: dict[str, str], application: str, *extra_args: str
+) -> dict[str, Any]:
     """Build a temp project with the CLI so the bundle is the compiler's own output."""
 
     if not CLI_ENTRY.is_file():
@@ -310,6 +312,7 @@ def compile_project(root: Path, sources: dict[str, str], application: str) -> di
             str(root / "tsconfig.json"),
             "--application",
             application,
+            *extra_args,
         ],
         cwd=root,
         capture_output=True,

@@ -39,7 +39,9 @@ export function compareBytes(left: Uint8Array, right: Uint8Array): number {
 }
 
 export function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 function toTypedNode(value: unknown): TypedJsonNode {
@@ -69,7 +71,9 @@ function toTypedNode(value: unknown): TypedJsonNode {
   }
 
   if (typeof value !== "object") {
-    throw new TypeError("semantic JSON values must contain only JSON-compatible data");
+    throw new TypeError(
+      "semantic JSON values must contain only JSON-compatible data",
+    );
   }
 
   const entries = Object.entries(value)
@@ -77,7 +81,9 @@ function toTypedNode(value: unknown): TypedJsonNode {
       assertUnicodeScalarString(name);
       return [name, toTypedNode(entryValue)] as const;
     })
-    .sort(([left], [right]) => compareBytes(encoder.encode(left), encoder.encode(right)));
+    .sort(([left], [right]) =>
+      compareBytes(encoder.encode(left), encoder.encode(right)),
+    );
   return ["object", entries];
 }
 
@@ -95,12 +101,16 @@ function assertUnicodeScalarString(value: string): void {
       const next = value.charCodeAt(index + 1);
 
       if (!(next >= 0xdc00 && next <= 0xdfff)) {
-        throw new TypeError("semantic JSON strings cannot contain unpaired UTF-16 surrogates");
+        throw new TypeError(
+          "semantic JSON strings cannot contain unpaired UTF-16 surrogates",
+        );
       }
 
       index += 1;
     } else if (code >= 0xdc00 && code <= 0xdfff) {
-      throw new TypeError("semantic JSON strings cannot contain unpaired UTF-16 surrogates");
+      throw new TypeError(
+        "semantic JSON strings cannot contain unpaired UTF-16 surrogates",
+      );
     }
   }
 }

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,14 +25,28 @@ import {
   serializeIrBundle,
 } from "../dist/index.js";
 
-const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const repositoryRoot = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
 const schema = JSON.parse(
-  await readFile(join(repositoryRoot, "schemas", "neural-function.v1.schema.json"), "utf8"),
+  await readFile(
+    join(repositoryRoot, "schemas", "neural-function.v1.schema.json"),
+    "utf8",
+  ),
 );
 const bundleSchema = JSON.parse(
-  await readFile(join(repositoryRoot, "schemas", "ir-bundle.v1.schema.json"), "utf8"),
+  await readFile(
+    join(repositoryRoot, "schemas", "ir-bundle.v1.schema.json"),
+    "utf8",
+  ),
 );
-const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: true });
+const ajv = new Ajv2020({
+  allErrors: true,
+  allowUnionTypes: true,
+  strict: true,
+});
 addFormats(ajv);
 ajv.addSchema(schema);
 const validateIr = ajv.compile(schema);
@@ -112,12 +133,22 @@ void __sema;
   assert.equal(javascript.includes("@confidence"), false);
   assert.equal(javascript.includes("examples:"), false);
   assert.match(javascript, /import \{ __sema as __sema_\d+ \}/);
-  assert.match(javascript, /__sema_\d+\.call\("nf_[a-f0-9]{64}", \{ message \}\)/);
-  assert.match(javascript, /__sema_\d+\.call\("nf_[a-f0-9]{64}", \{ score \}\)/);
+  assert.match(
+    javascript,
+    /__sema_\d+\.call\("nf_[a-f0-9]{64}", \{ message \}\)/,
+  );
+  assert.match(
+    javascript,
+    /__sema_\d+\.call\("nf_[a-f0-9]{64}", \{ score \}\)/,
+  );
   assert.equal(Object.hasOwn(sourceMap, "sourcesContent"), false);
   assert.equal(JSON.stringify(sourceMap).includes("PROMPT_"), false);
 
-  assert.equal(validateBundle(bundle), true, ajv.errorsText(validateBundle.errors));
+  assert.equal(
+    validateBundle(bundle),
+    true,
+    ajv.errorsText(validateBundle.errors),
+  );
   assert.equal(bundle.kind, "semantscript.ir-bundle");
   assert.equal(bundle.bundleVersion, 1);
   assert.equal(records.length, 4);
@@ -171,7 +202,10 @@ void other;
     await readFile(result.value.bundlePath, "utf8"),
   );
   const ids = Object.fromEntries(
-    functions.map((record) => [templateText(record).trim().split(" ")[0], record.id]),
+    functions.map((record) => [
+      templateText(record).trim().split(" ")[0],
+      record.id,
+    ]),
   );
 
   assert.deepEqual(executionPlan.dependencies, [
@@ -205,7 +239,11 @@ test("emits a schema-valid empty plan when the program has no sema sites", async
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
   const bundle = JSON.parse(await readFile(result.value.bundlePath, "utf8"));
-  assert.equal(validateBundle(bundle), true, ajv.errorsText(validateBundle.errors));
+  assert.equal(
+    validateBundle(bundle),
+    true,
+    ajv.errorsText(validateBundle.errors),
+  );
   assert.deepEqual(bundle.functions, []);
   assert.deepEqual(bundle.executionPlan, { dependencies: [], stages: [] });
 });
@@ -213,7 +251,8 @@ test("emits a schema-valid empty plan when the program has no sema sites", async
 test("removes prompt-bearing sourcesContent from inline source maps", async (t) => {
   const fixture = await createProject(
     {
-      "src/inline-map.sem.ts": 'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`INLINE_SECRET`;\n',
+      "src/inline-map.sem.ts":
+        'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`INLINE_SECRET`;\n',
     },
     { inlineSourceMap: true, sourceMap: false },
   );
@@ -224,13 +263,19 @@ test("removes prompt-bearing sourcesContent from inline source maps", async (t) 
   });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
-  const javascript = await readFile(join(fixture.outDir, "inline-map.sem.js"), "utf8");
-  assert.equal(javascript.includes("INLINE_SECRET"), false);
-  const match = /sourceMappingURL=data:application\/json(?:;charset=[^;,]+)?;base64,([A-Za-z0-9+/=]+)/u.exec(
-    javascript,
+  const javascript = await readFile(
+    join(fixture.outDir, "inline-map.sem.js"),
+    "utf8",
   );
+  assert.equal(javascript.includes("INLINE_SECRET"), false);
+  const match =
+    /sourceMappingURL=data:application\/json(?:;charset=[^;,]+)?;base64,([A-Za-z0-9+/=]+)/u.exec(
+      javascript,
+    );
   assert.ok(match?.[1]);
-  const sourceMap = JSON.parse(Buffer.from(match[1], "base64").toString("utf8"));
+  const sourceMap = JSON.parse(
+    Buffer.from(match[1], "base64").toString("utf8"),
+  );
   assert.equal(Object.hasOwn(sourceMap, "sourcesContent"), false);
 });
 
@@ -239,7 +284,7 @@ test("function ids are stable for unrelated edits and sensitive to text and type
     base: sourceWithTarget("TARGET", '"yes" | "no"'),
     same: sourceWithTarget("TARGET", '"yes" | "no"'),
     unrelated: sourceWithTarget("TARGET", '"yes" | "no"', {
-      prefix: 'const unrelated = sema<boolean>`UNRELATED`;',
+      prefix: "const unrelated = sema<boolean>`UNRELATED`;",
     }),
     changedText: sourceWithTarget("TARGET CHANGED", '"yes" | "no"'),
     changedType: sourceWithTarget("TARGET", '"yes" | "maybe"'),
@@ -250,7 +295,10 @@ test("function ids are stable for unrelated edits and sensitive to text and type
       'constraints: [always(() => input === "fixture", "yes")]',
       ", always",
     ),
-    changedConfidence: sourceWithTarget("@confidence(0.9)\nTARGET", '"yes" | "no"'),
+    changedConfidence: sourceWithTarget(
+      "@confidence(0.9)\nTARGET",
+      '"yes" | "no"',
+    ),
     duplicate: sourceWithTarget("TARGET", '"yes" | "no"', {
       prefix: 'const duplicate = sema<"yes" | "no">`TARGET ${input}`;',
     }),
@@ -260,12 +308,16 @@ test("function ids are stable for unrelated edits and sensitive to text and type
     const fixture = await createProject({ "src/identity.sem.ts": source });
 
     try {
-      const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+      const result = await planSemaCompilation(fixture.program, {
+        projectRoot: fixture.root,
+      });
       assert.equal(result.ok, true, `${name}: ${formatDiagnostics(result)}`);
       assert.ok(result.ok);
       plans[name] = {
         records: result.value.bundle.functions,
-        duplicateOrdinals: result.value.sites.map(({ duplicateOrdinal }) => duplicateOrdinal),
+        duplicateOrdinals: result.value.sites.map(
+          ({ duplicateOrdinal }) => duplicateOrdinal,
+        ),
       };
     } finally {
       await fixture.dispose();
@@ -275,11 +327,20 @@ test("function ids are stable for unrelated edits and sensitive to text and type
   const base = recordForText(plans.base.records, "TARGET");
   const same = recordForText(plans.same.records, "TARGET");
   const unrelated = recordForText(plans.unrelated.records, "TARGET");
-  const changedText = recordForText(plans.changedText.records, "TARGET CHANGED");
+  const changedText = recordForText(
+    plans.changedText.records,
+    "TARGET CHANGED",
+  );
   const changedType = recordForText(plans.changedType.records, "TARGET");
   const changedExample = recordForText(plans.changedExample.records, "TARGET");
-  const changedConstraint = recordForText(plans.changedConstraint.records, "TARGET");
-  const changedConfidence = recordForText(plans.changedConfidence.records, "TARGET");
+  const changedConstraint = recordForText(
+    plans.changedConstraint.records,
+    "TARGET",
+  );
+  const changedConfidence = recordForText(
+    plans.changedConfidence.records,
+    "TARGET",
+  );
   const duplicateRecords = plans.duplicate.records.filter(
     (record) => templateText(record) === "TARGET ",
   );
@@ -296,18 +357,25 @@ test("function ids are stable for unrelated edits and sensitive to text and type
   assert.notEqual(base.semanticSha256, changedConfidence.semanticSha256);
   assert.equal(duplicateRecords.length, 2);
   assert.notEqual(duplicateRecords[0].id, duplicateRecords[1].id);
-  assert.equal(duplicateRecords[0].semanticSha256, duplicateRecords[1].semanticSha256);
+  assert.equal(
+    duplicateRecords[0].semanticSha256,
+    duplicateRecords[1].semanticSha256,
+  );
   assert.equal(plans.duplicate.duplicateOrdinals.at(-1), 1);
 });
 
 test("orders source records by UTF-8 path bytes", async (t) => {
   const fixture = await createProject({
-    "src/\uE000.sem.ts": 'import { sema } from "@semantscript/core";\nexport const bmp = sema<boolean>`BMP`;\n',
-    "src/\u{10000}.sem.ts": 'import { sema } from "@semantscript/core";\nexport const astral = sema<boolean>`ASTRAL`;\n',
+    "src/\uE000.sem.ts":
+      'import { sema } from "@semantscript/core";\nexport const bmp = sema<boolean>`BMP`;\n',
+    "src/\u{10000}.sem.ts":
+      'import { sema } from "@semantscript/core";\nexport const astral = sema<boolean>`ASTRAL`;\n',
   });
   t.after(fixture.dispose);
 
-  const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+  const result = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
   assert.deepEqual(
@@ -317,27 +385,38 @@ test("orders source records by UTF-8 path bytes", async (t) => {
 });
 
 test("plans the committed refund example with inline nested example values", async (t) => {
-  const source = await readFile(join(repositoryRoot, "examples", "refund.sem.ts"), "utf8");
+  const source = await readFile(
+    join(repositoryRoot, "examples", "refund.sem.ts"),
+    "utf8",
+  );
   const fixture = await createProject({ "src/refund.sem.ts": source });
   t.after(fixture.dispose);
 
-  const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+  const result = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
   assert.equal(result.value.bundle.functions.length, 1);
-  assert.deepEqual(result.value.bundle.functions[0].definition.examples[0].inputs.customer, {
-    priorRefunds: 0,
-    tier: "enterprise",
-  });
+  assert.deepEqual(
+    result.value.bundle.functions[0].definition.examples[0].inputs.customer,
+    {
+      priorRefunds: 0,
+      tier: "enterprise",
+    },
+  );
 });
 
 test("rejects malformed and stale rewrite plans before prompt-bearing output is written", async (t) => {
   const fixture = await createProject({
-    "src/stale.sem.ts": 'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`SECRET_PROMPT`;\n',
+    "src/stale.sem.ts":
+      'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`SECRET_PROMPT`;\n',
   });
   t.after(fixture.dispose);
 
-  const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+  const result = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
   const [site] = result.value.sites;
@@ -366,7 +445,10 @@ test("rejects malformed and stale rewrite plans before prompt-bearing output is 
     emitSemaCompilation(fixture.program, stalePlan),
     /does not match the Program's discovered sema sites/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "stale.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "stale.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("rejects an incomplete plan before any unplanned prompt can be emitted", async (t) => {
@@ -378,7 +460,9 @@ export const second = sema<boolean>\`SECOND_SECRET\`;
   });
   t.after(fixture.dispose);
 
-  const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+  const result = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
 
@@ -389,7 +473,10 @@ export const second = sema<boolean>\`SECOND_SECRET\`;
     }),
     /1 rewrites for 2 discovered sema sites/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "incomplete.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "incomplete.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("rejects swapping internally consistent identities between planned sites", async (t) => {
@@ -401,7 +488,9 @@ export const second = sema<boolean>\`SECOND_SITE\`;
   });
   t.after(fixture.dispose);
 
-  const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+  const result = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
   const [first, second] = result.value.sites;
@@ -424,7 +513,10 @@ export const second = sema<boolean>\`SECOND_SITE\`;
     emitSemaCompilation(fixture.program, result.value),
     /IR bundle functions must be in canonical source order|compilation plan (?:bundle and bundle text are inconsistent|was modified after planning)/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "swapped.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "swapped.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("rejects a structurally valid execution plan modified after planning", async (t) => {
@@ -436,7 +528,9 @@ export const consumer = sema<boolean>\`CONSUMER \${producer}\`;
   });
   t.after(fixture.dispose);
 
-  const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+  const result = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
   const ids = result.value.bundle.functions.map(({ id }) => id);
@@ -452,7 +546,10 @@ export const consumer = sema<boolean>\`CONSUMER \${producer}\`;
     emitSemaCompilation(fixture.program, result.value),
     /compilation plan was modified after planning/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "graph-seal.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "graph-seal.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("rejects a plan mutated during asynchronous filesystem preflight", async (t) => {
@@ -464,19 +561,25 @@ export const second = sema<boolean>\`SECOND_SNAPSHOT_SECRET\`;
   });
   t.after(fixture.dispose);
 
-  const result = await planSemaCompilation(fixture.program, { projectRoot: fixture.root });
+  const result = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
   assert.equal(result.ok, true, formatDiagnostics(result));
   assert.ok(result.ok);
   const emitting = emitSemaCompilation(fixture.program, result.value);
   const mutation = Promise.resolve().then(() => result.value.sites.splice(0));
   await assert.rejects(emitting, /0 rewrites for 2 discovered sema sites/);
   await mutation;
-  await assert.rejects(readFile(join(fixture.outDir, "snapshot.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "snapshot.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("rejects a bundle path that would overwrite a TypeScript source", async (t) => {
   const sourcePath = "src/source-path.sem.ts";
-  const source = 'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`KEEP_SOURCE`;\n';
+  const source =
+    'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`KEEP_SOURCE`;\n';
   const fixture = await createProject({ [sourcePath]: source });
   t.after(fixture.dispose);
 
@@ -488,12 +591,16 @@ test("rejects a bundle path that would overwrite a TypeScript source", async (t)
     /IR bundle path conflicts with a TypeScript source file/,
   );
   assert.equal(await readFile(join(fixture.root, sourcePath), "utf8"), source);
-  await assert.rejects(readFile(join(fixture.outDir, "source-path.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "source-path.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("rejects a directory bundle target before committing TypeScript outputs", async (t) => {
   const fixture = await createProject({
-    "src/directory-target.sem.ts": 'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`DIRECTORY_TARGET`;\n',
+    "src/directory-target.sem.ts":
+      'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`DIRECTORY_TARGET`;\n',
   });
   t.after(fixture.dispose);
   const bundleDirectory = join(fixture.root, "bundle-directory");
@@ -506,22 +613,34 @@ test("rejects a directory bundle target before committing TypeScript outputs", a
     }),
     /IR bundle path must not be an existing directory/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "directory-target.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "directory-target.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("preflights every emitted target before committing any output", async (t) => {
   const fixture = await createProject({
-    "src/output-directory.sem.ts": 'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`OUTPUT_DIRECTORY`;\n',
+    "src/output-directory.sem.ts":
+      'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`OUTPUT_DIRECTORY`;\n',
   });
   t.after(fixture.dispose);
-  await mkdir(join(fixture.outDir, "output-directory.sem.js"), { recursive: true });
+  await mkdir(join(fixture.outDir, "output-directory.sem.js"), {
+    recursive: true,
+  });
 
   await assert.rejects(
     compileSemantScriptProgram(fixture.program, { projectRoot: fixture.root }),
     /TypeScript output path must not be an existing directory/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "output-directory.sem.d.ts")), /ENOENT/);
-  await assert.rejects(readFile(join(fixture.outDir, "semantscript.ir.v1.json")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "output-directory.sem.d.ts")),
+    /ENOENT/,
+  );
+  await assert.rejects(
+    readFile(join(fixture.outDir, "semantscript.ir.v1.json")),
+    /ENOENT/,
+  );
 });
 
 test("resolves symlinked parents when checking bundle path collisions", async (t) => {
@@ -531,7 +650,8 @@ test("resolves symlinked parents when checking bundle path collisions", async (t
   }
 
   const sourcePath = "src/symlink-path.sem.ts";
-  const source = 'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`KEEP_SYMLINK_SOURCE`;\n';
+  const source =
+    'import { sema } from "@semantscript/core";\nexport const value = sema<boolean>`KEEP_SYMLINK_SOURCE`;\n';
   const fixture = await createProject({ [sourcePath]: source });
   t.after(fixture.dispose);
   const sourceAlias = join(fixture.root, "source-alias");
@@ -555,7 +675,10 @@ test("resolves symlinked parents when checking bundle path collisions", async (t
     }),
     /IR bundle path conflicts with a TypeScript output path/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "symlink-path.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "symlink-path.sem.js")),
+    /ENOENT/,
+  );
 
   await mkdir(fixture.outDir, { recursive: true });
   const outputAlias = join(fixture.root, "output-alias");
@@ -567,7 +690,10 @@ test("resolves symlinked parents when checking bundle path collisions", async (t
     }),
     /IR bundle path conflicts with a TypeScript output path/,
   );
-  await assert.rejects(readFile(join(fixture.outDir, "symlink-path.sem.js")), /ENOENT/);
+  await assert.rejects(
+    readFile(join(fixture.outDir, "symlink-path.sem.js")),
+    /ENOENT/,
+  );
 });
 
 test("diagnostics prevent JavaScript and bundle writes", async (t) => {
@@ -582,9 +708,18 @@ export const invalid = sema<string>\`unsupported free text\`;
     projectRoot: fixture.root,
   });
   assert.equal(result.ok, false);
-  assert.match(formatDiagnostics(result), /not a supported finite scalar output/);
-  await assert.rejects(readFile(join(fixture.outDir, "invalid.sem.js")), /ENOENT/);
-  await assert.rejects(readFile(join(fixture.outDir, "semantscript.ir.v1.json")), /ENOENT/);
+  assert.match(
+    formatDiagnostics(result),
+    /not a supported finite scalar output/,
+  );
+  await assert.rejects(
+    readFile(join(fixture.outDir, "invalid.sem.js")),
+    /ENOENT/,
+  );
+  await assert.rejects(
+    readFile(join(fixture.outDir, "semantscript.ir.v1.json")),
+    /ENOENT/,
+  );
 });
 
 function sourceWithTarget(text, outputType, options = {}) {
@@ -603,7 +738,9 @@ export const target = sema<"yes" | "no">({ ${optionText} })\`TARGET \${input}\`;
 }
 
 function recordForText(records, expected) {
-  const record = records.find((candidate) => templateText(candidate).startsWith(expected));
+  const record = records.find((candidate) =>
+    templateText(candidate).startsWith(expected),
+  );
   assert.ok(record, `missing record whose template begins ${expected}`);
   return record;
 }
@@ -621,7 +758,9 @@ function formatDiagnostics(result) {
   }
 
   return result.diagnostics
-    .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"))
+    .map((diagnostic) =>
+      ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
+    )
     .join("\n");
 }
 
@@ -633,10 +772,17 @@ async function createProject(files, compilerOptions = {}) {
   await mkdir(coreRoot, { recursive: true });
   await writeFile(
     join(coreRoot, "package.json"),
-    JSON.stringify({ name: "@semantscript/core", type: "module", types: "index.d.ts" }),
+    JSON.stringify({
+      name: "@semantscript/core",
+      type: "module",
+      types: "index.d.ts",
+    }),
   );
   await writeFile(join(coreRoot, "index.d.ts"), coreDeclarations);
-  await writeFile(join(root, "package.json"), JSON.stringify({ type: "module" }));
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ type: "module" }),
+  );
 
   for (const [fileName, contents] of Object.entries(files)) {
     const target = join(root, fileName);
@@ -672,3 +818,211 @@ async function createProject(files, compilerOptions = {}) {
   };
   return fixture;
 }
+
+test("routes domains by @domain header or file name and records depths in the plan", async (t) => {
+  const fixture = await createProject({
+    "src/refund-policy.sem.ts": `import { sema } from "@semantscript/core";
+declare const message: string;
+export const refund = sema<"yes" | "no">\`PROMPT_REFUND \${message}\`;
+export const fraud = sema<"yes" | "no">\`
+  @domain(fraud)
+  @confidence(0.5)
+  PROMPT_FRAUD \${message}
+\`;
+`,
+    "src/Ticket Triage.sem.ts": `import { sema } from "@semantscript/core";
+declare const subject: string;
+export const triage = sema<"urgent" | "routine">\`PROMPT_TRIAGE \${subject}\`;
+`,
+  });
+  t.after(fixture.dispose);
+
+  const unrouted = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
+  assert.equal(unrouted.ok, true, formatDiagnostics(unrouted));
+  // A single @domain header makes the whole plan routed, at full depth by default.
+  assert.ok(unrouted.value.bundle.executionPlan.domains);
+
+  const planned = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+    encoderRef: "encoder.app",
+    adapterRef: "adapter.app",
+    domainDepths: { "refund-policy": 6, "ticket-triage": 4 },
+  });
+  assert.equal(planned.ok, true, formatDiagnostics(planned));
+  const { bundle } = planned.value;
+  const byPrompt = Object.fromEntries(
+    bundle.functions.map((record) => [
+      record.definition.template
+        .find((part) => part.kind === "text")
+        .text.trim()
+        .split(" ")[0],
+      record,
+    ]),
+  );
+  assert.deepEqual(
+    {
+      encoder: byPrompt.PROMPT_REFUND.model.encoder,
+      adapter: byPrompt.PROMPT_REFUND.model.adapter,
+      depth: byPrompt.PROMPT_REFUND.model.encoderDepth,
+    },
+    {
+      encoder: "encoder.app.depth-006",
+      adapter: "adapter.app.refund-policy",
+      depth: 6,
+    },
+  );
+  assert.deepEqual(
+    {
+      encoder: byPrompt.PROMPT_FRAUD.model.encoder,
+      adapter: byPrompt.PROMPT_FRAUD.model.adapter,
+      depth: byPrompt.PROMPT_FRAUD.model.encoderDepth,
+    },
+    { encoder: "encoder.app", adapter: "adapter.app.fraud", depth: undefined },
+  );
+  assert.equal(byPrompt.PROMPT_FRAUD.runtime.confidenceThreshold, 0.5);
+  assert.deepEqual(
+    {
+      encoder: byPrompt.PROMPT_TRIAGE.model.encoder,
+      adapter: byPrompt.PROMPT_TRIAGE.model.adapter,
+      depth: byPrompt.PROMPT_TRIAGE.model.encoderDepth,
+    },
+    {
+      encoder: "encoder.app.depth-004",
+      adapter: "adapter.app.ticket-triage",
+      depth: 4,
+    },
+  );
+  for (const record of bundle.functions) {
+    assert.equal(validateIr(record), true, ajv.errorsText(validateIr.errors));
+  }
+  assert.equal(
+    validateBundle(bundle),
+    true,
+    ajv.errorsText(validateBundle.errors),
+  );
+  const domains = bundle.executionPlan.domains.map(
+    ({ name, adapterRef, encoderRef, encoderDepth, functionIds }) => ({
+      name,
+      adapterRef,
+      encoderRef,
+      encoderDepth,
+      functions: functionIds.length,
+    }),
+  );
+  assert.deepEqual(domains, [
+    {
+      name: "ticket-triage",
+      adapterRef: "adapter.app.ticket-triage",
+      encoderRef: "encoder.app.depth-004",
+      encoderDepth: 4,
+      functions: 1,
+    },
+    {
+      name: "refund-policy",
+      adapterRef: "adapter.app.refund-policy",
+      encoderRef: "encoder.app.depth-006",
+      encoderDepth: 6,
+      functions: 1,
+    },
+    {
+      name: "fraud",
+      adapterRef: "adapter.app.fraud",
+      encoderRef: "encoder.app",
+      encoderDepth: null,
+      functions: 1,
+    },
+  ]);
+  assert.deepEqual(bundle.executionPlan.stages[0].adapterRefs, [
+    "adapter.app.ticket-triage",
+    "adapter.app.refund-policy",
+    "adapter.app.fraud",
+  ]);
+  // Routing is build metadata: function ids do not depend on it.
+  assert.deepEqual(
+    bundle.functions.map((record) => record.id),
+    unrouted.value.bundle.functions.map((record) => record.id),
+  );
+
+  const plain = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+    adapterRef: "adapter.app",
+  });
+  assert.ok(plain.ok);
+  const invalid = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+    domainDepths: { "Refund Policy": 0 },
+  });
+  assert.equal(invalid.ok, false);
+  assert.match(
+    formatDiagnostics(invalid),
+    /domain name "Refund Policy" must be lowercase/u,
+  );
+  assert.match(
+    formatDiagnostics(invalid),
+    /depth must be a positive integer, received 0/u,
+  );
+});
+
+test("an unrouted project keeps the application refs and plan shape of before", async (t) => {
+  const fixture = await createProject({
+    "src/plain.sem.ts": `import { sema } from "@semantscript/core";
+declare const message: string;
+export const plain = sema<"yes" | "no">\`PROMPT_PLAIN \${message}\`;
+`,
+  });
+  t.after(fixture.dispose);
+  const planned = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+    adapterRef: "adapter.app",
+    encoderRef: "encoder.app",
+  });
+  assert.ok(planned.ok);
+  const [record] = planned.value.bundle.functions;
+  assert.deepEqual(record.model.encoder, "encoder.app");
+  assert.deepEqual(record.model.adapter, "adapter.app");
+  assert.equal("encoderDepth" in record.model, false);
+  assert.equal("domains" in planned.value.bundle.executionPlan, false);
+  assert.equal(
+    "adapterRefs" in planned.value.bundle.executionPlan.stages[0],
+    false,
+  );
+});
+
+test("malformed @domain headers are diagnostics", async (t) => {
+  const fixture = await createProject({
+    "src/bad.sem.ts": `import { sema } from "@semantscript/core";
+declare const message: string;
+export const twice = sema<"yes" | "no">\`
+  @domain(one)
+  @domain(two)
+  PROMPT \${message}
+\`;
+export const shape = sema<"yes" | "no">\`
+  @domain(Bad Name)
+  PROMPT \${message}
+\`;
+export const late = sema<"yes" | "no">\`
+  PROMPT \${message}
+  @domain(late)
+\`;
+`,
+  });
+  t.after(fixture.dispose);
+  const planned = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
+  assert.equal(planned.ok, false);
+  const text = formatDiagnostics(planned);
+  assert.equal(
+    planned.diagnostics.filter((diagnostic) => diagnostic.code === 9126).length,
+    3,
+    text,
+  );
+  assert.equal(
+    (text.match(/@domain must appear at most once/gu) ?? []).length,
+    2,
+  );
+  assert.match(text, /malformed @domain header/u);
+});

@@ -42,11 +42,19 @@ export function createFirstBeforeSemaRewriteTransformer(
 
       const visitor: ts.Visitor = (node) => {
         if (ts.isTaggedTemplateExpression(node)) {
-          const site = sites.get(siteKey(node.getStart(sourceFile), node.getEnd()));
+          const site = sites.get(
+            siteKey(node.getStart(sourceFile), node.getEnd()),
+          );
 
           if (site) {
             replacementCount += 1;
-            return createRuntimeCall(factory, runtimeIdentifier, node, site, sourceFile);
+            return createRuntimeCall(
+              factory,
+              runtimeIdentifier,
+              node,
+              site,
+              sourceFile,
+            );
           }
         }
 
@@ -87,7 +95,9 @@ function indexPlannedSites(
     const key = siteKey(site.start, site.end);
 
     if (sites.has(key)) {
-      throw new RangeError(`duplicate planned sema rewrite at ${fileName}:${key}`);
+      throw new RangeError(
+        `duplicate planned sema rewrite at ${fileName}:${key}`,
+      );
     }
 
     sites.set(key, site);
@@ -116,11 +126,15 @@ function validatePlannedSite(site: PlannedSemaRewrite): void {
 
   for (const inputName of site.inputNames) {
     if (!INPUT_NAME.test(inputName)) {
-      throw new TypeError(`invalid planned sema input name ${JSON.stringify(inputName)}`);
+      throw new TypeError(
+        `invalid planned sema input name ${JSON.stringify(inputName)}`,
+      );
     }
 
     if (seenInputNames.has(inputName)) {
-      throw new TypeError(`duplicate planned sema input name ${JSON.stringify(inputName)}`);
+      throw new TypeError(
+        `duplicate planned sema input name ${JSON.stringify(inputName)}`,
+      );
     }
 
     seenInputNames.add(inputName);
@@ -163,7 +177,10 @@ function createRuntimeCall(
   const call = factory.createCallExpression(
     factory.createPropertyAccessExpression(runtimeIdentifier, "call"),
     undefined,
-    [factory.createStringLiteral(site.functionId), factory.createObjectLiteralExpression(properties)],
+    [
+      factory.createStringLiteral(site.functionId),
+      factory.createObjectLiteralExpression(properties),
+    ],
   );
 
   ts.setOriginalNode(call, node);
@@ -210,7 +227,11 @@ function importInsertionIndex(statements: readonly ts.Statement[]): number {
   while (index < statements.length) {
     const statement = statements[index];
 
-    if (!statement || (!ts.isImportDeclaration(statement) && !ts.isImportEqualsDeclaration(statement))) {
+    if (
+      !statement ||
+      (!ts.isImportDeclaration(statement) &&
+        !ts.isImportEqualsDeclaration(statement))
+    ) {
       break;
     }
 

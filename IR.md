@@ -41,7 +41,10 @@ One IR record represents one compiled `sema<T>` source expression. It contains:
 - `definition`: the ordered template parts, examples, and portable constraint AST;
 - `inputs`: ordered, recursively typed interpolation descriptors;
 - `output`: one scalar head or a flat object of scalar heads;
-- `model`: logical encoder, application-adapter, and head references;
+- `model`: logical encoder, adapter, and head references, plus an optional
+  `encoderDepth` (the shared-encoder layers the function's domain runs before
+  its adapter; absent means the full stack, and the encoder reference then
+  names the exported prefix graph);
 - `runtime`: result mode, confidence threshold, fallback reference, and the v1
   synchronous-execution requirement;
 - `trainingProvenance`: teacher, base model, dataset counts and digest, seed,
@@ -159,9 +162,16 @@ container is excluded; writes across source files or execution containers remain
 conservative potential sources. Mutation hidden behind calls or accessors and
 interprocedural return analysis are outside the v1 plan boundary.
 
+A routed bundle additionally records `domains`: one entry per compile-time
+domain with its `name`, `adapterRef`, `encoderRef`, `encoderDepth` (`null` for
+the full stack) and `functionIds`, and each stage lists the `adapterRefs` it
+applies. Every function then belongs to exactly one domain, its `model.adapter`
+is the domain's adapter and its `model.encoder` the domain's encoder prefix. An
+unrouted bundle omits both fields.
+
 The bundle plan is build metadata and is excluded from each function's semantic
-projection. Changing graph topology therefore does not by itself change an
-otherwise unchanged function ID or `semanticSha256`.
+projection. Changing graph topology or routing therefore does not by itself
+change an otherwise unchanged function ID or `semanticSha256`.
 
 ### 2.3 Semantic validation beyond JSON Schema
 
@@ -339,8 +349,10 @@ exactly that encoding for the artifact. The golden vectors are in
 ## 4. Application artifact
 
 An application artifact combines one tokenizer, one shared encoder, a default
-application adapter, optional additional statically routed adapters, and one or
-more per-function heads. Each function explicitly selects its `adapterRef`. The
+application adapter, optional additional statically routed adapters, optional
+additional encoder prefixes (depth routing: a prefix of the shared encoder
+exported as its own graph, which a function selects with `encoderRef`), and one
+or more per-function heads. Each function explicitly selects its `adapterRef`. The
 release is immutable and content-addressed:
 
 ```text

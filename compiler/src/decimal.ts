@@ -15,7 +15,9 @@ export interface DecimalGrid {
   readonly supportDecimal: readonly string[];
 }
 
-export function parseDecimalTypeNode(node: ts.TypeNode): DecimalRational | undefined {
+export function parseDecimalTypeNode(
+  node: ts.TypeNode,
+): DecimalRational | undefined {
   const unwrapped = unwrapParenthesizedType(node);
 
   if (!ts.isLiteralTypeNode(unwrapped)) {
@@ -33,13 +35,17 @@ export function parseDecimalTypeNode(node: ts.TypeNode): DecimalRational | undef
     literal.operator === ts.SyntaxKind.MinusToken &&
     ts.isNumericLiteral(literal.operand)
   ) {
-    return parseDecimalLexeme(`-${literal.operand.getText(literal.getSourceFile())}`);
+    return parseDecimalLexeme(
+      `-${literal.operand.getText(literal.getSourceFile())}`,
+    );
   }
 
   return undefined;
 }
 
-export function parseDecimalLexeme(lexeme: string): DecimalRational | undefined {
+export function parseDecimalLexeme(
+  lexeme: string,
+): DecimalRational | undefined {
   const normalized = lexeme.replaceAll("_", "");
 
   if (normalized.length > MAX_DECIMAL_DIGITS) {
@@ -56,7 +62,8 @@ export function parseDecimalLexeme(lexeme: string): DecimalRational | undefined 
   }
 
   const integer = match.groups["integer"] ?? "0";
-  const fraction = match.groups["fraction"] ?? match.groups["leadingFraction"] ?? "";
+  const fraction =
+    match.groups["fraction"] ?? match.groups["leadingFraction"] ?? "";
   const exponent = Number(match.groups["exponent"] ?? "0");
 
   if (!Number.isSafeInteger(exponent)) {
@@ -155,7 +162,9 @@ export function formatDecimal(value: DecimalRational): string {
   }
 
   const negative = normalized.coefficient < 0n;
-  const digits = (negative ? -normalized.coefficient : normalized.coefficient).toString();
+  const digits = (
+    negative ? -normalized.coefficient : normalized.coefficient
+  ).toString();
 
   if (normalized.scale === 0) {
     return `${negative ? "-" : ""}${digits}`;
@@ -166,7 +175,10 @@ export function formatDecimal(value: DecimalRational): string {
   return `${negative ? "-" : ""}${padded.slice(0, split)}.${padded.slice(split)}`;
 }
 
-function compareDecimals(left: DecimalRational, right: DecimalRational): number {
+function compareDecimals(
+  left: DecimalRational,
+  right: DecimalRational,
+): number {
   const scale = Math.max(left.scale, right.scale);
   const leftCoefficient = scaleCoefficient(left, scale);
   const rightCoefficient = scaleCoefficient(right, scale);

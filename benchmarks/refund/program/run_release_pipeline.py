@@ -262,7 +262,9 @@ def run_release_pipeline(
     training.model.to("cpu")
     tokenizer = _load_tokenizer(training_config)
     sample_inputs = dict(base.cases[0].inputs)
-    parity_text = serialize_canonical_inputs(ir["inputs"], sample_inputs).decode("utf-8")
+    parity_text = serialize_canonical_inputs(
+        ir["inputs"], sample_inputs, version=training_config.canonical_input_version
+    ).decode("utf-8")
     encoded = tokenizer(
         [parity_text],
         add_special_tokens=True,
@@ -326,6 +328,7 @@ def run_release_pipeline(
                 "seed": training_config.seed,
                 "loss": training_config.loss,
                 "headArchitecture": training_config.head_architecture,
+                "canonicalInputVersion": training_config.canonical_input_version,
             },
             "device": training.device,
             "trainedAt": trained_at,
@@ -392,7 +395,9 @@ def _dump_release_predictions(
     misses: list[str] = []
     with torch.no_grad():
         for case in release.document["cases"]:
-            text = serialize_canonical_inputs(ir["inputs"], case["inputs"]).decode("utf-8")
+            text = serialize_canonical_inputs(
+                ir["inputs"], case["inputs"], version=config.canonical_input_version
+            ).decode("utf-8")
             encoded = tokenizer(
                 [text],
                 add_special_tokens=True,
@@ -515,6 +520,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--select-best-epoch", action="store_true")
     parser.add_argument("--learning-rate-schedule", default="constant")
     parser.add_argument("--warmup-ratio", type=float, default=0.0)
+    parser.add_argument("--canonical-input-version", type=int, choices=(1, 2), default=2)
     arguments = parser.parse_args(argv)
     training_config = TrainingConfig(
         encoder_name=DEFAULT_ENCODER_NAME,
@@ -530,6 +536,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         select_best_epoch=arguments.select_best_epoch,
         learning_rate_schedule=arguments.learning_rate_schedule,
         warmup_ratio=arguments.warmup_ratio,
+        canonical_input_version=arguments.canonical_input_version,
     )
     try:
         run_release_pipeline(

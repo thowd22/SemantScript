@@ -178,7 +178,7 @@ export interface ApplicationArtifactManifestV1 {
   readonly compatibility: {
     readonly runtimeAbiVersion: 1;
     readonly modelAbiVersion: 1;
-    readonly canonicalInput: "semantscript.canonical-input/v1";
+    readonly canonicalInput: "semantscript.canonical-input/v1" | "semantscript.canonical-input/v2";
     readonly minimumRuntimeVersion: string;
     readonly requiredCapabilities: readonly string[];
   };

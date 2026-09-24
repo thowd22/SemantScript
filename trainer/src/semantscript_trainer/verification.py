@@ -411,7 +411,9 @@ def evaluate_training_result(
             "verification batch_size * logit_count exceeds maximum value count "
             f"{MAXIMUM_CALIBRATION_LOGIT_VALUES}"
         )
-    external_human = _validate_attested_cases(ir, corpus, attested_verification)
+    external_human = _validate_attested_cases(
+        ir, corpus, attested_verification, training.config.canonical_input_version
+    )
     gold_rows = tuple(row for row in corpus.rows if row.origin == "gold")
     human_count = len(gold_rows) + len(external_human)
     if human_count < 1:
@@ -422,7 +424,9 @@ def evaluate_training_result(
         raise VerificationConfigurationError(
             f"attested verification cases exceed maximum {MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT}"
         )
-    _validate_source_examples(ir, base, gold_rows, corpus.head)
+    _validate_source_examples(
+        ir, base, gold_rows, corpus.head, training.config.canonical_input_version
+    )
 
     calibration_rows = training.split.evaluation
     if not calibration_rows:
@@ -774,6 +778,7 @@ def _validate_attested_cases(
     ir: NeuralFunctionIr,
     corpus: TrainingCorpus,
     cases: Sequence[GeneratedCase],
+    version: int = 1,
 ) -> tuple[_CaseRecord, ...]:
     if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
         raise VerificationConfigurationError("attested_verification must be a sequence of cases")
@@ -788,7 +793,7 @@ def _validate_attested_cases(
     training_inputs: set[bytes] = set()
     total_bytes = 0
     for row in corpus.rows:
-        encoded = _canonical_input(schema, row.inputs, row.row_id)
+        encoded = _canonical_input(schema, row.inputs, row.row_id, version)
         total_bytes += len(encoded)
         if total_bytes > MAXIMUM_CORPUS_TEXT_BYTES:
             raise VerificationConfigurationError(
@@ -809,7 +814,7 @@ def _validate_attested_cases(
             raise VerificationConfigurationError(
                 f"human verification case {index} is invalid: {error}"
             ) from error
-        encoded = _canonical_input(schema, case.inputs, f"human:{index}")
+        encoded = _canonical_input(schema, case.inputs, f"human:{index}", version)
         total_bytes += len(encoded)
         if total_bytes > MAXIMUM_CORPUS_TEXT_BYTES:
             raise VerificationConfigurationError(
@@ -840,6 +845,7 @@ def _validate_source_examples(
     base: TrainingDataset,
     gold_rows: tuple[TrainingRow, ...],
     head: TrainingHeadContract,
+    version: int = 1,
 ) -> None:
     definition = ir.get("definition")
     examples = definition.get("examples") if isinstance(definition, Mapping) else None
@@ -855,8 +861,8 @@ def _validate_source_examples(
         if not isinstance(inputs, dict):
             raise VerificationConfigurationError(f"IR example {index} inputs are invalid")
         row = gold_rows[index]
-        if _canonical_input(schema, inputs, f"example:{index}") != _canonical_input(
-            schema, row.inputs, row.row_id
+        if _canonical_input(schema, inputs, f"example:{index}", version) != _canonical_input(
+            schema, row.inputs, row.row_id, version
         ):
             raise VerificationConfigurationError(
                 f"base gold row {index} does not match its IR example"
@@ -914,7 +920,9 @@ def _collect_predictions(
     text_entries: dict[str, list[str]] = {}
     byte_count = 0
     for record in records:
-        encoded = _canonical_input(schema, record.inputs, record.case_id)
+        encoded = _canonical_input(
+            schema, record.inputs, record.case_id, training.config.canonical_input_version
+        )
         byte_count += len(encoded)
         if byte_count > MAXIMUM_CORPUS_TEXT_BYTES:
             raise VerificationConfigurationError(
@@ -1202,11 +1210,13 @@ def _canonical_input(
     schema: Sequence[Mapping[str, Any]],
     inputs: dict[str, JsonValue],
     case_id: str,
+    version: int = 1,
 ) -> bytes:
     try:
         return serialize_canonical_inputs(
             schema,
             inputs,
+            version=version,
             maximum_bytes=MAXIMUM_CANONICAL_ROW_BYTES,
         )
     except (CanonicalInputError, TypeError, ValueError) as error:

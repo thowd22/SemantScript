@@ -13,6 +13,7 @@ from semantscript_trainer.artifact import (
     ArtifactConfigurationError,
     validate_verified_ir_binding,
 )
+from semantscript_trainer.canonical_input import CANONICAL_INPUT_ENCODINGS
 from semantscript_trainer.teacher import JsonValue, NeuralFunctionIr, TeacherDescriptor
 from semantscript_trainer.training import TrainingConfig, TrainingResult
 from semantscript_trainer.training_contract import TrainingRow, TrainingSplit
@@ -214,7 +215,12 @@ def build_verified_ir(
         raise VerifiedIrBuildError(f"source IR cannot be snapshotted: {error}") from error
     restore_integral_numbers(document)
     document["stage"] = "verified"
-    document["trainingProvenance"] = provenance.to_document()
+    training_provenance = provenance.to_document()
+    # The encoding the rows were serialized with; the artifact and runtime follow it.
+    training_provenance["canonicalInput"] = CANONICAL_INPUT_ENCODINGS[
+        training.config.canonical_input_version
+    ]
+    document["trainingProvenance"] = training_provenance
     document["verification"] = verification.to_ir_document()
     encoded = _serialize_exact_json(document)
     try:

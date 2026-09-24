@@ -634,7 +634,7 @@ def training_result(
 ) -> tuple[TrainingResult, FixedTokenizer]:
     schema = contract["inputs"]
     texts = {
-        serialize_canonical_inputs_string(schema, {"score": score}): logit
+        serialize_canonical_inputs_string(schema, {"score": score}, version=2): logit
         for score, logit in logits_by_score.items()
     }
     token_by_text = {text: index for index, text in enumerate(texts)}

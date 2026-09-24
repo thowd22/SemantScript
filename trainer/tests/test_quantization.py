@@ -223,6 +223,7 @@ def published_float32_release(root: Path) -> tuple[Any, dict[str, Any]]:
             "seed": 1,
             "trainer": {"version": "0.0.0", "commit": "abcdef0"},
             "trainedAt": "2026-09-23T00:00:00Z",
+            "canonicalInput": "semantscript.canonical-input/v2",
         },
         "verification": verification.to_ir_document(),
     }

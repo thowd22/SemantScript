@@ -47,7 +47,10 @@ from semantscript_trainer.artifact import (
     _validate_rfc3339,
     _write_exclusive,
 )
-from semantscript_trainer.canonical_input import serialize_canonical_inputs
+from semantscript_trainer.canonical_input import (
+    canonical_input_version,
+    serialize_canonical_inputs,
+)
 from semantscript_trainer.lifecycle import restore_integral_numbers
 from semantscript_trainer.strict_json import StrictJsonError, StrictJsonLimits, loads_strict_json
 from semantscript_trainer.teacher import JsonValue
@@ -263,6 +266,11 @@ def quantize_release_artifact(
         sources["tokenizer"][0].get("maximumSequenceLength"), "tokenizer maximumSequenceLength"
     )
     temperature = _temperature(function)
+    compatibility = manifest.get("compatibility")
+    encoding = compatibility.get("canonicalInput") if isinstance(compatibility, dict) else None
+    input_version = canonical_input_version(encoding)
+    if input_version is None:
+        raise ArtifactConfigurationError("source manifest declares an unsupported canonical input")
     for record in checked_records:
         if record.label_index is not None and record.label_index >= logit_count:
             raise ArtifactConfigurationError(
@@ -298,6 +306,7 @@ def quantize_release_artifact(
             head=paths["head"],
             tokenizer_json=copied["tokenizer"],
             input_schema=cast(list[Any], function["inputs"]),
+            input_version=input_version,
             maximum_sequence_length=maximum_sequence_length,
             logit_count=logit_count,
             temperature=temperature,
@@ -466,6 +475,7 @@ def _verify_quantized_chain(
     head: Path,
     tokenizer_json: bytes,
     input_schema: list[Any],
+    input_version: int,
     maximum_sequence_length: int,
     logit_count: int,
     temperature: float,
@@ -521,7 +531,9 @@ def _verify_quantized_chain(
     attested_records = 0
     for index, record in enumerate(records):
         try:
-            text = serialize_canonical_inputs(input_schema, record.inputs).decode("utf-8")
+            text = serialize_canonical_inputs(
+                input_schema, record.inputs, version=input_version
+            ).decode("utf-8")
         except Exception as error:
             raise ArtifactConfigurationError(
                 f"quantization record {index} is not a valid function input: {error}"

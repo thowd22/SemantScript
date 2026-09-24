@@ -88,6 +88,41 @@ def test_compiled_source_ir_builds_exact_verified_ir(
     validate_verified_ir_binding(document, built.source_ir_bytes, training, verification)
 
 
+def test_compact_encoding_keeps_refund_inputs_within_the_token_budget(
+    compiled_program: pipeline.CompiledRefundProgram,
+) -> None:
+    transformers = pytest.importorskip("transformers")
+    from semantscript_trainer.canonical_input import serialize_canonical_inputs_string
+    from semantscript_trainer.training import DEFAULT_ENCODER_NAME, DEFAULT_ENCODER_REVISION
+
+    try:
+        tokenizer = transformers.AutoTokenizer.from_pretrained(
+            DEFAULT_ENCODER_NAME, revision=DEFAULT_ENCODER_REVISION, local_files_only=True
+        )
+    except (OSError, ValueError) as error:  # pragma: no cover - depends on the local cache
+        pytest.skip(f"pinned tokenizer is not cached locally: {error}")
+    representative = (
+        refund_inputs(0, 12, 88),
+        {
+            "customer": {"priorRefunds": 18, "tier": "enterprise"},
+            "order": {"ageDays": 120, "status": "fraudulent", "total": 12345.67},
+        },
+        {
+            "customer": {"priorRefunds": 3, "tier": "enterprise"},
+            "order": {"ageDays": 99, "status": "fraudulent", "total": 15.0},
+        },
+    )
+    for inputs in representative:
+        compact = serialize_canonical_inputs_string(
+            compiled_program.source_ir["inputs"], inputs, version=2
+        )
+        envelope = serialize_canonical_inputs_string(compiled_program.source_ir["inputs"], inputs)
+        compact_tokens = len(tokenizer(compact)["input_ids"])
+        envelope_tokens = len(tokenizer(envelope)["input_ids"])
+        assert compact_tokens <= 40, (compact, compact_tokens)
+        assert compact_tokens * 2 < envelope_tokens
+
+
 def test_compile_bridge_refuses_nonempty_output_and_unbounded_timeout(tmp_path: Path) -> None:
     occupied = tmp_path / "occupied"
     occupied.mkdir()

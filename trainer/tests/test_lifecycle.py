@@ -65,7 +65,10 @@ def test_builds_exact_export_ready_verified_ir_without_mutating_source() -> None
     )
     document = built.document
     assert document["stage"] == "verified"
-    assert document["trainingProvenance"] == provenance.to_document()
+    assert document["trainingProvenance"] == {
+        **provenance.to_document(),
+        "canonicalInput": "semantscript.canonical-input/v2",
+    }
     assert document["verification"] == verification.to_ir_document()
     assert built.document is not document
     validate_verified_ir_binding(

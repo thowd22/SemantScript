@@ -535,3 +535,27 @@ test("allows nested fallbacks while rejecting cross-function invocation cycles",
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
+test("serializes calls with the compact encoding when the artifact declares it", async () => {
+  const runtime = await import("../dist/index.js");
+  const root = await mkdtemp(join(tmpdir(), "semantscript-runtime-compact-"));
+  try {
+    const artifact = await createFixtureArtifact(root, {
+      transformManifest(manifest) {
+        manifest.compatibility.canonicalInput = "semantscript.canonical-input/v2";
+      },
+    });
+    const handle = await runtime.loadSemaArtifact(root);
+    assert.equal(handle.manifestSha256, artifact.manifestSha256);
+    assert.equal(handle.call(fixtureFunctionId, { facts: { a: 1, b: 2 } }), "review");
+    assert.equal(runtime.__sema.call(fixtureFunctionId, { facts: { b: 2, a: 1 } }), "review");
+    assert.throws(
+      () => runtime.__sema.call(fixtureFunctionId, { facts: { a: 1 } }),
+      runtime.SemaInputError,
+      "input validation is shared by both encodings",
+    );
+    await handle.close();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

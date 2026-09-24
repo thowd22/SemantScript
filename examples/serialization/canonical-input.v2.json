@@ -1,0 +1,776 @@
+{
+  "encoding": "semantscript.canonical-input/v2",
+  "note": "Generated from the TypeScript runtime serializer; the Python trainer must reproduce every canonicalUtf8 byte for byte.",
+  "vectors": [
+    {
+      "name": "refund-representative",
+      "note": "The Phase 1 refund function's input schema with a representative request.",
+      "schema": [
+        {
+          "index": 0,
+          "name": "customer",
+          "tsType": "Customer",
+          "type": {
+            "fields": [
+              {
+                "name": "priorRefunds",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "tier",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    {
+                      "kind": "literal",
+                      "value": "enterprise"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "standard"
+                    }
+                  ]
+                }
+              }
+            ],
+            "kind": "object",
+            "name": "Customer"
+          }
+        },
+        {
+          "index": 1,
+          "name": "order",
+          "tsType": "Order",
+          "type": {
+            "fields": [
+              {
+                "name": "ageDays",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "status",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    {
+                      "kind": "literal",
+                      "value": "fraudulent"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "paid"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "total",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              }
+            ],
+            "kind": "object",
+            "name": "Order"
+          }
+        }
+      ],
+      "inputs": {
+        "customer": {
+          "priorRefunds": 0,
+          "tier": "standard"
+        },
+        "order": {
+          "ageDays": 12,
+          "status": "paid",
+          "total": 88.5
+        }
+      },
+      "canonicalUtf8": "customer={priorRefunds=0,tier=standard} order={ageDays=12,status=paid,total=88.5}",
+      "sha256": "c5295cbd11bd99eb494005bd9dd229ec0c079e4547b3c5cca8c33b843adb6d61"
+    },
+    {
+      "name": "refund-enterprise-fraud",
+      "schema": [
+        {
+          "index": 0,
+          "name": "customer",
+          "tsType": "Customer",
+          "type": {
+            "fields": [
+              {
+                "name": "priorRefunds",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "tier",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    {
+                      "kind": "literal",
+                      "value": "enterprise"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "standard"
+                    }
+                  ]
+                }
+              }
+            ],
+            "kind": "object",
+            "name": "Customer"
+          }
+        },
+        {
+          "index": 1,
+          "name": "order",
+          "tsType": "Order",
+          "type": {
+            "fields": [
+              {
+                "name": "ageDays",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "status",
+                "optional": false,
+                "type": {
+                  "kind": "union",
+                  "variants": [
+                    {
+                      "kind": "literal",
+                      "value": "fraudulent"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "paid"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "total",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              }
+            ],
+            "kind": "object",
+            "name": "Order"
+          }
+        }
+      ],
+      "inputs": {
+        "customer": {
+          "priorRefunds": 18,
+          "tier": "enterprise"
+        },
+        "order": {
+          "ageDays": 120,
+          "status": "fraudulent",
+          "total": 12345.67
+        }
+      },
+      "canonicalUtf8": "customer={priorRefunds=18,tier=enterprise} order={ageDays=120,status=fraudulent,total=12345.67}",
+      "sha256": "6830c3363799e1338ea8bb7a28b439e0c27383da9c7166d6e9ec4e3de0bbbf31"
+    },
+    {
+      "name": "numbers",
+      "note": "Number spelling follows ECMAScript Number.prototype.toString except that negative zero keeps its sign; the zero field is IEEE-754 negative zero and a harness must preserve its sign when parsing this fixture.",
+      "schema": [
+        {
+          "name": "n",
+          "index": 0,
+          "tsType": "unknown",
+          "type": {
+            "kind": "object",
+            "name": "Numbers",
+            "fields": [
+              {
+                "name": "integer",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "negative",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "fraction",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "tiny",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "huge",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "bigDecimal",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "zero",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "tenth",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "smallExponent",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "max",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "min",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "boundaryLow",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "boundaryHigh",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "inputs": {
+        "n": {
+          "integer": 42,
+          "negative": -7,
+          "fraction": 3.25,
+          "tiny": 1e-7,
+          "huge": 1e+21,
+          "bigDecimal": 123456789012345680000,
+          "zero": -0.0,
+          "tenth": 0.1,
+          "smallExponent": 1.5e-7,
+          "max": 1.7976931348623157e+308,
+          "min": 5e-324,
+          "boundaryLow": 0.000001,
+          "boundaryHigh": 100000000000000000000
+        }
+      },
+      "canonicalUtf8": "n={bigDecimal=123456789012345680000,boundaryHigh=100000000000000000000,boundaryLow=0.000001,fraction=3.25,huge=1e+21,integer=42,max=1.7976931348623157e+308,min=5e-324,negative=-7,smallExponent=1.5e-7,tenth=0.1,tiny=1e-7,zero=-0}",
+      "sha256": "6bb0590b568578119b1715c24f6148f5abfb9a9c27cf83fe3d43af69f097c699"
+    },
+    {
+      "name": "strings",
+      "note": "Bare only when the text matches ^[A-Za-z_][A-Za-z0-9_.-]*$ and is not true, false or null; otherwise quoted with exact-JSON escapes.",
+      "schema": [
+        {
+          "name": "s",
+          "index": 0,
+          "tsType": "unknown",
+          "type": {
+            "kind": "object",
+            "name": "Strings",
+            "fields": [
+              {
+                "name": "bare",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "digits",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "reserved",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "spaced",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "escaped",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "empty",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "comma",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "equals",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "dotted",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "braced",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "unicode",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "quoteInside",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "nullWord",
+                "optional": false,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "inputs": {
+        "s": {
+          "bare": "standard",
+          "digits": "12",
+          "reserved": "true",
+          "spaced": "a b",
+          "escaped": "a\n\"é",
+          "empty": "",
+          "comma": "with,comma",
+          "equals": "x=y",
+          "dotted": "_under.score-1",
+          "braced": "{brace}",
+          "unicode": "café",
+          "quoteInside": "say \"hi\"",
+          "nullWord": "null"
+        }
+      },
+      "canonicalUtf8": "s={bare=standard,braced=\"{brace}\",comma=\"with,comma\",digits=\"12\",dotted=_under.score-1,empty=\"\",equals=\"x=y\",escaped=\"a\\n\\\"é\",nullWord=\"null\",quoteInside=\"say \\\"hi\\\"\",reserved=\"true\",spaced=\"a b\",unicode=\"café\"}",
+      "sha256": "80ec41727e7d4a2c99eebbf63a578315fa49b0cff95a6751276f44161a4282bc"
+    },
+    {
+      "name": "unions-literals-enums",
+      "note": "Literal, enum and union wrappers drop their tags; the value carries them. A string that spells a number stays distinguishable from the number.",
+      "schema": [
+        {
+          "name": "tier",
+          "index": 0,
+          "tsType": "unknown",
+          "type": {
+            "kind": "union",
+            "variants": [
+              {
+                "kind": "literal",
+                "value": "enterprise"
+              },
+              {
+                "kind": "literal",
+                "value": "standard"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mixedNumber",
+          "index": 1,
+          "tsType": "unknown",
+          "type": {
+            "kind": "union",
+            "variants": [
+              {
+                "kind": "number"
+              },
+              {
+                "kind": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mixedString",
+          "index": 2,
+          "tsType": "unknown",
+          "type": {
+            "kind": "union",
+            "variants": [
+              {
+                "kind": "number"
+              },
+              {
+                "kind": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "colour",
+          "index": 3,
+          "tsType": "unknown",
+          "type": {
+            "kind": "enum",
+            "name": "Colour",
+            "base": "string",
+            "values": [
+              "red",
+              "green",
+              "blue"
+            ]
+          }
+        },
+        {
+          "name": "level",
+          "index": 4,
+          "tsType": "unknown",
+          "type": {
+            "kind": "enum",
+            "name": "Level",
+            "base": "number",
+            "values": [
+              1,
+              2.5,
+              10
+            ]
+          }
+        },
+        {
+          "name": "flag",
+          "index": 5,
+          "tsType": "unknown",
+          "type": {
+            "kind": "literal",
+            "value": true
+          }
+        },
+        {
+          "name": "nothing",
+          "index": 6,
+          "tsType": "unknown",
+          "type": {
+            "kind": "literal",
+            "value": null
+          }
+        }
+      ],
+      "inputs": {
+        "tier": "standard",
+        "mixedNumber": 12,
+        "mixedString": "12",
+        "colour": "green",
+        "level": 2.5,
+        "flag": true,
+        "nothing": null
+      },
+      "canonicalUtf8": "tier=standard mixedNumber=12 mixedString=\"12\" colour=green level=2.5 flag=true nothing=null",
+      "sha256": "2361246830dcf3f8cb96d3eb04fe4fd29d144c41c3629f298b34ab590c0a1e8d"
+    },
+    {
+      "name": "nested-containers",
+      "note": "Objects keep byte-ordered keys, arrays and tuples both use brackets, optional fields that are absent are omitted.",
+      "schema": [
+        {
+          "name": "second",
+          "index": 1,
+          "tsType": "unknown",
+          "type": {
+            "kind": "object",
+            "name": "Outer",
+            "fields": [
+              {
+                "name": "items",
+                "optional": false,
+                "type": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "name": "Item",
+                    "fields": [
+                      {
+                        "name": "id",
+                        "optional": false,
+                        "type": {
+                          "kind": "number"
+                        }
+                      },
+                      {
+                        "name": "tags",
+                        "optional": false,
+                        "type": {
+                          "kind": "array",
+                          "items": {
+                            "kind": "string"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "pair",
+                "optional": false,
+                "type": {
+                  "kind": "tuple",
+                  "items": [
+                    {
+                      "kind": "string"
+                    },
+                    {
+                      "kind": "number"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "empty",
+                "optional": false,
+                "type": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "number"
+                  }
+                }
+              },
+              {
+                "name": "inner",
+                "optional": false,
+                "type": {
+                  "kind": "object",
+                  "name": "Inner",
+                  "fields": [
+                    {
+                      "name": "z",
+                      "optional": false,
+                      "type": {
+                        "kind": "boolean"
+                      }
+                    },
+                    {
+                      "name": "a",
+                      "optional": false,
+                      "type": {
+                        "kind": "null"
+                      }
+                    },
+                    {
+                      "name": "m",
+                      "optional": true,
+                      "type": {
+                        "kind": "string"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "maybe",
+                "optional": true,
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "first",
+          "index": 0,
+          "tsType": "unknown",
+          "type": {
+            "kind": "boolean"
+          }
+        }
+      ],
+      "inputs": {
+        "first": false,
+        "second": {
+          "items": [
+            {
+              "id": 1,
+              "tags": [
+                "x",
+                "y z"
+              ]
+            },
+            {
+              "id": 2,
+              "tags": []
+            }
+          ],
+          "pair": [
+            "k",
+            -1.5
+          ],
+          "empty": [],
+          "inner": {
+            "z": true,
+            "a": null
+          }
+        }
+      },
+      "canonicalUtf8": "first=false second={empty=[],inner={a=null,z=true},items=[{id=1,tags=[x,\"y z\"]},{id=2,tags=[]}],pair=[k,-1.5]}",
+      "sha256": "f52306d64dcc7b9823ddf4dc6627b9414ddc0ac46890fd35284c3df31a3160a2"
+    },
+    {
+      "name": "key-spelling",
+      "note": "Object keys follow the same bare-or-quoted rule as strings.",
+      "schema": [
+        {
+          "name": "k",
+          "index": 0,
+          "tsType": "unknown",
+          "type": {
+            "kind": "object",
+            "name": "Keys",
+            "fields": [
+              {
+                "name": "plain",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "with space",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "12",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "true",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              },
+              {
+                "name": "ünïcode",
+                "optional": false,
+                "type": {
+                  "kind": "number"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "inputs": {
+        "k": {
+          "12": 3,
+          "plain": 1,
+          "with space": 2,
+          "true": 4,
+          "ünïcode": 5
+        }
+      },
+      "canonicalUtf8": "k={\"12\"=3,plain=1,\"true\"=4,\"with space\"=2,\"ünïcode\"=5}",
+      "sha256": "76ef3c4688e982013b7c1b118e3d5889f986cc3b75e6740f76a02879df691b53"
+    }
+  ]
+}

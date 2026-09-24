@@ -53,11 +53,11 @@ class TinyTokenizer:
         self.texts.extend(texts)
         token_ids = []
         for text in texts:
-            if '"left-' in text:
+            if "left-" in text:
                 token_ids.append(1)
-            elif '"center-' in text:
+            elif "center-" in text:
                 token_ids.append(2)
-            elif '"right-' in text:
+            elif "right-" in text:
                 token_ids.append(3)
             else:  # pragma: no cover - test fixture guard
                 raise AssertionError(f"unexpected canonical text: {text}")
@@ -172,7 +172,7 @@ def test_fine_tunes_encoder_and_ir_derived_categorical_head_offline() -> None:
     assert not torch.equal(encoder.embedding.weight.detach(), original_encoder_weights)
 
     expected_texts = {
-        serialize_canonical_inputs_string(contract["inputs"], {"position": value})
+        serialize_canonical_inputs_string(contract["inputs"], {"position": value}, version=2)
         for group_index in range(4)
         for value in (
             f"left-{group_index}",

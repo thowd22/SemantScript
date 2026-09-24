@@ -40,11 +40,15 @@ from semantscript_trainer.artifact import (
     validate_verified_ir_binding,
 )
 from semantscript_trainer.canonical_input import (
+    CANONICAL_INPUT_ENCODINGS,
+    CANONICAL_INPUT_V1,
+    CANONICAL_INPUT_V2,
     MAXIMUM_INPUT_DEPTH,
     MAXIMUM_INPUT_NODES,
     CanonicalInputError,
     InputErrorReason,
     InputPath,
+    canonical_input_version,
     serialize_canonical_inputs,
     serialize_canonical_inputs_string,
 )
@@ -184,6 +188,9 @@ __all__ = [
     "ADVERSARIAL_DATASET_KIND",
     "ADVERSARIAL_DATASET_VERSION",
     "ARTIFACT_VERSION",
+    "CANONICAL_INPUT_ENCODINGS",
+    "CANONICAL_INPUT_V1",
+    "CANONICAL_INPUT_V2",
     "DATASET_KIND",
     "DATASET_VERSION",
     "DEFAULT_ENCODER_NAME",
@@ -308,6 +315,7 @@ __all__ = [
     "assemble_training_corpus",
     "build_verified_ir",
     "calibration_split_sha256",
+    "canonical_input_version",
     "constraints_from_ir",
     "create_teacher",
     "derive_training_head",

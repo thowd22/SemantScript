@@ -274,7 +274,12 @@ function validateManifest(value: unknown): asserts value is ApplicationArtifactM
   exact(compatibility, ["runtimeAbiVersion", "modelAbiVersion", "canonicalInput", "minimumRuntimeVersion", "requiredCapabilities"], "manifest.compatibility");
   equal(get(compatibility, "runtimeAbiVersion"), 1, "manifest.compatibility.runtimeAbiVersion");
   equal(get(compatibility, "modelAbiVersion"), 1, "manifest.compatibility.modelAbiVersion");
-  equal(get(compatibility, "canonicalInput"), "semantscript.canonical-input/v1", "manifest.compatibility.canonicalInput");
+  // The runtime serializes call inputs with the encoding the artifact was trained on.
+  choice(
+    get(compatibility, "canonicalInput"),
+    ["semantscript.canonical-input/v1", "semantscript.canonical-input/v2"],
+    "manifest.compatibility.canonicalInput",
+  );
   matches(get(compatibility, "minimumRuntimeVersion"), SEMVER, "manifest.compatibility.minimumRuntimeVersion");
   const capabilities = list(get(compatibility, "requiredCapabilities"), "manifest.compatibility.requiredCapabilities");
   for (const [index, capability] of capabilities.entries()) nonempty(capability, `manifest.compatibility.requiredCapabilities[${String(index)}]`);

@@ -15,7 +15,9 @@ import {
 } from "./artifact-loader.js";
 import {
   type CanonicalInputEntry,
+  type CanonicalInputVersion,
   serializeCanonicalInputs,
+  canonicalInputVersion as canonicalInputVersionOf,
 } from "./canonical-input.js";
 import {
   SemaConfidenceError,
@@ -40,6 +42,7 @@ import { inspectOnnxContainer } from "./onnx-model.js";
 interface ActiveArtifact {
   readonly token: symbol;
   readonly manifestSha256: string;
+  readonly canonicalInputVersion: CanonicalInputVersion;
   readonly runtime: InferenceRuntime;
   readonly functions: ReadonlyMap<string, ActiveFunction>;
   readonly fallbackInvocationStack: Set<string>;
@@ -114,9 +117,11 @@ export function loadSemaArtifact(
       inferenceOptionsForPlan(plan, inferenceOptions),
     );
     const token = Symbol("active SemantScript artifact");
+    const canonicalInputVersion = canonicalInputVersionOfManifest(staged.manifest.compatibility.canonicalInput);
     const next: ActiveArtifact = {
       token,
       manifestSha256: staged.manifestSha256,
+      canonicalInputVersion,
       runtime,
       functions,
       fallbackInvocationStack: new Set(),
@@ -156,6 +161,14 @@ export function dispatchSemaCall<T>(
   return dispatchArtifactCall(current, functionId, inputs) as T;
 }
 
+function canonicalInputVersionOfManifest(encoding: string): CanonicalInputVersion {
+  const version = canonicalInputVersionOf(encoding);
+  if (version === undefined) {
+    throw new TypeError(`artifact declares unimplemented canonical input encoding ${JSON.stringify(encoding)}`);
+  }
+  return version;
+}
+
 function dispatchArtifactCall(
   artifact: ActiveArtifact,
   functionId: string,
@@ -170,7 +183,7 @@ function dispatchArtifactCall(
   const canonicalInput = serializeCanonicalInputs(
     semanticFunction.inputs satisfies readonly CanonicalInputEntry[],
     inputs,
-    { maximumBytes: artifact.runtime.maximumInputBytes },
+    { maximumBytes: artifact.runtime.maximumInputBytes, version: artifact.canonicalInputVersion },
   );
   const inferenceResult = artifact.runtime.call(functionId, canonicalInput);
   const { confidenceThreshold, resultMode } = semanticFunction.runtime;

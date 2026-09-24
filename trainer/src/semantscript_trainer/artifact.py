@@ -21,6 +21,11 @@ from pathlib import Path
 from struct import pack
 from typing import Any, cast
 
+from semantscript_trainer.canonical_input import (
+    CANONICAL_INPUT_ENCODINGS,
+    CANONICAL_INPUT_V1,
+    canonical_input_version,
+)
 from semantscript_trainer.case_contract import validate_case
 from semantscript_trainer.constraints import ConstraintConfigurationError, compile_constraints
 from semantscript_trainer.semantic_json import semantic_json_bytes, semantic_json_sha256
@@ -530,8 +535,17 @@ def _validate_completed_provenance(value: Any) -> None:
         "trainer",
         "trainedAt",
     }
-    if not isinstance(value, dict) or set(value) != required or value.get("status") != "complete":
+    if (
+        not isinstance(value, dict)
+        or set(value) - {"canonicalInput"} != required
+        or value.get("status") != "complete"
+    ):
         raise ArtifactConfigurationError("verified IR trainingProvenance is invalid")
+    # Absent means the exact-JSON envelope: every IR verified before the compact encoding.
+    if "canonicalInput" in value and canonical_input_version(value["canonicalInput"]) is None:
+        raise ArtifactConfigurationError(
+            "verified IR trainingProvenance canonicalInput is unsupported"
+        )
     teacher = value.get("teacher")
     base = value.get("baseModel")
     if not isinstance(teacher, dict) or set(teacher) != {
@@ -843,7 +857,7 @@ def _manifest_document(
         "compatibility": {
             "runtimeAbiVersion": RUNTIME_ABI_VERSION,
             "modelAbiVersion": MODEL_ABI_VERSION,
-            "canonicalInput": "semantscript.canonical-input/v1",
+            "canonicalInput": _canonical_input_encoding(ir, training),
             "minimumRuntimeVersion": "0.0.0",
             "requiredCapabilities": [],
         },
@@ -865,6 +879,19 @@ def _manifest_document(
         },
         "functions": [function],
     }
+
+
+def _canonical_input_encoding(ir: NeuralFunctionIr, training: TrainingResult) -> str:
+    """The encoding the model was trained with, cross-checked against the verified IR."""
+
+    encoding = CANONICAL_INPUT_ENCODINGS[training.config.canonical_input_version]
+    raw = ir.get("trainingProvenance")
+    declared = raw.get("canonicalInput", CANONICAL_INPUT_V1) if isinstance(raw, dict) else None
+    if declared != encoding:
+        raise ArtifactConfigurationError(
+            "IR trainingProvenance canonicalInput differs from the trained encoding"
+        )
+    return encoding
 
 
 def _training_provenance(

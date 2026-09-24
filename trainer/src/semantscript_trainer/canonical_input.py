@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -12,6 +13,9 @@ from typing import Any, Literal, NoReturn
 MAXIMUM_INPUT_DEPTH = 100
 MAXIMUM_INPUT_NODES = 100_000
 MAXIMUM_SAFE_INTEGER = 2**53 - 1
+CANONICAL_INPUT_V1 = "semantscript.canonical-input/v1"
+CANONICAL_INPUT_V2 = "semantscript.canonical-input/v2"
+CANONICAL_INPUT_ENCODINGS: dict[int, str] = {1: CANONICAL_INPUT_V1, 2: CANONICAL_INPUT_V2}
 
 type InputPath = tuple[str | int, ...]
 type InputErrorReason = Literal[
@@ -76,13 +80,31 @@ class _EncodeContext:
     budget: _WorkBudget
 
 
+def canonical_input_version(encoding: object) -> int | None:
+    """Map a manifest encoding identifier to its serializer version, or None."""
+
+    for version, name in CANONICAL_INPUT_ENCODINGS.items():
+        if encoding == name:
+            return version
+    return None
+
+
 def serialize_canonical_inputs(
     schema: Sequence[Mapping[str, Any]],
     inputs: object,
     *,
+    version: int = 1,
     maximum_bytes: int | None = None,
 ) -> bytes:
-    """Validate and serialize inputs as ``semantscript.canonical-input/v1`` bytes."""
+    """Validate and serialize inputs as canonical-input bytes of ``version``.
+
+    Version 1 is the exact-JSON envelope with hexadecimal binary64 numbers;
+    version 2 is the compact text (``name=value`` pairs, ``{k=v}`` objects,
+    ``[v]`` sequences, bare identifiers and JavaScript number spelling). Both
+    are canonical and injective over validated inputs and are produced byte
+    for byte identically by the TypeScript runtime; an artifact declares the
+    one it was trained with.
+    """
 
     if maximum_bytes is not None and (
         isinstance(maximum_bytes, bool)
@@ -91,20 +113,35 @@ def serialize_canonical_inputs(
         or maximum_bytes > MAXIMUM_SAFE_INTEGER
     ):
         raise ValueError("maximum_bytes must be a positive safe integer")
+    _validate_version(version)
 
     envelope = _encode_envelope(schema, inputs)
-    writer = _ExactJsonWriter(maximum_bytes)
-    _write_exact_json(envelope, writer)
-    return writer.finish()
+    if version == 1:
+        writer = _ExactJsonWriter(maximum_bytes)
+        _write_exact_json(envelope, writer)
+        return writer.finish()
+    encoded = _write_compact(envelope).encode("utf-8", errors="strict")
+    if maximum_bytes is not None and len(encoded) > maximum_bytes:
+        _fail("limit", (), f"canonical input exceeds the {maximum_bytes} byte limit")
+    return encoded
 
 
 def serialize_canonical_inputs_string(
     schema: Sequence[Mapping[str, Any]],
     inputs: object,
+    *,
+    version: int = 1,
 ) -> str:
     """Return the diagnostic string form used by cross-language golden tests."""
 
-    return serialize_canonical_inputs(schema, inputs).decode("utf-8", errors="strict")
+    return serialize_canonical_inputs(schema, inputs, version=version).decode(
+        "utf-8", errors="strict"
+    )
+
+
+def _validate_version(version: object) -> None:
+    if isinstance(version, bool) or version not in CANONICAL_INPUT_ENCODINGS:
+        raise ValueError("canonical input version must be 1 or 2")
 
 
 def _encode_envelope(
@@ -601,6 +638,135 @@ def _write_exact_json(value: ExactJson, writer: _ExactJsonWriter) -> None:
     writer.write_ascii("]")
 
 
+# canonical-input/v2: the same typed tree rendered as compact text. Tags that the
+# value itself carries (literal, enum, union) are dropped; the schema fixes arrays
+# versus tuples per path, so both use brackets. Strings and keys are bare only when
+# they cannot be mistaken for another token, which keeps the encoding injective.
+_BARE_TOKEN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
+_RESERVED_TOKENS = frozenset({"true", "false", "null"})
+_COMPACT_ESCAPES = {
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\f": "\\f",
+    "\r": "\\r",
+    '"': '\\"',
+    "\\": "\\\\",
+}
+
+
+def _write_compact(envelope: ExactJson) -> str:
+    if type(envelope) is not list or len(envelope) != 3 or type(envelope[2]) is not list:
+        raise TypeError("canonical input envelope is malformed")
+    return " ".join(_compact_pair(pair) for pair in envelope[2])
+
+
+def _compact_pair(pair: ExactJson) -> str:
+    if type(pair) is not list or len(pair) != 2 or type(pair[0]) is not str:
+        raise TypeError("canonical input pair is malformed")
+    return f"{_compact_string(pair[0])}={_compact_value(pair[1])}"
+
+
+def _compact_value(value: ExactJson) -> str:
+    if type(value) is not list or not value or type(value[0]) is not str:
+        raise TypeError("canonical input typed value is malformed")
+    tag = value[0]
+    if tag == "null":
+        return "null"
+    if tag == "boolean":
+        return "true" if value[1] is True else "false"
+    if tag == "string":
+        return _compact_string(_expect_string(value[1]))
+    if tag == "number":
+        return _compact_number(_hex_to_double(_expect_string(value[1])))
+    if tag == "literal":
+        return _compact_value(value[1])
+    if tag == "enum":
+        return _compact_value(value[3])
+    if tag == "union":
+        return _compact_value(value[2])
+    if tag in ("array", "tuple"):
+        items = value[1]
+        if type(items) is not list:
+            raise TypeError("canonical input sequence is malformed")
+        return "[" + ",".join(_compact_value(item) for item in items) + "]"
+    if tag == "object":
+        pairs = value[1]
+        if type(pairs) is not list:
+            raise TypeError("canonical input object is malformed")
+        return "{" + ",".join(_compact_pair(pair) for pair in pairs) + "}"
+    raise TypeError(f"canonical input typed value has unknown tag {tag!r}")
+
+
+def _compact_string(value: str) -> str:
+    if _BARE_TOKEN.fullmatch(value) is not None and value not in _RESERVED_TOKENS:
+        return value
+    pieces = ['"']
+    for character in value:
+        escape = _COMPACT_ESCAPES.get(character)
+        code = ord(character)
+        if escape is None and code <= 0x1F:
+            escape = f"\\u00{code:02x}"
+        if escape is not None:
+            pieces.append(escape)
+        elif 0xD800 <= code <= 0xDFFF:
+            raise TypeError("canonical input strings cannot contain unpaired UTF-16 surrogates")
+        else:
+            pieces.append(character)
+    pieces.append('"')
+    return "".join(pieces)
+
+
+def _compact_number(value: float) -> str:
+    """Spell a finite double exactly as ECMAScript Number.prototype.toString would.
+
+    Negative zero keeps its sign (JavaScript would print 0) so distinct doubles
+    never share a spelling.
+    """
+
+    if value == 0:
+        return "-0" if math.copysign(1.0, value) < 0 else "0"
+    text = repr(value)  # shortest digits that round-trip, like the JavaScript algorithm
+    sign = ""
+    if text.startswith("-"):
+        sign, text = "-", text[1:]
+    mantissa, _, exponent_text = text.partition("e")
+    integer_part, _, fraction = mantissa.partition(".")
+    digits = (integer_part + fraction).lstrip("0")
+    exponent = (int(exponent_text) if exponent_text else 0) - len(fraction)
+    stripped = digits.rstrip("0")
+    exponent += len(digits) - len(stripped)
+    digits = stripped
+    k = len(digits)
+    n = k + exponent  # value == 0.d1..dk * 10**n
+    if k <= n <= 21:
+        body = digits + "0" * (n - k)
+    elif 0 < n <= 21:
+        body = digits[:n] + "." + digits[n:]
+    elif -6 < n <= 0:
+        body = "0." + "0" * (-n) + digits
+    else:
+        power = n - 1
+        power_text = ("+" if power >= 0 else "-") + str(abs(power))
+        body = (digits if k == 1 else digits[0] + "." + digits[1:]) + "e" + power_text
+    return sign + body
+
+
+def _hex_to_double(hex_digits: str) -> float:
+    if len(hex_digits) != 16:
+        raise TypeError("canonical input number is not 16 hex digits")
+    try:
+        return struct.unpack(">d", bytes.fromhex(hex_digits))[0]
+    except ValueError as error:
+        raise TypeError("canonical input number is not hexadecimal") from error
+
+
+def _expect_string(value: ExactJson) -> str:
+    if type(value) is not str:
+        raise TypeError("canonical input typed value is malformed")
+    return value
+
+
 def _number_hex(value: object, path: InputPath) -> str:
     return struct.pack(">d", _finite_float(value, path)).hex()
 
@@ -748,11 +914,15 @@ def _format_path(path: InputPath) -> str:
 
 
 __all__ = [
+    "CANONICAL_INPUT_ENCODINGS",
+    "CANONICAL_INPUT_V1",
+    "CANONICAL_INPUT_V2",
     "MAXIMUM_INPUT_DEPTH",
     "MAXIMUM_INPUT_NODES",
     "CanonicalInputError",
     "InputErrorReason",
     "InputPath",
+    "canonical_input_version",
     "serialize_canonical_inputs",
     "serialize_canonical_inputs_string",
 ]

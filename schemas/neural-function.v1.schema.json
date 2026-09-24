@@ -861,6 +861,9 @@
         "status": {
           "const": "complete"
         },
+        "canonicalInput": {
+          "enum": ["semantscript.canonical-input/v1", "semantscript.canonical-input/v2"]
+        },
         "teacher": {
           "type": "object",
           "additionalProperties": false,

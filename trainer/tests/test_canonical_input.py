@@ -9,7 +9,10 @@ from typing import Any
 import pytest
 
 from semantscript_trainer.canonical_input import (
+    CANONICAL_INPUT_V1,
+    CANONICAL_INPUT_V2,
     CanonicalInputError,
+    canonical_input_version,
     serialize_canonical_inputs,
     serialize_canonical_inputs_string,
 )
@@ -272,3 +275,95 @@ def test_accepts_binary64_integral_schema_indices_from_strict_json() -> None:
     )
     with pytest.raises(CanonicalInputError, match="non-negative safe integer"):
         serialize_canonical_inputs([dict(integral[0], index=0.5)], {"value": 1})
+
+
+V2_FIXTURE = Path(__file__).parents[2] / "examples" / "serialization" / "canonical-input.v2.json"
+
+
+def test_matches_every_canonical_input_v2_golden_vector_byte_for_byte() -> None:
+    fixture = json.loads(V2_FIXTURE.read_text(encoding="utf-8"))
+    assert fixture["encoding"] == CANONICAL_INPUT_V2
+    names = {vector["name"] for vector in fixture["vectors"]}
+    assert {
+        "refund-representative",
+        "numbers",
+        "strings",
+        "unions-literals-enums",
+        "nested-containers",
+        "key-spelling",
+    } <= names
+    for vector in fixture["vectors"]:
+        actual = serialize_canonical_inputs(vector["schema"], vector["inputs"], version=2)
+        assert actual == vector["canonicalUtf8"].encode("utf-8"), vector["name"]
+        assert hashlib.sha256(actual).hexdigest() == vector["sha256"], vector["name"]
+        assert (
+            serialize_canonical_inputs_string(vector["schema"], vector["inputs"], version=2)
+            == vector["canonicalUtf8"]
+        )
+        # The exact-JSON envelope is untouched by the compact encoding.
+        assert serialize_canonical_inputs(vector["schema"], vector["inputs"]).startswith(
+            b'["semantscript-input",1,'
+        )
+    numbers = next(vector for vector in fixture["vectors"] if vector["name"] == "numbers")
+    assert math.copysign(1.0, numbers["inputs"]["n"]["zero"]) == -1.0
+
+
+def test_compact_encoding_is_injective_over_look_alike_values() -> None:
+    mixed = schema({"kind": "union", "variants": [NUMBER, STRING]})
+    rendered = {
+        serialize_canonical_inputs_string(mixed, {"value": candidate}, version=2)
+        for candidate in (12, "12", 12.0, "12.0", -0.0, 0.0, "0", "-0", "true", "null")
+    }
+    assert rendered == {
+        f"value={spelling}"
+        for spelling in ("12", '"12"', '"12.0"', "-0", "0", '"0"', '"-0"', '"true"', '"null"')
+    }
+    booleans = schema({"kind": "union", "variants": [{"kind": "boolean"}, STRING]})
+    assert serialize_canonical_inputs_string(booleans, {"value": True}, version=2) == "value=true"
+    assert (
+        serialize_canonical_inputs_string(booleans, {"value": "true"}, version=2) == 'value="true"'
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (1.0, "1"),
+        (-1.5, "-1.5"),
+        (1e21, "1e+21"),
+        (1e20, "100000000000000000000"),
+        (1e-7, "1e-7"),
+        (1e-6, "0.000001"),
+        (5e-324, "5e-324"),
+        (1.7976931348623157e308, "1.7976931348623157e+308"),
+        (2**53, "9007199254740992"),
+        (0.1 + 0.2, "0.30000000000000004"),
+        (123456789012345680000.0, "123456789012345680000"),
+        (1.5e300, "1.5e+300"),
+        (-2.5e-10, "-2.5e-10"),
+    ],
+)
+def test_compact_numbers_use_javascript_spelling(value: float, expected: str) -> None:
+    assert serialize_canonical_inputs_string(schema(NUMBER), {"value": value}, version=2) == (
+        f"value={expected}"
+    )
+
+
+def test_compact_encoding_enforces_the_byte_limit_and_version_choice() -> None:
+    entries = schema(STRING)
+    text = serialize_canonical_inputs(entries, {"value": "x" * 40}, version=2)
+    assert text == b"value=" + b"x" * 40
+    with assert_reason("limit"):
+        serialize_canonical_inputs(entries, {"value": "x" * 40}, version=2, maximum_bytes=10)
+    with pytest.raises(ValueError, match="version must be 1 or 2"):
+        serialize_canonical_inputs(entries, {"value": "x"}, version=3)
+    with pytest.raises(ValueError, match="version must be 1 or 2"):
+        serialize_canonical_inputs(entries, {"value": "x"}, version=True)  # type: ignore[arg-type]
+    assert canonical_input_version(CANONICAL_INPUT_V1) == 1
+    assert canonical_input_version(CANONICAL_INPUT_V2) == 2
+    assert canonical_input_version("semantscript.canonical-input/v3") is None
+    # Validation failures are shared: the compact writer never sees an invalid input.
+    with assert_reason("missing"):
+        serialize_canonical_inputs(entries, {}, version=2)
+    with assert_reason("type"):
+        serialize_canonical_inputs(entries, {"value": 5}, version=2)

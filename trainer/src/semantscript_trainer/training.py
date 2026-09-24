@@ -10,7 +10,11 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from semantscript_trainer.adversarial import AdversarialDataset
-from semantscript_trainer.canonical_input import CanonicalInputError, serialize_canonical_inputs
+from semantscript_trainer.canonical_input import (
+    CANONICAL_INPUT_ENCODINGS,
+    CanonicalInputError,
+    serialize_canonical_inputs,
+)
 from semantscript_trainer.dataset import TrainingDataset
 from semantscript_trainer.teacher import NeuralFunctionIr
 from semantscript_trainer.training_contract import (
@@ -86,8 +90,17 @@ class TrainingConfig:
     # the historical behavior.
     learning_rate_schedule: ScheduleName = "constant"
     warmup_ratio: float = 0.0
+    # Which canonical-input encoding the rows are serialized with (1: exact-JSON
+    # envelope, 2: compact text). Recorded in the verified IR and the artifact so
+    # the runtime serializes calls the same way.
+    canonical_input_version: int = 2
 
     def __post_init__(self) -> None:
+        if (
+            isinstance(self.canonical_input_version, bool)
+            or self.canonical_input_version not in CANONICAL_INPUT_ENCODINGS
+        ):
+            raise TrainingConfigurationError("canonical_input_version must be 1 or 2")
         if not isinstance(self.select_best_epoch, bool):
             raise TrainingConfigurationError("select_best_epoch must be a boolean")
         if self.learning_rate_schedule not in ("constant", "linear"):
@@ -274,7 +287,7 @@ def train_corpus(
             f"training and evaluation exceed maximum batch passes {_MAXIMUM_BATCH_PASSES}"
         )
 
-    prepared = _prepare_rows(raw_schema, split)
+    prepared = _prepare_rows(raw_schema, split, resolved.canonical_input_version)
     _validate_no_canonical_leakage(prepared)
     torch = _require_torch()
     _seed_torch(torch, resolved.seed)
@@ -428,6 +441,7 @@ def train_corpus(
 def _prepare_rows(
     schema: Sequence[Mapping[str, Any]],
     split: TrainingSplit,
+    version: int = 1,
 ) -> dict[str, tuple[_PreparedRow, ...]]:
     byte_count = 0
 
@@ -439,6 +453,7 @@ def _prepare_rows(
                 encoded = serialize_canonical_inputs(
                     schema,
                     row.inputs,
+                    version=version,
                     maximum_bytes=MAXIMUM_CANONICAL_ROW_BYTES,
                 )
             except (CanonicalInputError, TypeError, ValueError) as error:

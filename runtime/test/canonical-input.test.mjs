@@ -3,11 +3,25 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { TextDecoder } from "node:util";
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import {
+  CANONICAL_INPUT_V1,
+  CANONICAL_INPUT_V2,
   SemaInputError,
+  canonicalInputVersion,
   serializeCanonicalInputs,
   serializeCanonicalInputsString,
 } from "../dist/canonical-input.js";
+
+const v2Fixture = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "examples", "serialization", "canonical-input.v2.json"),
+    "utf8",
+  ),
+);
 
 const number = { kind: "number" };
 const string = { kind: "string" };
@@ -303,5 +317,38 @@ test("allows repeated acyclic references but enforces depth and schema integrity
         { value: "x" },
       ),
     reason("schema"),
+  );
+});
+
+test("matches every canonical-input v2 golden vector byte for byte", () => {
+  assert.equal(v2Fixture.encoding, CANONICAL_INPUT_V2);
+  assert.ok(v2Fixture.vectors.length >= 6);
+  for (const vector of v2Fixture.vectors) {
+    const bytes = serializeCanonicalInputs(vector.schema, vector.inputs, { version: 2 });
+    assert.equal(new TextDecoder().decode(bytes), vector.canonicalUtf8, vector.name);
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), vector.sha256, vector.name);
+    assert.equal(serializeCanonicalInputsString(vector.schema, vector.inputs, { version: 2 }), vector.canonicalUtf8);
+    assert.ok(new TextDecoder().decode(serializeCanonicalInputs(vector.schema, vector.inputs)).startsWith('["semantscript-input",1,'));
+  }
+  const numbers = v2Fixture.vectors.find((vector) => vector.name === "numbers");
+  assert.ok(Object.is(numbers.inputs.n.zero, -0), "the fixture parser must preserve negative zero");
+});
+
+test("compact encoding validates the version and honours the byte limit", () => {
+  const entries = schema(string);
+  assert.equal(new TextDecoder().decode(serializeCanonicalInputs(entries, { value: "x".repeat(40) }, { version: 2 })), `value=${"x".repeat(40)}`);
+  assert.throws(
+    () => serializeCanonicalInputs(entries, { value: "x".repeat(40) }, { version: 2, maximumBytes: 10 }),
+    reason("limit"),
+  );
+  assert.throws(() => serializeCanonicalInputs(entries, { value: "x" }, { version: 3 }), RangeError);
+  assert.equal(canonicalInputVersion(CANONICAL_INPUT_V1), 1);
+  assert.equal(canonicalInputVersion(CANONICAL_INPUT_V2), 2);
+  assert.equal(canonicalInputVersion("semantscript.canonical-input/v3"), undefined);
+  assert.throws(() => serializeCanonicalInputs(entries, {}, { version: 2 }), reason("missing"));
+  const mixed = schema({ kind: "union", variants: [number, string] });
+  assert.deepEqual(
+    [12, "12", -0, 0, "true"].map((value) => serializeCanonicalInputsString(mixed, { value }, { version: 2 })),
+    ["value=12", 'value="12"', "value=-0", "value=0", 'value="true"'],
   );
 });

@@ -189,6 +189,28 @@ test("rejects invalid relational metadata", async (context) => {
   });
 });
 
+test("accepts every implemented canonical input encoding and rejects the rest", async (context) => {
+  for (const encoding of ["semantscript.canonical-input/v1", "semantscript.canonical-input/v2"]) {
+    await context.test(`accepts ${encoding}`, async () => {
+      await withArtifact(async (artifact) => {
+        await republish(artifact, (manifest) => {
+          manifest.compatibility.canonicalInput = encoding;
+        });
+        const loaded = await loadArtifact(artifact.root);
+        assert.equal(loaded.manifest.compatibility.canonicalInput, encoding);
+      });
+    });
+  }
+  await context.test("rejects an unimplemented encoding", async () => {
+    await withArtifact(async (artifact) => {
+      await republish(artifact, (manifest) => {
+        manifest.compatibility.canonicalInput = "semantscript.canonical-input/v3";
+      });
+      await assert.rejects(loadArtifact(artifact.root), hasCode("SEMA_ARTIFACT_INVALID_MANIFEST"));
+    });
+  });
+});
+
 function quantizationBlock(overrides = {}) {
   return {
     method: "dynamic",

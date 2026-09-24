@@ -141,36 +141,77 @@ interface InspectedRecord {
   readonly enumerableKeys: readonly string[];
 }
 
-export interface CanonicalInputSerializationOptions {
-  /** Maximum UTF-8 byte length of the complete canonical input envelope. */
-  readonly maximumBytes?: number;
+export const CANONICAL_INPUT_V1 = "semantscript.canonical-input/v1";
+export const CANONICAL_INPUT_V2 = "semantscript.canonical-input/v2";
+export type CanonicalInputVersion = 1 | 2;
+export type CanonicalInputEncoding = typeof CANONICAL_INPUT_V1 | typeof CANONICAL_INPUT_V2;
+
+const CANONICAL_INPUT_ENCODINGS: Readonly<Record<CanonicalInputVersion, CanonicalInputEncoding>> = {
+  1: CANONICAL_INPUT_V1,
+  2: CANONICAL_INPUT_V2,
+};
+
+/** Maps a manifest encoding identifier to its serializer version, or undefined when unimplemented. */
+export function canonicalInputVersion(encoding: string): CanonicalInputVersion | undefined {
+  if (encoding === CANONICAL_INPUT_V1) return 1;
+  if (encoding === CANONICAL_INPUT_V2) return 2;
+  return undefined;
 }
 
-/** Validates and serializes runtime inputs as semantscript.canonical-input/v1 bytes. */
+export interface CanonicalInputSerializationOptions {
+  /** Maximum UTF-8 byte length of the complete canonical input. */
+  readonly maximumBytes?: number;
+  /**
+   * Encoding version: 1 is the exact-JSON envelope with hexadecimal binary64
+   * numbers, 2 the compact text (name=value pairs, {k=v} objects, [v] arrays,
+   * bare identifiers and JavaScript number spelling). Both are canonical and
+   * injective over validated inputs; an artifact declares the one it was
+   * trained with.
+   */
+  readonly version?: CanonicalInputVersion;
+}
+
+/** Validates and serializes runtime inputs as canonical-input bytes of the requested version. */
 export function serializeCanonicalInputs(
   schema: readonly CanonicalInputEntry[],
   inputs: unknown,
   options: CanonicalInputSerializationOptions = {},
 ): Uint8Array {
+  const version = resolveVersion(options.version);
   const envelope = encodeCanonicalInputEnvelope(schema, inputs);
 
-  if (options.maximumBytes === undefined) {
-    return textEncoder.encode(writeExactJson(envelope));
+  if (options.maximumBytes !== undefined) {
+    if (!Number.isSafeInteger(options.maximumBytes) || options.maximumBytes < 1) {
+      throw new RangeError("maximumBytes must be a positive safe integer");
+    }
+    if (version === 1) return writeBoundedExactJson(envelope, options.maximumBytes);
+    const bytes = textEncoder.encode(writeCompact(envelope));
+    if (bytes.length > options.maximumBytes) {
+      inputFailure("limit", [], `canonical input exceeds the ${String(options.maximumBytes)} byte limit`);
+    }
+    return bytes;
   }
 
-  if (!Number.isSafeInteger(options.maximumBytes) || options.maximumBytes < 1) {
-    throw new RangeError("maximumBytes must be a positive safe integer");
-  }
-
-  return writeBoundedExactJson(envelope, options.maximumBytes);
+  return textEncoder.encode(version === 1 ? writeExactJson(envelope) : writeCompact(envelope));
 }
 
 /** String form intended for golden-vector tests and diagnostics. */
 export function serializeCanonicalInputsString(
   schema: readonly CanonicalInputEntry[],
   inputs: unknown,
+  options: Pick<CanonicalInputSerializationOptions, "version"> = {},
 ): string {
-  return writeExactJson(encodeCanonicalInputEnvelope(schema, inputs));
+  const version = resolveVersion(options.version);
+  const envelope = encodeCanonicalInputEnvelope(schema, inputs);
+  return version === 1 ? writeExactJson(envelope) : writeCompact(envelope);
+}
+
+function resolveVersion(version: CanonicalInputVersion | undefined): CanonicalInputVersion {
+  if (version === undefined) return 1;
+  if (!(version in CANONICAL_INPUT_ENCODINGS)) {
+    throw new RangeError("canonical input version must be 1 or 2");
+  }
+  return version;
 }
 
 function encodeCanonicalInputEnvelope(
@@ -813,6 +854,102 @@ function writeExactJson(value: ExactJson): string {
   }
 
   return `[${value.map(writeExactJson).join(",")}]`;
+}
+
+// canonical-input/v2: the same typed tree rendered as compact text. Tags that
+// the value itself carries (literal, enum, union) are dropped; the schema fixes
+// arrays versus tuples per path, so both use brackets. Strings and keys are bare
+// only when they cannot be mistaken for another token, which keeps the
+// encoding injective over validated inputs.
+const BARE_TOKEN = /^[A-Za-z_][A-Za-z0-9_.-]*$/u;
+const RESERVED_TOKENS = new Set(["true", "false", "null"]);
+
+function writeCompact(envelope: ExactJson): string {
+  if (!Array.isArray(envelope) || envelope.length !== 3 || !Array.isArray(envelope[2])) {
+    throw new TypeError("canonical input envelope is malformed");
+  }
+  return envelope[2]
+    .map((pair) => {
+      if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== "string" || pair[1] === undefined) {
+        throw new TypeError("canonical input envelope pair is malformed");
+      }
+      return `${compactString(pair[0])}=${compactValue(pair[1])}`;
+    })
+    .join(" ");
+}
+
+function compactValue(value: ExactJson): string {
+  if (!Array.isArray(value) || typeof value[0] !== "string") {
+    throw new TypeError("canonical input typed value is malformed");
+  }
+  const [tag] = value;
+  switch (tag) {
+    case "null":
+      return "null";
+    case "boolean":
+      return value[1] === true ? "true" : "false";
+    case "string":
+      return compactString(expectString(value[1]));
+    case "number":
+      return compactNumber(hexToDouble(expectString(value[1])));
+    case "literal":
+      return compactValue(expectJson(value[1]));
+    case "enum":
+      return compactValue(expectJson(value[3]));
+    case "union":
+      return compactValue(expectJson(value[2]));
+    case "array":
+    case "tuple": {
+      const items = expectJson(value[1]);
+      if (!Array.isArray(items)) throw new TypeError("canonical input sequence is malformed");
+      return `[${items.map(compactValue).join(",")}]`;
+    }
+    case "object": {
+      const pairs = expectJson(value[1]);
+      if (!Array.isArray(pairs)) throw new TypeError("canonical input object is malformed");
+      return `{${pairs
+        .map((pair) => {
+          if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== "string" || pair[1] === undefined) {
+            throw new TypeError("canonical input object pair is malformed");
+          }
+          return `${compactString(pair[0])}=${compactValue(pair[1])}`;
+        })
+        .join(",")}}`;
+    }
+    default:
+      throw new TypeError(`canonical input typed value has unknown tag ${JSON.stringify(tag)}`);
+  }
+}
+
+function compactString(value: string): string {
+  return BARE_TOKEN.test(value) && !RESERVED_TOKENS.has(value) ? value : quoteExactJsonString(value);
+}
+
+/** ECMAScript Number-to-string spelling, except that negative zero keeps its sign. */
+function compactNumber(value: number): string {
+  if (Object.is(value, -0)) return "-0";
+  return String(value);
+}
+
+function hexToDouble(hex: string): number {
+  if (hex.length !== 16) throw new TypeError("canonical input number is not 16 hex digits");
+  const view = new DataView(new ArrayBuffer(8));
+  for (let index = 0; index < 8; index += 1) {
+    const byte = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+    if (!Number.isInteger(byte)) throw new TypeError("canonical input number is not hexadecimal");
+    view.setUint8(index, byte);
+  }
+  return view.getFloat64(0, false);
+}
+
+function expectString(value: ExactJson | undefined): string {
+  if (typeof value !== "string") throw new TypeError("canonical input typed value is malformed");
+  return value;
+}
+
+function expectJson(value: ExactJson | undefined): ExactJson {
+  if (value === undefined) throw new TypeError("canonical input typed value is malformed");
+  return value;
 }
 
 function writeBoundedExactJson(value: ExactJson, maximumBytes: number): Uint8Array {

@@ -15,10 +15,12 @@ import { trainCommand } from "./train.js";
 export const USAGE = `usage: semantscript <command> [options]
 
   init   [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
+         [--python <exe>] [--trainer-module <module>]
          wire the compiler into the project's build tool and add a starter expression,
          then check the environment
   doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none]
-         [--device auto|cpu|cuda] [--no-teacher] [--runtime] [--json]
+         [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher]
+         [--runtime] [--json]
          check Node, the native bindings, Python, the trainer, PyTorch and its
          device, ONNX Runtime and the teacher, one line each with the fix
   build  [--project tsconfig.json] [--application <id>] [--bundle <path>]
@@ -103,6 +105,13 @@ export async function runCli(
   ) {
     io.stdout(USAGE);
     return command === undefined ? 2 : 0;
+  }
+  if (
+    Object.hasOwn(COMMANDS, command) &&
+    (rest.includes("--help") || rest.includes("-h"))
+  ) {
+    io.stdout(USAGE);
+    return 0;
   }
   const handler = Object.hasOwn(COMMANDS, command)
     ? COMMANDS[command]

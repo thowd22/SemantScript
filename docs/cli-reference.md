@@ -7,8 +7,10 @@ the behavior in prose.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
+                   [--python <exe>] [--trainer-module <module>]
 semantscript doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none]
-                    [--device auto|cpu|cuda] [--no-teacher] [--runtime] [--json]
+                    [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher]
+                    [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>]
                    [--route-domains] [--domain-depth <name>=<layers>]...
 semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
@@ -21,7 +23,7 @@ semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <j
 
 | Code | Meaning                                                                                                                                                                                                          |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | The command succeeded. `semantscript help`, `--help` and `-h` print the usage and exit 0.                                                                                                                        |
+| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                             |
 | 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, an unknown `--call` export, or any other error while working. |
 | 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).                                                 |
 
@@ -66,7 +68,8 @@ changes nothing. Exit 2 for an unknown `--tool`, a project root without
 `init` ends with the `doctor` checks under `environment (semantscript doctor):`
 (with `--probe free`, so no billed teacher request), then says whether the
 environment is ready for `train` or how many checks failed. The checks never
-change its exit status: the wiring succeeded either way.
+change its exit status: the wiring succeeded either way, and a doctor that
+cannot run is reported as a line, not an error.
 
 | Flag               | Value  | Effect                                                  |
 | ------------------ | ------ | ------------------------------------------------------- |
@@ -106,6 +109,14 @@ with a `fix:` line under every check that did not pass, then the totals. The
 | `--runtime`        |                           | Only `node` and `runtime-bindings`: a machine that serves artifacts and never trains.                                                                                                             |
 | `--json`           |                           | Print the report as JSON (`kind` `semantscript.doctor-report`, `reportVersion` 1, `checks` with `id`, `status`, `summary`, `fix`).                                                                |
 | `--trainer-module` | module                    | The Python module whose `doctor` subcommand runs (default `semantscript_trainer.cli`).                                                                                                            |
+
+When the interpreter was not chosen (no `--python`, no `SEMANTSCRIPT_PYTHON`)
+and a `.venv` exists in the working directory or one of its parents, every
+failed `python`, `trainer`, `model`, `torch` or `onnxruntime` line also names
+that venv's interpreter as the fix (`--python .venv/bin/python` or
+`SEMANTSCRIPT_PYTHON`): the CLI does not pick a venv up unless it is activated.
+An interpreter older than 3.12 fails `python` even when the trainer cannot
+import at all (its sources use Python 3.12 syntax).
 
 Exit 0 when no check failed (warnings and skips included), 1 when any check
 failed or the Python side printed a report that breaks the contract, 2 for an

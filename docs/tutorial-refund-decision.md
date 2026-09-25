@@ -26,13 +26,19 @@ npm install                    # links the workspaces
 npm run build                  # tsc -b: compiler, runtime, cli, framework, refund benchmark
 python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev,training]'   # trainer, model, torch, transformers, onnx, onnxruntime
+export SEMANTSCRIPT_PYTHON="$PWD/.venv/bin/python"      # the CLI's interpreter, from any directory
 npm run check                  # both lints, both test suites: about three minutes
 ```
+
+The CLI runs `python3` unless told otherwise, and the venv is not activated,
+so `SEMANTSCRIPT_PYTHON` points `doctor`, `train` and `dev` at it (on Windows,
+`.venv\Scripts\python.exe`; activating the venv works as well).
 
 Without `venv` on the host Python, install into the ignored target instead
 (`python3 -m pip install --target .python-packages '.[dev,training]'`; never
 add `--upgrade` to a later single-package install into that target, it wipes
-the `bin` directory). On an AMD GPU under WSL, the model README's ROCm section
+the `bin` directory), and leave `SEMANTSCRIPT_PYTHON` unset: the CLI adds that
+directory to the path of the default `python3`. On an AMD GPU under WSL, the model README's ROCm section
 has the wheel to install.
 
 Then check the environment before anything runs:
@@ -42,7 +48,8 @@ node cli/bin/semantscript.js doctor --no-teacher   # the teacher is chosen in st
 ```
 
 Every line should read `pass` or `skip` (a `warn` on `device` means training will run on
-the CPU). A `fail` carries its fix: on the WSL2 + ROCm machine used here,
+the CPU). A `fail` carries its fix; if `trainer` or `torch` fails and the fix
+names `.venv/bin/python`, the variable above is not set in this shell. on the WSL2 + ROCm machine used here,
 doctor reports `PYTHONNOUSERSITE=1` as needed because NumPy 2 in the user site
 breaks Transformers, and names `HSA_ENABLE_DXG_DETECTION=1` only when ROCm
 finds the GPU only with it. The [environment guide](environment.md) records

@@ -6,8 +6,8 @@ implementations: `build` is the compiler, `train` is the Python trainer's
 bundle driver, `test` and `run` are the runtime.
 
 ```text
-semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
-semantscript doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none] [--no-teacher] [--runtime] [--json]
+semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--python <exe>] [--trainer-module <module>]
+semantscript doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none] [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher] [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>] [--domain-depth <name>=<layers>]...
 semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
@@ -47,7 +47,8 @@ with the next steps (`npm install`, the tool's build, `semantscript train`,
 and one `loadSemaArtifact()` call at startup) and then the `doctor` checks
 below, without a billed teacher request, so a missing Python package, key or
 GPU shows before the first `train`. The checks do not change `init`'s exit
-status; `--no-doctor` skips them.
+status; `--no-doctor` skips them, and `--python` and `--trainer-module` choose
+the interpreter and trainer module they run, as for `doctor`.
 
 ### Defaults
 
@@ -90,7 +91,11 @@ The Python checks run as `python -m semantscript_trainer.cli doctor --json`,
 which imports PyTorch, Transformers and ONNX Runtime in child interpreters so
 a broken package becomes a failed line instead of a traceback. `--runtime`
 checks only Node and the bindings, for a machine that serves artifacts and
-never trains; `--json` prints the report. Exit 1 when any check fails. The
+never trains; `--json` prints the report; `--device` checks the device `train`
+will be asked for and `--trainer-module` names another trainer module. When
+the default interpreter lacks the packages and a `.venv` sits in the working
+directory or above it, the fix lines name that venv's interpreter (`--python`
+or `SEMANTSCRIPT_PYTHON`). Exit 1 when any check fails. The
 [environment guide](../docs/environment.md) explains each check and records
 doctor runs per platform.
 

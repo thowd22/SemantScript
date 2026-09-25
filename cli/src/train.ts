@@ -10,7 +10,7 @@ import {
   resolvePython,
   resolveTeacherConfig,
 } from "./defaults.js";
-import { preflight } from "./doctor.js";
+import { preflight, unusedVirtualEnvironment } from "./doctor.js";
 import {
   listOf,
   numberOf,
@@ -114,12 +114,14 @@ export async function runTrain(
     stringOption(values, "trainer-module") ?? DEFAULT_TRAINER_MODULE;
   if (values["no-preflight"] !== true && options.preflight !== false) {
     const device = stringOption(values, "device");
+    const virtualEnvironment = unusedVirtualEnvironment(values, io);
     const ready = await preflight(
       {
         python,
         trainerModule,
         teacher,
         ...(device === undefined ? {} : { device }),
+        ...(virtualEnvironment === undefined ? {} : { virtualEnvironment }),
       },
       io,
       options.command,

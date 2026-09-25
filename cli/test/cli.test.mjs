@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import {
+  chmod,
   copyFile,
   mkdir,
   mkdtemp,
@@ -24,6 +25,7 @@ import {
   checkNode,
   checkRuntimeBindings,
   pythonPath,
+  renderChecks,
   renderTrainReport,
   runCli,
   USAGE,
@@ -102,6 +104,17 @@ test("usage and unknown commands exit with status 2", async () => {
   assert.equal(empty.stdout(), USAGE);
   const help = capture(process.cwd());
   assert.equal(await runCli(["--help"], help.io), 0);
+  const commandHelp = capture(process.cwd());
+  assert.equal(await runCli(["doctor", "--help"], commandHelp.io), 0);
+  assert.equal(commandHelp.stdout(), USAGE);
+  assert.equal(await runCli(["train", "-h"], capture(process.cwd()).io), 0);
+  assert.match(
+    renderChecks([
+      { id: "device", status: "warn", summary: "cpu", fix: null },
+      { id: "node", status: "pass", summary: "ok", fix: null },
+    ]),
+    /1 passed, 1 warning, 0 failed, 0 skipped\n$/u,
+  );
   const bogus = capture(process.cwd());
   assert.equal(await runCli(["bogus"], bogus.io), 2);
   assert.match(bogus.stderr(), /unknown command bogus/u);
@@ -1145,4 +1158,99 @@ test("init ends with the environment checks and keeps exit status 0", async (t) 
   );
   const checked = JSON.parse(await readFile(doctorPath, "utf8")).argv;
   assert.equal(checked[checked.indexOf("--probe") + 1], "free");
+});
+
+test(
+  "doctor fails an interpreter older than 3.12 whose trainer import breaks",
+  {
+    skip:
+      process.platform === "win32"
+        ? "the shim interpreter is a shell script"
+        : false,
+  },
+  async (t) => {
+    const root = await scratch(t, "semantscript-cli-doctor-old-python-");
+    const shim = join(root, "python3.11");
+    // Answers the version query as 3.11 and fails the trainer import the way a
+    // PEP 695 `type` statement does before 3.12.
+    await writeFile(
+      shim,
+      '#!/bin/sh\nif [ "$1" = "-c" ]; then echo 3.11.9; exit 0; fi\n' +
+        'echo "SyntaxError: invalid syntax" >&2; exit 1\n',
+    );
+    await chmod(shim, 0o755);
+    const run = capture(root, {});
+    assert.equal(
+      await runCli(["doctor", "--python", shim, "--no-teacher"], run.io),
+      1,
+    );
+    assert.match(
+      run.stdout(),
+      / {2}fail {2}python {12}Python 3\.11\.9 \(.*\) is older than 3\.12, which the trainer needs\n {8}fix: install Python 3\.12 or later/u,
+    );
+    assert.match(run.stdout(), / {2}skip {2}trainer {11}not checked/u);
+  },
+);
+
+test("doctor names a nearby .venv when the default interpreter lacks a package", async (t) => {
+  const root = await scratch(t, "semantscript-cli-doctor-venv-");
+  const venvPython =
+    process.platform === "win32"
+      ? join(root, ".venv", "Scripts", "python.exe")
+      : join(root, ".venv", "bin", "python");
+  await mkdir(dirname(venvPython), { recursive: true });
+  await writeFile(venvPython, "");
+  const project = join(root, "app");
+  await mkdir(project);
+  const env = {
+    PYTHONPATH: fixtures,
+    SEMANTSCRIPT_PYTHON: "",
+    FAKE_DOCTOR_FAIL: "torch",
+  };
+  const base = ["doctor", "--trainer-module", "fake_trainer", "--no-teacher"];
+
+  const defaulted = capture(project, env);
+  assert.equal(await runCli(base, defaulted.io), 1, defaulted.stderr());
+  assert.match(
+    defaulted.stdout(),
+    / {2}fail {2}torch .*\n {8}fix: fake fix for torch; or if the packages are in \.\.[/\\]\.venv\S+ rather than python3? \(the default interpreter\), pass --python \.\.[/\\]\.venv/u,
+  );
+
+  const python = process.platform === "win32" ? "python" : "python3";
+  const chosen = capture(project, env);
+  assert.equal(await runCli([...base, "--python", python], chosen.io), 1);
+  assert.match(chosen.stdout(), /fix: fake fix for torch\n/u);
+});
+
+test("init keeps exit status 0 when the doctor breaks its report contract", async (t) => {
+  const root = await scratch(t, "semantscript-cli-init-doctor-broken-");
+  await writeFile(
+    join(root, "package.json"),
+    '{ "name": "app", "type": "module", "scripts": { "build": "tsc" } }\n',
+  );
+  await writeFile(join(root, "tsconfig.json"), '{ "compilerOptions": {} }\n');
+  const python = process.platform === "win32" ? "python" : "python3";
+  const run = capture(root, {
+    PYTHONPATH: fixtures,
+    FAKE_DOCTOR_MALFORMED: "1",
+  });
+  assert.equal(
+    await runCli(
+      [
+        "init",
+        "--no-example",
+        "--python",
+        python,
+        "--trainer-module",
+        "fake_trainer",
+      ],
+      run.io,
+    ),
+    0,
+    run.stderr(),
+  );
+  assert.match(
+    run.stdout(),
+    /environment \(semantscript doctor\): the checks did not run: .*no JSON report/u,
+  );
 });

@@ -98,6 +98,61 @@ jobs:
         if: contains(matrix.extras, 'training')
         run: node cli/bin/semantscript.js doctor --python .venv/bin/python --no-teacher
 
+  doctor-platforms:
+    # docs/environment.md records these runs: native Windows and macOS have no
+    # local machine in this project, so the doctor checks run here on each push.
+    name: semantscript doctor on ${{ matrix.os }}
+    env:
+      ONNXRUNTIME_NODE_INSTALL: skip
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install '.[training]' into .venv (CPU PyTorch)
+        run: |
+          python -m venv .venv
+          if [ -x .venv/Scripts/python.exe ]; then venv_python=.venv/Scripts/python.exe; else venv_python=.venv/bin/python; fi
+          "$venv_python" -m pip install --upgrade pip
+          torch=$(grep -o '"torch==[^"]*"' pyproject.toml | tr -d '"')
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            "$venv_python" -m pip install "$torch" --index-url https://download.pytorch.org/whl/cpu
+          else
+            "$venv_python" -m pip install "$torch"
+          fi
+          "$venv_python" -m pip install -e '.[training]'
+      # Default interpreter first: with nothing activated the CLI uses the
+      # runner's bare python (python on Windows, python3 elsewhere), so the
+      # trainer packages are missing and doctor must say which interpreter
+      # holds them. Its exit status is 1 by design; the output is the record.
+      - name: semantscript doctor with the default interpreter
+        run: node cli/bin/semantscript.js doctor --no-teacher || echo "doctor exited $?"
+      # Activated venv: the default interpreter is now the venv's, and every
+      # check must pass (the CPU device is a warning).
+      - name: semantscript doctor in the activated .venv
+        run: |
+          if [ -f .venv/Scripts/activate ]; then source .venv/Scripts/activate; else source .venv/bin/activate; fi
+          node cli/bin/semantscript.js doctor --no-teacher
+      - name: semantscript doctor --runtime
+        run: node cli/bin/semantscript.js doctor --runtime
+
   fresh-install:
     name: Fresh clone, examples and Docker image
     runs-on: ubuntu-latest

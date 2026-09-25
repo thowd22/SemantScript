@@ -114,10 +114,13 @@ if "torch" in sections:
                  "cuda": getattr(torch.version, "cuda", None)}
         entry["cudaAvailable"] = bool(torch.cuda.is_available())
         if entry["cudaAvailable"]:
-            free, total = torch.cuda.mem_get_info(0)
-            entry["device"] = {"name": torch.cuda.get_device_name(0),
-                               "count": torch.cuda.device_count(),
-                               "free": free, "total": total}
+            try:
+                free, total = torch.cuda.mem_get_info(0)
+                entry["device"] = {"name": torch.cuda.get_device_name(0),
+                                   "count": torch.cuda.device_count(),
+                                   "free": free, "total": total}
+            except Exception as error:
+                entry["deviceError"] = f"{type(error).__name__}: {error}"
         mps = getattr(getattr(torch, "backends", None), "mps", None)
         entry["mps"] = bool(mps is not None and mps.is_available())
         out["torch"] = entry
@@ -494,6 +497,15 @@ def _device_check(base: Mapping[str, Any], device: DeviceRequest, env_fix: str |
         if device == "cpu":
             return Check("device", "pass", f"cpu requested (--device cpu); {summary} unused")
         return Check("device", "pass", f"trains on {summary}")
+    if torch_entry.get("cudaAvailable") and torch_entry.get("deviceError"):
+        return Check(
+            "device",
+            "fail",
+            f"torch reports a CUDA or ROCm device but querying it failed: "
+            f"{torch_entry['deviceError']}",
+            (env_fix and f"{env_fix} (see platform-env)")
+            or "check the GPU driver (nvidia-smi or rocminfo), or pass --device cpu",
+        )
     memory = _system_memory()
     ram = f"{_gib(memory)} RAM" if memory is not None else "RAM unknown"
     if device == "cuda":
@@ -683,6 +695,10 @@ def _key_check(config: TeacherConfig, env: Mapping[str, str]) -> Check:
     if env.get("ANTHROPIC_API_KEY"):
         target = "OpenRouter" if _is_openrouter(config) else "Anthropic"
         return Check("teacher-key", "pass", f"ANTHROPIC_API_KEY is set (sent to {target})")
+    if env.get("ANTHROPIC_AUTH_TOKEN"):
+        return Check(
+            "teacher-key", "pass", "ANTHROPIC_AUTH_TOKEN is set (the Anthropic SDK sends it)"
+        )
     if _is_openrouter(config) and env.get("OPENROUTER_API_KEY"):
         return Check(
             "teacher-key",
@@ -708,6 +724,20 @@ def _with_key(config: TeacherConfig, env: Mapping[str, str]) -> TeacherConfig:
     return dataclasses.replace(config, **changes)
 
 
+def _ollama_has_model(model: str, listed: set[Any]) -> bool:
+    """Whether the Ollama server lists ``model``; a name without a tag means ``:latest``,
+    the same way Ollama resolves it."""
+
+    names = {name for name in listed if isinstance(name, str)}
+    if model in names:
+        return True
+    if ":" not in model:
+        return f"{model}:latest" in names
+    if model.endswith(":latest"):
+        return model.removesuffix(":latest") in names
+    return False
+
+
 def probe_teacher(
     config: TeacherConfig,
     mode: ProbeMode = "request",
@@ -731,7 +761,7 @@ def probe_teacher(
             listed = api.models.list()
             names = {getattr(item, "id", None) for item in getattr(listed, "data", listed)}
             elapsed = clock() - started
-            if config.model not in names:
+            if not _ollama_has_model(config.model, names):
                 return ProbeResult(
                     False,
                     f"the Ollama server answered in {elapsed:.1f} s but has no model {config.model}",
@@ -768,9 +798,14 @@ def probe_teacher(
         return ProbeResult(False, _scrub(str(error), config), "see docs/teachers.md")
     except Exception as error:
         elapsed = clock() - started
+        what = (
+            "listing the Ollama models"
+            if config.backend == "ollama" and mode == "free"
+            else "one-request probe"
+        )
         return ProbeResult(
             False,
-            f"one-request probe failed after {elapsed:.1f} s: {_scrub(_error_text(error), config)}",
+            f"{what} failed after {elapsed:.1f} s: {_scrub(_error_text(error), config)}",
             _probe_fix(config, error),
             latency_seconds=elapsed,
         )

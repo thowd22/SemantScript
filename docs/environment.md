@@ -25,7 +25,7 @@ nothing failed, 1 otherwise.
 | ------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `node`             | Node is 22.13 or later.                                                                                  | Older Node: install 22.13+ (`.nvmrc` pins the tested release).                                                                                                     |
 | `runtime-bindings` | `onnxruntime-node` and `tokenizers`, resolved from `@semantscript/core`, load for this platform.         | A `node_modules` copied from another OS or architecture, or an interrupted install: `npm install`, or `npm rebuild onnxruntime-node tokenizers`.                   |
-| `python`           | The interpreter the CLI uses (`--python`, `SEMANTSCRIPT_PYTHON`, `python3`) starts and is 3.12 or later. | Not on the path, or too old: install 3.12 or point the CLI at one.                                                                                                 |
+| `python`           | The interpreter the CLI uses (`--python`, `SEMANTSCRIPT_PYTHON`, `python3`) starts and is 3.12 or later. | Not on the path, or too old (checked even when the trainer's 3.12 syntax stops it importing): install 3.12 or point the CLI at one.                                |
 | `trainer`          | `semantscript_trainer` imports with the teacher clients `anthropic` and `openai`.                        | Outside the checkout with the package not installed: `pip install -e '.[training]'` into that interpreter.                                                         |
 | `model`            | `semantscript_model` imports.                                                                            | As for `trainer`.                                                                                                                                                  |
 | `torch`            | PyTorch and Transformers import; the line names the build (CUDA, ROCm or CPU-only).                      | The training extra is missing (install it), or a user-site package breaks the import (see `platform-env`).                                                         |
@@ -33,8 +33,14 @@ nothing failed, 1 otherwise.
 | `onnxruntime`      | ONNX Runtime and ONNX import (the export and its parity check need both).                                | The training extra is missing.                                                                                                                                     |
 | `platform-env`     | The imports and the GPU work with the current environment.                                               | `PYTHONNOUSERSITE=1` when packages under `~/.local` break the imports; `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the GPU only with it.                  |
 | `teacher-config`   | The teacher file `train` would use exists and is a valid `[teacher]` table.                              | No file and no `ANTHROPIC_API_KEY`, or an invalid table: see [teachers](teachers.md).                                                                              |
-| `teacher-key`      | The key is in the environment (Ollama needs none).                                                       | `export ANTHROPIC_API_KEY=…`; with an OpenRouter `base_url` and only `OPENROUTER_API_KEY` set, `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`.                   |
-| `teacher-probe`    | One minimal request succeeded; the line gives the latency and tokens.                                    | A refused key, a wrong model name, or an Ollama server that is down or lacks the model (`ollama serve`, `ollama pull <model>`).                                    |
+| `teacher-key`      | The key is in the environment (Ollama needs none); `ANTHROPIC_AUTH_TOKEN` counts too.                    | `export ANTHROPIC_API_KEY=…`; with an OpenRouter `base_url` and only `OPENROUTER_API_KEY` set, `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`.                   |
+| `teacher-probe`    | One minimal request succeeded; the line gives the latency and tokens.                                    | A refused key, a wrong model name, or an Ollama server that is down or lacks the model (`ollama serve`, `ollama pull <model>`; a name without a tag is `:latest`). |
+
+When the interpreter was left at its default and a `.venv` exists in the
+working directory or above it, every failed `python`, `trainer`, `model`,
+`torch` or `onnxruntime` line also names that venv's interpreter: the CLI
+uses a venv only when it is activated or passed with `--python` or
+`SEMANTSCRIPT_PYTHON`.
 
 ### How the platform variables are detected
 
@@ -82,8 +88,9 @@ semantscript doctor: ~/SemantScript/examples/express-app
 ```
 
 The same machine with the user site enabled (no `PYTHONNOUSERSITE`) and a
-local Ollama teacher. NumPy 2 under `~/.local` breaks Transformers; doctor
-proves the fix by importing again with the variable set:
+local Ollama teacher (re-run 2026-09-25 after the review fixes). NumPy 2 under
+`~/.local` breaks Transformers; doctor proves the fix by importing again with
+the variable set:
 
 ```text
 semantscript doctor: ~/SemantScript/examples/express-app
@@ -93,15 +100,36 @@ semantscript doctor: ~/SemantScript/examples/express-app
   pass  trainer           semantscript_trainer 0.0.0 from ~/SemantScript/trainer/src/semantscript_trainer
   pass  model             semantscript_model 0.0.0 from ~/SemantScript/model/src/semantscript_model
   fail  torch             torch 2.9.1+rocm7.2.0.git7e1940d4 (ROCm 7.2.26015-fc0010cf6a); transformers does not import: AttributeError: module 'numpy' has no attribute 'long'
-        fix: export PYTHONNOUSERSITE=1 (add it to the shell profile so train and dev inherit it) (see platform-env)
-  pass  device            trains on ROCm device AMD Radeon RX 9070 XT: 15.8 GiB total, 11.9 GiB free
+        fix: export PYTHONNOUSERSITE=1 (see platform-env)
+  pass  device            trains on ROCm device AMD Radeon RX 9070 XT: 15.8 GiB total, 13.3 GiB free
   pass  onnxruntime       onnxruntime 1.30.0 and onnx 1.23.0 (export checks: AzureExecutionProvider, CPUExecutionProvider)
-  fail  platform-env      PYTHONNOUSERSITE=1 needed: packages in the user site (/home/admin2/.local/lib/python3.12/site-packages) break the imports: transformers: AttributeError: module 'numpy' has no attribute 'long'
-        fix: export PYTHONNOUSERSITE=1 (add it to the shell profile so train and dev inherit it)
+  fail  platform-env      PYTHONNOUSERSITE=1 needed: packages in the user site (~/.local/lib/python3.12/site-packages) break the imports: transformers: AttributeError: module 'numpy' has no attribute 'long'
+        fix: export PYTHONNOUSERSITE=1, and add it to the shell profile so train and dev inherit it
   pass  teacher-config    /tmp/scratch/ollama.toml (ollama qwen2.5:1.5b-instruct-q4_K_M, mode auto)
   pass  teacher-key       the Ollama backend needs no key
-  pass  teacher-probe     one request to qwen2.5:1.5b-instruct-q4_K_M answered in 0.1 s, 36 in / 2 out tokens
+  pass  teacher-probe     one request to qwen2.5:1.5b-instruct-q4_K_M answered in 2.1 s, 36 in / 2 out tokens
 10 passed, 0 warnings, 2 failed, 0 skipped
+```
+
+A teacher file naming an Ollama model without a tag (`model = "glm-4.7-flash"`)
+passes the free probe, which the `train` preflight uses, when the server lists
+`glm-4.7-flash:latest`, as Ollama itself resolves the name:
+
+```text
+  pass  teacher-config    /tmp/scratch/glm.toml (ollama glm-4.7-flash, mode auto)
+  pass  teacher-key       the Ollama backend needs no key
+  pass  teacher-probe     the Ollama server answered in 0.0 s and has glm-4.7-flash (no request sent)
+```
+
+An interpreter older than 3.12 cannot import the trainer at all (a
+`SyntaxError` on its `type` statements), so the version is checked from
+Node. This machine has no older Python; the run below uses a shim that
+answers the version query as 3.11.9 and fails the import the way 3.11 does:
+
+```text
+  fail  python            Python 3.11.9 (./py311) is older than 3.12, which the trainer needs
+        fix: install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON
+  skip  trainer           not checked: the interpreter cannot run the trainer
 ```
 
 `semantscript train` in `examples/express-app` without a key stops after the

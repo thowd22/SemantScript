@@ -157,6 +157,12 @@ def test_cpu_and_requested_devices() -> None:
     unknown = by_id(doctor(import_probe=FakeProbe(lambda env: GPU_OK), device="mps"))
     assert unknown["device"]["status"] == "fail"
     assert "auto, cpu or cuda" in unknown["device"]["fix"]
+    broken_query = {**GPU_OK, "torch": {**GPU_OK["torch"], "deviceError": "RuntimeError: x"}}
+    del broken_query["torch"]["device"]
+    queried = by_id(doctor(import_probe=FakeProbe(lambda env: broken_query)))
+    assert queried["torch"]["status"] == "pass"
+    assert queried["device"]["status"] == "fail"
+    assert "RuntimeError: x" in queried["device"]["summary"]
     mps = {**CPU_ONLY, "torch": {**CPU_ONLY["torch"], "mps": True}}
     apple = by_id(doctor(import_probe=FakeProbe(lambda env: mps)))
     assert apple["device"]["status"] == "warn"
@@ -256,6 +262,15 @@ def test_teacher_config_and_key(tmp_path: Path) -> None:
         'export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"'
     )
     assert wrong_key["teacher-probe"]["status"] == "skip"
+
+    token = teacher_checks(
+        tmp_path,
+        'backend = "anthropic"\nmodel = "claude-sonnet-5"\n',
+        env={"ANTHROPIC_AUTH_TOKEN": "t"},
+        probe="none",
+    )
+    assert token["teacher-key"]["status"] == "pass"
+    assert "ANTHROPIC_AUTH_TOKEN" in token["teacher-key"]["summary"]
 
     no_key = teacher_checks(tmp_path, 'backend = "anthropic"\nmodel = "claude-sonnet-5"\n')
     assert no_key["teacher-key"]["summary"] == "ANTHROPIC_API_KEY is not set"
@@ -395,6 +410,14 @@ def test_probe_teacher_ollama_free_mode_only_lists_models() -> None:
     missing = probe_teacher(config, "free", client=FakeOpenAI(["other"]), clock=ticking())
     assert not missing.ok
     assert missing.fix == "ollama pull qwen2.5:1.5b"
+    # A name without a tag is the :latest tag to Ollama, and the reverse.
+    tagless = TeacherConfig(backend="ollama", model="glm-4.7-flash")
+    latest = probe_teacher(tagless, "free", client=FakeOpenAI(["glm-4.7-flash:latest"]))
+    assert latest.ok, latest.summary
+    explicit = TeacherConfig(backend="ollama", model="glm-4.7-flash:latest")
+    assert probe_teacher(explicit, "free", client=FakeOpenAI(["glm-4.7-flash"])).ok
+    other_tag = probe_teacher(tagless, "free", client=FakeOpenAI(["glm-4.7-flash:q4"]))
+    assert not other_tag.ok
     asked = FakeOpenAI([])
     answered = probe_teacher(config, "request", client=asked, clock=ticking())
     assert answered.ok and "30 in / 2 out tokens" in answered.summary

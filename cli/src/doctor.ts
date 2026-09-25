@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -9,6 +9,7 @@ import { parseArgs } from "node:util";
 import {
   DEFAULT_TEACHER_MODEL,
   DEFAULT_TRAINER_MODULE,
+  PYTHON_ENVIRONMENT_VARIABLE,
   findTeacherConfig,
   pythonPath,
   resolvePython,
@@ -44,8 +45,18 @@ export const PYTHON_CHECK_IDS = [
 const CHECK_STATUSES = ["pass", "fail", "warn", "skip"] as const;
 const PROBE_MODES = ["request", "free", "none"] as const;
 const NATIVE_PACKAGES = ["onnxruntime-node", "tokenizers"] as const;
+/** The oldest Python the trainer imports on (it uses PEP 695 `type` statements). */
+export const MINIMUM_PYTHON_VERSION = "3.12";
 const PYTHON_FIX =
   "install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON";
+/** Checks whose fix is to install into, or pick, another interpreter. */
+const INTERPRETER_CHECK_IDS: readonly string[] = [
+  "python",
+  "trainer",
+  "model",
+  "torch",
+  "onnxruntime",
+];
 
 export type CheckStatus = (typeof CHECK_STATUSES)[number];
 export type ProbeMode = (typeof PROBE_MODES)[number];
@@ -133,28 +144,86 @@ export async function collectChecks(
   if (options.runtimeOnly === true) return checks;
   const teacher = findTeacherConfig(values, io);
   const anthropicKey = io.env["ANTHROPIC_API_KEY"];
+  const python = resolvePython(values, io);
+  const pythonChecks = await runPythonDoctor(
+    {
+      python,
+      trainerModule:
+        stringOption(values, "trainer-module") ?? DEFAULT_TRAINER_MODULE,
+      ...(teacher !== undefined
+        ? { teacher }
+        : anthropicKey !== undefined && anthropicKey.length > 0
+          ? { defaultTeacherModel: DEFAULT_TEACHER_MODEL }
+          : {}),
+      checkTeacher: values["no-teacher"] !== true,
+      probe: options.probe,
+      ...(stringOption(values, "device") === undefined
+        ? {}
+        : { device: stringOption(values, "device") ?? "auto" }),
+      quick: options.quick,
+    },
+    io,
+  );
+  const venv = unusedVirtualEnvironment(values, io);
   checks.push(
-    ...(await runPythonDoctor(
-      {
-        python: resolvePython(values, io),
-        trainerModule:
-          stringOption(values, "trainer-module") ?? DEFAULT_TRAINER_MODULE,
-        ...(teacher !== undefined
-          ? { teacher }
-          : anthropicKey !== undefined && anthropicKey.length > 0
-            ? { defaultTeacherModel: DEFAULT_TEACHER_MODEL }
-            : {}),
-        checkTeacher: values["no-teacher"] !== true,
-        probe: options.probe,
-        ...(stringOption(values, "device") === undefined
-          ? {}
-          : { device: stringOption(values, "device") ?? "auto" }),
-        quick: options.quick,
-      },
-      io,
-    )),
+    ...(venv === undefined
+      ? pythonChecks
+      : withVirtualEnvironmentHint(pythonChecks, python, venv)),
   );
   return checks;
+}
+
+/**
+ * A `.venv` interpreter near `cwd` when neither `--python` nor
+ * SEMANTSCRIPT_PYTHON chose the interpreter, else undefined.
+ */
+export function unusedVirtualEnvironment(
+  values: OptionValues,
+  io: CliIo,
+): string | undefined {
+  const defaulted =
+    stringOption(values, "python") === undefined &&
+    (io.env[PYTHON_ENVIRONMENT_VARIABLE] ?? "") === "";
+  const found = defaulted ? findVirtualEnvironment(io.cwd) : undefined;
+  return found === undefined ? undefined : relative(io.cwd, found);
+}
+
+/**
+ * The interpreter of a `.venv` in `cwd` or one of its parents, if there is
+ * one. The CLI does not pick it up by itself (an activated venv puts its own
+ * python3 first on PATH), so doctor names it when the default interpreter
+ * lacks the packages.
+ */
+export function findVirtualEnvironment(cwd: string): string | undefined {
+  const relative =
+    process.platform === "win32"
+      ? join(".venv", "Scripts", "python.exe")
+      : join(".venv", "bin", "python");
+  let directory = cwd;
+  for (;;) {
+    const candidate = join(directory, relative);
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(directory);
+    if (parent === directory) return undefined;
+    directory = parent;
+  }
+}
+
+/** Append "use the .venv interpreter" to every failed interpreter-level fix. */
+export function withVirtualEnvironmentHint(
+  checks: readonly DoctorCheck[],
+  python: string,
+  venv: string,
+): readonly DoctorCheck[] {
+  const hint = `if the packages are in ${venv} rather than ${python} (the default interpreter), pass --python ${venv} or set SEMANTSCRIPT_PYTHON=${venv}`;
+  return checks.map((check) =>
+    check.status === "fail" && INTERPRETER_CHECK_IDS.includes(check.id)
+      ? {
+          ...check,
+          fix: check.fix === null ? hint : `${check.fix}; or ${hint}`,
+        }
+      : check,
+  );
 }
 
 /**
@@ -167,15 +236,26 @@ export async function preflight(
     readonly trainerModule: string;
     readonly teacher: string;
     readonly device?: string;
+    /** A `.venv` interpreter the default interpreter may be missing (see unusedVirtualEnvironment). */
+    readonly virtualEnvironment?: string;
   },
   io: CliIo,
   command = "train",
 ): Promise<boolean> {
   const started = Date.now();
-  const checks = await runPythonDoctor(
-    { ...options, checkTeacher: true, probe: "free", quick: true },
+  const { virtualEnvironment, ...doctorOptions } = options;
+  const reported = await runPythonDoctor(
+    { ...doctorOptions, checkTeacher: true, probe: "free", quick: true },
     io,
   );
+  const checks =
+    virtualEnvironment === undefined
+      ? reported
+      : withVirtualEnvironmentHint(
+          reported,
+          options.python,
+          virtualEnvironment,
+        );
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   const failed = checks.some((check) => check.status === "fail");
   io.stderr(
@@ -298,14 +378,22 @@ export async function runPythonDoctor(
     ["-c", "import sys; print(sys.version.split()[0])"],
     io,
   );
+  const found = version.stdout.trim();
   const pythonCheck: DoctorCheck =
     version.status === 0
-      ? {
-          id: "python",
-          status: "pass",
-          summary: `Python ${version.stdout.trim()} (${options.python})`,
-          fix: null,
-        }
+      ? compareVersions(found, MINIMUM_PYTHON_VERSION) >= 0
+        ? {
+            id: "python",
+            status: "pass",
+            summary: `Python ${found} (${options.python})`,
+            fix: null,
+          }
+        : {
+            id: "python",
+            status: "fail",
+            summary: `Python ${found} (${options.python}) is older than ${MINIMUM_PYTHON_VERSION}, which the trainer needs`,
+            fix: PYTHON_FIX,
+          }
       : {
           id: "python",
           status: "fail",
@@ -340,7 +428,9 @@ export async function runPythonDoctor(
         };
   return withSkipped(
     pythonCheck,
-    "the trainer does not start",
+    pythonCheck.status === "fail"
+      ? "the interpreter cannot run the trainer"
+      : "the trainer does not start",
     pythonCheck.status === "fail" ? undefined : trainerCheck,
   );
 }
@@ -410,8 +500,9 @@ export function renderChecks(checks: readonly DoctorCheck[]): string {
   }
   const count = (status: CheckStatus): number =>
     checks.filter((check) => check.status === status).length;
+  const warnings = count("warn");
   lines.push(
-    `${String(count("pass"))} passed, ${String(count("warn"))} warnings, ${String(count("fail"))} failed, ${String(count("skip"))} skipped`,
+    `${String(count("pass"))} passed, ${String(warnings)} ${warnings === 1 ? "warning" : "warnings"}, ${String(count("fail"))} failed, ${String(count("skip"))} skipped`,
   );
   return `${lines.join("\n")}\n`;
 }

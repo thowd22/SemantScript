@@ -14,7 +14,9 @@ follows the same steps with the differences noted at the end.
   `python3 -m pip install -e '.[dev,training]'` (PyTorch, Transformers, ONNX
   and ONNX Runtime); or `python3 -m pip install --target .python-packages
 '.[dev,training]'` when the host Python has no `venv`. The CLI finds the
-  interpreter through `--python`, `SEMANTSCRIPT_PYTHON` or `python3`.
+  interpreter through `--python`, `SEMANTSCRIPT_PYTHON` or `python3`
+  (`python` on Windows); for a venv that is not activated, set
+  `SEMANTSCRIPT_PYTHON` to its interpreter.
 - **A GPU for training**, or patience: the encoder is ModernBERT-base, and
   fine-tuning one expression over a few hundred cases takes about a minute on
   a desktop GPU (an AMD RX 9070 XT here; NVIDIA through CUDA works the same)

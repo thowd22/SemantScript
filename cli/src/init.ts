@@ -138,10 +138,16 @@ export async function initCommand(
 
   io.stdout(render(tool, root, outcomes));
   if (values["no-doctor"] !== true) {
-    const checks = await collectChecks(values, io, {
-      probe: "free",
-      quick: true,
-    });
+    let checks: Awaited<ReturnType<typeof collectChecks>>;
+    try {
+      checks = await collectChecks(values, io, { probe: "free", quick: true });
+    } catch (error: unknown) {
+      // The wiring succeeded; a doctor that breaks its contract is reported, not fatal.
+      io.stdout(
+        `environment (semantscript doctor): the checks did not run: ${error instanceof Error ? error.message : String(error)}\nrun semantscript doctor to see them\n`,
+      );
+      return 0;
+    }
     const failed = checks.filter((check) => check.status === "fail").length;
     io.stdout(
       `environment (semantscript doctor):\n${renderChecks(checks)}${

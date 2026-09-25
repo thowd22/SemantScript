@@ -17,6 +17,15 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
   IR record field by field, the IR bundle and execution plan, the application
   artifact manifest, the on-disk release layout and the canonical input
   encodings.
+- [Execution plans](execution-plans.md): how independent sema expressions
+  fuse into one encoder pass and dependent ones become stages, with a worked
+  example from source to DAG to stages and what the runtime does with them.
+- [Structured outputs](structured-outputs.md): flat interface outputs, how
+  each field becomes a head, what verification reports per field, and the
+  diagnostic result shape.
+- [Scaling results](scaling-results.md): the parallel-head, batch, one-stage
+  application and depth-routing measurements, with guidance on when fusing
+  helps.
 - [CONTRIBUTING](CONTRIBUTING.md): repository layout, the Node and Python
   toolchains, lint and tests for both halves, and the Backlog workflow.
 

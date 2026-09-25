@@ -197,7 +197,9 @@ enums, a single string literal, bare `number`, free-text `string`, `any`,
 arrays, tuples, nested objects, optional or nullable values and unions with
 unsupported members are compile errors. A flat interface may not have optional
 properties, index signatures, methods or nested objects; it is implemented as
-independent per-field heads, never as JSON decoding.
+independent per-field heads, never as JSON decoding
+([structured outputs](structured-outputs.md) covers the heads, the per-field
+verification and the diagnostic result).
 
 ## Confidence
 
@@ -311,8 +313,10 @@ before a successful load (`SemaRuntimeNotLoadedError`), an unknown function
 failures and timeouts (`SemaInferenceError` and subclasses), a confidence below
 threshold with no fallback (`SemaConfidenceError`) and a fallback returning a
 value outside the declared type (`SemaFallbackError`). Several expressions over
-the same input can run as one stage sharing the encoder pass; see the runtime
-guide.
+the same input can run as one stage sharing the encoder pass, and an
+expression that interpolates another's result runs one stage later; the
+[execution plans](execution-plans.md) page explains the schedule the compiler
+emits and the runtime guide the API.
 
 ## Compile-time errors
 

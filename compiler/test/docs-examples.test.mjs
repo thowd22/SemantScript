@@ -91,10 +91,35 @@ test("every docs/examples program compiles to source IR", async (t) => {
   assert.deepEqual(Object.fromEntries([...byFile.entries()].sort()), {
     "confidence.sem.ts": 2,
     "examples-and-constraints.sem.ts": 1,
+    "execution-plan.sem.ts": 4,
     "inputs.sem.ts": 1,
     "output-types.sem.ts": 8,
     "refund-decision.sem.ts": 1,
   });
+  const planned = result.value.bundle.functions.filter(
+    (record) => record.source.path === "execution-plan.sem.ts",
+  );
+  const byType = Object.fromEntries(
+    planned.map((record) => [record.output.tsType, record.id]),
+  );
+  const { dependencies, stages } = result.value.bundle.executionPlan;
+  assert.deepEqual(
+    dependencies.filter((edge) =>
+      planned.some((record) => record.id === edge.consumerFunctionId),
+    ),
+    [
+      {
+        producerFunctionId: byType['"billing" | "engineering" | "support"'],
+        consumerFunctionId:
+          byType['"acknowledge" | "ask-for-details" | "escalate"'],
+        consumerInput: "route",
+      },
+    ],
+  );
+  assert.equal(stages.length, 2);
+  assert.deepEqual(stages[1].functionIds, [
+    byType['"acknowledge" | "ask-for-details" | "escalate"'],
+  ]);
   const outputKinds = result.value.bundle.functions
     .filter((record) => record.source.path === "output-types.sem.ts")
     .map((record) =>

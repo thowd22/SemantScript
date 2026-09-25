@@ -1220,6 +1220,7 @@ def test_teacher_probe_reports_model_latency_tokens_and_cost(
             latency_seconds=1.2,
             input_tokens=16,
             output_tokens=4,
+            request_sent=True,
         )
 
     monkeypatch.setattr(doctor_module, "probe_teacher", fake_probe)
@@ -1240,3 +1241,99 @@ def test_teacher_probe_reports_model_latency_tokens_and_cost(
     )
     assert cli_module.main(["teacher", "probe", "--teacher", str(fallback)]) == 0
     assert capsys.readouterr().out.startswith("teacher probe: fallback: one request to qwen3:14b")
+
+
+def test_teacher_probe_names_a_missing_key_and_sends_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from semantscript_trainer import doctor as doctor_module
+
+    def unexpected_probe(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("no request may be sent without a key")
+
+    monkeypatch.setattr(doctor_module, "probe_teacher", unexpected_probe)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "not-used")
+    teacher = tmp_path / "openrouter.toml"
+    teacher.write_text(
+        '[teacher]\nbackend = "anthropic"\nmodel = "anthropic/claude-sonnet-5"\n'
+        'base_url = "https://openrouter.ai/api"\nmode = "direct"\n'
+        "[teacher.pricing]\ninput_usd_per_million = 2\noutput_usd_per_million = 10\n"
+    )
+
+    assert cli_module.main(["teacher", "probe", "--teacher", str(teacher), "--json"]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert (result["ok"], result["requestSent"], result["latencySeconds"]) == (False, False, None)
+    assert result["costUsd"] == 0.0
+    assert "ANTHROPIC_API_KEY is not set" in result["summary"]
+    assert "OPENROUTER_API_KEY" in result["summary"]
+    assert "ANTHROPIC_API_KEY" in result["fix"]
+
+
+def test_a_run_failing_on_rejected_teacher_answers_drops_its_journal_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from semantscript_trainer.adversarial import UnsynthesizableConstraintError
+    from semantscript_trainer.teacher_config import create_teacher as real_create_teacher
+
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps({"kind": "semantscript.ir-bundle", "bundleVersion": 1}))
+    ir = {
+        "id": "nf_" + "1" * 64,
+        "definition": {"template": [{"kind": "text", "text": "Classify."}], "examples": []},
+        "inputs": [{"name": "message", "index": 0, "type": {"kind": "string"}}],
+        "output": {"kind": "scalar", "head": {"kind": "boolean", "support": [False, True]}},
+    }
+    sent: list[dict[str, Any]] = []
+
+    class Messages:
+        def create(self, **params: Any) -> Any:
+            sent.append(params)
+            return SimpleNamespace(
+                stop_reason="end_turn",
+                content=[
+                    SimpleNamespace(
+                        type="text",
+                        text=json.dumps({"inputs": {"message": "same"}, "output": True}),
+                    )
+                ],
+                usage=SimpleNamespace(input_tokens=400, output_tokens=60),
+            )
+
+    client = SimpleNamespace(messages=Messages())
+    monkeypatch.setattr(
+        cli_module,
+        "create_teacher",
+        lambda config, **options: real_create_teacher(
+            config, client=client, schema_transform=lambda schema: schema, **options
+        ),
+    )
+
+    def rejecting_train_bundle(bundle: Any, artifact_root: Any, **kwargs: Any) -> Any:
+        # The answers decode, but the generator rejects them (as a boundary pair that is
+        # not two-sided would be) and gives up.
+        kwargs["teacher"].generate(ir, 3)
+        raise UnsynthesizableConstraintError("constraint 0 did not yield a valid pair")
+
+    monkeypatch.setattr(cli_module, "train_bundle", rejecting_train_bundle)
+    arguments = [
+        "train",
+        "--bundle",
+        str(bundle_path),
+        "--artifact",
+        str(tmp_path / "artifact"),
+        "--teacher",
+        str(_anthropic_toml(tmp_path)),
+        "--cache-dir",
+        str(tmp_path / "cache"),
+    ]
+
+    assert cli_module.main(arguments) == 1
+    err = capsys.readouterr().err
+    assert "3 journaled response(s) this run used were discarded" in err
+    assert not list((tmp_path / "cache" / "teacher-responses").rglob("*.json"))
+
+    # The rerun asks the teacher again instead of replaying the rejected answers.
+    assert cli_module.main(arguments) == 1
+    assert len(sent) == 6

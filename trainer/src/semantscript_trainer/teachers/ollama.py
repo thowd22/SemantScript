@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
@@ -182,6 +183,14 @@ class OllamaTeacher:
         index: int,
         total: int,
     ) -> object:
+        if self._meter is not None:
+            # Free for a local Ollama; a priced OpenAI-compatible endpoint behind this
+            # backend ([teacher.pricing]) stops at --max-cost-usd like Anthropic does.
+            self._meter.reserve(
+                self._meter.estimate_request_usd(
+                    len(system_message) + len(user_message) + len(_compact_json(schema))
+                )
+            )
         started = time.monotonic()
         try:
             response = self._get_client().chat.completions.create(
@@ -275,3 +284,7 @@ def _check_response_size(content: str, context: str) -> None:
 
 
 __all__ = ["DEFAULT_OLLAMA_BASE_URL", "OllamaTeacher"]
+
+
+def _compact_json(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))

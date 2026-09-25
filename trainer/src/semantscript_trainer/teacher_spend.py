@@ -539,11 +539,18 @@ class ResponseJournal:
 
     The occurrence number keeps a retry of an identical prompt distinct from the
     first try, so a rerun replays responses in the order the run received them.
+
+    Only answers worth replaying stay: the teacher discards an entry whose response
+    breaks the case or adversarial contract (``discard``), and a run that fails
+    because the teacher's answers were rejected discards every entry it read or
+    wrote (``discard_touched``), so the rerun asks the teacher again instead of
+    replaying the same rejected answers.
     """
 
     def __init__(self, cache_directory: str | Path, configuration_sha256: str) -> None:
         self.directory = Path(cache_directory) / JOURNAL_DIRECTORY / configuration_sha256[:32]
         self._seen: Counter[str] = Counter()
+        self._touched: list[str] = []
 
     def next_key(self, params: Mapping[str, Any]) -> str:
         encoded = json.dumps(
@@ -563,6 +570,7 @@ class ResponseJournal:
             return None
         if not isinstance(document, dict) or not isinstance(document.get("content"), list):
             return None
+        self._touched.append(key)
         return document
 
     def store(self, key: str, message: Any) -> None:
@@ -587,6 +595,26 @@ class ResponseJournal:
         }
         with contextlib.suppress(OSError):
             _write_json(self._path(key), document)
+            self._touched.append(key)
+
+    def discard(self, key: str) -> None:
+        """Drop one entry, so its request is sent again next time."""
+
+        with contextlib.suppress(OSError):
+            self._path(key).unlink(missing_ok=True)
+
+    def discard_touched(self) -> int:
+        """Drop every entry this run replayed or stored; returns how many existed."""
+
+        dropped = 0
+        for key in dict.fromkeys(self._touched):
+            path = self._path(key)
+            with contextlib.suppress(OSError):
+                if path.exists():
+                    path.unlink()
+                    dropped += 1
+        self._touched.clear()
+        return dropped
 
     def count(self) -> int:
         try:

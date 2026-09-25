@@ -390,11 +390,15 @@ cache_write_usd_per_million = 3.75  # optional; default 1.25 x input
 seconds_per_request = 4
 ```
 
-`--max-cost-usd <x>` caps a run. Before each request the trainer reserves it
-at more than it can be expected to cost (its own prompt with a 20% token
-margin at the cache-write price, plus the largest answer seen so far and a
-quarter; a Message Batch is reserved whole before it is submitted), and the
-request that would pass the cap is not sent: the run exits 1 with
+`--max-cost-usd <x>` caps a run. Before each request the trainer reserves an
+estimate of its cost (its own prompt with a 20% token margin at the
+cache-write price, plus the largest answer seen so far and a quarter; a
+Message Batch is reserved whole before it is submitted), and a request whose
+reservation would pass the cap is not sent. The cap is therefore not a hard
+limit to the cent: a single answer much longer than any seen so far (up to the
+teacher's `max_tokens`, about USD 0.04 at Sonnet's output price for 4,096
+tokens) can take the run past it by that one request. When the cap is
+reached: the run exits 1 with
 `error: spend cap USD <x> reached …`. Every dataset finished before the stop
 stays cached, and every paid response is kept in the response journal
 (`<cache-dir>/teacher-responses/`, see the [build cache](build-cache.md)), so
@@ -432,8 +436,10 @@ datasets for USD 0.0194.
 | Jev (typed-decision model)        | USD 0.00004 (not a teacher; see decision-11)        | 0.15 s                            | 160 cases, `results-jev-2026-09-25`                             |
 | Constraints (built in)            | none                                                | microseconds                      | refund service, nine expressions                                |
 
-A first build of one expression with 200 cases through Sonnet costs about
-USD 0.60 in labels and a minute of GPU time; every later build reuses the
+A first build of the Express example's constrained `decideRefund` with 192
+cases and counterfactual ratio 0.5 through Sonnet on OpenRouter is estimated
+at USD 0.81 (at most USD 2.67) with the compact prompt, plus a minute of GPU
+time (`semantscript train --estimate` prints the figure for your own run); every later build reuses the
 cached datasets and the [build cache](build-cache.md), so an unchanged
 expression costs nothing and a changed one retrains only its head.
 

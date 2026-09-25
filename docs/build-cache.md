@@ -21,7 +21,7 @@ anyway, where everything lives and how to clear it.
         head.safetensors                      the function's head weights
     datasets/…                                synthetic corpora, keyed by IR, teacher and case count
     adversarial-datasets/…                    boundary pairs and counterfactual sidecars, keyed by IR, base dataset and teacher
-    teacher-responses/<teacher digest>/…      every paid Anthropic response, keyed by the exact request and its occurrence
+    teacher-responses/<teacher digest>/…      every paid direct Anthropic response the run accepted, keyed by the exact request and its occurrence
     teacher-prices.json                       OpenRouter's price list, fetched at most once a day
     teacher-stats.json                        the mean request latency of the last metered run, per teacher
 ```
@@ -34,6 +34,16 @@ journal at no cost and the run carries on where it stopped. A dataset, once
 complete, comes from the dataset cache and needs no journal. The journal
 holds response text and token counts only, never a key; `--no-cache` neither
 reads nor writes it.
+
+The journal keeps only answers worth replaying. A response that breaks the
+case or adversarial contract is dropped as soon as it is decoded, and a run
+that fails because the teacher's answers were rejected (for example
+`did not yield a valid two-sided boundary pair within 3 attempts`) drops every
+entry it replayed or wrote and says so
+(`note: the teacher's answers were rejected, so the <n> journaled response(s) this run used were discarded …`),
+so the rerun asks the teacher again instead of failing on the same answers.
+Message Batch results are not journaled: a batch is charged when it is
+collected, and a batch stopped part way is resumed through its handle.
 
 `--cache-dir` moves the whole tree; `init` writes `.semantscript/.gitignore`
 so neither the artifact nor the cache is committed. The weights are stored as
@@ -90,8 +100,8 @@ that matters.
 Deleting `.semantscript/cache` (or the `--cache-dir` you passed) is always
 safe; the next `train` regenerates datasets through the teacher (paying for
 them again: run `semantscript train --estimate` first to see how much) and
-trains from scratch. Deleting `teacher-responses/` alone is safe once the
-datasets are complete. Deleting one `functions/<function-id>` directory retrains that
+trains from scratch. Deleting `teacher-responses/` alone is always safe:
+the only cost is that a stopped run pays again for the responses it had. Deleting one `functions/<function-id>` directory retrains that
 function's head on the cached shared state. Deleting the artifact root without
 the cache makes the next `train` re-export from cached weights without
 training. `--no-cache` is the way to ignore the cache for one run without

@@ -105,7 +105,9 @@ export async function teacherCommand(
     return 1;
   }
   if (values.json === true) {
-    io.stdout(`${JSON.stringify(result, null, 2)}\n`);
+    io.stdout(
+      `${JSON.stringify({ kind: TEACHER_PROBE_KIND, probeVersion: 1, ...result }, null, 2)}\n`,
+    );
   } else {
     io.stdout(renderTeacherProbe(teacher, result));
   }

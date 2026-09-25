@@ -32,6 +32,7 @@ from semantscript_trainer.adversarial import (
     AdversarialDataset,
     AdversarialDatasetGenerator,
     AdversarialGenerationConfig,
+    AdversarialGenerationError,
 )
 from semantscript_trainer.application import (
     DEFAULT_ADAPTER_BOTTLENECK_SIZE,
@@ -56,7 +57,13 @@ from semantscript_trainer.build_cache import (
     combined_shared_sha256,
 )
 from semantscript_trainer.canonical_input import serialize_canonical_inputs
-from semantscript_trainer.dataset import SyntheticDatasetGenerator, TrainingDataset
+from semantscript_trainer.constraints import ConstraintError
+from semantscript_trainer.dataset import (
+    DatasetCacheError,
+    DatasetError,
+    SyntheticDatasetGenerator,
+    TrainingDataset,
+)
 from semantscript_trainer.doctor import add_arguments as add_doctor_arguments
 from semantscript_trainer.doctor import run_from_arguments as run_doctor_from_arguments
 from semantscript_trainer.lifecycle import (
@@ -72,6 +79,8 @@ from semantscript_trainer.teacher import (
     Teacher,
     TeacherBudgetExceeded,
     TeacherDescriptor,
+    TeacherResponseError,
+    TeacherTransportError,
 )
 from semantscript_trainer.teacher_config import create_teacher, load_teacher_config
 from semantscript_trainer.teacher_spend import (
@@ -1028,7 +1037,9 @@ def main(argv: list[str] | None = None) -> int:
         if model_config is None:
             teacher = create_teacher(config)
         else:
-            if not arguments.no_cache:
+            # Only the Anthropic backend journals responses (Ollama answers are
+            # deterministic, temperature 0 with a seed, and resending them is free).
+            if not arguments.no_cache and model_config.backend == "anthropic":
                 journal = ResponseJournal(arguments.cache_dir, model_config.configuration_sha256)
             teacher = create_teacher(config, meter=meter, journal=journal)
         adversarial_config = (
@@ -1063,10 +1074,14 @@ def main(argv: list[str] | None = None) -> int:
         journaled = "no" if journal is None else str(journal.count())
         log(
             f"error: {error}. Every dataset finished before the stop stays cached in "
-            f"{arguments.cache_dir}, and {journaled} paid teacher response(s) are kept in "
-            f"{'no journal (--no-cache)' if journal is None else journal.directory}; rerun "
-            "with a higher --max-cost-usd (or without it) to resume: journaled responses "
-            "replay at no cost"
+            f"{arguments.cache_dir}"
+            + (
+                "; rerun with a higher --max-cost-usd (or without it) to resume"
+                if journal is None
+                else f", and {journaled} paid teacher response(s) are kept in "
+                f"{journal.directory}; rerun with a higher --max-cost-usd (or without it) "
+                "to resume: journaled responses replay at no cost"
+            )
         )
         code = 1
     except TrainBundleFailure as error:
@@ -1076,6 +1091,14 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, RuntimeError, TypeError, BuildCacheError) as error:
         log(f"error: {error}")
         code = 1
+        if journal is not None and _rejected_teacher_answer(error):
+            dropped = journal.discard_touched()
+            if dropped:
+                log(
+                    f"note: the teacher's answers were rejected, so the {dropped} journaled "
+                    "response(s) this run used were discarded: a rerun asks the teacher "
+                    "again instead of replaying them"
+                )
     if meter is not None and (meter.requests or meter.replayed):
         log(meter.line())
         if model_config is not None:
@@ -1087,6 +1110,26 @@ def main(argv: list[str] | None = None) -> int:
             Path(arguments.report).write_text(text, encoding="utf-8")
         sys.stdout.write(text)
     return code
+
+
+def _rejected_teacher_answer(error: BaseException) -> bool:
+    """Whether a failed run stopped because the teacher's answers were rejected (as
+    opposed to a transport error, a spend cap or a local problem)."""
+
+    rejected = False
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, TeacherTransportError | TeacherBudgetExceeded | DatasetCacheError):
+            return False
+        if isinstance(
+            current,
+            TeacherResponseError | AdversarialGenerationError | ConstraintError | DatasetError,
+        ):
+            rejected = True
+        current = current.__cause__ or current.__context__
+    return rejected
 
 
 def _run_estimate(arguments: argparse.Namespace, log: Callable[[str], None]) -> int:
@@ -1127,7 +1170,7 @@ def run_teacher_probe(arguments: argparse.Namespace) -> int:
     for a mixed constraints teacher; none for a pure one), with model, latency, tokens
     and USD cost. Exits 1 when the request fails."""
 
-    from semantscript_trainer.doctor import _with_key, probe_teacher
+    from semantscript_trainer.doctor import ProbeResult, _key_check, _with_key, probe_teacher
 
     try:
         config = load_teacher_config(arguments.teacher)
@@ -1146,12 +1189,17 @@ def run_teacher_probe(arguments: argparse.Namespace) -> int:
             inputTokens=0,
             outputTokens=0,
             costUsd=0.0,
-            priceSource="free (the constraints teacher sends no request)",
+            priceSource="the constraints teacher sends no request",
             summary="the constraints teacher sends no request; nothing to probe, USD 0",
             fix=None,
         )
     else:
-        probe = probe_teacher(_with_key(model_config, os.environ), "request")
+        key = _key_check(model_config, os.environ)
+        probe = (
+            probe_teacher(_with_key(model_config, os.environ), "request")
+            if key.status == "pass"
+            else ProbeResult(False, f"no request sent: {key.summary}", key.fix)
+        )
         price = None
         price_note = None
         try:
@@ -1159,12 +1207,14 @@ def run_teacher_probe(arguments: argparse.Namespace) -> int:
         except TeacherPriceUnknown as error:
             price_note = str(error)
         cost = (
-            None
+            0.0
+            if not probe.request_sent
+            else None
             if price is None or probe.input_tokens is None or probe.output_tokens is None
             else price.cost(probe.input_tokens, probe.output_tokens)
         )
         summary = probe.summary
-        if cost is not None:
+        if cost is not None and probe.request_sent:
             summary += f", USD {cost:.6f}"
         if model_config is not config:
             summary = f"fallback: {summary}"
@@ -1173,7 +1223,7 @@ def run_teacher_probe(arguments: argparse.Namespace) -> int:
             backend=model_config.backend,
             model=model_config.model,
             baseUrl=model_config.base_url,
-            requestSent=probe.latency_seconds is not None,
+            requestSent=probe.request_sent,
             latencySeconds=probe.latency_seconds,
             inputTokens=probe.input_tokens,
             outputTokens=probe.output_tokens,

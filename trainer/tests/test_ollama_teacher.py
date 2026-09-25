@@ -164,6 +164,33 @@ def test_meter_counts_local_requests_tokens_and_latency_at_no_cost() -> None:
     assert "USD 0.0000 of the USD 0.01 cap" in meter.line()
 
 
+def test_a_priced_endpoint_stops_at_the_spend_cap_before_the_request() -> None:
+    from semantscript_trainer.teacher import TeacherBudgetExceeded
+    from semantscript_trainer.teacher_spend import SpendMeter, resolve_price
+
+    responses = []
+    for _ in range(4):
+        response = _response()
+        response.usage = SimpleNamespace(prompt_tokens=1200, completion_tokens=60)
+        responses.append(response)
+    config = TeacherConfig.from_mapping(
+        {
+            "backend": "ollama",
+            "model": "priced-model",
+            "pricing": {"input_usd_per_million": 100, "output_usd_per_million": 100},
+        }
+    )
+    meter = SpendMeter(resolve_price(config), max_cost_usd=0.05)
+    client = _FakeClient(*responses)
+    teacher = OllamaTeacher(config, client=client, meter=meter)
+
+    with pytest.raises(TeacherBudgetExceeded, match=r"spend cap USD 0\.05 reached"):
+        teacher.generate(_refund_ir(), 4)
+
+    assert len(client.completions.calls) == meter.requests < 4
+    assert meter.cost_usd <= 0.05
+
+
 def test_generates_structured_boundary_and_counterfactual_responses() -> None:
     contract = _refund_ir()
     false_case = json.loads(_case_document(output="approve"))

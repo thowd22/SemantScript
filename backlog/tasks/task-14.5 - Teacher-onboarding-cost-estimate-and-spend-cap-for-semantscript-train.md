@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 23:11'
+updated_date: '2026-09-25 23:31'
 labels:
   - dx
   - train
@@ -69,4 +69,12 @@ IMPLEMENT complete (2026-09-25), uncommitted before the CI push:
 - AC4 open: equal verification not measured; full comparison estimated USD 1.02 expected (max 2.88) + GPU retrain, above the USD 0.50 budget.
 
 Committed 205dbe6 (TASK-14.5: teacher cost estimate, spend cap, probe, init teacher choice, compact cached prompt), pushed to origin main; CI run 36199729866 success on every job (Node lint/build/tests, Python dev and dev+training, fresh clone/examples/Docker, doctor on Windows and macOS).
+
+FIX round 1 (2026-09-25):
+- Journal no longer replays rejected answers: AnthropicTeacher drops the journal entry of a response that fails decoding/contract checks (case, boundary, counterfactual); train drops every entry the run replayed or wrote when it fails on rejected teacher answers (TeacherResponseError, AdversarialGenerationError, ConstraintError, DatasetError in the cause chain; not on transport errors, the spend cap or verification) and prints a note. Reviewer's journal_poison.py now gives 'run 2: ok, sent 2'. Fake-Anthropic end-to-end rerun of the boundary-pair failure on the reviewer's cacheB copy: run 1 replayed 3 and discarded them; run 2 sent 3 fresh requests (server log 0 -> 3).
+- Ollama backend now reserves each request against --max-cost-usd (priced endpoint via [teacher.pricing]); live run with ollama-priced.toml cap 0.05 stops before the first request (reservation USD 0.389). Journal is created only for the anthropic backend.
+- teacher probe runs the doctor's teacher-key check first: missing key -> 'no request sent: ANTHROPIC_API_KEY is not set; OPENROUTER_API_KEY is ...' with the export fix, requestSent false, USD 0; ProbeResult.request_sent replaces the latency heuristic. --json output carries kind/probeVersion; constraints price source no longer doubled.
+- Advisory fixes: docs state the cap can be passed by one unusually long answer; build-cache/diagnostics/trainer README describe journal dropping and that batch results are not journaled; old USD 0.60 and USD 0.003-per-case figures replaced with --estimate figures; train's no-teacher error mentions init --teacher.
+- AC4 still unverified (paid comparison USD 1.02 expected / 2.88 max needs user approval).
+- Gates: build ok, lint:node ok, test:node all pass, test:python 634 passed 4 skipped, ruff ok, prettier ok.
 <!-- SECTION:NOTES:END -->

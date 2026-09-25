@@ -100,6 +100,9 @@ class ProbeResult:
     latency_seconds: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    # Whether the request reached the provider: true once it answered, even with an
+    # error status; false when nothing was sent (no key, no connection).
+    request_sent: bool = False
 
 
 # One child interpreter per probe. It prints a JSON object with one entry per
@@ -924,11 +927,13 @@ def probe_teacher(
             if config.backend == "ollama" and mode == "free"
             else "one-request probe"
         )
+        answered = isinstance(getattr(error, "status_code", None), int)
         return ProbeResult(
             False,
             f"{what} failed after {elapsed:.1f} s: {_scrub(_error_text(error), config)}",
             _probe_fix(config, error),
-            latency_seconds=elapsed,
+            latency_seconds=elapsed if answered else None,
+            request_sent=answered,
         )
     elapsed = clock() - started
     tokens = (
@@ -942,6 +947,7 @@ def probe_teacher(
         latency_seconds=elapsed,
         input_tokens=input_tokens if isinstance(input_tokens, int) else None,
         output_tokens=output_tokens if isinstance(output_tokens, int) else None,
+        request_sent=not (config.backend == "ollama" and mode == "free"),
     )
 
 

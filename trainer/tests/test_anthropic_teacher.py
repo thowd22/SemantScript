@@ -174,6 +174,30 @@ def test_journal_replays_paid_responses_for_free_and_keeps_retries_distinct(
     assert (rerun_meter.requests, rerun_meter.replayed, rerun_meter.cost_usd) == (0, 2, 0.0)
 
 
+def test_journal_drops_a_response_that_breaks_the_case_contract(tmp_path: Any) -> None:
+    teacher_config = config(mode="direct")
+
+    def teacher(client: Any) -> AnthropicTeacher:
+        return AnthropicTeacher(
+            teacher_config,
+            client=client,
+            schema_transform=lambda s: s,
+            journal=ResponseJournal(tmp_path, teacher_config.configuration_sha256),
+        )
+
+    broken = FakeClient(direct_messages=[paid_message('{"inputs":{"message":"x"},"output":1}')])
+    with pytest.raises(TeacherResponseError):
+        teacher(broken).generate(ir(), 1)
+    assert ResponseJournal(tmp_path, teacher_config.configuration_sha256).count() == 0
+
+    fixed = FakeClient(direct_messages=[paid_message(case_text("good", True))])
+    assert teacher(fixed).generate(ir(), 1) == (
+        GeneratedCase(inputs={"message": "good"}, output=True),
+    )
+    assert len(fixed.messages.create_calls) == 1
+    assert ResponseJournal(tmp_path, teacher_config.configuration_sha256).count() == 1
+
+
 def test_batch_submission_reserves_the_whole_batch_before_submitting() -> None:
     client = FakeClient()
     meter = SpendMeter(SONNET, max_cost_usd=0.001)

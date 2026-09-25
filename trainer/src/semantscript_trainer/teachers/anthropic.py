@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
 import math
 import re
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -119,6 +120,7 @@ class AnthropicTeacher:
         self._sleeper = sleeper
         self._meter = meter
         self._journal = journal
+        self._last_journal_key: str | None = None
 
     @property
     def descriptor(self) -> TeacherDescriptor:
@@ -161,7 +163,8 @@ class AnthropicTeacher:
                 f"could not build Anthropic boundary request: {error}"
             ) from error
         text = self._request_adversarial(schema, system, user, "boundary")
-        return parse_boundary_pair_response(dict(ir), text)
+        with self._discard_rejected():
+            return parse_boundary_pair_response(dict(ir), text)
 
     def generate_counterfactual(
         self,
@@ -179,7 +182,8 @@ class AnthropicTeacher:
                 f"could not build Anthropic counterfactual request: {error}"
             ) from error
         text = self._request_adversarial(schema, system, user, "counterfactual")
-        return parse_counterfactual_response(dict(ir), text)
+        with self._discard_rejected():
+            return parse_counterfactual_response(dict(ir), text)
 
     def submit_batch(self, ir: Mapping[str, Any], n: int) -> BatchHandle:
         """Submit one non-streaming Messages request for each desired case."""
@@ -341,14 +345,15 @@ class AnthropicTeacher:
                     f"Anthropic Messages request {index + 1} of {n} failed",
                     error,
                 ) from error
-            result.append(
-                self._decode_message(
-                    ir,
-                    message,
-                    custom_id=f"case {index + 1}",
-                    aggregate_response_bytes=aggregate_response_bytes,
+            with self._discard_rejected():
+                result.append(
+                    self._decode_message(
+                        ir,
+                        message,
+                        custom_id=f"case {index + 1}",
+                        aggregate_response_bytes=aggregate_response_bytes,
+                    )
                 )
-            )
         return tuple(result)
 
     def _wait_for_batch(self, batch_id: str) -> None:
@@ -458,21 +463,25 @@ class AnthropicTeacher:
                 f"Anthropic {context} request failed",
                 error,
             ) from error
-        stop_reason = _field(message, "stop_reason")
-        if stop_reason != "end_turn":
-            raise TeacherResponseError(f"Anthropic {context} response stopped with {stop_reason!r}")
-        text = _sole_text_block(
-            _field(message, "content"),
-            f"Anthropic {context} response must contain exactly one text block",
-        )
-        if not text.strip():
-            raise TeacherResponseError(
-                f"Anthropic {context} response must contain exactly one nonempty text block"
+        with self._discard_rejected():
+            stop_reason = _field(message, "stop_reason")
+            if stop_reason != "end_turn":
+                raise TeacherResponseError(
+                    f"Anthropic {context} response stopped with {stop_reason!r}"
+                )
+            text = _sole_text_block(
+                _field(message, "content"),
+                f"Anthropic {context} response must contain exactly one text block",
             )
-        if len(text.encode("utf-8", errors="surrogatepass")) > MAXIMUM_TEACHER_RESPONSE_BYTES:
-            raise TeacherResponseError(
-                f"Anthropic {context} response exceeds byte limit {MAXIMUM_TEACHER_RESPONSE_BYTES}"
-            )
+            if not text.strip():
+                raise TeacherResponseError(
+                    f"Anthropic {context} response must contain exactly one nonempty text block"
+                )
+            if len(text.encode("utf-8", errors="surrogatepass")) > MAXIMUM_TEACHER_RESPONSE_BYTES:
+                raise TeacherResponseError(
+                    f"Anthropic {context} response exceeds byte limit "
+                    f"{MAXIMUM_TEACHER_RESPONSE_BYTES}"
+                )
         return text
 
     def _request_params(
@@ -509,8 +518,10 @@ class AnthropicTeacher:
         """One Messages request through the journal and the spend meter."""
 
         key = None
+        self._last_journal_key = None
         if self._journal is not None:
             key = self._journal.next_key(params)
+            self._last_journal_key = key
             replayed = self._journal.load(key)
             if replayed is not None:
                 if self._meter is not None:
@@ -525,6 +536,19 @@ class AnthropicTeacher:
         if self._journal is not None and key is not None:
             self._journal.store(key, message)
         return message
+
+    @contextlib.contextmanager
+    def _discard_rejected(self) -> Iterator[None]:
+        """Drop the last journaled response when decoding it fails, so a rerun sends
+        the request again instead of replaying an answer that breaks the contract."""
+
+        try:
+            yield
+        except Exception:
+            if self._journal is not None and self._last_journal_key is not None:
+                self._journal.discard(self._last_journal_key)
+                self._last_journal_key = None
+            raise
 
     def _custom_ids(self, ir: Mapping[str, Any], n: int) -> tuple[str, ...]:
         function_id = _function_id(ir)

@@ -122,7 +122,7 @@ depends on published `@semantscript/*` packages and commits its lockfile uses
   user. [`deploy/Dockerfile.dockerignore`](deploy/Dockerfile.dockerignore)
   limits the context to those sources, so local installs never enter it. CI
   builds the image from a fresh clone on every push with the fixture artifact
-  and smoke-runs both routes; the image is 624 MB and builds in about 33 s
+  and smoke-runs both routes; the image is 624 MB and builds in about 32 s
   without a layer cache
   ([measured](../../docs/CONTRIBUTING.md#continuous-integration)). To ship
   a trained model, train first so `.semantscript/artifact` holds the release,

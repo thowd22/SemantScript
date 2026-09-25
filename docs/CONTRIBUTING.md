@@ -120,31 +120,35 @@ it installs with the defaults a new user gets.
 
 ### Measured adoption cost
 
-Wall times on GitHub-hosted `ubuntu-latest` runners, 2026-09-25,
-from `gh run view --json jobs`. Run
-[36155743686](https://github.com/thowd22/SemantScript/actions/runs/36155743686)
-is the first run with every job green; the `fresh-install` job also passed in
-the run before it
-([36155452753](https://github.com/thowd22/SemantScript/actions/runs/36155452753)).
+Wall times on GitHub-hosted `ubuntu-latest` runners, 2026-09-25, from
+`gh run view --json jobs`. Run
+[36157665549](https://github.com/thowd22/SemantScript/actions/runs/36157665549)
+has every job green and a `fresh-install` job that restored no npm cache
+(its log shows `package-manager-cache: false`). The `fresh-install` job of
+run [36155452753](https://github.com/thowd22/SemantScript/actions/runs/36155452753)
+also found no npm cache and passed. Two earlier green runs are not used for
+the install figure: `actions/setup-node@v5` enables npm caching on its own
+when `package.json` names a `packageManager`, and their `fresh-install` jobs
+restored a warm 181 MB npm cache before the job turned it off.
 
-| Measurement                                                  | Run 36155743686 | Run 36155452753 |
+| Measurement                                                  | Run 36157665549 | Run 36155452753 |
 | ------------------------------------------------------------ | --------------- | --------------- |
-| Whole workflow, push to last job finished (jobs in parallel) | 1 min 39 s      | (`node` failed) |
-| `node` job                                                   | 1 min 32 s      | (failed)        |
-| `python` job (412 passed, 45 skipped)                        | 1 min 32 s      | 1 min 26 s      |
-| `fresh-install` job, fresh clone to a smoke-tested image     | 1 min 36 s      | 1 min 50 s      |
+| Whole workflow, push to last job finished (jobs in parallel) | 1 min 38 s      | (`node` failed) |
+| `node` job                                                   | 1 min 34 s      | (failed)        |
+| `python` job (412 passed, 45 skipped)                        | 1 min 5 s       | 1 min 26 s      |
+| `fresh-install` job, fresh clone to a smoke-tested image     | 1 min 32 s      | 1 min 50 s      |
 
-The `fresh-install` job's steps in run 36155743686:
+The `fresh-install` job's steps in run 36157665549, with no npm cache:
 
 | Step                                                               | Time |
 | ------------------------------------------------------------------ | ---- |
-| Set up Node 22 from `.nvmrc`                                       | 7 s  |
-| `npm install` and `npm run build` at the root                      | 12 s |
-| Express example: `npm install`, `npm run build`, `npm test`        | 19 s |
+| Set up Node 22 from `.nvmrc`                                       | 4 s  |
+| `npm install` and `npm run build` at the root                      | 13 s |
+| Express example: `npm install`, `npm run build`, `npm test`        | 18 s |
 | Refund service example: `npm install`, `npm run build`, `npm test` | 16 s |
 | Fixture artifact                                                   | 1 s  |
-| `docker build` (no layer cache)                                    | 33 s |
-| Smoke run of the image                                             | 3 s  |
+| `docker build` (no layer cache)                                    | 32 s |
+| Smoke run of the image                                             | 2 s  |
 
 The adoption flow a new developer follows, a fresh clone to a built, tested
 example, is therefore under a minute of commands on a hosted runner, and a

@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 15:48'
+updated_date: '2026-09-25 16:00'
 labels:
   - dx
   - ci
@@ -48,4 +48,6 @@ The repository now lives at github.com/thowd22/SemantScript and has no CI: the l
 Added .github/workflows/ci.yml (node, python, fresh-install jobs). Express example split into src/app.ts (createApp) and src/server.ts (PORT env), added test/app.test.mjs (3 tests, pass locally) and scripts/fixture-artifact.mjs. Dockerfile rebuilt: builds workspaces in-image, installs production tree with --install-links (verified locally: standalone layout serves /tickets and /refunds with the fixture artifact), Dockerfile.dockerignore allowlist. Python: test_training.py parametrize no longer touches torch at collection; two torch-only tests gained @requires_torch (dev-only deps: 412 passed, 45 skipped locally).
 
 CI runs: 36155452753 (node failed: type-aware lint ran before build; fixed by building first in ci.yml and in scripts/check.mjs check mode), 36155743686 (all green: workflow 1m39s, node 1m32s, python 1m32s with 412 passed/45 skipped, fresh-install 1m36s incl. docker build 33s, image 624MB, smoke POST /tickets urgent and POST /refunds/o1 committed:false), 36156428896 on aefa146 (all green: workflow 1m50s, node 1m36s, python 1m13s, fresh-install 1m42s). Docs: docs/CONTRIBUTING.md Continuous integration section with measured adoption cost; README badge; docs/index.md, examples/README.md and express-app README updated. Local npm run check exit 0 (529 passed, 4 skipped with the training extra); prettier --check docs README.md clean.
+
+Fix round 1: the fresh-install job restored a warm 181 MB npm cache in runs 36155743686 and 36156428896 (setup-node@v5 caches npm by itself when package.json names a packageManager); ci.yml now sets package-manager-cache: false there, and run 36157665549 (commit 7c05c38) logs 'package-manager-cache: false' with no cache restore. CONTRIBUTING's measured adoption cost now comes from 36157665549: workflow 1m38s, node 1m34s, python 1m05s (412 passed, 45 skipped), fresh-install 1m32s (setup-node 4s, root install+build 13s, express 18s, refund 16s, fixture 1s, docker build 32s, smoke 2s, image 624MB); 36155452753 (also no cache, fresh-install 1m50s) kept as the second column. express-app README deploy prose now gives npm install --omit=dev --install-links (npm ci needs the uncommitted lockfile); runtime README notes the same for the in-repo example. Also: concurrency cancels in progress only off main, prettier pinned to 3.9.9 in CI, npm run lint builds first, CONTRIBUTING no longer claims lint:node runs prettier, fixture-artifact refuses non-empty non-artifact directories and a missing bundle and documents 'npm run fixture-artifact -- --force', express README build block starts with the root install and shows the fixture path. The pull_request trigger is still evidenced by config only (no PR opened).
 <!-- SECTION:NOTES:END -->

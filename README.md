@@ -95,5 +95,5 @@ model, or complete constraints); inference needs neither.
 [CONTRIBUTING](docs/CONTRIBUTING.md) covers the layout, toolchains and
 checks. GitHub Actions runs the lint and test gates, a fresh-clone install of
 both examples and the Express Docker build on every push and pull request; a
-fresh clone to a running image takes about two minutes on a hosted runner
-([measured](docs/CONTRIBUTING.md#continuous-integration)).
+fresh clone to a running image takes about a minute and a half on a hosted
+runner with no npm cache ([measured](docs/CONTRIBUTING.md#continuous-integration)).

@@ -44,8 +44,9 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
 - Backlog decisions under [`backlog/decisions/`](../backlog/decisions): teacher
   model, training stack, base encoder, proper-scoring loss and calibration,
   held-out data adjudication, constraint-based policy statement, real-input
-  training, the release gate's violation tolerance, and compile-time reduction
-  (fine-tune the application encoder, not a universal frozen one).
+  training, the release gate's violation tolerance, compile-time reduction
+  (fine-tune the application encoder, not a universal frozen one), and routed
+  domain adapters as the default layout for depth routing and isolation.
 - [Laya analysis](research/laya-analysis.md): what was adopted from the Laya
   typed-decision models and what was not.
 
@@ -78,7 +79,8 @@ run`, the zero-config defaults, the dev loop and the build cache rules.
   [program guide](../benchmarks/refund/program/README.md).
 - [Typed-decisions benchmark](../benchmarks/typed-decisions/README.md): the
   external multi-question suite compiled to sema programs, with its results
-  under `benchmarks/typed-decisions/data/`.
+  under `benchmarks/typed-decisions/data/` (`results-2026-09-24` per workflow,
+  `results-routed-2026-09-24` single versus routed domain adapters).
 - Committed results under `benchmarks/refund/data/`: the Phase 1 go/no-go
   (`results-v2-2026-09-23`), the int8 experiment (`results-int8-2026-09-24`),
   the compact encoding run (`results-compact-2026-09-24`), the shared-encoder

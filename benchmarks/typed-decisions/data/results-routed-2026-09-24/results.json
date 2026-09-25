@@ -1,0 +1,551 @@
+{
+  "attestedPerQuestion": 5,
+  "completedAt": "2026-09-25T01:16:32Z",
+  "functions": 20,
+  "interference": {
+    "accuracyDeltas": {
+      "customer_service": 0.0,
+      "invoice_processing": 0.0,
+      "security_incidents": 0.0
+    },
+    "addSeconds": 116.8,
+    "addedDomain": "agent_trace_observability",
+    "addedDomainIncrementalAccuracy": 0.364,
+    "addedDomainJointAccuracy": 0.71,
+    "after": {
+      "customer_service": 0.75,
+      "invoice_processing": 0.752,
+      "security_incidents": 0.686
+    },
+    "before": {
+      "customer_service": 0.75,
+      "invoice_processing": 0.752,
+      "security_incidents": 0.686
+    },
+    "functionsWhoseWeightsChanged": [],
+    "keptDomains": [
+      "customer_service",
+      "invoice_processing",
+      "security_incidents"
+    ],
+    "maximumAbsoluteDelta": 0.0
+  },
+  "kind": "semantscript.typed-decisions-routed-domains",
+  "recipe": {
+    "batchSize": 16,
+    "epochs": 8,
+    "learningRate": 3e-05,
+    "maximumSequenceLength": 768,
+    "seed": 1
+  },
+  "resultVersion": 1,
+  "routed": {
+    "accuracy": 0.6585,
+    "adapters": [
+      "adapter.typed-decisions.agent-trace-observability",
+      "adapter.typed-decisions.customer-service",
+      "adapter.typed-decisions.invoice-processing",
+      "adapter.typed-decisions.security-incidents"
+    ],
+    "cpuOnnx": {
+      "artifactBytes": {
+        "adapters": 1590892,
+        "encoders": 596679464,
+        "heads": 208900,
+        "total": 598479256
+      },
+      "provider": "CPUExecutionProvider",
+      "stageLatency": {
+        "agent_trace_observability": {
+          "count": 90,
+          "meanMs": 60.473,
+          "p50Ms": 56.061,
+          "p95Ms": 90.904
+        },
+        "customer_service": {
+          "count": 90,
+          "meanMs": 114.417,
+          "p50Ms": 103.715,
+          "p95Ms": 222.247
+        },
+        "invoice_processing": {
+          "count": 90,
+          "meanMs": 137.326,
+          "p50Ms": 125.99,
+          "p95Ms": 181.652
+        },
+        "security_incidents": {
+          "count": 90,
+          "meanMs": 93.766,
+          "p50Ms": 82.701,
+          "p95Ms": 158.742
+        }
+      }
+    },
+    "domains": {
+      "agent_trace_observability": {
+        "accuracy": 0.71,
+        "adapterRef": "adapter.typed-decisions.agent-trace-observability",
+        "decisions": 500,
+        "gateAccuracy": 0.75,
+        "gateEce": 0.1167,
+        "gatePassed": 0,
+        "pairConsistency": 1.0,
+        "questions": {
+          "action": {
+            "accuracy": 0.72,
+            "functionId": "nf_4f2fe000866e115b198e945ab1016ac6cce21f6f22e8dd2be2aafc2bf9c0cb86",
+            "gate": "failed",
+            "gateAccuracy": 0.6786,
+            "gateEce": 0.1794,
+            "pairConsistency": 1.0
+          },
+          "needs_review": {
+            "accuracy": 0.86,
+            "functionId": "nf_30a8f2c50f86cc9da60d874ea8a8d709b63cbed20a20ebc65f46f2d83adb1b0c",
+            "gate": "failed",
+            "gateAccuracy": 0.7857,
+            "gateEce": 0.127,
+            "pairConsistency": 1.0
+          },
+          "outcome": {
+            "accuracy": 0.65,
+            "functionId": "nf_10a31327d26b90e820617f17d5bf15e14937c2d4dc07d77fbcda67bcb97cab70",
+            "gate": "failed",
+            "gateAccuracy": 0.8571,
+            "gateEce": 0.1276,
+            "pairConsistency": 1.0
+          },
+          "risk": {
+            "accuracy": 0.71,
+            "functionId": "nf_c123aa73b70c8436b5316c55e9e9a46d76e7d90808043f89faaa0b4fea0e6769",
+            "gate": "failed",
+            "gateAccuracy": 0.8214,
+            "gateEce": 0.0702,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.61,
+            "functionId": "nf_314d5b5e2406c5516a51c3fee62b44421a6e7e4db2ef4b460cbdde5bf5a29704",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.0792,
+            "pairConsistency": 1.0
+          }
+        }
+      },
+      "customer_service": {
+        "accuracy": 0.612,
+        "adapterRef": "adapter.typed-decisions.customer-service",
+        "decisions": 500,
+        "gateAccuracy": 0.5857,
+        "gateEce": 0.1652,
+        "gatePassed": 0,
+        "pairConsistency": 1.0,
+        "questions": {
+          "action": {
+            "accuracy": 0.63,
+            "functionId": "nf_3d0db564eddd4180a7ec5fafe84156223493741f382a80b5de24da9719a59291",
+            "gate": "failed",
+            "gateAccuracy": 0.6786,
+            "gateEce": 0.1486,
+            "pairConsistency": 1.0
+          },
+          "category": {
+            "accuracy": 0.69,
+            "functionId": "nf_e3e1f5484ab8e849a26011e0e71b93bfd5fafc45c2c98c224c5bef2f91edb919",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.2189,
+            "pairConsistency": 1.0
+          },
+          "churn_risk": {
+            "accuracy": 0.54,
+            "functionId": "nf_2cd476e964d6a38f6577570282b103d4d2a5ff9d5fcba30103e236e4e41308c8",
+            "gate": "failed",
+            "gateAccuracy": 0.4286,
+            "gateEce": 0.1238,
+            "pairConsistency": 1.0
+          },
+          "needs_human": {
+            "accuracy": 0.76,
+            "functionId": "nf_cc448ec6edb9acea6f20ff5fdcaeff0a731ec84899feca37b5dcc2aacd1aace3",
+            "gate": "failed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.123,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.44,
+            "functionId": "nf_66a31396a80a642589110e404098902e0e847278abfc61137715e87db823acc5",
+            "gate": "failed",
+            "gateAccuracy": 0.3214,
+            "gateEce": 0.2119,
+            "pairConsistency": 1.0
+          }
+        }
+      },
+      "invoice_processing": {
+        "accuracy": 0.622,
+        "adapterRef": "adapter.typed-decisions.invoice-processing",
+        "decisions": 500,
+        "gateAccuracy": 0.6214,
+        "gateEce": 0.1968,
+        "gatePassed": 1,
+        "pairConsistency": 1.0,
+        "questions": {
+          "discrepancy_severity": {
+            "accuracy": 0.5,
+            "functionId": "nf_216ddf7e901467bec12d9accab708e7fda161721c98ae768203ce777c5801c62",
+            "gate": "failed",
+            "gateAccuracy": 0.5,
+            "gateEce": 0.2243,
+            "pairConsistency": 1.0
+          },
+          "disposition": {
+            "accuracy": 0.44,
+            "functionId": "nf_33601fa0537e05b763ed61573326c1b3a35fc5b869e89b40177cba654ee21eb1",
+            "gate": "failed",
+            "gateAccuracy": 0.5714,
+            "gateEce": 0.2804,
+            "pairConsistency": 1.0
+          },
+          "duplicate": {
+            "accuracy": 0.87,
+            "functionId": "nf_74c781f60dd4eb948b3955fd163bea58e13f2cc3c8926a138b9c9de68ee615d8",
+            "gate": "passed",
+            "gateAccuracy": 0.8571,
+            "gateEce": 0.0917,
+            "pairConsistency": 1.0
+          },
+          "matches_order": {
+            "accuracy": 0.72,
+            "functionId": "nf_e85e053ddd37b24b5a08427f989331a8c0d2bce7fec53ec54d62d9503ec4eba5",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.1535,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.58,
+            "functionId": "nf_81836690e602359995b431ec8a56bd9e255eecd57dd2c44781e11e7743b5833f",
+            "gate": "failed",
+            "gateAccuracy": 0.5714,
+            "gateEce": 0.2341,
+            "pairConsistency": 1.0
+          }
+        }
+      },
+      "security_incidents": {
+        "accuracy": 0.69,
+        "adapterRef": "adapter.typed-decisions.security-incidents",
+        "decisions": 500,
+        "gateAccuracy": 0.7143,
+        "gateEce": 0.1643,
+        "gatePassed": 0,
+        "pairConsistency": 1.0,
+        "questions": {
+          "credential_compromise": {
+            "accuracy": 0.74,
+            "functionId": "nf_dfd48b877bf9a417cafd4e262b2b5fead4adfd0afed63b7b0fc4bd1feff1b53a",
+            "gate": "failed",
+            "gateAccuracy": 0.7143,
+            "gateEce": 0.1779,
+            "pairConsistency": 1.0
+          },
+          "disposition": {
+            "accuracy": 0.74,
+            "functionId": "nf_4dcaf92083c6a3bfe1c4b65110adf2a64a0fc249ce254ea14f85034cade76e94",
+            "gate": "failed",
+            "gateAccuracy": 0.75,
+            "gateEce": 0.1004,
+            "pairConsistency": 1.0
+          },
+          "severity": {
+            "accuracy": 0.53,
+            "functionId": "nf_eb20b68385ea01fd078e8313fd61cd87aac7baa1b7d4be9f4ed7d359097ebb2f",
+            "gate": "failed",
+            "gateAccuracy": 0.5,
+            "gateEce": 0.2301,
+            "pairConsistency": 1.0
+          },
+          "true_positive": {
+            "accuracy": 0.83,
+            "functionId": "nf_bfd941c294c815b36c2135e91733743d5ed5b2be082ffba31e448033831719e4",
+            "gate": "failed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.1309,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.61,
+            "functionId": "nf_8fe6e4c1e9edcb39f81fb1f4ff14f5833003d5b137c2dd93f461bbe224dab8d9",
+            "gate": "failed",
+            "gateAccuracy": 0.7143,
+            "gateEce": 0.1821,
+            "pairConsistency": 1.0
+          }
+        }
+      }
+    },
+    "selectedEpoch": 8,
+    "trainSeconds": 1890.6
+  },
+  "single": {
+    "accuracy": 0.6975,
+    "adapters": [
+      "adapter.typed-decisions"
+    ],
+    "cpuOnnx": {
+      "artifactBytes": {
+        "adapters": 397723,
+        "encoders": 596679464,
+        "heads": 208900,
+        "total": 597286087
+      },
+      "provider": "CPUExecutionProvider",
+      "stageLatency": {
+        "agent_trace_observability": {
+          "count": 90,
+          "meanMs": 53.376,
+          "p50Ms": 47.464,
+          "p95Ms": 86.894
+        },
+        "customer_service": {
+          "count": 90,
+          "meanMs": 109.121,
+          "p50Ms": 100.097,
+          "p95Ms": 200.518
+        },
+        "invoice_processing": {
+          "count": 90,
+          "meanMs": 182.895,
+          "p50Ms": 172.063,
+          "p95Ms": 257.646
+        },
+        "security_incidents": {
+          "count": 90,
+          "meanMs": 117.642,
+          "p50Ms": 121.24,
+          "p95Ms": 153.385
+        }
+      }
+    },
+    "domains": {
+      "agent_trace_observability": {
+        "accuracy": 0.66,
+        "adapterRef": "adapter.typed-decisions",
+        "decisions": 500,
+        "gateAccuracy": 0.7357,
+        "gateEce": 0.1478,
+        "gatePassed": 1,
+        "pairConsistency": 1.0,
+        "questions": {
+          "action": {
+            "accuracy": 0.55,
+            "functionId": "nf_4f2fe000866e115b198e945ab1016ac6cce21f6f22e8dd2be2aafc2bf9c0cb86",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.2151,
+            "pairConsistency": 1.0
+          },
+          "needs_review": {
+            "accuracy": 0.87,
+            "functionId": "nf_30a8f2c50f86cc9da60d874ea8a8d709b63cbed20a20ebc65f46f2d83adb1b0c",
+            "gate": "passed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.0703,
+            "pairConsistency": 1.0
+          },
+          "outcome": {
+            "accuracy": 0.62,
+            "functionId": "nf_10a31327d26b90e820617f17d5bf15e14937c2d4dc07d77fbcda67bcb97cab70",
+            "gate": "failed",
+            "gateAccuracy": 0.7143,
+            "gateEce": 0.1249,
+            "pairConsistency": 1.0
+          },
+          "risk": {
+            "accuracy": 0.67,
+            "functionId": "nf_c123aa73b70c8436b5316c55e9e9a46d76e7d90808043f89faaa0b4fea0e6769",
+            "gate": "failed",
+            "gateAccuracy": 0.7857,
+            "gateEce": 0.2015,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.59,
+            "functionId": "nf_314d5b5e2406c5516a51c3fee62b44421a6e7e4db2ef4b460cbdde5bf5a29704",
+            "gate": "failed",
+            "gateAccuracy": 0.6786,
+            "gateEce": 0.1273,
+            "pairConsistency": 1.0
+          }
+        }
+      },
+      "customer_service": {
+        "accuracy": 0.7,
+        "adapterRef": "adapter.typed-decisions",
+        "decisions": 500,
+        "gateAccuracy": 0.7429,
+        "gateEce": 0.1597,
+        "gatePassed": 1,
+        "pairConsistency": 1.0,
+        "questions": {
+          "action": {
+            "accuracy": 0.63,
+            "functionId": "nf_3d0db564eddd4180a7ec5fafe84156223493741f382a80b5de24da9719a59291",
+            "gate": "failed",
+            "gateAccuracy": 0.6786,
+            "gateEce": 0.254,
+            "pairConsistency": 1.0
+          },
+          "category": {
+            "accuracy": 0.92,
+            "functionId": "nf_e3e1f5484ab8e849a26011e0e71b93bfd5fafc45c2c98c224c5bef2f91edb919",
+            "gate": "passed",
+            "gateAccuracy": 0.9286,
+            "gateEce": 0.0872,
+            "pairConsistency": 1.0
+          },
+          "churn_risk": {
+            "accuracy": 0.63,
+            "functionId": "nf_2cd476e964d6a38f6577570282b103d4d2a5ff9d5fcba30103e236e4e41308c8",
+            "gate": "failed",
+            "gateAccuracy": 0.6786,
+            "gateEce": 0.19,
+            "pairConsistency": 1.0
+          },
+          "needs_human": {
+            "accuracy": 0.74,
+            "functionId": "nf_cc448ec6edb9acea6f20ff5fdcaeff0a731ec84899feca37b5dcc2aacd1aace3",
+            "gate": "failed",
+            "gateAccuracy": 0.8214,
+            "gateEce": 0.0969,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.58,
+            "functionId": "nf_66a31396a80a642589110e404098902e0e847278abfc61137715e87db823acc5",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.1702,
+            "pairConsistency": 1.0
+          }
+        }
+      },
+      "invoice_processing": {
+        "accuracy": 0.734,
+        "adapterRef": "adapter.typed-decisions",
+        "decisions": 500,
+        "gateAccuracy": 0.7786,
+        "gateEce": 0.1785,
+        "gatePassed": 0,
+        "pairConsistency": 1.0,
+        "questions": {
+          "discrepancy_severity": {
+            "accuracy": 0.65,
+            "functionId": "nf_216ddf7e901467bec12d9accab708e7fda161721c98ae768203ce777c5801c62",
+            "gate": "failed",
+            "gateAccuracy": 0.7143,
+            "gateEce": 0.205,
+            "pairConsistency": 1.0
+          },
+          "disposition": {
+            "accuracy": 0.63,
+            "functionId": "nf_33601fa0537e05b763ed61573326c1b3a35fc5b869e89b40177cba654ee21eb1",
+            "gate": "failed",
+            "gateAccuracy": 0.7857,
+            "gateEce": 0.1852,
+            "pairConsistency": 1.0
+          },
+          "duplicate": {
+            "accuracy": 0.89,
+            "functionId": "nf_74c781f60dd4eb948b3955fd163bea58e13f2cc3c8926a138b9c9de68ee615d8",
+            "gate": "failed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.1288,
+            "pairConsistency": 1.0
+          },
+          "matches_order": {
+            "accuracy": 0.86,
+            "functionId": "nf_e85e053ddd37b24b5a08427f989331a8c0d2bce7fec53ec54d62d9503ec4eba5",
+            "gate": "failed",
+            "gateAccuracy": 0.8929,
+            "gateEce": 0.133,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.64,
+            "functionId": "nf_81836690e602359995b431ec8a56bd9e255eecd57dd2c44781e11e7743b5833f",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.2405,
+            "pairConsistency": 1.0
+          }
+        }
+      },
+      "security_incidents": {
+        "accuracy": 0.696,
+        "adapterRef": "adapter.typed-decisions",
+        "decisions": 500,
+        "gateAccuracy": 0.6643,
+        "gateEce": 0.2171,
+        "gatePassed": 0,
+        "pairConsistency": 1.0,
+        "questions": {
+          "credential_compromise": {
+            "accuracy": 0.67,
+            "functionId": "nf_dfd48b877bf9a417cafd4e262b2b5fead4adfd0afed63b7b0fc4bd1feff1b53a",
+            "gate": "failed",
+            "gateAccuracy": 0.6429,
+            "gateEce": 0.2034,
+            "pairConsistency": 1.0
+          },
+          "disposition": {
+            "accuracy": 0.78,
+            "functionId": "nf_4dcaf92083c6a3bfe1c4b65110adf2a64a0fc249ce254ea14f85034cade76e94",
+            "gate": "failed",
+            "gateAccuracy": 0.7143,
+            "gateEce": 0.1887,
+            "pairConsistency": 1.0
+          },
+          "severity": {
+            "accuracy": 0.6,
+            "functionId": "nf_eb20b68385ea01fd078e8313fd61cd87aac7baa1b7d4be9f4ed7d359097ebb2f",
+            "gate": "failed",
+            "gateAccuracy": 0.5357,
+            "gateEce": 0.2842,
+            "pairConsistency": 1.0
+          },
+          "true_positive": {
+            "accuracy": 0.82,
+            "functionId": "nf_bfd941c294c815b36c2135e91733743d5ed5b2be082ffba31e448033831719e4",
+            "gate": "failed",
+            "gateAccuracy": 0.8214,
+            "gateEce": 0.1829,
+            "pairConsistency": 1.0
+          },
+          "urgency": {
+            "accuracy": 0.61,
+            "functionId": "nf_8fe6e4c1e9edcb39f81fb1f4ff14f5833003d5b137c2dd93f461bbe224dab8d9",
+            "gate": "failed",
+            "gateAccuracy": 0.6071,
+            "gateEce": 0.2265,
+            "pairConsistency": 1.0
+          }
+        }
+      }
+    },
+    "selectedEpoch": 6,
+    "trainSeconds": 1933.5
+  },
+  "startedAt": "2026-09-24T23:28:07Z",
+  "trainingCases": 280,
+  "workflows": [
+    "agent_trace_observability",
+    "customer_service",
+    "invoice_processing",
+    "security_incidents"
+  ]
+}

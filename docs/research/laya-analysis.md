@@ -21,15 +21,15 @@ A non-autoregressive "System 1 decision engine": ModernBERT-large (421M) / mmBER
 
 ## Their measured results that matter to us
 
-| Finding | Number | Implication for SemantScript |
-|---|---|---|
-| Zero-shot base on typed-decisions | 0.36 (majority 0.46, random 0.32) | A universal runtime decision encoder is weak; task-specific training is where accuracy comes from. Supports compile-time training. |
-| Fine-tuned | 0.766, above the teacher's 0.735 | A small student can exceed its LLM teacher on a narrow task. |
-| ECE as shipped → after temperature fit | 0.466 → 0.081 | Ship nothing without a fitted temperature; calibration is the single highest-value step. |
-| Option-order flip rate | 0.04–0.23 | Text-encoded options are order-sensitive. Fixed heads are immune; input-field order must still be canonicalized. |
-| Moderation on held-out real traffic | 0.53 (hand-picked examples looked fine) | Synthetic/teacher-generated eval sets overstate accuracy. Held-out must include real, non-teacher data. |
-| Ordinal `score` | SST-5 0.372 | Ordinal outputs need explicit ordinal treatment (RPS/CDF), and still lag; budget expectations accordingly. |
-| Latency, 421M, 512 tokens, T4 | 33–40 ms | Our <10 ms target needs a base-size encoder, short inputs (no question/option tokens) and fp16 ONNX. Plausible, not free. |
+| Finding                                | Number                                  | Implication for SemantScript                                                                                                       |
+| -------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Zero-shot base on typed-decisions      | 0.36 (majority 0.46, random 0.32)       | A universal runtime decision encoder is weak; task-specific training is where accuracy comes from. Supports compile-time training. |
+| Fine-tuned                             | 0.766, above the teacher's 0.735        | A small student can exceed its LLM teacher on a narrow task.                                                                       |
+| ECE as shipped → after temperature fit | 0.466 → 0.081                           | Ship nothing without a fitted temperature; calibration is the single highest-value step.                                           |
+| Option-order flip rate                 | 0.04–0.23                               | Text-encoded options are order-sensitive. Fixed heads are immune; input-field order must still be canonicalized.                   |
+| Moderation on held-out real traffic    | 0.53 (hand-picked examples looked fine) | Synthetic/teacher-generated eval sets overstate accuracy. Held-out must include real, non-teacher data.                            |
+| Ordinal `score`                        | SST-5 0.372                             | Ordinal outputs need explicit ordinal treatment (RPS/CDF), and still lag; budget expectations accordingly.                         |
+| Latency, 421M, 512 tokens, T4          | 33–40 ms                                | Our <10 ms target needs a base-size encoder, short inputs (no question/option tokens) and fp16 ONNX. Plausible, not free.          |
 
 ## Where SemantScript differs on purpose
 

@@ -3,15 +3,25 @@
 SemantScript adds one compile-time primitive to TypeScript: a typed semantic
 expression, `sema<T>`, whose behavior is learned during the build and executed
 at runtime by a fixed, non-generative head. This index links every document the
-project has produced so far. Start with the language reference if you write
-`.sem.ts` files, the IR and artifact reference if you build tooling around the
-compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
+project has produced so far. Start with the getting-started tutorial and the
+architecture overview, the language reference if you write `.sem.ts` files,
+the IR and artifact reference if you build tooling around the compiler,
+trainer or runtime, and CONTRIBUTING if you change the repository.
 
 ## Start here
 
+- [Architecture overview](architecture.md): compiler, trainer, model,
+  runtime, CLI and framework in one diagram, with the build-time and
+  request-time steps and the contracts between the parts.
 - [Getting started](getting-started.md): add one sema expression to an
   existing Express (or Next.js) app and take it through `init`, `build`,
   `train`, `test` and `run`, with the hardware, teacher and time it needs.
+- [Framework guide](framework-guide.md): controllers, guards before and
+  after the model, request scopes, Express, Nest and Next.js mounting, and
+  transactions gated by decisions.
+- [The reference application](reference-application.md): the refund service
+  with one expression shown as source, compiled JavaScript, IR record and
+  artifact entry, its domains and stages, and what stayed deterministic.
 - [Build tools](build-tools/tsc.md): setup and known limitations per adapter,
   [tsc](build-tools/tsc.md), [esbuild](build-tools/esbuild.md),
   [Vite](build-tools/vite.md) and [Next.js](build-tools/next.md).

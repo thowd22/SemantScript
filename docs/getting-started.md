@@ -119,14 +119,12 @@ Use it in the route:
 ```ts
 import { triage } from "./triage.sem.js";
 // …
-response
-  .status(201)
-  .json({
-    id: crypto.randomUUID(),
-    subject,
-    body,
-    priority: triage(subject, body),
-  });
+response.status(201).json({
+  id: crypto.randomUUID(),
+  subject,
+  body,
+  priority: triage(subject, body),
+});
 ```
 
 ## 4. Build

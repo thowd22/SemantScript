@@ -449,6 +449,27 @@ retrains everything jointly and discards the old records. Every cached file is
 digest-checked and a mismatch is a miss. The `cli/README.md` build-cache section
 lists the rules as users see them.
 
+## Environment checks (`semantscript doctor`)
+
+`python -m semantscript_trainer.cli doctor` runs the Python half of
+`semantscript doctor` and prints one line per check (`--json` prints the closed
+report, kind `semantscript.doctor-report`, `reportVersion` 1, with `checks` of
+`id`, `status`, `summary`, `fix`): the interpreter, the trainer and model
+packages, PyTorch and Transformers, the device (CUDA or ROCm with its memory,
+else the CPU), ONNX Runtime and ONNX, the platform environment, and the
+teacher's file, key and probe. `semantscript_trainer.doctor` imports nothing
+heavy itself: PyTorch, Transformers and ONNX Runtime are imported in child
+interpreters, and when an import fails (or, outside `--quick`, when a variable
+is already set) the import is retried with `PYTHONNOUSERSITE=1` and, on WSL2
+with a ROCm build, `HSA_ENABLE_DXG_DETECTION=1`, so the report names a variable
+only when it changes the outcome. `probe_teacher(config, mode)` sends one
+minimal request (`request`) or, for Ollama, only lists the server's models
+(`free`), and returns the latency and tokens with the key scrubbed from any
+error. Options: `--teacher`, `--default-teacher-model`, `--no-teacher`,
+`--probe request|free|none`, `--device`, `--quick`, `--json`; exit 1 when a
+check fails. The Node CLI's `train` runs it with `--probe free --quick` before
+every training run.
+
 ## Teacher backends
 
 `Teacher.generate(ir, n)` is the only case-source contract used by the generator.

@@ -56,7 +56,8 @@ against 54% for a 7B generative model reading the same policy. See the
   existing Express or Next.js app and take it through `init`, `build`,
   `train`, `test` and `run`; or start
   [from a fresh clone](docs/tutorial-refund-decision.md) with the refund
-  decision itself.
+  decision itself. `semantscript doctor` checks the environment first
+  ([environment guide](docs/environment.md)).
 - [Phase 1 results](docs/phase-1-results.md): the refund benchmark, its
   systems and versions, the go/no-go and the encoder sizing rule.
 - [Architecture](docs/architecture.md): compiler, trainer, model, runtime,

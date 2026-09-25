@@ -2,7 +2,8 @@
 
 Every error SemantScript raises falls into one of four families: compiler
 diagnostics at a `sema` site, editor warnings from the language-service
-plugin, trainer and verifier failures during `semantscript train`, and runtime
+plugin, trainer and verifier failures during `semantscript train` (including
+its environment preflight), and runtime
 errors thrown by compiled calls. This page lists each with its cause and the
 fix.
 
@@ -54,7 +55,26 @@ The language-service plugin adds warnings at a site from the latest artifact:
 
 ## Trainer and verifier failures
 
-`semantscript train` exits 1 and prints the reason. The bundle driver
+Before the bundle driver starts, `train` runs the environment preflight: the
+`semantscript doctor` checks for the interpreter, the trainer packages,
+PyTorch and its device, ONNX Runtime, the platform environment and the
+teacher, without a billed request. A failed check stops the command with exit
+1 and `semantscript train: stopped before training`, and the failing line
+carries its fix (`--no-preflight` skips it). The
+[environment guide](environment.md) lists every check with its causes and
+fixes; the common ones:
+
+| Failing check    | Typical cause                                                                                              | Fix                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `python`         | `python3` (or `--python`, `SEMANTSCRIPT_PYTHON`) is not on the path or is older than 3.12.                 | Install Python 3.12, or point the CLI at one.                                    |
+| `trainer`        | The interpreter cannot import `semantscript_trainer` (CLI run outside the checkout without the package).   | `pip install -e '.[training]'` from the checkout into that interpreter.          |
+| `torch`          | The training extra is missing, or packages in the user site break Transformers (`numpy.long`).             | Install the extra; with `platform-env` failing too, `export PYTHONNOUSERSITE=1`. |
+| `platform-env`   | An environment variable the imports or the GPU need is not set; doctor proved it by retrying with it.      | The printed `export …` line, also in the shell profile.                          |
+| `teacher-config` | No teacher file and no `ANTHROPIC_API_KEY`, or an invalid `[teacher]` table.                               | Write the TOML ([teachers](teachers.md)) or set the key.                         |
+| `teacher-key`    | `ANTHROPIC_API_KEY` is unset; with an OpenRouter `base_url` and only `OPENROUTER_API_KEY` set, it says so. | `export ANTHROPIC_API_KEY=…` (`"$OPENROUTER_API_KEY"` for the OpenRouter route). |
+| `teacher-probe`  | The Ollama server is down or lacks the model.                                                              | `ollama serve`, or `ollama pull <model>`.                                        |
+
+After the preflight, `semantscript train` exits 1 and prints the reason. The bundle driver
 (`TrainBundleError`) refuses a malformed bundle before anything runs:
 
 | Message                                                                                                                                                          | Cause and fix                                                                                                              |

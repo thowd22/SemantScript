@@ -10,7 +10,7 @@ adapter and a head in ONNX Runtime.
 flowchart LR
   subgraph build["Build time"]
     SRC[".sem.ts sources\n+ ordinary TypeScript"]
-    CLI["semantscript CLI\n(init · build · train · dev · test · run)"]
+    CLI["semantscript CLI\n(init · doctor · build · train · dev · test · run)"]
     COMP["Compiler (Node)\nsites → IR, execution plan,\nrewrite to __sema.call"]
     JS["Compiled JavaScript\n(no prompt text)"]
     IR["IR bundle\nsemantscript.ir.v1.json"]
@@ -51,7 +51,7 @@ flowchart LR
 | Trainer   | `semantscript_trainer`    | Python   | Synthetic and adversarial datasets through a teacher, joint training over one shared encoder, temperature calibration, verification gates, verified IR, artifact export, the build cache, the bundle driver `train` runs.                                   |
 | Model     | `semantscript_model`      | Python   | The encoder (a Hugging Face checkpoint, optionally cut to a prefix depth), per-domain adapters, per-function heads, the proper-scoring loss, ONNX export with parity checks.                                                                                |
 | Runtime   | `@semantscript/core`      | Node     | The public `sema` declarations, artifact loading and verification, canonical input serialization, inference in a worker over ONNX Runtime, calibration, confidence policy and fallbacks, stages and request scopes.                                         |
-| CLI       | `semantscript`            | Node     | One entry point over the four above with zero-config defaults; `dev` for the watch loop.                                                                                                                                                                    |
+| CLI       | `semantscript`            | Node     | One entry point over the four above with zero-config defaults; `doctor` checks the environment first; `dev` for the watch loop.                                                                                                                             |
 | Framework | `@semantscript/framework` | Node     | Decorated controllers, one request scope per handler, `require` guards, Express/Nest mounting, Next.js handlers, transactions gated by decisions.                                                                                                           |
 
 ## Build time, step by step

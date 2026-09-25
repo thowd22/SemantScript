@@ -16,6 +16,10 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [Getting started](getting-started.md): add one sema expression to an
   existing Express (or Next.js) app and take it through `init`, `build`,
   `train`, `test` and `run`, with the hardware, teacher and time it needs.
+- [Environment and `semantscript doctor`](environment.md): every check
+  doctor runs (Node, native bindings, Python, trainer, PyTorch and its
+  device, ONNX Runtime, platform variables, teacher) with its fix, how the
+  WSL2 and user-site variables are detected, and recorded runs per platform.
 - [Tutorial: from a fresh clone](tutorial-refund-decision.md): clone, build
   both halves, compile the refund-decision expression, train it through one
   of four teacher routes, and call it, with hardware and time stated.
@@ -118,8 +122,9 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   and build cache, quantization, teacher backends.
 - [Model](../model/README.md): the encoder, adapter and head modules and the
   ONNX export with parity checks.
-- [CLI](../cli/README.md): `semantscript init | build | train | dev | test |
-run`, the zero-config defaults, the dev loop and the build cache rules.
+- [CLI](../cli/README.md): `semantscript init | doctor | build | train | dev |
+test | run`, the zero-config defaults, the environment checks, the dev loop
+  and the build cache rules.
 - [Framework](../framework/README.md): decorated controllers for Express, Nest
   and Next.js handlers, one sema request scope per request, and deterministic
   guards around neural results.

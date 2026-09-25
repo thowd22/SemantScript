@@ -15,6 +15,7 @@ import {
   DEFAULT_ARTIFACT_PATH,
   ARTIFACT_ENVIRONMENT_VARIABLE,
 } from "./defaults.js";
+import { collectChecks, renderChecks } from "./doctor.js";
 import { CliUsageError, type CliIo } from "./io.js";
 
 export type BuildTool = "next" | "vite" | "esbuild" | "tsc";
@@ -93,9 +94,12 @@ interface PackageJson {
 /**
  * `semantscript init`: detect the project's build tool, wire the matching
  * compiler adapter, add the packages, reserve `.semantscript/` and write one
- * starter expression, so the next build compiles a sema site.
+ * starter expression, so the next build compiles a sema site. It ends with the
+ * doctor's checks (no billed teacher request) so a missing piece shows now,
+ * not minutes into the first `semantscript train`; they never change its exit
+ * status.
  */
-export function initCommand(
+export async function initCommand(
   args: readonly string[],
   io: CliIo,
 ): Promise<number> {
@@ -104,6 +108,9 @@ export function initCommand(
     options: {
       tool: { type: "string" },
       "no-example": { type: "boolean" },
+      "no-doctor": { type: "boolean" },
+      python: { type: "string" },
+      "trainer-module": { type: "string" },
     },
     allowPositionals: false,
   });
@@ -130,7 +137,21 @@ export function initCommand(
   }
 
   io.stdout(render(tool, root, outcomes));
-  return Promise.resolve(0);
+  if (values["no-doctor"] !== true) {
+    const checks = await collectChecks(values, io, {
+      probe: "free",
+      quick: true,
+    });
+    const failed = checks.filter((check) => check.status === "fail").length;
+    io.stdout(
+      `environment (semantscript doctor):\n${renderChecks(checks)}${
+        failed === 0
+          ? "the environment is ready for semantscript train\n"
+          : `fix the ${String(failed)} failed check${failed === 1 ? "" : "s"} before semantscript train; semantscript doctor re-runs them (and sends one teacher request)\n`
+      }`,
+    );
+  }
+  return 0;
 }
 
 /** Detect the project's build tool from its config files and dependencies: Next.js, Vite, esbuild, else tsc. */

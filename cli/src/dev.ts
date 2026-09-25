@@ -48,6 +48,8 @@ export async function devCommand(
   );
   let cycle = 0;
   let projectRoot = io.cwd;
+  // The environment preflight runs until one training succeeds, not on every save.
+  let preflightPending = true;
 
   const runCycle = async (reason: string): Promise<number> => {
     cycle += 1;
@@ -72,7 +74,9 @@ export async function devCommand(
     const status = await runTrain(
       { ...trainValues, bundle: built.bundlePath },
       io,
+      { preflight: preflightPending, command: "dev" },
     );
+    if (status === 0) preflightPending = false;
     io.stderr(
       status === 0
         ? "semantscript dev: release published; watched runtimes reload it\n"

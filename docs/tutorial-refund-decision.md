@@ -32,9 +32,21 @@ npm run check                  # both lints, both test suites: about three minut
 Without `venv` on the host Python, install into the ignored target instead
 (`python3 -m pip install --target .python-packages '.[dev,training]'`; never
 add `--upgrade` to a later single-package install into that target, it wipes
-the `bin` directory). On an AMD GPU under WSL, run Python with
-`PYTHONNOUSERSITE=1 HSA_ENABLE_DXG_DETECTION=1`; the model README's ROCm
-section has the wheel to install.
+the `bin` directory). On an AMD GPU under WSL, the model README's ROCm section
+has the wheel to install.
+
+Then check the environment before anything runs:
+
+```sh
+node cli/bin/semantscript.js doctor --no-teacher   # the teacher is chosen in step 4
+```
+
+Every line should read `pass` or `skip` (a `warn` on `device` means training will run on
+the CPU). A `fail` carries its fix: on the WSL2 + ROCm machine used here,
+doctor reports `PYTHONNOUSERSITE=1` as needed because NumPy 2 in the user site
+breaks Transformers, and names `HSA_ENABLE_DXG_DETECTION=1` only when ROCm
+finds the GPU only with it. The [environment guide](environment.md) records
+the full run.
 
 ## 2. The expression
 
@@ -103,7 +115,11 @@ do not cover every input), so the first two routes apply. With a key:
 npx semantscript train --cases 200 --epochs 4 --device cuda
 ```
 
-`train` finds the bundle under `dist/`, writes `.semantscript/teacher.toml`
+`npx semantscript doctor` in `examples/express-app` checks the teacher you
+picked, including one request of well under USD 0.001. `train` itself first
+runs the doctor's Python and teacher checks (about five seconds,
+no billed request; a missing key or package stops it there with the fix),
+finds the bundle under `dist/`, writes `.semantscript/teacher.toml`
 when `ANTHROPIC_API_KEY` is set (or takes `--teacher`), generates the cases,
 trains ModernBERT-base plus one head, fits the calibration temperature,
 verifies the gold example and the constraints, and publishes

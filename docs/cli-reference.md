@@ -6,7 +6,9 @@ the shipped source defines them; the [CLI guide](../cli/README.md) explains
 the behavior in prose.
 
 ```text
-semantscript init  [--tool next|vite|esbuild|tsc] [--no-example]
+semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
+semantscript doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none]
+                    [--device auto|cpu|cuda] [--no-teacher] [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>]
                    [--route-domains] [--domain-depth <name>=<layers>]...
 semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
@@ -17,11 +19,11 @@ semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <j
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                                            |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0    | The command succeeded. `semantscript help`, `--help` and `-h` print the usage and exit 0.                                                                          |
-| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, an unknown `--call` export, or any other error while working. |
-| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).   |
+| Code | Meaning                                                                                                                                                                                                          |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | The command succeeded. `semantscript help`, `--help` and `-h` print the usage and exit 0.                                                                                                                        |
+| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, an unknown `--call` export, or any other error while working. |
+| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).                                                 |
 
 Usage errors print the message and the usage text to stderr. Every other
 failure prints its message to stderr; compile diagnostics carry the file, line,
@@ -61,6 +63,54 @@ expression. A config it cannot edit safely (missing, unparsable,
 changes nothing. Exit 2 for an unknown `--tool`, a project root without
 `package.json`, or a `package.json` that is not a JSON object.
 
+`init` ends with the `doctor` checks under `environment (semantscript doctor):`
+(with `--probe free`, so no billed teacher request), then says whether the
+environment is ready for `train` or how many checks failed. The checks never
+change its exit status: the wiring succeeded either way.
+
+| Flag               | Value  | Effect                                                  |
+| ------------------ | ------ | ------------------------------------------------------- |
+| `--no-doctor`      |        | Skip the environment checks.                            |
+| `--python`         | exe    | The interpreter the checks use (default above).         |
+| `--trainer-module` | module | The trainer module the checks run; for tests and forks. |
+
+## `doctor`
+
+Checks everything a build needs before it runs and prints one line per check:
+the status (`pass`, `fail`, `warn` or `skip`), the check id and what it found,
+with a `fix:` line under every check that did not pass, then the totals. The
+[environment guide](environment.md) explains every check and records runs.
+
+| Check              | What it checks                                                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node`             | The running Node release is 22.13 or later (package.json `engines`).                                                                                                            |
+| `runtime-bindings` | `onnxruntime-node` and `tokenizers`, resolved from `@semantscript/core` like the runtime does, load their native binaries on this platform and architecture.                    |
+| `python`           | The interpreter the CLI will use (default above) starts and is Python 3.12 or later.                                                                                            |
+| `trainer`          | `semantscript_trainer` imports, with its version and location, and its teacher clients `anthropic` and `openai`.                                                                |
+| `model`            | `semantscript_model` imports, with its version and location.                                                                                                                    |
+| `torch`            | PyTorch and Transformers import; the build (CUDA, ROCm or CPU-only).                                                                                                            |
+| `device`           | The device training runs on: the CUDA or ROCm GPU with its total and free memory, or the CPU with the machine's RAM (a warning). Apple MPS is reported, not used.               |
+| `onnxruntime`      | ONNX Runtime and ONNX import (the export and its parity check need both).                                                                                                       |
+| `platform-env`     | Environment variables the run needs: `PYTHONNOUSERSITE=1` when user-site packages break the imports, `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the GPU only with it. |
+| `teacher-config`   | The teacher file `train` would use (default above) exists and is a valid `[teacher]` table.                                                                                     |
+| `teacher-key`      | The key is in the environment (`ANTHROPIC_API_KEY`, also for OpenRouter's Anthropic route); Ollama needs none.                                                                  |
+| `teacher-probe`    | One minimal request to the teacher succeeded, with its latency and tokens.                                                                                                      |
+
+| Flag               | Value                     | Effect                                                                                                                                                                                            |
+| ------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--python`         | exe                       | The interpreter to check (default above).                                                                                                                                                         |
+| `--teacher`        | path                      | The teacher file to check (default above; with no file and `ANTHROPIC_API_KEY` set, the default Anthropic teacher).                                                                               |
+| `--probe`          | `request`, `free`, `none` | `request` (default) sends one request: 8 output tokens with thinking off, well under USD 0.001 on Sonnet. `free` sends nothing billed (for Ollama it lists the server's models). `none` skips it. |
+| `--device`         | `auto`, `cpu`, `cuda`     | The device `train` will be asked for; `cuda` with no GPU fails, `cpu` passes.                                                                                                                     |
+| `--no-teacher`     |                           | Skip the three teacher checks.                                                                                                                                                                    |
+| `--runtime`        |                           | Only `node` and `runtime-bindings`: a machine that serves artifacts and never trains.                                                                                                             |
+| `--json`           |                           | Print the report as JSON (`kind` `semantscript.doctor-report`, `reportVersion` 1, `checks` with `id`, `status`, `summary`, `fix`).                                                                |
+| `--trainer-module` | module                    | The Python module whose `doctor` subcommand runs (default `semantscript_trainer.cli`).                                                                                                            |
+
+Exit 0 when no check failed (warnings and skips included), 1 when any check
+failed or the Python side printed a report that breaks the contract, 2 for an
+unknown `--probe` value.
+
 ## `build`
 
 Compiles every `sema` site in the project to a runtime call and writes one IR
@@ -86,6 +136,13 @@ export of an immutable release into the artifact root. Prints one progress
 line per expression and a report table; exit 1 when any function fails
 verification or the driver fails.
 
+Before the driver starts, `train` runs the `doctor` Python and teacher checks
+as a preflight (about 5 seconds, most of it importing PyTorch; no billed
+teacher request, though an Ollama server is asked for its model list). It
+prints them to stderr and, when any fails, exits 1 without starting the
+trainer, so a missing interpreter, package, key or model shows in seconds
+instead of minutes into a run.
+
 | Flag               | Value  | Effect                                                                                               |
 | ------------------ | ------ | ---------------------------------------------------------------------------------------------------- |
 | `--bundle`         | path   | The IR bundle (default above).                                                                       |
@@ -95,6 +152,7 @@ verification or the driver fails.
 | `--report`         | path   | Also write the JSON report here.                                                                     |
 | `--python`         | exe    | The interpreter to run the trainer with.                                                             |
 | `--trainer-module` | module | The Python module to invoke (default `semantscript_trainer.cli`); for tests and forks.               |
+| `--no-preflight`   |        | Skip the environment preflight.                                                                      |
 
 Options handed to the trainer unchanged:
 
@@ -120,7 +178,8 @@ Options handed to the trainer unchanged:
 ## `dev`
 
 `build` then `train`, then watch the project's TypeScript sources and repeat
-both on every save. Takes every `build` and `train` option plus:
+both on every save. The `train` preflight runs until one training succeeds,
+not on every save. Takes every `build` and `train` option plus:
 
 | Flag         | Value        | Effect                                                                  |
 | ------------ | ------------ | ----------------------------------------------------------------------- |

@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 
@@ -9,6 +11,11 @@ import {
   type CliIo,
   type OptionValues,
 } from "./io.js";
+
+const REPOSITORY_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 /** Where `init`, `train`, `test` and `run` agree the artifact lives, unless overridden. */
 export const DEFAULT_ARTIFACT_PATH = ".semantscript/artifact";
@@ -20,10 +27,43 @@ export const TEACHER_CONFIG_CANDIDATES = [
   "teacher.toml",
   ".semantscript/teacher.toml",
 ] as const;
+export const DEFAULT_TEACHER_MODEL = "claude-sonnet-5";
 export const DEFAULT_TEACHER_TOML = `[teacher]
 backend = "anthropic"
-model = "claude-sonnet-5"
+model = "${DEFAULT_TEACHER_MODEL}"
 `;
+export const PYTHON_ENVIRONMENT_VARIABLE = "SEMANTSCRIPT_PYTHON";
+export const DEFAULT_TRAINER_MODULE = "semantscript_trainer.cli";
+
+/** `--python`, else `SEMANTSCRIPT_PYTHON`, else `python3` (`python` on Windows). */
+export function resolvePython(values: OptionValues, io: CliIo): string {
+  return (
+    stringOption(values, "python") ??
+    nonEmpty(io.env[PYTHON_ENVIRONMENT_VARIABLE]) ??
+    (process.platform === "win32" ? "python" : "python3")
+  );
+}
+
+function nonEmpty(value: string | undefined): string | undefined {
+  return value === undefined || value.length === 0 ? undefined : value;
+}
+
+/**
+ * The teacher file `train` would use, without writing anything: `--teacher`, else the
+ * first existing file of `TEACHER_CONFIG_CANDIDATES`, else undefined.
+ */
+export function findTeacherConfig(
+  values: OptionValues,
+  io: CliIo,
+): string | undefined {
+  const requested = stringOption(values, "teacher");
+  if (requested !== undefined) return resolve(io.cwd, requested);
+  for (const candidate of TEACHER_CONFIG_CANDIDATES) {
+    const path = resolve(io.cwd, candidate);
+    if (existsSync(path)) return path;
+  }
+  return undefined;
+}
 
 /** `--artifact`, else `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact`, resolved against cwd. */
 export function resolveArtifactRoot(values: OptionValues, io: CliIo): string {
@@ -82,23 +122,36 @@ function tsconfigOutDir(cwd: string): string | undefined {
  * `ANTHROPIC_API_KEY` is set (the key itself stays in the environment).
  */
 export function resolveTeacherConfig(values: OptionValues, io: CliIo): string {
-  const requested = stringOption(values, "teacher");
-  if (requested !== undefined) return resolve(io.cwd, requested);
-  for (const candidate of TEACHER_CONFIG_CANDIDATES) {
-    const path = resolve(io.cwd, candidate);
-    if (existsSync(path)) return path;
-  }
+  const found = findTeacherConfig(values, io);
+  if (found !== undefined) return found;
   const apiKey = io.env["ANTHROPIC_API_KEY"];
   if (apiKey !== undefined && apiKey.length > 0) {
     const generated = resolve(io.cwd, ".semantscript/teacher.toml");
     mkdirSync(dirname(generated), { recursive: true });
     writeFileSync(generated, DEFAULT_TEACHER_TOML);
     io.stderr(
-      `semantscript train: wrote ${generated} (Anthropic backend, ${DEFAULT_TEACHER_TOML.match(/model = "([^"]+)"/u)?.[1] ?? "default model"}); edit it to change the teacher\n`,
+      `semantscript train: wrote ${generated} (Anthropic backend, ${DEFAULT_TEACHER_MODEL}); edit it to change the teacher\n`,
     );
     return generated;
   }
   throw new CliUsageError(
     `--teacher is required: no ${TEACHER_CONFIG_CANDIDATES.join(", ")} found and ANTHROPIC_API_KEY is not set (set it to use the default Anthropic teacher, or write a [teacher] TOML)`,
   );
+}
+
+/** The monorepo's trainer and model sources when the CLI runs from the checkout. */
+export function pythonPath(existing: string | undefined): string {
+  const entries: string[] = [];
+  if (
+    existsSync(join(REPOSITORY_ROOT, "trainer", "src", "semantscript_trainer"))
+  ) {
+    entries.push(
+      join(REPOSITORY_ROOT, "trainer", "src"),
+      join(REPOSITORY_ROOT, "model", "src"),
+    );
+    const localPackages = join(REPOSITORY_ROOT, ".python-packages");
+    if (existsSync(localPackages)) entries.push(localPackages);
+  }
+  if (existing !== undefined && existing.length > 0) entries.push(existing);
+  return entries.join(delimiter);
 }

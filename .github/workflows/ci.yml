@@ -92,6 +92,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test:python
+      # docs/environment.md: every Python-side doctor check passes on the CPU
+      # install (the device is a warning there, not a failure); no teacher.
+      - name: semantscript doctor against .venv
+        if: contains(matrix.extras, 'training')
+        run: node cli/bin/semantscript.js doctor --python .venv/bin/python --no-teacher
 
   fresh-install:
     name: Fresh clone, examples and Docker image
@@ -128,10 +133,13 @@ jobs:
         run: npm run fixture-artifact
       # The tutorial and the example READMEs call the CLI as `npx semantscript`
       # from the example directory; this fails if npm did not link the bin.
+      # `doctor --runtime` fails if the native bindings did not load after a
+      # first install (this job has no trainer Python environment).
       - name: CLI through npx (docs/tutorial-refund-decision.md)
         working-directory: examples/express-app
         run: |
           npx --no-install semantscript --help
+          npx --no-install semantscript doctor --runtime
           npx --no-install semantscript run dist/refunds.sem.js --call decideRefund \
             --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
       - name: Build the Express Docker image

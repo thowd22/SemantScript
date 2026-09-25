@@ -1,15 +1,16 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { delimiter, dirname, join, resolve } from "node:path";
-import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import {
+  DEFAULT_TRAINER_MODULE,
+  pythonPath,
   resolveArtifactRoot,
   resolveBundlePath,
+  resolvePython,
   resolveTeacherConfig,
 } from "./defaults.js";
+import { preflight } from "./doctor.js";
 import {
   listOf,
   numberOf,
@@ -21,12 +22,6 @@ import {
 } from "./io.js";
 import { readJson } from "./manifest.js";
 import { formatRatio, renderTable, shortId } from "./table.js";
-
-const REPOSITORY_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
-const DEFAULT_TRAINER_MODULE = "semantscript_trainer.cli";
 
 /** Options handed through to the Python driver unchanged. */
 const PASSTHROUGH_STRING = [
@@ -67,6 +62,7 @@ export const TRAIN_OPTIONS: Record<
   report: { type: "string" },
   python: { type: "string" },
   "trainer-module": { type: "string" },
+  "no-preflight": { type: "boolean" },
   ...Object.fromEntries(
     PASSTHROUGH_STRING.map((name) => [name, { type: "string" }]),
   ),
@@ -91,10 +87,16 @@ export async function trainCommand(
   return runTrain(values, io);
 }
 
-/** The training run behind `semantscript train` and `dev`. */
+/**
+ * The training run behind `semantscript train` and `dev`. Unless
+ * `--no-preflight` is passed (or `options.preflight` is false), the doctor's
+ * Python and teacher checks run first, without a billed teacher request, so a
+ * missing interpreter, package, key or model stops the run in seconds.
+ */
 export async function runTrain(
   values: OptionValues,
   io: CliIo,
+  options: { readonly preflight?: boolean; readonly command?: string } = {},
 ): Promise<number> {
   const bundle = resolveBundlePath(values, io);
   const artifact = resolveArtifactRoot(values, io);
@@ -107,12 +109,23 @@ export async function runTrain(
     io.cwd,
     stringOption(values, "report") ?? `${artifact}.report.json`,
   );
-  const python =
-    stringOption(values, "python") ??
-    io.env["SEMANTSCRIPT_PYTHON"] ??
-    (process.platform === "win32" ? "python" : "python3");
+  const python = resolvePython(values, io);
   const trainerModule =
     stringOption(values, "trainer-module") ?? DEFAULT_TRAINER_MODULE;
+  if (values["no-preflight"] !== true && options.preflight !== false) {
+    const device = stringOption(values, "device");
+    const ready = await preflight(
+      {
+        python,
+        trainerModule,
+        teacher,
+        ...(device === undefined ? {} : { device }),
+      },
+      io,
+      options.command,
+    );
+    if (!ready) return 1;
+  }
 
   const commandArgs = [
     "-m",
@@ -183,23 +196,6 @@ function runProcess(
       resolvePromise({ status: code ?? 1 });
     });
   });
-}
-
-/** The monorepo's trainer and model sources when the CLI runs from the checkout. */
-export function pythonPath(existing: string | undefined): string {
-  const entries: string[] = [];
-  if (
-    existsSync(join(REPOSITORY_ROOT, "trainer", "src", "semantscript_trainer"))
-  ) {
-    entries.push(
-      join(REPOSITORY_ROOT, "trainer", "src"),
-      join(REPOSITORY_ROOT, "model", "src"),
-    );
-    const localPackages = join(REPOSITORY_ROOT, ".python-packages");
-    if (existsSync(localPackages)) entries.push(localPackages);
-  }
-  if (existing !== undefined && existing.length > 0) entries.push(existing);
-  return entries.join(delimiter);
 }
 
 /** Render the trainer's JSON report as the per-function table `semantscript train` prints. */

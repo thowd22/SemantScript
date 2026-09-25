@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { setTimeout } from "node:timers";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   createFixtureArtifact,
@@ -21,6 +21,8 @@ import {
 } from "../../runtime/test/fixtures/artifact.mjs";
 import {
   canonical,
+  checkNode,
+  checkRuntimeBindings,
   pythonPath,
   renderTrainReport,
   runCli,
@@ -540,7 +542,11 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   await mkdir(join(root, "src"));
 
   const first = capture(root);
-  assert.equal(await runCli(["init"], first.io), 0, first.stderr());
+  assert.equal(
+    await runCli(["init", "--no-doctor"], first.io),
+    0,
+    first.stderr(),
+  );
   assert.match(first.stdout(), /detected tsc/u);
   const tsconfig = await readFile(join(root, "tsconfig.json"), "utf8");
   assert.match(tsconfig, /\/\/ strict project/u);
@@ -564,7 +570,11 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   );
 
   const second = capture(root);
-  assert.equal(await runCli(["init"], second.io), 0, second.stderr());
+  assert.equal(
+    await runCli(["init", "--no-doctor"], second.io),
+    0,
+    second.stderr(),
+  );
   assert.equal((second.stdout().match(/^ {2}unchanged/gmu) ?? []).length, 5);
   assert.equal(await readFile(join(root, "tsconfig.json"), "utf8"), tsconfig);
 });
@@ -581,7 +591,7 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
   );
   const viteRun = capture(vite);
   assert.equal(
-    await runCli(["init", "--no-example"], viteRun.io),
+    await runCli(["init", "--no-example", "--no-doctor"], viteRun.io),
     0,
     viteRun.stderr(),
   );
@@ -608,7 +618,11 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
     'import type { NextConfig } from "next";\n\nconst nextConfig: NextConfig = {\n  reactStrictMode: true,\n};\n\nexport default nextConfig;\n',
   );
   const nextRun = capture(next);
-  assert.equal(await runCli(["init"], nextRun.io), 0, nextRun.stderr());
+  assert.equal(
+    await runCli(["init", "--no-doctor"], nextRun.io),
+    0,
+    nextRun.stderr(),
+  );
   assert.match(nextRun.stdout(), /detected next/u);
   const nextConfig = await readFile(join(next, "next.config.ts"), "utf8");
   assert.match(
@@ -638,7 +652,10 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
   );
   const conflictRun = capture(conflicting);
   assert.equal(
-    await runCli(["init", "--tool", "next", "--no-example"], conflictRun.io),
+    await runCli(
+      ["init", "--tool", "next", "--no-example", "--no-doctor"],
+      conflictRun.io,
+    ),
     0,
   );
   assert.match(
@@ -661,7 +678,7 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
   );
   const esbuildRun = capture(esbuild);
   assert.equal(
-    await runCli(["init", "--no-example"], esbuildRun.io),
+    await runCli(["init", "--no-example", "--no-doctor"], esbuildRun.io),
     0,
     esbuildRun.stderr(),
   );
@@ -679,7 +696,7 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
   const bare = await scratch(t, "semantscript-cli-init-bare-");
   await writeFile(join(bare, "package.json"), '{ "name": "b" }\n');
   const bareRun = capture(bare);
-  assert.equal(await runCli(["init"], bareRun.io), 2);
+  assert.equal(await runCli(["init", "--no-doctor"], bareRun.io), 2);
   assert.match(bareRun.stderr(), /no build tool detected/u);
 });
 
@@ -866,4 +883,266 @@ test("dev builds and trains, reruns on a saved source change with the cache, and
     once.stderr(),
     /training failed; the previous artifact stays in service/u,
   );
+});
+
+test("doctor prints one line per check with the fix, and exits 1 on a failure", async (t) => {
+  const root = await scratch(t, "semantscript-cli-doctor-");
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const argvPath = join(root, "doctor-argv.json");
+  const python = process.platform === "win32" ? "python" : "python3";
+  const base = [
+    "doctor",
+    "--python",
+    python,
+    "--trainer-module",
+    "fake_trainer",
+  ];
+  const env = { PYTHONPATH: fixtures, FAKE_DOCTOR_ARGV_PATH: argvPath };
+
+  const passed = capture(root, env);
+  assert.equal(await runCli(base, passed.io), 0, passed.stderr());
+  const lines = passed.stdout().split("\n");
+  assert.match(lines[0], /^semantscript doctor: /u);
+  assert.match(lines[1], /^ {2}pass {2}node {14}Node \d+\.\d+\.\d+ /u);
+  assert.match(
+    lines[2],
+    /^ {2}pass {2}runtime-bindings {2}onnxruntime-node \S+ and tokenizers \S+ loaded for /u,
+  );
+  for (const id of ["python", "trainer", "torch", "device", "teacher-probe"]) {
+    assert.match(
+      passed.stdout(),
+      new RegExp(`\\n {2}pass {2}${id} +fake ${id}\\n`, "u"),
+    );
+  }
+  assert.match(
+    passed.stdout(),
+    /12 passed, 0 warnings, 0 failed, 0 skipped\n$/u,
+  );
+  const forwarded = JSON.parse(await readFile(argvPath, "utf8")).argv;
+  assert.deepEqual(forwarded.slice(0, 3), ["--json", "--probe", "request"]);
+  assert.equal(
+    forwarded[forwarded.indexOf("--teacher") + 1],
+    join(root, "teacher.toml"),
+  );
+  assert.ok(!forwarded.includes("--quick"));
+
+  const failed = capture(root, { ...env, FAKE_DOCTOR_FAIL: "teacher-key" });
+  assert.equal(
+    await runCli(
+      [...base, "--probe", "none", "--no-teacher", "--device", "cpu"],
+      failed.io,
+    ),
+    1,
+  );
+  assert.match(
+    failed.stdout(),
+    / {2}fail {2}teacher-key {7}fake teacher-key\n {8}fix: fake fix for teacher-key\n/u,
+  );
+  const limited = JSON.parse(await readFile(argvPath, "utf8")).argv;
+  assert.ok(limited.includes("--no-teacher"));
+  assert.equal(limited[limited.indexOf("--probe") + 1], "none");
+  assert.equal(limited[limited.indexOf("--device") + 1], "cpu");
+
+  const json = capture(root, env);
+  assert.equal(await runCli([...base, "--json"], json.io), 0);
+  const report = JSON.parse(json.stdout());
+  assert.equal(report.kind, "semantscript.doctor-report");
+  assert.equal(report.checks.length, 12);
+  assert.deepEqual(report.checks[0].id, "node");
+
+  const runtime = capture(root, env);
+  assert.equal(
+    await runCli(["doctor", "--runtime"], runtime.io),
+    0,
+    runtime.stdout(),
+  );
+  assert.match(
+    runtime.stdout(),
+    /2 passed, 0 warnings, 0 failed, 0 skipped\n$/u,
+  );
+
+  const malformed = capture(root, { ...env, FAKE_DOCTOR_MALFORMED: "1" });
+  assert.equal(await runCli(base, malformed.io), 1);
+  assert.match(
+    malformed.stderr(),
+    /doctor printed no JSON report: this is not a report/u,
+  );
+
+  const badId = capture(root, { ...env, FAKE_DOCTOR_BAD_ID: "1" });
+  assert.equal(await runCli(base, badId.io), 1);
+  assert.match(badId.stderr(), /checks\[0\]\.id "gpu" is not a known check/u);
+
+  const noPython = capture(root, env);
+  assert.equal(
+    await runCli(
+      ["doctor", "--python", join(root, "no-such-python")],
+      noPython.io,
+    ),
+    1,
+  );
+  assert.match(
+    noPython.stdout(),
+    / {2}fail {2}python {12}unable to run .*no-such-python/u,
+  );
+  assert.match(noPython.stdout(), /fix: install Python 3\.12 or later/u);
+  assert.match(
+    noPython.stdout(),
+    / {2}skip {2}teacher-probe {5}not checked: the interpreter does not start/u,
+  );
+
+  const noModule = capture(root, env);
+  assert.equal(
+    await runCli(
+      [
+        "doctor",
+        "--python",
+        python,
+        "--trainer-module",
+        "no_such_trainer_module",
+      ],
+      noModule.io,
+    ),
+    1,
+  );
+  assert.match(noModule.stdout(), / {2}pass {2}python {12}Python 3\./u);
+  assert.match(
+    noModule.stdout(),
+    / {2}fail {2}trainer {11}.* cannot import no_such_trainer_module/u,
+  );
+  assert.match(noModule.stdout(), /fix: pip install -e '\.\[training\]'/u);
+
+  const badProbe = capture(root, env);
+  assert.equal(await runCli([...base, "--probe", "maybe"], badProbe.io), 2);
+  assert.match(
+    badProbe.stderr(),
+    /--probe must be one of request, free, none/u,
+  );
+
+  assert.equal(checkNode("20.11.0").status, "fail");
+  assert.match(checkNode("20.11.0").fix, /Node 22\.13\.0 or later/u);
+  assert.equal(checkNode("22.13.0").status, "pass");
+  const unresolved = await checkRuntimeBindings(
+    pathToFileURL(join(root, "index.js")).href,
+  );
+  assert.equal(unresolved.status, "fail");
+  assert.match(unresolved.summary, /onnxruntime-node does not load on /u);
+  assert.match(unresolved.fix, /npm rebuild onnxruntime-node tokenizers/u);
+});
+
+test("train runs the environment preflight first and stops before the trainer on a failure", async (t) => {
+  const root = await scratch(t, "semantscript-cli-preflight-");
+  await writeFile(join(root, "bundle.json"), "{}");
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const argvPath = join(root, "argv.json");
+  const doctorPath = join(root, "doctor-argv.json");
+  const env = {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_ARGV_PATH: argvPath,
+    FAKE_DOCTOR_ARGV_PATH: doctorPath,
+    FAKE_TRAINER_EXIT: "0",
+    FAKE_TRAINER_SKIP_REPORT: "",
+  };
+  const python = process.platform === "win32" ? "python" : "python3";
+  const args = [
+    "train",
+    "--bundle",
+    "bundle.json",
+    "--python",
+    python,
+    "--trainer-module",
+    "fake_trainer",
+    "--device",
+    "cpu",
+  ];
+
+  const stopped = capture(root, { ...env, FAKE_DOCTOR_FAIL: "teacher-key" });
+  assert.equal(await runCli(args, stopped.io), 1);
+  assert.ok(!existsSync(argvPath), "the trainer never started");
+  assert.match(
+    stopped.stderr(),
+    /semantscript train: environment preflight \(\d+\.\d s\)/u,
+  );
+  assert.match(
+    stopped.stderr(),
+    /fail {2}teacher-key .*\n {8}fix: fake fix for teacher-key/u,
+  );
+  assert.match(
+    stopped.stderr(),
+    /stopped before training; fix the failed checks above/u,
+  );
+  const checked = JSON.parse(await readFile(doctorPath, "utf8")).argv;
+  assert.equal(checked[checked.indexOf("--probe") + 1], "free");
+  assert.ok(checked.includes("--quick"));
+  assert.equal(
+    checked[checked.indexOf("--teacher") + 1],
+    join(root, "teacher.toml"),
+  );
+  assert.equal(checked[checked.indexOf("--device") + 1], "cpu");
+
+  await rm(doctorPath);
+  const skipped = capture(root, { ...env, FAKE_DOCTOR_FAIL: "teacher-key" });
+  assert.equal(
+    await runCli([...args, "--no-preflight"], skipped.io),
+    0,
+    skipped.stderr(),
+  );
+  assert.ok(!existsSync(doctorPath), "--no-preflight runs no checks");
+  assert.ok(
+    !JSON.parse(await readFile(argvPath, "utf8")).argv.includes(
+      "--no-preflight",
+    ),
+  );
+
+  const passed = capture(root, env);
+  assert.equal(await runCli(args, passed.io), 0, passed.stderr());
+  assert.match(
+    passed.stderr(),
+    /10 passed, 0 warnings, 0 failed, 0 skipped\n/u,
+  );
+  assert.match(passed.stdout(), /train passed\n$/u);
+});
+
+test("init ends with the environment checks and keeps exit status 0", async (t) => {
+  const root = await scratch(t, "semantscript-cli-init-doctor-");
+  await writeFile(
+    join(root, "package.json"),
+    '{ "name": "app", "type": "module", "scripts": { "build": "tsc" } }\n',
+  );
+  await writeFile(join(root, "tsconfig.json"), '{ "compilerOptions": {} }\n');
+  const python = process.platform === "win32" ? "python" : "python3";
+  const doctorPath = join(root, "doctor-argv.json");
+  const run = capture(root, {
+    PYTHONPATH: fixtures,
+    FAKE_DOCTOR_FAIL: "teacher-config",
+    FAKE_DOCTOR_ARGV_PATH: doctorPath,
+  });
+  assert.equal(
+    await runCli(
+      [
+        "init",
+        "--no-example",
+        "--python",
+        python,
+        "--trainer-module",
+        "fake_trainer",
+      ],
+      run.io,
+    ),
+    0,
+    run.stderr(),
+  );
+  assert.match(
+    run.stdout(),
+    /next steps:[\s\S]*environment \(semantscript doctor\):\n {2}pass {2}node /u,
+  );
+  assert.match(
+    run.stdout(),
+    /fail {2}teacher-config .*\n {8}fix: fake fix for teacher-config\n/u,
+  );
+  assert.match(
+    run.stdout(),
+    /fix the 1 failed check before semantscript train/u,
+  );
+  const checked = JSON.parse(await readFile(doctorPath, "utf8")).argv;
+  assert.equal(checked[checked.indexOf("--probe") + 1], "free");
 });

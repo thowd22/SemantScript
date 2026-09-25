@@ -29,6 +29,13 @@ follows the same steps with the differences noted at the end.
 - About 700 MB of disk for the artifact (the encoder in ONNX) and as much
   again for the build cache.
 
+`npx semantscript doctor` checks every item of this list and prints one line
+each with the fix: the Node release and native bindings, the interpreter, the
+trainer, PyTorch and the device it will train on with its memory, ONNX
+Runtime, environment variables the platform needs, and the teacher with one
+request of well under USD 0.001. The [environment guide](environment.md)
+explains each line.
+
 ## 1. The app
 
 A ticket API with a route that needs a decision. `src/server.ts`:
@@ -66,7 +73,10 @@ npx semantscript init
 plugin entry to its `plugins`, adds `@semantscript/core` and
 `@semantscript/compiler` to `package.json` with `ts-patch` and a `prepare`
 script, reserves `.semantscript/` in a `.gitignore`, and writes a starter
-`src/hello.sem.ts` (pass `--no-example` to skip it). Then:
+`src/hello.sem.ts` (pass `--no-example` to skip it). It ends with the
+`doctor` checks under `environment (semantscript doctor):`, so a missing
+Python package, GPU or teacher shows now; they send no billed request and
+never fail `init`. Then:
 
 ```sh
 npm install
@@ -150,7 +160,9 @@ npx semantscript train
 
 Without a key, write `.semantscript/teacher.toml` for a local model first
 (`backend = "ollama"`, see the trainer guide) and run the same command. Either
-way `train` finds the bundle under `dist/`, generates cases through the
+way `train` first runs the doctor's Python and teacher checks (about five
+seconds, no billed request) and stops with the fix if one fails; then it finds
+the bundle under `dist/`, generates cases through the
 teacher (the default is 64 per expression; `--cases` raises it, and a few hundred is a sensible first setting), trains the
 encoder and the head on the GPU (`--device cpu` to force the CPU), fits the
 calibration temperature, verifies, and publishes a release under

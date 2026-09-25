@@ -90,9 +90,12 @@ PYTHONPATH=.:trainer/src:model/src:.python-packages python3 -m pytest trainer/te
 ```
 
 Tests that need PyTorch or ONNX skip themselves when the training extra is
-absent. GPU jobs on this project's ROCm machine additionally need
-`PYTHONNOUSERSITE=1 HSA_ENABLE_DXG_DETECTION=1`; details that only apply to one
-machine are kept out of the repository.
+absent. `node cli/bin/semantscript.js doctor` says which environment variables
+a machine needs, and why, after re-running the imports with and without them:
+on this project's WSL2 + ROCm machine it reports `PYTHONNOUSERSITE=1` as
+needed (NumPy 2 in the user site breaks Transformers), and names
+`HSA_ENABLE_DXG_DETECTION=1` only if ROCm finds the GPU only with it. The
+[environment guide](environment.md) has the recorded run.
 
 ## Running everything
 

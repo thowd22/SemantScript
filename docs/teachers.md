@@ -87,6 +87,23 @@ from single-field edits. The reference application trains all nine of its
 expressions this way (`examples/refund-service/train.py`), and the refund
 benchmark's release corpus labels its real inputs the same way (decision-7).
 
+## Checking a teacher before a run
+
+`semantscript doctor` checks the teacher `train` would use: the file is found
+and valid, the key is in the environment, and one minimal request succeeds.
+The Anthropic request is one short user message with `max_tokens` 8 and
+thinking disabled (about 16 input and 4 output tokens, well under USD 0.001
+on Sonnet through OpenRouter); the Ollama request is a tiny chat completion.
+The check prints the latency and the tokens, and scrubs the key from any error
+text. When `base_url` is OpenRouter and only `OPENROUTER_API_KEY` is set, the
+key check fails with the fix `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`,
+because the backend reads only `ANTHROPIC_API_KEY`.
+
+`train` runs the same checks first without the billed request (for Ollama it
+only asks the server for its model list and fails with `ollama pull <model>`
+when the model is missing). The probe is `probe_teacher()` in
+`semantscript_trainer.doctor`, for scripts that want the same check.
+
 ## What the teacher is asked for
 
 For every expression the teacher writes the synthetic cases (inputs with

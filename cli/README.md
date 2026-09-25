@@ -6,7 +6,8 @@ implementations: `build` is the compiler, `train` is the Python trainer's
 bundle driver, `test` and `run` are the runtime.
 
 ```text
-semantscript init  [--tool next|vite|esbuild|tsc] [--no-example]
+semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
+semantscript doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none] [--no-teacher] [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>] [--domain-depth <name>=<layers>]...
 semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
@@ -42,8 +43,11 @@ with the snippet to add, and nothing is written to it. `init` also adds
 `.semantscript/.gitignore` reserving `artifact/` and `cache/`, and, unless
 `--no-example` is passed or a `.sem.ts` file already exists, one starter
 expression (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). It ends
-with the next steps: `npm install`, the tool's build, `semantscript train`,
-and one `loadSemaArtifact()` call at startup.
+with the next steps (`npm install`, the tool's build, `semantscript train`,
+and one `loadSemaArtifact()` call at startup) and then the `doctor` checks
+below, without a billed teacher request, so a missing Python package, key or
+GPU shows before the first `train`. The checks do not change `init`'s exit
+status; `--no-doctor` skips them.
 
 ### Defaults
 
@@ -59,6 +63,36 @@ Every command works without flags once the project is initialised:
   set, `train` writes `.semantscript/teacher.toml` for the Anthropic backend
   (`claude-sonnet-5`) and uses it. Without a key or a file, `train` asks for
   `--teacher`. The key never enters any file.
+
+## doctor
+
+Checks both toolchains before anything runs and prints one line per check,
+`pass`, `fail`, `warn` or `skip`, with a `fix:` line under every check that did
+not pass:
+
+- Node: the release (22.13 or later) and the native `onnxruntime-node` and
+  `tokenizers` bindings for this platform, loaded the way the runtime loads
+  them;
+- Python: the interpreter the CLI will use, the trainer and model packages
+  with their versions, PyTorch and Transformers, the device training will use
+  (CUDA or ROCm with its memory, else the CPU with a warning; Apple MPS is
+  reported but the trainer does not use it), ONNX Runtime and ONNX, and the
+  platform environment: `PYTHONNOUSERSITE=1` when packages in the user site
+  break the imports, `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the
+  GPU only with it. Doctor names a variable only after re-running the imports
+  with and without it, so it never suggests one that changes nothing;
+- the teacher: the file `train` would use, the key in the environment
+  (including the OpenRouter case, where the key belongs in
+  `ANTHROPIC_API_KEY`), and one minimal request with its latency and tokens
+  (`--probe free` sends nothing billed, `--probe none` nothing at all).
+
+The Python checks run as `python -m semantscript_trainer.cli doctor --json`,
+which imports PyTorch, Transformers and ONNX Runtime in child interpreters so
+a broken package becomes a failed line instead of a traceback. `--runtime`
+checks only Node and the bindings, for a machine that serves artifacts and
+never trains; `--json` prints the report. Exit 1 when any check fails. The
+[environment guide](../docs/environment.md) explains each check and records
+doctor runs per platform.
 
 ## build
 
@@ -92,6 +126,11 @@ verification status, accuracy, ECE, attested cases and constraint violations,
 plus the published release digest. A function that fails verification stops the
 build with the report kept and nothing published; the trainer's exit status is
 the command's.
+
+Before the trainer starts, `train` runs the `doctor` Python and teacher checks
+as a preflight (about 5 seconds; no billed request) and exits 1 with the fix
+lines when any fails, instead of failing minutes into a run. `--no-preflight`
+skips it.
 
 ### Build cache
 
@@ -169,7 +208,8 @@ once, then watches the project's TypeScript sources (`.ts`, `.mts`, `.cts`,
 `.tsx` and `tsconfig.json` under the project root, ignoring `node_modules`,
 `.git`, `.semantscript` and declaration files) and repeats both on every save,
 debounced (`--debounce`, default 300 ms). A save during a run queues exactly
-one more run. It takes every `build` and `train` option; `--once` runs a
+one more run. It takes every `build` and `train` option (the `train` preflight runs until
+one training succeeds, not on every save); `--once` runs a
 single cycle and exits with the train status, which is how scripts and tests
 use it. Each cycle is numbered on stderr with its reason (`initial build` or
 the changed file) and the trainer's progress lines stream underneath, one per

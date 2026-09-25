@@ -3,6 +3,11 @@
 Records the argument vector, writes a report shaped like the real driver's and
 exits with ``FAKE_TRAINER_EXIT`` (default 0). ``FAKE_TRAINER_SKIP_REPORT`` leaves
 no report behind so the CLI's handling of a silent trainer can be checked.
+
+``doctor`` prints a passing doctor report and records its arguments at
+``FAKE_DOCTOR_ARGV_PATH``; ``FAKE_DOCTOR_FAIL=<check id>`` fails that check,
+``FAKE_DOCTOR_MALFORMED`` prints text that is not a report and
+``FAKE_DOCTOR_BAD_ID`` reports a check the contract does not know.
 """
 
 from __future__ import annotations
@@ -12,8 +17,46 @@ import os
 import sys
 from pathlib import Path
 
+DOCTOR_CHECK_IDS = (
+    "python",
+    "trainer",
+    "model",
+    "torch",
+    "device",
+    "onnxruntime",
+    "platform-env",
+    "teacher-config",
+    "teacher-key",
+    "teacher-probe",
+)
+
+
+def doctor(argv: list[str]) -> int:
+    record_path = os.environ.get("FAKE_DOCTOR_ARGV_PATH")
+    if record_path:
+        Path(record_path).write_text(json.dumps({"argv": argv}), encoding="utf-8")
+    if os.environ.get("FAKE_DOCTOR_MALFORMED"):
+        print("this is not a report")
+        return 0
+    failing = os.environ.get("FAKE_DOCTOR_FAIL", "")
+    checks = [
+        {
+            "id": identifier,
+            "status": "fail" if identifier == failing else "pass",
+            "summary": f"fake {identifier}",
+            "fix": f"fake fix for {identifier}" if identifier == failing else None,
+        }
+        for identifier in DOCTOR_CHECK_IDS
+    ]
+    if os.environ.get("FAKE_DOCTOR_BAD_ID"):
+        checks[0]["id"] = "gpu"
+    print(json.dumps({"kind": "semantscript.doctor-report", "reportVersion": 1, "checks": checks}))
+    return 1 if failing else 0
+
 
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["doctor"]:
+        return doctor(argv[1:])
     values: dict[str, str | bool] = {}
     index = 0
     while index < len(argv):

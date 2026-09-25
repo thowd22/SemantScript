@@ -56,6 +56,8 @@ from semantscript_trainer.build_cache import (
 )
 from semantscript_trainer.canonical_input import serialize_canonical_inputs
 from semantscript_trainer.dataset import SyntheticDatasetGenerator, TrainingDataset
+from semantscript_trainer.doctor import add_arguments as add_doctor_arguments
+from semantscript_trainer.doctor import run_from_arguments as run_doctor_from_arguments
 from semantscript_trainer.lifecycle import (
     TrainingProvenanceCounts,
     VerifiedIrProvenance,
@@ -870,6 +872,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-cache", action="store_true", help="ignore and do not write the build cache"
     )
     train.add_argument("--full", action="store_true", help="retrain every function jointly")
+    doctor = commands.add_parser(
+        "doctor", help="check the interpreter, packages, device and teacher before a run"
+    )
+    add_doctor_arguments(doctor)
     return parser
 
 
@@ -904,8 +910,11 @@ def _verification_config(arguments: argparse.Namespace) -> VerificationConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run ``semantscript_trainer.cli train`` from ``argv`` and return the process exit status."""
+    """Run ``semantscript_trainer.cli train`` (or ``doctor``) from ``argv`` and return the
+    process exit status."""
     arguments = _build_parser().parse_args(argv)
+    if arguments.command == "doctor":
+        return run_doctor_from_arguments(arguments)
     if arguments.command != "train":  # pragma: no cover - argparse enforces the choice
         return 2
 

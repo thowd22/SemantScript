@@ -1,0 +1,40 @@
+{
+ "attestedCases": 80,
+ "elapsedSeconds": 29.648,
+ "failures": [],
+ "gate": {
+  "eceThreshold": 0.1,
+  "maximumConstraintViolationRate": 0.01,
+  "recordCount": 9489
+ },
+ "metrics": {
+  "accuracy": 0.9957492029755579,
+  "brier": 0.004267723942948386,
+  "constraintViolations": 5,
+  "ece": 0.002741260144649133,
+  "exampleFailures": 0,
+  "heads": [
+   {
+    "accuracy": 0.9957492029755579,
+    "calibration": {
+     "brier": 0.004267723942948386,
+     "ece": 0.002741260144649133,
+     "eceBins": 15,
+     "method": "temperature-scaling",
+     "sampleCount": 941,
+     "splitSha256": "1834ae91946b1db1eb116a09516c2209b68a4c917147eb940ec9e0b6b4209062",
+     "temperature": 1.837618360818171
+    },
+    "outputPath": "",
+    "pairConsistency": 1.0
+   }
+  ],
+  "pairConsistency": 1.0,
+  "typeErrors": 0
+ },
+ "modelStateSha256": "7413aac991408d8e94e64076351f1daa0ec29f258ca9355d77d59cccf15c60a4",
+ "pairCount": 181,
+ "status": "passed",
+ "tokenizerSha256": "f64652c0d4292921662f8a34068ed38c9db4a8e78daae667eaff88a30494ef8b",
+ "verifiedAt": "2026-09-25T01:25:34Z"
+}

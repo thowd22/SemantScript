@@ -18,6 +18,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import platform
@@ -50,6 +51,7 @@ from semantscript_trainer.adversarial import (
     AdversarialDatasetGenerator,
     AdversarialGenerationConfig,
 )
+from semantscript_trainer.application import application_function, train_application
 from semantscript_trainer.artifact import ArtifactProvenance, export_application_artifact
 from semantscript_trainer.canonical_input import serialize_canonical_inputs
 from semantscript_trainer.dataset import SyntheticDatasetGenerator
@@ -115,7 +117,12 @@ def run_release_pipeline(
     *,
     training_config: TrainingConfig,
     verification_config: VerificationConfig | None = None,
+    encoder_depth: int | None = None,
 ) -> dict[str, Any]:
+    """``encoder_depth`` routes the function through that many shared-encoder layers
+    (TASK-6.7): the IR binds one domain at that depth, training fits the encoder,
+    one adapter and the head, and the artifact ships the encoder prefix graph."""
+
     started = time.monotonic()
     corpus_manifest_path = Path(corpus_manifest_path)
     corpus_root = corpus_manifest_path.parent
@@ -130,6 +137,9 @@ def run_release_pipeline(
     log("compiling canonical refund program")
     compiled = compile_refund_program(output / "compiler")
     ir = compiled.source_ir
+    if encoder_depth is not None:
+        ir = _route_ir(ir, encoder_depth)
+        log(f"routing the function through {encoder_depth} shared-encoder layers")
 
     log("replaying frozen corpus from cache")
     teacher = _teacher_from_manifest(manifest)
@@ -169,7 +179,13 @@ def run_release_pipeline(
     )
     trained_at = _utc_now()
     training_started = time.monotonic()
-    training = train_classifier(ir, base, adversarial, config=training_config)
+    if encoder_depth is None:
+        training = train_classifier(ir, base, adversarial, config=training_config)
+    else:
+        application = train_application(
+            [application_function(ir, base, adversarial)], config=training_config
+        )
+        training = application.functions[ir["id"]]
     training_seconds = time.monotonic() - training_started
     for metric in training.metrics:
         log(
@@ -329,6 +345,9 @@ def run_release_pipeline(
                 "loss": training_config.loss,
                 "headArchitecture": training_config.head_architecture,
                 "canonicalInputVersion": training_config.canonical_input_version,
+                "encoderDepth": encoder_depth,
+                "encoderRef": ir["model"]["encoder"],
+                "adapterRef": ir["model"]["adapter"],
             },
             "device": training.device,
             "trainedAt": trained_at,
@@ -371,6 +390,19 @@ def run_release_pipeline(
     (output / "pipeline-manifest.json").write_text(_dump(summary), encoding="utf-8")
     log(f"done in {summary['elapsedSeconds']:.0f}s")
     return summary
+
+
+def _route_ir(ir: dict[str, Any], depth: int) -> dict[str, Any]:
+    """Bind the compiled refund IR to one routed domain at ``depth`` (see run_depth_sweep)."""
+
+    if isinstance(depth, bool) or not isinstance(depth, int) or depth < 1:
+        raise ReleasePipelineError("encoder depth must be a positive integer")
+    routed = copy.deepcopy(ir)
+    model = routed["model"]
+    model["adapter"] = "adapter.refund-benchmark.refund"
+    model["encoder"] = f"encoder.refund-benchmark.depth-{depth:03d}"
+    model["encoderDepth"] = depth
+    return routed
 
 
 def _dump_release_predictions(
@@ -521,6 +553,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--learning-rate-schedule", default="constant")
     parser.add_argument("--warmup-ratio", type=float, default=0.0)
     parser.add_argument("--canonical-input-version", type=int, choices=(1, 2), default=2)
+    parser.add_argument(
+        "--encoder-depth",
+        type=int,
+        default=None,
+        help="route the function through this many shared-encoder layers (TASK-6.7)",
+    )
     arguments = parser.parse_args(argv)
     training_config = TrainingConfig(
         encoder_name=DEFAULT_ENCODER_NAME,
@@ -548,6 +586,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ece_threshold=arguments.ece_threshold,
                 maximum_constraint_violation_rate=arguments.maximum_constraint_violation_rate,
             ),
+            encoder_depth=arguments.encoder_depth,
         )
     except Exception as error:
         sys.stderr.write(f"release pipeline failed: {type(error).__name__}: {error}\n")

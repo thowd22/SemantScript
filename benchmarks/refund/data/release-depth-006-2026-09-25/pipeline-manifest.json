@@ -1,0 +1,180 @@
+{
+ "artifact": {
+  "manifestSha256": "a3f4b0054fd2a332fb6639be9756598a3baa1759d74cc1e13b4cbb08c92ec4e3",
+  "releaseDirectory": "/home/admin2/SemantScript/benchmarks/refund/data/release-depth-006-2026-09-25/artifact/releases/sha256-a3f4b0054fd2a332fb6639be9756598a3baa1759d74cc1e13b4cbb08c92ec4e3",
+  "root": "/home/admin2/SemantScript/benchmarks/refund/data/release-depth-006-2026-09-25/artifact"
+ },
+ "completedAt": "2026-09-25T01:26:15Z",
+ "corpus": {
+  "adversarialDatasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+  "manifestPath": "benchmarks/refund/data/pooled-v4-2026-09-24/manifest.json",
+  "syntheticDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+  "teacher": "5532c8bd990fc86627f5cffe0a48b91983658f5588e11506d8dae04683aeb16f"
+ },
+ "elapsedSeconds": 362.158,
+ "environment": {
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "trainerCommit": "92297705f9a8828ddc2569ff8ada593053c2106c"
+ },
+ "finalBenchmarkDatasetSha256": "5d71fc08a357a253a540c44fac35cc85742200f2000e17a3676d548c6a6125ae",
+ "function": {
+  "id": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+  "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f"
+ },
+ "kind": "semantscript.refund-release-pipeline-manifest",
+ "ledger": {
+  "payloadSha256": "065a4d233bb3c887d0a9abf92ecc6dcf82cd752ff880d5a680280a121294b60f",
+  "sources": {
+   "adversarialDatasetSha256": "c99d01f52e748ddbd5500d46d7383a20e2925d428d69d97440b6efc9dbc5ccf0",
+   "baseDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+   "releaseVerificationAttestationSha256": "1427262d6c360f58e35da74a7baac4a4a76da7d874d710c4658fc7667a2ca88d",
+   "releaseVerificationPayloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2"
+  },
+  "trainingKeySha256": "8bd1db20e4f8b7fce044aa17916f203efb14a9d5933c246bcaba0a7925a2088a"
+ },
+ "manifestVersion": 1,
+ "provenanceCounts": {
+  "adversarial": 374,
+  "attestedVerification": 80,
+  "calibration": 941,
+  "examples": 0,
+  "synthetic": 9035,
+  "verification": 9489
+ },
+ "release": {
+  "attestationSha256": "1427262d6c360f58e35da74a7baac4a4a76da7d874d710c4658fc7667a2ca88d",
+  "caseCount": 80,
+  "payloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2"
+ },
+ "runtimeDiagnostic": {
+  "confidence": 0.996620177026306,
+  "distribution": [
+   {
+    "probability": 0.996620177026306,
+    "value": "approve"
+   },
+   {
+    "probability": 0.0009682254125106881,
+    "value": "deny"
+   },
+   {
+    "probability": 0.0024115975611832085,
+    "value": "review"
+   }
+  ],
+  "expectedValue": null,
+  "uncertainty": 0.022418696478599554,
+  "value": "approve"
+ },
+ "training": {
+  "baseModelWeightsSha256": "340ac08b74eef0d7bdec2d7981a6a3d4249bf0e6aab60634b72ad02c2b8023a9",
+  "calibrationRows": 941,
+  "config": {
+   "adapterRef": "adapter.refund-benchmark.refund",
+   "batchSize": 16,
+   "canonicalInputVersion": 2,
+   "encoderDepth": 6,
+   "encoderName": "answerdotai/ModernBERT-base",
+   "encoderRef": "encoder.refund-benchmark.depth-006",
+   "encoderRevision": "8949b909ec900327062f0ebf497f51aef5e6f0c8",
+   "epochs": 8,
+   "evaluationRatio": 0.1,
+   "headArchitecture": "linear",
+   "learningRate": 3e-05,
+   "loss": "proper",
+   "maximumSequenceLength": 128,
+   "seed": 1
+  },
+  "device": "cuda",
+  "elapsedSeconds": 319.558,
+  "epochs": [
+   {
+    "epoch": 1,
+    "heldOutAccuracy": 0.9776833156216791,
+    "meanTrainingLoss": 0.4508015311997952
+   },
+   {
+    "epoch": 2,
+    "heldOutAccuracy": 0.9925611052072264,
+    "meanTrainingLoss": 0.06898616333851051
+   },
+   {
+    "epoch": 3,
+    "heldOutAccuracy": 0.9925611052072264,
+    "meanTrainingLoss": 0.025108840699726458
+   },
+   {
+    "epoch": 4,
+    "heldOutAccuracy": 0.9904357066950054,
+    "meanTrainingLoss": 0.012186894782657979
+   },
+   {
+    "epoch": 5,
+    "heldOutAccuracy": 0.9904357066950054,
+    "meanTrainingLoss": 0.00643377186818338
+   },
+   {
+    "epoch": 6,
+    "heldOutAccuracy": 0.9936238044633369,
+    "meanTrainingLoss": 0.004411942365935138
+   },
+   {
+    "epoch": 7,
+    "heldOutAccuracy": 0.9957492029755579,
+    "meanTrainingLoss": 0.0014127972783277258
+   },
+   {
+    "epoch": 8,
+    "heldOutAccuracy": 0.9946865037194474,
+    "meanTrainingLoss": 0.0002990942589328881
+   }
+  ],
+  "learningRateSchedule": "linear",
+  "selectBestEpoch": true,
+  "selectedEpoch": 7,
+  "trainedAt": "2026-09-25T01:20:06Z",
+  "trainingRows": 8468,
+  "warmupRatio": 0.05
+ },
+ "verification": {
+  "attestedCases": 80,
+  "elapsedSeconds": 29.648,
+  "failures": [],
+  "gate": {
+   "eceThreshold": 0.1,
+   "maximumConstraintViolationRate": 0.01,
+   "recordCount": 9489
+  },
+  "metrics": {
+   "accuracy": 0.9957492029755579,
+   "brier": 0.004267723942948386,
+   "constraintViolations": 5,
+   "ece": 0.002741260144649133,
+   "exampleFailures": 0,
+   "heads": [
+    {
+     "accuracy": 0.9957492029755579,
+     "calibration": {
+      "brier": 0.004267723942948386,
+      "ece": 0.002741260144649133,
+      "eceBins": 15,
+      "method": "temperature-scaling",
+      "sampleCount": 941,
+      "splitSha256": "1834ae91946b1db1eb116a09516c2209b68a4c917147eb940ec9e0b6b4209062",
+      "temperature": 1.837618360818171
+     },
+     "outputPath": "",
+     "pairConsistency": 1.0
+    }
+   ],
+   "pairConsistency": 1.0,
+   "typeErrors": 0
+  },
+  "modelStateSha256": "7413aac991408d8e94e64076351f1daa0ec29f258ca9355d77d59cccf15c60a4",
+  "pairCount": 181,
+  "status": "passed",
+  "tokenizerSha256": "f64652c0d4292921662f8a34068ed38c9db4a8e78daae667eaff88a30494ef8b",
+  "verifiedAt": "2026-09-25T01:25:34Z"
+ }
+}

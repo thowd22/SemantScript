@@ -87,6 +87,8 @@ run`, the zero-config defaults, the dev loop and the build cache rules.
   application (`release-application-2026-09-24`), stage scaling
   (`results-stage-scaling-2026-09-24`), the warm-start experiment
   (`results-warm-start-2026-09-24`), the encoder sweep
-  (`results-encoder-sweep-2026-09-24`) and the depth-routing sweep
-  (`results-depth-sweep-2026-09-24`); each directory has a README that reads
-  on its own.
+  (`results-encoder-sweep-2026-09-24`), the depth-routing sweep
+  (`results-depth-sweep-2026-09-24`) and the depth-routed final-set re-run
+  that meets the latency criterion (`results-depth-006-2026-09-25`, release
+  `release-depth-006-2026-09-25`); each directory has a README that reads on
+  its own.

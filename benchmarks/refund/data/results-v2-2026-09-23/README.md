@@ -9,6 +9,19 @@ records under `data/`; the machine-checked result is `data/results-v2-2026-09-23
 
 ## Decision
 
+> **Amended 2026-09-25 (TASK-5.18).** The latency criterion is now met. A
+> float32 release with the compact canonical encoding (TASK-5.18.1) and
+> compile-time depth routing at 6 of 22 encoder layers (TASK-6.7, decision-10)
+> answers all 160 final cases (accuracy 1.000, 15-bin ECE 0.0029) at p50 4.82
+> ms and p95 6.41 ms on the same CPU path, protocol and machine, against the
+> 38.40 ms recorded below. The release (`release-depth-006-2026-09-25`,
+> artifact `a3f4b005…`) passed the strict gate with zero attested misses; the
+> run, its sealed predictions and assembled result are under
+> `results-depth-006-2026-09-25`. The written decision becomes **go on both
+> criteria**; the mechanical status stays `incomplete` only because the
+> structured-output API baseline has never run on this machine. The text
+> below is the original record and is left as written.
+
 **Accuracy: met.** SemantScript answers 159 of 160 judge-attested final cases
 correctly (0.994) against 0.538 for the Qwen 2.5 7B comparator, 0.519 for the
 1.5B model and 0.225 for Laya. Its 15-bin calibration error is 0.011; the
@@ -92,13 +105,13 @@ latency percentiles, 15-bin top-1 expected calibration error.
 
 ## Results on the final set (160 judge-attested cases)
 
-| System | Model and version | Accuracy (160 attested cases) | ECE (15 bins) | p50 ms | p95 ms | Requests/s | Peak client RSS | Backend |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SemantScript | ModernBERT-base `8949b909…` fine-tune, artifact manifest `0ee80669…`, training key `8bd1db20…` | **0.994** (159/160) | **0.011** | 38.40 | 50.49 | 24.5 | 1,646 MiB | `onnxruntime-node`, CPU |
-| Qwen 2.5 7B instruct Q4_K_M | Ollama 0.34.3, manifest `845dbda0…` | 0.538 (86/160) | 0.428 | 569.17 | 608.20 | 1.81 | 151 MiB | Ollama, GPU |
-| Qwen 2.5 1.5B instruct Q4_K_M | Ollama 0.34.3, manifest `65ec0654…` | 0.519 (83/160) | 0.443 | 319.45 | 357.77 | 3.09 | 154 MiB | Ollama, GPU |
-| Laya typed-decisions | code `d120d4ba…`, checkpoint `dd079950…` | 0.225 (36/160) | 0.411 | 28.15 | 31.94 | 35.5 | 153 MiB | Python, ROCm |
-| Structured-output API (`claude-sonnet-5`) | not run (no API key) | | | | | | | |
+| System                                    | Model and version                                                                              | Accuracy (160 attested cases) | ECE (15 bins) | p50 ms | p95 ms | Requests/s | Peak client RSS | Backend                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------- | ------------- | ------ | ------ | ---------- | --------------- | ----------------------- |
+| SemantScript                              | ModernBERT-base `8949b909…` fine-tune, artifact manifest `0ee80669…`, training key `8bd1db20…` | **0.994** (159/160)           | **0.011**     | 38.40  | 50.49  | 24.5       | 1,646 MiB       | `onnxruntime-node`, CPU |
+| Qwen 2.5 7B instruct Q4_K_M               | Ollama 0.34.3, manifest `845dbda0…`                                                            | 0.538 (86/160)                | 0.428         | 569.17 | 608.20 | 1.81       | 151 MiB         | Ollama, GPU             |
+| Qwen 2.5 1.5B instruct Q4_K_M             | Ollama 0.34.3, manifest `65ec0654…`                                                            | 0.519 (83/160)                | 0.443         | 319.45 | 357.77 | 3.09       | 154 MiB         | Ollama, GPU             |
+| Laya typed-decisions                      | code `d120d4ba…`, checkpoint `dd079950…`                                                       | 0.225 (36/160)                | 0.411         | 28.15  | 31.94  | 35.5       | 153 MiB         | Python, ROCm            |
+| Structured-output API (`claude-sonnet-5`) | not run (no API key)                                                                           |                               |               |        |        |            |                 |                         |
 
 Every case in the final set is judge-attested, so overall and attested-slice
 accuracy coincide. Memory is the client process only: the SemantScript figure
@@ -109,13 +122,13 @@ in the Ollama server).
 
 Per-rule accuracy (cases per rule in parentheses):
 
-| Rule (cases) | SemantScript | Qwen 7B | Qwen 1.5B | Laya |
-| --- | --- | --- | --- | --- |
-| Older than 90 days: deny (28) | 28/28 | 28/28 | 0/28 | 0/28 |
-| Fraudulent within 90 days: review (26) | 25/26 | 0/26 | 26/26 | 26/26 |
-| Paid outside tier window: deny (39) | 39/39 | 10/39 | 0/39 | 0/39 |
-| Paid inside window, more than two prior refunds: review (20) | 20/20 | 5/20 | 10/20 | 10/20 |
-| Paid inside window, clean history: approve (47) | 47/47 | 43/47 | 47/47 | 0/47 |
+| Rule (cases)                                                 | SemantScript | Qwen 7B | Qwen 1.5B | Laya  |
+| ------------------------------------------------------------ | ------------ | ------- | --------- | ----- |
+| Older than 90 days: deny (28)                                | 28/28        | 28/28   | 0/28      | 0/28  |
+| Fraudulent within 90 days: review (26)                       | 25/26        | 0/26    | 26/26     | 26/26 |
+| Paid outside tier window: deny (39)                          | 39/39        | 10/39   | 0/39      | 0/39  |
+| Paid inside window, more than two prior refunds: review (20) | 20/20        | 5/20    | 10/20     | 10/20 |
+| Paid inside window, clean history: approve (47)              | 47/47        | 43/47   | 47/47     | 0/47  |
 
 The single SemantScript miss is a standard-tier customer with one prior refund
 and a fraudulent order at 62 days (total 105.08): expected `review`, predicted

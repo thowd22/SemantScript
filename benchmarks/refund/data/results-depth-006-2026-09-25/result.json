@@ -1,0 +1,124 @@
+{
+ "kind": "semantscript.refund-benchmark-result",
+ "resultVersion": 1,
+ "benchmark": "refund-decision",
+ "generatedAt": "2026-09-25T01:27:21Z",
+ "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+ "datasetSha256": "5d71fc08a357a253a540c44fac35cc85742200f2000e17a3676d548c6a6125ae",
+ "trainingLedgerSha256": "065a4d233bb3c887d0a9abf92ecc6dcf82cd752ff880d5a680280a121294b60f",
+ "leakageAudit": {
+  "datasetSha256": "5d71fc08a357a253a540c44fac35cc85742200f2000e17a3676d548c6a6125ae",
+  "trainingLedgerSha256": "065a4d233bb3c887d0a9abf92ecc6dcf82cd752ff880d5a680280a121294b60f",
+  "evaluationCaseCount": 160,
+  "trainingInputCount": 9291,
+  "overlapCount": 0
+ },
+ "systems": [
+  {
+   "role": "semantscript",
+   "predictionSha256": "40e9c0096b77d6f3f585043f70d1e88835a2ef694a2e9d48d19617c66b9565f4",
+   "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+   "model": {
+    "provider": "semantscript",
+    "name": "refund-decision",
+    "version": "semantscript-artifact-v1",
+    "revision": "8bd1db20e4f8b7fce044aa17916f203efb14a9d5933c246bcaba0a7925a2088a",
+    "artifactSha256": "a3f4b0054fd2a332fb6639be9756598a3baa1759d74cc1e13b4cbb08c92ec4e3"
+   },
+   "adapter": {
+    "name": "semantscript-node-artifact-runtime",
+    "version": "1",
+    "configurationSha256": "f3206bbf7a8657b4ea62c2615f3b6be974eb318f2edfffb248519d1e949517a4"
+   },
+   "trainingEvidence": {
+    "trainingLedgerSha256": "065a4d233bb3c887d0a9abf92ecc6dcf82cd752ff880d5a680280a121294b60f",
+    "artifactTrainingDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+    "artifactTrainingKeySha256": "8bd1db20e4f8b7fce044aa17916f203efb14a9d5933c246bcaba0a7925a2088a",
+    "releaseVerificationPayloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2",
+    "releaseVerificationAttestationSha256": "1427262d6c360f58e35da74a7baac4a4a76da7d874d710c4658fc7667a2ca88d"
+   },
+   "executionBackend": {
+    "kind": "semantscript-node",
+    "runtime": "onnxruntime-node",
+    "device": "cpu"
+   },
+   "environment": {
+    "capturedAt": "2026-09-25T01:26:37Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "architecture": "x64",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+    "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+    "memoryBytes": 16265179136,
+    "runtimeVersions": [
+     {
+      "name": "node",
+      "version": "22.22.0"
+     },
+     {
+      "name": "ollama",
+      "version": "0.34.3"
+     },
+     {
+      "name": "onnxruntime-node",
+      "version": "1.30.0"
+     }
+    ],
+    "evidenceSha256": "b9a84969a30d7588daf49f984881aa5644f218be908a538fb75c253c08a1ab0b"
+   },
+   "protocol": {
+    "concurrency": 1,
+    "warmupIterations": 10,
+    "warmupInputOrderSha256": "30bc6f5888a06b90c4f9f01dfdbc938f3457e2ce09830b26f80e56e36b2affd4",
+    "measuredDurationMs": 823.740378,
+    "memoryScope": "client-only",
+    "peakMemoryBytes": 855584768
+   },
+   "metrics": {
+    "accuracy": {
+     "caseCount": 160,
+     "correctCount": 160,
+     "accuracy": 1,
+     "attestedCaseCount": 160,
+     "attestedCorrectCount": 160,
+     "attestedAccuracy": 1
+    },
+    "calibration": {
+     "binCount": 15,
+     "expectedCalibrationError": 0.0029442506706143083
+    },
+    "latency": {
+     "p50Ms": 4.823309000000336,
+     "p95Ms": 6.410910000000058
+    },
+    "throughput": {
+     "concurrency": 1,
+     "measuredDurationMs": 823.740378,
+     "requestsPerSecond": 194.2359562226049
+    },
+    "memory": {
+     "scope": "client-only",
+     "peakBytes": 855584768
+    }
+   }
+  }
+ ],
+ "goNoGo": {
+  "status": "incomplete",
+  "criterion": {
+   "semantscriptP50MsExclusiveMaximum": 10,
+   "accuracyComparator": "ollama-7b"
+  },
+  "semantscriptP50Ms": null,
+  "semantscriptAccuracy": null,
+  "comparatorAccuracy": null,
+  "latencyPassed": null,
+  "accuracyPassed": null,
+  "missingSystems": [
+   "ollama-1b",
+   "ollama-7b",
+   "structured-api",
+   "laya"
+  ]
+ },
+ "payloadSha256": "0d9f699f12e33cf819e5ea64530eefb59305f717facde3b81f144e3f2e3e4076"
+}

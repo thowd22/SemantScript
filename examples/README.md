@@ -26,4 +26,8 @@ it after `npm run build` at the root is enough to build it.
 
 All three need a trained artifact to answer requests: build, then
 `semantscript train` on the emitted IR bundle (or `npm run train` in the
-refund service), then start the app with the artifact root.
+refund service), then start the app with the artifact root. The Express app
+and the refund service also carry `npm test` suites that run their routes over
+a fixture artifact with no training; CI installs, builds and tests both from a
+fresh clone on every push and builds the Express Docker image
+([measured](../docs/CONTRIBUTING.md#continuous-integration)).

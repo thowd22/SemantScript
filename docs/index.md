@@ -64,7 +64,8 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   application and depth-routing measurements, with guidance on when fusing
   helps.
 - [CONTRIBUTING](CONTRIBUTING.md): repository layout, the Node and Python
-  toolchains, lint and tests for both halves, and the Backlog workflow.
+  toolchains, lint and tests for both halves, continuous integration with its
+  measured wall times, and the Backlog workflow.
 
 ## Normative specifications
 

@@ -11,18 +11,34 @@ What adoption touched:
    The build runs through ts-patch's `tspc` instead of `tsc` (that is ts-patch's
    one-line change: `"build": "tspc -p tsconfig.json"`).
 2. `src/triage.sem.ts`: the one `sema` expression, `triage(subject, body)`.
-3. `src/server.ts`: the route calls `triage`, and startup loads the trained
-   artifact once with `loadSemaArtifact`. The artifact load is the runtime
-   half of adoption; every sema program needs it once.
+3. `src/app.ts` and `src/server.ts`: the `POST /tickets` route in
+   `createApp` calls `triage`, and `server.ts` loads the trained artifact once
+   with `loadSemaArtifact` before listening on `PORT` (default 3000). The
+   artifact load is the runtime half of adoption; every sema program needs it
+   once.
 
 Build and run:
 
 ```sh
-npm install                 # links ../../compiler and ../../runtime, installs express and ts-patch
+npm install                 # links ../../compiler, ../../runtime and ../../framework, installs express and ts-patch
 npm run build               # tspc: dist/*.js, dist/*.js.map and dist/semantscript.ir.v1.json
+npm test                    # the bundle and both routes over a fixture artifact, no training needed
 semantscript train          # bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
+
+Run the root `npm install` and `npm run build` first: the linked packages
+resolve their own dependencies from the repository's `node_modules`.
+
+`npm test` (`test/app.test.mjs`) checks the compiled bundle, serves both
+routes through `createApp` over a fixture artifact keyed to this bundle, and
+starts `dist/server.js` with `PORT` and `SEMANTSCRIPT_ARTIFACT` set. The
+fixture comes from `scripts/fixture-artifact.mjs`, which reuses the runtime's
+test ONNX graphs; it answers the third support value of each function
+(`"urgent"` for `triage`, `"review"` for `decideRefund`), so it proves the
+wiring and not the policy. `npm run fixture-artifact` writes it to
+`.semantscript/artifact` for a smoke run or an image build, and refuses to
+replace an existing artifact, such as a trained release, without `--force`.
 
 ## A trained release, through OpenRouter
 
@@ -88,11 +104,21 @@ arm64, macOS and Windows, nothing to build or download by hand) and
 `.semantscript/artifact/`.
 
 - [`deploy/Dockerfile`](deploy/Dockerfile): a two-stage image built from the
-  repository root (`docker build -f examples/express-app/deploy/Dockerfile .`),
-  compiling with `tspc` and keeping only the compiled app, production
-  dependencies and the artifact. Docker is not installed on the machine this
-  was written on, so the image has been reviewed but not built; the runtime
-  stage is the same layout the cold-start numbers below were measured in.
+  repository root (`docker build -f examples/express-app/deploy/Dockerfile .`).
+  The build stage installs the workspace, builds the compiler, runtime and
+  framework, compiles the app with `tspc`, and installs the production tree
+  with `npm install --omit=dev --install-links`, which packs the `file:`
+  packages into real copies with their own dependencies. The runtime stage
+  keeps only `dist/` (without the IR bundle, which holds the prompt text),
+  that `node_modules` and `.semantscript/artifact`, and runs as the `node`
+  user. [`deploy/Dockerfile.dockerignore`](deploy/Dockerfile.dockerignore)
+  limits the context to those sources, so local installs never enter it. CI
+  builds the image from a fresh clone on every push with the fixture artifact
+  and smoke-runs both routes; the image is 624 MB and builds in about 33 s
+  without a layer cache
+  ([measured](../../docs/CONTRIBUTING.md#continuous-integration)). To ship
+  a trained model, train first so `.semantscript/artifact` holds the release,
+  then build.
 - [`deploy/lambda.mjs`](deploy/lambda.mjs): a serverless handler (API Gateway
   HTTP API event shape) over the same compiled `triage` function. The
   artifact loads once per execution environment on the first invocation and

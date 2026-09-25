@@ -42,6 +42,9 @@ npm run lint:node  # eslint (typescript-eslint strict, type-checked) and prettie
 npm run test:node  # node --test in every workspace (each builds first)
 ```
 
+Build before linting a fresh clone: the type-checked rules resolve each
+workspace's imports of the others through their `dist/` declarations.
+
 Package tests live in `<package>/test/*.test.mjs` and run against `dist/`, so
 build before testing a single package (`npm test -w compiler` does both).
 TypeScript is strict with `noUncheckedIndexedAccess` and
@@ -87,8 +90,68 @@ machine are kept out of the repository.
 
 ## Running everything
 
-`npm run check` runs both lints, the build, and both test suites in sequence and
-never installs anything or touches the network. Run it before committing.
+`npm run check` runs the build, both lints and both test suites in sequence
+and never installs anything or touches the network. Run it before committing.
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push,
+every pull request and on demand, as three parallel jobs on `ubuntu-latest`.
+A newer push to the same branch cancels a run still in progress. No job uses
+a secret or a teacher: the examples run on a fixture artifact.
+
+| Job             | What it runs                                                                                                                                                                                                                                                                                                                                                                                                   | Reproduce locally                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `node`          | `npm ci`, `npm run build`, `npm run lint:node`, `npm run test:node` (every workspace suite; the compiler's `docs-examples` test compiles every program under `docs/examples`), `npx prettier --check docs README.md`. Python 3.12 is set up because the CLI and refund benchmark tests start `python3` fixture drivers.                                                                                        | the same commands                                                                                       |
+| `python`        | a `.venv` with `pip install -e '.[dev]'` (no training extra, so every test that needs PyTorch or ONNX skips), `npm run lint:python`, then `npm ci` and `npm run build` (some trainer tests drive `runtime/dist` and `cli/dist`) and `npm run test:python`.                                                                                                                                                     | the same commands in a clean virtual environment                                                        |
+| `fresh-install` | the install exactly as the docs give it, with no npm cache: `npm install` and `npm run build` at the root, then `npm install`, `npm run build` and `npm test` in `examples/express-app` and in `examples/refund-service`, `npm run fixture-artifact` in the Express example, `docker build -f examples/express-app/deploy/Dockerfile .` and a smoke run of the image (`POST /tickets` and `POST /refunds/o1`). | the same commands; `npm run fixture-artifact` refuses to replace an existing artifact without `--force` |
+
+The example installs link `../../compiler`, `../../runtime` and
+`../../framework` with `file:` dependencies, and those packages resolve their
+own dependencies from the root `node_modules`, so the root `npm install` and
+`npm run build` come first. The `node` and `python` jobs set
+`ONNXRUNTIME_NODE_INSTALL=skip`, which stops `onnxruntime-node` from fetching
+its optional CUDA provider on Linux x64; the `fresh-install` job does not, so
+it installs with the defaults a new user gets.
+
+### Measured adoption cost
+
+Wall times on GitHub-hosted `ubuntu-latest` runners, 2026-09-25,
+from `gh run view --json jobs`. Run
+[36155743686](https://github.com/thowd22/SemantScript/actions/runs/36155743686)
+is the first run with every job green; the `fresh-install` job also passed in
+the run before it
+([36155452753](https://github.com/thowd22/SemantScript/actions/runs/36155452753)).
+
+| Measurement                                                  | Run 36155743686 | Run 36155452753 |
+| ------------------------------------------------------------ | --------------- | --------------- |
+| Whole workflow, push to last job finished (jobs in parallel) | 1 min 39 s      | (`node` failed) |
+| `node` job                                                   | 1 min 32 s      | (failed)        |
+| `python` job (412 passed, 45 skipped)                        | 1 min 32 s      | 1 min 26 s      |
+| `fresh-install` job, fresh clone to a smoke-tested image     | 1 min 36 s      | 1 min 50 s      |
+
+The `fresh-install` job's steps in run 36155743686:
+
+| Step                                                               | Time |
+| ------------------------------------------------------------------ | ---- |
+| Set up Node 22 from `.nvmrc`                                       | 7 s  |
+| `npm install` and `npm run build` at the root                      | 12 s |
+| Express example: `npm install`, `npm run build`, `npm test`        | 19 s |
+| Refund service example: `npm install`, `npm run build`, `npm test` | 16 s |
+| Fixture artifact                                                   | 1 s  |
+| `docker build` (no layer cache)                                    | 33 s |
+| Smoke run of the image                                             | 3 s  |
+
+The adoption flow a new developer follows, a fresh clone to a built, tested
+example, is therefore under a minute of commands on a hosted runner, and a
+deployable image of the Express example about half a minute more. The image
+is 624 MB. Its production `node_modules` is 384 MB (the same install
+measured on the development machine), of which `onnxruntime-node` is 288 MB
+because the package ships its native libraries for Linux, macOS and Windows
+together; `tokenizers` is 64 MB and PGlite 26 MB. Training is not part of
+this cost: it needs a teacher and preferably a GPU, and is measured in the
+[tutorial](tutorial-refund-decision.md) and the
+[teachers page](teachers.md).
 
 ## Work tracking
 

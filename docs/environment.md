@@ -210,13 +210,14 @@ shortened to `~/SemantScript`):
 8 passed, 1 warning, 0 failed, 3 skipped
 ```
 
-### Windows (native): GitHub Actions `windows-latest` (CI run 36166910601, 2026-09-25)
+### Windows (native): GitHub Actions `windows-latest` (CI run 36172123828, 2026-09-25)
 
 The `doctor-platforms` CI job runs doctor on every push on a native Windows
 runner (Windows Server, x64, no GPU) and on a macOS runner, after `npm ci`,
 `npm run build` and a `.venv` with the CPU PyTorch build and
-`pip install -e '.[training]'`. The job runs doctor three times (checkout path
-shortened to `D:\SemantScript`).
+`pip install -e '.[training]'`. On Windows the job runs doctor three times
+under Git Bash and once in PowerShell (checkout path shortened to
+`D:\SemantScript`).
 
 With nothing activated the CLI's default interpreter is `python`, the runner's
 bare Python 3.12, which lacks the trainer's packages; the fix names the venv
@@ -228,13 +229,13 @@ semantscript doctor: D:\SemantScript
   pass  runtime-bindings  onnxruntime-node 1.30.0 and tokenizers 0.23.2 loaded for win32-x64
   pass  python            Python 3.12.10 at C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
   fail  trainer           semantscript_trainer 0.0.0 from D:\SemantScript\trainer\src\semantscript_trainer; missing anthropic, openai
-        fix: pip install -e . from the SemantScript checkout (installs the teacher clients anthropic and openai); or if the packages are in .venv\Scripts\python.exe rather than python (the default interpreter), pass --python .venv\Scripts\python.exe or set SEMANTSCRIPT_PYTHON=.venv\Scripts\python.exe
+        fix: pip install -e . from the SemantScript checkout (installs the teacher clients anthropic and openai); or if the packages are in .venv\Scripts\python.exe rather than python (the default interpreter), pass --python .venv\Scripts\python.exe or set the SEMANTSCRIPT_PYTHON environment variable to .venv\Scripts\python.exe
   pass  model             semantscript_model 0.0.0 from D:\SemantScript\model\src\semantscript_model
   fail  torch             torch does not import: ModuleNotFoundError: No module named 'torch'
-        fix: install the training extra into this interpreter: pip install -e '.[training]' from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv\Scripts\python.exe rather than python (the default interpreter), pass --python .venv\Scripts\python.exe or set SEMANTSCRIPT_PYTHON=.venv\Scripts\python.exe
+        fix: install the training extra into this interpreter: pip install -e ".[training]" from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv\Scripts\python.exe rather than python (the default interpreter), pass --python .venv\Scripts\python.exe or set the SEMANTSCRIPT_PYTHON environment variable to .venv\Scripts\python.exe
   skip  device            torch does not import, so no device was checked
   fail  onnxruntime       onnxruntime does not import: ModuleNotFoundError: No module named 'onnxruntime'
-        fix: install the training extra into this interpreter: pip install -e '.[training]' from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv\Scripts\python.exe rather than python (the default interpreter), pass --python .venv\Scripts\python.exe or set SEMANTSCRIPT_PYTHON=.venv\Scripts\python.exe
+        fix: install the training extra into this interpreter: pip install -e ".[training]" from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv\Scripts\python.exe rather than python (the default interpreter), pass --python .venv\Scripts\python.exe or set the SEMANTSCRIPT_PYTHON environment variable to .venv\Scripts\python.exe
   pass  platform-env      no extra environment variables needed
   skip  teacher-config    teacher checks not requested (--no-teacher)
   skip  teacher-key       teacher checks not requested (--no-teacher)
@@ -272,7 +273,30 @@ semantscript doctor: D:\SemantScript
 2 passed, 0 warnings, 0 failed, 0 skipped
 ```
 
-### macOS: GitHub Actions `macos-latest` (Apple silicon; CI run 36166910601, 2026-09-25)
+The steps above run under Git Bash, the job's default shell. A last step runs
+doctor in PowerShell (`shell: pwsh`) with the venv activated by
+`.venv\Scripts\Activate.ps1`, then the tests that run the Windows fix lines
+in real PowerShell and cmd (`3 passed`):
+
+```text
+semantscript doctor: D:\SemantScript
+  pass  node              Node 22.22.0 (win32-x64)
+  pass  runtime-bindings  onnxruntime-node 1.30.0 and tokenizers 0.23.2 loaded for win32-x64
+  pass  python            Python 3.12.10 at D:\SemantScript\.venv\Scripts\python.exe
+  pass  trainer           semantscript_trainer 0.0.0 from D:\SemantScript\trainer\src\semantscript_trainer
+  pass  model             semantscript_model 0.0.0 from D:\SemantScript\model\src\semantscript_model
+  pass  torch             torch 2.9.1+cpu (CPU-only build), transformers 5.17.0
+  warn  device            no CUDA or ROCm device: trains on the CPU (16.0 GiB RAM), expect a slow run
+        fix: if this machine has an NVIDIA or AMD GPU, install the matching torch build (https://pytorch.org/get-started/locally/); otherwise lower --cases or --epochs
+  pass  onnxruntime       onnxruntime 1.30.0 and onnx 1.23.0 (export checks: AzureExecutionProvider, CPUExecutionProvider)
+  pass  platform-env      no extra environment variables needed
+  skip  teacher-config    teacher checks not requested (--no-teacher)
+  skip  teacher-key       teacher checks not requested (--no-teacher)
+  skip  teacher-probe     teacher checks not requested (--no-teacher)
+8 passed, 1 warning, 0 failed, 3 skipped
+```
+
+### macOS: GitHub Actions `macos-latest` (Apple silicon; CI run 36172123828, 2026-09-25)
 
 The same job on the macOS 26 arm64 runner (checkout path shortened to
 `~/SemantScript`). The default interpreter is `python3`:
@@ -283,13 +307,13 @@ semantscript doctor: ~/SemantScript
   pass  runtime-bindings  onnxruntime-node 1.30.0 and tokenizers 0.23.2 loaded for darwin-arm64
   pass  python            Python 3.12.10 at /Library/Frameworks/Python.framework/Versions/3.12/bin/python3
   fail  trainer           semantscript_trainer 0.0.0 from ~/SemantScript/trainer/src/semantscript_trainer; missing anthropic, openai
-        fix: pip install -e . from the SemantScript checkout (installs the teacher clients anthropic and openai); or if the packages are in .venv/bin/python rather than python3 (the default interpreter), pass --python .venv/bin/python or set SEMANTSCRIPT_PYTHON=.venv/bin/python
+        fix: pip install -e . from the SemantScript checkout (installs the teacher clients anthropic and openai); or if the packages are in .venv/bin/python rather than python3 (the default interpreter), pass --python .venv/bin/python or set the SEMANTSCRIPT_PYTHON environment variable to .venv/bin/python
   pass  model             semantscript_model 0.0.0 from ~/SemantScript/model/src/semantscript_model
   fail  torch             torch does not import: ModuleNotFoundError: No module named 'torch'
-        fix: install the training extra into this interpreter: pip install -e '.[training]' from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv/bin/python rather than python3 (the default interpreter), pass --python .venv/bin/python or set SEMANTSCRIPT_PYTHON=.venv/bin/python
+        fix: install the training extra into this interpreter: pip install -e ".[training]" from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv/bin/python rather than python3 (the default interpreter), pass --python .venv/bin/python or set the SEMANTSCRIPT_PYTHON environment variable to .venv/bin/python
   skip  device            torch does not import, so no device was checked
   fail  onnxruntime       onnxruntime does not import: ModuleNotFoundError: No module named 'onnxruntime'
-        fix: install the training extra into this interpreter: pip install -e '.[training]' from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv/bin/python rather than python3 (the default interpreter), pass --python .venv/bin/python or set SEMANTSCRIPT_PYTHON=.venv/bin/python
+        fix: install the training extra into this interpreter: pip install -e ".[training]" from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first); or if the packages are in .venv/bin/python rather than python3 (the default interpreter), pass --python .venv/bin/python or set the SEMANTSCRIPT_PYTHON environment variable to .venv/bin/python
   pass  platform-env      no extra environment variables needed
   skip  teacher-config    teacher checks not requested (--no-teacher)
   skip  teacher-key       teacher checks not requested (--no-teacher)

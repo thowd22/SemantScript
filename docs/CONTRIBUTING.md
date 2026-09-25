@@ -153,15 +153,16 @@ and the rest of the training extra takes 54 s and its test run 1 min 41 s.
 
 The `fresh-install` job's steps in run 36158884114, with no npm cache:
 
-| Step                                                               | Time |
-| ------------------------------------------------------------------ | ---- |
-| Set up Node 22 from `.nvmrc`                                       | 5 s  |
-| `npm install` and `npm run build` at the root                      | 14 s |
-| Express example: `npm install`, `npm run build`, `npm test`        | 18 s |
-| Refund service example: `npm install`, `npm run build`, `npm test` | 17 s |
-| Fixture artifact                                                   | <1 s |
-| `docker build` (no layer cache)                                    | 36 s |
-| Smoke run of the image                                             | 3 s  |
+| Step                                                                | Time |
+| ------------------------------------------------------------------- | ---- |
+| Set up Node 22 from `.nvmrc`                                        | 5 s  |
+| `npm install` and `npm run build` at the root                       | 14 s |
+| Express example: `npm install`, `npm run build`, `npm test`         | 18 s |
+| Refund service example: `npm install`, `npm run build`, `npm test`  | 17 s |
+| Fixture artifact                                                    | <1 s |
+| `npx semantscript --help` and `run` (step added in run 36160701373) | 1 s  |
+| `docker build` (no layer cache)                                     | 36 s |
+| Smoke run of the image                                              | 3 s  |
 
 This measures the fresh-clone path to the in-repository examples, not the
 [getting-started](getting-started.md) flow of adding SemantScript to your own

@@ -73,7 +73,7 @@ with its domain cut to the first `n` encoder layers
 | 22    | 39.4 ms       | 0.994 (159/160)    | 597 MB       |
 
 The [refund service](../examples/refund-service/README.md) runs its three
-domains at depth 6 and answers each of its nine expressions at about 3.9 to 5.4 ms
+domains at depth 6 and answers each of its nine expressions at about 3.8 to 5.4 ms
 p50 on the CPU. Prefixes are separate graphs on disk, so an application with
 domains at two depths ships the shared layers twice.
 

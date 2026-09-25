@@ -150,7 +150,7 @@ abridged): what the runtime loads.
       "parameterization": "categorical-softmax",
       "calibration": {
         "method": "temperature-scaling",
-        "temperature": 0.05,
+        "temperature": 0.18,
         "ece": 0.0
       },
       "verification": { "accuracy": 1.0, "pairConsistency": 1.0 }
@@ -171,7 +171,7 @@ abridged): what the runtime loads.
     "constraintViolations": 0
   },
   "trainingProvenance": {
-    "teacher": "constraints/compiled-constraints-v2@sha256:954871d5…",
+    "teacher": "constraints/compiled-constraints-v3@sha256:9ce05167…",
     "baseModel": "answerdotai/ModernBERT-base@…"
   }
 }
@@ -210,12 +210,12 @@ constraint set is complete, so `npm run train` is `semantscript train
 --teacher constraints`, the built-in constraints teacher labelling sampled
 inputs on the ordinary `train_bundle` path, with no language model and no
 API key. On 200 held-out inputs per expression through the Node runtime,
-five of nine expressions score 200/200 and four 199/200 (each miss an input
-next to a threshold), the verifier's ECE is at most 0.0026, and p50
-latency per call is about 3.9 to 5.4 ms on the CPU at depth 6. The README has the per-expression table, the
+eight of nine expressions score 200/200 and one 199/200 (it misses an input
+next to a threshold), the verifier's ECE is at most 0.0014, and p50
+latency per call is about 3.8 to 5.4 ms on the CPU at depth 6. The README has the per-expression table, the
 verification story (four strict-gate failures on near-threshold amounts
-before a recorded 0.5% tolerance, and a release that then recorded zero raw
-violations) and the tests: bundle shape, the framework path over the runtime's
+before a recorded 0.5% tolerance, and a release that then recorded one raw
+violation, within it) and the tests: bundle shape, the framework path over the runtime's
 fixture artifact, and every controller over the trained artifact.
 
 Run it:

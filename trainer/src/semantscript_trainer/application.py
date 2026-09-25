@@ -11,6 +11,7 @@ function at a time exactly as for a single-function build.
 
 from __future__ import annotations
 
+import json
 import math
 import random
 from collections.abc import Mapping, Sequence
@@ -395,9 +396,7 @@ def _function_states(
             HeldOutSplitConfig(evaluation_ratio=config.evaluation_ratio, seed=config.seed),
         )
         if not split.evaluation:
-            raise TrainingConfigurationError(
-                f"function {function.function_id!r} needs at least two independent row groups"
-            )
+            raise TrainingConfigurationError(_single_group_message(function))
         schema = function.ir["inputs"]
         if not isinstance(schema, list):
             raise TrainingConfigurationError("function IR inputs must be an array")
@@ -598,3 +597,22 @@ __all__ = [
     "model_refs",
     "train_application",
 ]
+
+
+def _single_group_message(function: FunctionCorpus) -> str:
+    """Why nothing could be held out, and what to change (docs/diagnostics.md)."""
+
+    from semantscript_trainer.teachers.constraints import describe_expression
+
+    rows = function.corpus.rows
+    distinct = len({json.dumps(row.inputs, sort_keys=True) for row in rows})
+    return (
+        f"{describe_expression(function.ir)} ({function.function_id}) needs at least two "
+        f"independent row groups, but its {len(rows)} training rows ({distinct} distinct "
+        "inputs) form one: identical inputs, and each case with its counterfactual twin, "
+        "must stay on the same side of the held-out split, and in a small input space they "
+        "link every row, the gold examples included. Lower --counterfactual-ratio (0.5, or "
+        "0 when the inputs are a few booleans or enum values), request fewer --cases, or, "
+        "with the constraints teacher, widen the number ranges in [teacher.ranges] "
+        "(docs/diagnostics.md)"
+    )

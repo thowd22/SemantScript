@@ -94,6 +94,7 @@ backend = "constraints"
 seed = 1                  # the sampling seed
 twin_filter = true        # keep only inputs one field edit can move to another output
 near_threshold_share = 0.3
+maximum_sampling_attempts = 200000  # draws before it stops looking for more distinct inputs
 
 [teacher.ranges]          # optional; by dotted input path or field name
 total = { low = 0, high = 8000, distribution = "log", decimals = 1 }
@@ -118,10 +119,13 @@ length threshold (`items.length > 3`) is crossed by appending or removing one
 item or character, so every edit changes exactly one JSON path. A numeric
 range is inferred from the thresholds and the gold examples (at least 0 to
 10 and up to twice the largest threshold; exactly twice the largest when the
-thresholds are fractional, as for a 0 to 1 score; symmetric around zero when
-every threshold is negative; `count`, zero half the time, when every
-threshold is a small integer; `log` when the range reaches 1,000; decimals
-when a threshold or an example has them), and `[teacher.ranges]` overrides
+thresholds are fractional, as for a 0 to 1 score; symmetric around zero, at
+least -10 to 10, when a threshold is negative or a comparison holds at or
+below zero, as `balance < 0` or `amount <= 0` do, while a count compared only
+as `chargebacks > 0` or `=== 0` keeps a range from zero up; `count`, zero
+half the time, when every threshold is a small integer; `log` when the range
+reaches 1,000; decimals when a threshold or an example has them), and
+`[teacher.ranges]` overrides
 it. A path compared with no literal of its own, as in an arithmetic predicate
 (`pair.a - pair.b > 10`), takes every literal in the predicates as its
 thresholds and a range of at least 0 to 100, so there is room for a few hundred
@@ -134,13 +138,30 @@ Unions of object variants (`{ kind: "circle"; radius: number } | { kind:
 "square"; side: number }`) are sampled, but a predicate on the discriminant
 cannot be crossed by a single-field edit (switching the variant changes more
 than one JSON path), so the adversarial stage cannot build its boundary pair;
-put such a predicate on a plain enum or literal field instead. The reference application trains all nine
-of its expressions this way (`examples/refund-service`, `npm run train`),
+put such a predicate on a plain enum or literal field instead.
+
+**Small input spaces.** Identical inputs, and each case with its
+counterfactual twin, share one group in the held-out split, so an expression
+with few distinct inputs (a small whole-number range and a boolean, say) can
+link its whole corpus into one group and leave nothing to hold out. Two things
+keep that from happening. A counterfactual twin first tries number values
+spread over the whole range, not only the ones beside a threshold (boundary
+pairs keep those), so anchors do not all share the same few twins. And an
+expression whose seeded pilot of 2,000 draws holds fewer than 800 distinct
+inputs is compact: half of its whole-number draws then carry two decimal
+places, so `severity` in `severity >= 8` (range 0 to 16) takes 1,601 values
+instead of 17. An input space that stays small, such as two booleans, still
+fails with `needs at least two independent row groups`; lower
+`--counterfactual-ratio` (0.5, or 0 for a few booleans or enum values) or
+widen `[teacher.ranges]`. When fewer than half of an expression's cases are
+distinct inputs, `train` prints a warning with the count.
+
+The reference application trains all nine of its expressions this way (`examples/refund-service`, `npm run train`),
 and the refund benchmark's release corpus labels its real inputs the same
 way (decision-7).
 
 The teacher's identity in provenance is provider `constraints`, model
-`compiled-constraints-v2` and, as the configuration digest, the SHA-256 of
+`compiled-constraints-v3` and, as the configuration digest, the SHA-256 of
 the sampling configuration (seed, twin filter, near-threshold share, ranges
 and the algorithm version), so changing any of them regenerates the cached
 datasets.

@@ -27,7 +27,7 @@ BUILT_IN_TEACHERS = (CONSTRAINTS_BACKEND,)
 CONSTRAINTS_TEACHER_KIND = "semantscript.constraints-teacher"
 # Bumped whenever sampling, labelling or pair generation changes what a seed produces,
 # so cached datasets from an older algorithm are never reused.
-CONSTRAINTS_ALGORITHM_VERSION = 2
+CONSTRAINTS_ALGORITHM_VERSION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,7 +288,8 @@ class ConstraintsTeacherConfig:
         unknown = sorted(set(value) - allowed)
         if unknown:
             raise TeacherConfigurationError(
-                f"unknown constraints teacher configuration keys: {', '.join(unknown)}"
+                f"unknown constraints teacher configuration keys: {', '.join(unknown)} "
+                f"(valid keys: {', '.join(sorted(allowed))})"
             )
         values = dict(value)
         ranges = values.get("ranges", {})

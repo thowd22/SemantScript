@@ -303,7 +303,7 @@ def test_descriptor_records_the_constraints_teacher_and_its_sampling_digest() ->
 
     assert isinstance(teacher, Teacher) and isinstance(teacher, AdversarialTeacher)
     assert teacher.descriptor.provider == "constraints"
-    assert teacher.descriptor.model == "compiled-constraints-v2"
+    assert teacher.descriptor.model == "compiled-constraints-v3"
     assert teacher.descriptor.configuration_sha256 == config.sampling_sha256
     assert ConstraintsTeacher().descriptor == teacher.descriptor
     for changed in (
@@ -728,7 +728,7 @@ def test_fractional_thresholds_get_a_range_that_balances_the_labels() -> None:
     )
     assert ConstraintSampler(negative, ConstraintsTeacherConfig()).range_for(
         "t.celsius"
-    ) == NumberRange(-4, 4, "uniform", 0)
+    ) == NumberRange(-10, 10, "uniform", 0)
 
 
 def test_numbers_without_a_threshold_or_a_gold_value_get_a_default_range(
@@ -823,29 +823,32 @@ def test_trains_an_arithmetic_predicate_without_repeating_inputs(tmp_path: Path,
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_a_repeated_anchor_still_gets_its_twin(tmp_path: Path, seed: int) -> None:
-    # A range of 0..30 holds fewer twin-able inputs than 800, so the corpus repeats
-    # anchors and the counterfactual stage asks for the same anchor's twin more
-    # than once; a later request falls back to the stream the twin filter used.
-    gap = op("-", path("p", "a"), path("p", "b"))
+    # Two booleans hold four inputs, so the corpus repeats anchors and the
+    # counterfactual stage asks for the same anchor's twin more than once; a later
+    # request falls back to the stream the twin filter used.
+    both = op("&&", path("p", "a"), path("p", "b"))
     ir = single_input_ir(
         "p",
-        number_fields("a", "b"),
+        {
+            "kind": "object",
+            "fields": [
+                {"name": "a", "optional": False, "type": {"kind": "boolean"}},
+                {"name": "b", "optional": False, "type": {"kind": "boolean"}},
+            ],
+        },
         [
-            rule("always", op(">", gap, lit(10)), True),
-            rule("always", op("<=", gap, lit(10)), False),
+            rule("always", both, True),
+            rule("always", {"node": "unary", "operator": "!", "operand": both}, False),
         ],
         [False, True],
-        ({"a": 30, "b": 3}, True),
+        ({"a": True, "b": True}, True),
     )
-    small = {"low": 0, "high": 30}
-    teacher = ConstraintsTeacher(
-        ConstraintsTeacherConfig(seed=seed, ranges={"a": small, "b": small})
-    )
+    teacher = ConstraintsTeacher(ConstraintsTeacherConfig(seed=seed))
 
-    base, adversarial = train_adversarial(ir, teacher, tmp_path, 800)
+    base, adversarial = train_adversarial(ir, teacher, tmp_path, 40)
 
-    assert len({json.dumps(case.inputs, sort_keys=True) for case in base.cases}) < 800
-    assert len(adversarial.pairs) == 799
+    assert len({json.dumps(case.inputs, sort_keys=True) for case in base.cases}) <= 4
+    assert len(adversarial.pairs) == 39
 
 
 def test_twin_filter_error_says_no_edit_changes_the_output_and_how_to_opt_out() -> None:
@@ -888,8 +891,8 @@ def test_pure_mode_names_an_input_the_constraints_do_not_decide() -> None:
 def test_contradictory_constraints_admit_no_output() -> None:
     ir = refund_ir(
         [
-            rule("always", op(">", AGE, lit(-1)), "deny"),
-            rule("never", op(">", AGE, lit(-1)), "deny"),
+            rule("always", op(">=", AGE, lit(0)), "deny"),
+            rule("never", op(">=", AGE, lit(0)), "deny"),
         ]
     )
     with pytest.raises(TeacherConfigurationError, match="admit no output"):
@@ -1109,3 +1112,166 @@ def test_sample_decided_draws_a_separate_stream_and_honours_exclusions() -> None
         teacher.sample_decided(ir, 5, stream="train")
     # Undecided inputs are skipped rather than failing a held-out draw.
     assert len(teacher.sample_decided(incomplete_ir(), 20)) == 20
+
+
+# --- small input spaces ------------------------------------------------------------
+
+
+def number_policy(
+    operators: tuple[str, str], threshold: float, gold: list[tuple[float, Any]]
+) -> dict[str, Any]:
+    """``x <op0> threshold`` gives True, ``x <op1> threshold`` gives False."""
+
+    x = path("p", "x")
+    ir = single_input_ir(
+        "p",
+        number_fields("x"),
+        [
+            rule("always", op(operators[0], x, lit(threshold)), True),
+            rule("always", op(operators[1], x, lit(threshold)), False),
+        ],
+        [False, True],
+        ({"x": gold[0][0]}, gold[0][1]),
+    )
+    ir["definition"]["examples"] = [{"inputs": {"p": {"x": v}}, "output": y} for v, y in gold]
+    return ir
+
+
+def held_out_rows(ir: dict[str, Any], base: Any, adversarial: Any) -> int:
+    from semantscript_trainer.training_contract import (
+        HeldOutSplitConfig,
+        assemble_training_corpus,
+        split_training_corpus,
+    )
+
+    corpus = assemble_training_corpus(ir, base, adversarial)
+    return len(split_training_corpus(corpus, HeldOutSplitConfig(evaluation_ratio=0.1)).evaluation)
+
+
+@pytest.mark.parametrize(
+    ("operators", "gold"),
+    [
+        ((">", "<="), [(1, True), (0, False)]),  # amount > 0 charges, <= 0 refunds
+        ((">=", "<"), [(250, True)]),  # balance >= 0 is fine, < 0 is overdrawn
+    ],
+)
+def test_a_threshold_at_zero_gets_a_range_on_both_sides(
+    tmp_path: Path, operators: tuple[str, str], gold: list[tuple[float, Any]]
+) -> None:
+    # A comparison that holds at or below zero makes the sign the policy: the range
+    # is symmetric around zero (it was 0..1 or 0..examples, with no negative side).
+    ir = number_policy(operators, 0, gold)
+    sampler = ConstraintSampler(ir, ConstraintsTeacherConfig())
+    numbers = sampler.range_for("p.x")
+    assert numbers.low == -numbers.high and numbers.high >= 10
+
+    base, adversarial = train_adversarial(ir, ConstraintsTeacher(), tmp_path, 200)
+
+    assert len({json.dumps(case.inputs, sort_keys=True) for case in base.cases}) >= 190
+    outputs = [case.output for case in base.cases]
+    assert 0.3 < outputs.count(True) / len(outputs) < 0.7
+    assert held_out_rows(ir, base, adversarial) > 0
+
+
+def test_a_count_compared_with_zero_keeps_a_range_from_zero() -> None:
+    # chargebacks > 0 / chargebacks === 0 (examples/refund-service): no comparison
+    # holds below zero, so no negative counts are drawn.
+    ir = number_policy((">", "==="), 0, [(1, True), (0, False)])
+    numbers = ConstraintSampler(ir, ConstraintsTeacherConfig()).range_for("p.x")
+    assert numbers.low == 0 and numbers.distribution == "count"
+
+
+def route_ir() -> dict[str, Any]:
+    severity, vip = path("t", "severity"), path("t", "vip")
+    ir = single_input_ir(
+        "t",
+        {
+            "kind": "object",
+            "fields": [
+                {"name": "severity", "optional": False, "type": {"kind": "number"}},
+                {"name": "vip", "optional": False, "type": {"kind": "boolean"}},
+            ],
+        },
+        [
+            rule("always", op(">=", severity, lit(8)), "page"),
+            rule("always", op("&&", op("<", severity, lit(8)), vip), "queue"),
+            rule(
+                "always",
+                op(
+                    "&&",
+                    op("<", severity, lit(8)),
+                    {"node": "unary", "operator": "!", "operand": vip},
+                ),
+                "ignore",
+            ),
+        ],
+        ["ignore", "page", "queue"],
+        ({"severity": 9, "vip": False}, "page"),
+    )
+    ir["definition"]["examples"].append(
+        {"inputs": {"t": {"severity": 2, "vip": True}}, "output": "queue"}
+    )
+    return ir
+
+
+@pytest.mark.parametrize("cases", [64, 200, 800])
+def test_a_compact_input_space_still_leaves_rows_to_hold_out(tmp_path: Path, cases: int) -> None:
+    # severity >= 8 over 0..16 and a boolean hold 34 whole-number inputs: every
+    # case and its twin linked the whole corpus into one split group ("needs at
+    # least two independent row groups"). A compact expression also draws two
+    # decimal places, and twins spread over the range instead of on the threshold.
+    ir = route_ir()
+    assert ConstraintSampler(ir, ConstraintsTeacherConfig()).fine
+    assert not ConstraintSampler(refund_ir(), ConstraintsTeacherConfig()).fine
+
+    base, adversarial = train_adversarial(ir, ConstraintsTeacher(), tmp_path, cases)
+
+    assert len({json.dumps(case.inputs, sort_keys=True) for case in base.cases}) >= cases - 3
+    assert len(adversarial.pairs) == cases - 2
+    assert held_out_rows(ir, base, adversarial) > 0
+
+
+def test_counterfactual_twins_spread_over_the_range(tmp_path: Path) -> None:
+    # Boundary pairs sit on the threshold; twins are drawn over the whole range
+    # first, so anchors do not all share the few inputs next to the threshold.
+    ir = refund_ir()
+    _base, adversarial = train_adversarial(ir, ConstraintsTeacher(), tmp_path, 200)
+    twins = [
+        case.inputs["order"]["ageDays"]
+        for case in adversarial.cases
+        if case.tag == "counterfactual"
+    ]
+    assert twins
+    near = [age for age in twins if any(abs(age - t) <= 1 for t in (30, 60, 90))]
+    assert len(near) < len(twins) / 2
+
+
+def test_a_corpus_with_one_split_group_names_the_expression_and_the_fix(tmp_path: Path) -> None:
+    from semantscript_trainer.application import _function_states, application_function
+    from semantscript_trainer.training import TrainingConfig, TrainingConfigurationError
+
+    both = op("&&", path("p", "a"), path("p", "b"))
+    ir = single_input_ir(
+        "p",
+        {
+            "kind": "object",
+            "fields": [
+                {"name": "a", "optional": False, "type": {"kind": "boolean"}},
+                {"name": "b", "optional": False, "type": {"kind": "boolean"}},
+            ],
+        },
+        [
+            rule("always", both, True),
+            rule("always", {"node": "unary", "operator": "!", "operand": both}, False),
+        ],
+        [False, True],
+        ({"a": True, "b": True}, True),
+    )
+    base, adversarial = train_adversarial(ir, ConstraintsTeacher(), tmp_path, 40)
+
+    with pytest.raises(TrainingConfigurationError) as raised:
+        _function_states([application_function(ir, base, adversarial)], TrainingConfig())
+
+    message = str(raised.value)
+    assert message.startswith("src/refund.sem.ts:16 (nf_aaaaaaaa)")
+    assert "--counterfactual-ratio" in message and "[teacher.ranges]" in message

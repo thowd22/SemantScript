@@ -72,6 +72,15 @@ PILOT_SAMPLES = 512
 # A stream that yields no new distinct input for this many draws is exhausted: the
 # input space is smaller than the requested count, so samples repeat from there on.
 STALL_ATTEMPTS = 5_000
+# Number values spread over the range that a counterfactual edit tries first.
+SPREAD_DRAWS = 6
+# An expression whose SPACE_PILOT_DRAWS pilot draws hold fewer than
+# SPACE_COMPACT_DISTINCT distinct inputs has a compact input space and also draws
+# whole-number ranges with FINE_DECIMALS decimal places, FINE_SHARE of the time.
+SPACE_PILOT_DRAWS = 2_000
+SPACE_COMPACT_DISTINCT = 800
+FINE_DECIMALS = 2
+FINE_SHARE = 0.5
 # In mixed mode, how long the constraints search for a two-sided boundary pair or a
 # decided twin before the fallback teacher is asked instead.
 MIXED_SEARCH_ATTEMPTS = 2_000
@@ -109,6 +118,11 @@ class _PathFacts:
     peers: set[str] = field(default_factory=set)
     examples: list[JsonValue] = field(default_factory=list)
     referenced: bool = False
+    # Compared as at most zero (``balance < 0``, ``amount <= 0``): values below zero
+    # are part of the policy, so the range is symmetric around zero. A path only
+    # compared as ``> 0`` or ``=== 0`` (a count such as ``chargebacks > 0``) keeps a
+    # range from zero up.
+    signed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +174,15 @@ class ConstraintSampler:
                     if entry["name"] in inputs:
                         self._collect_example(entry["type"], entry["name"], inputs[entry["name"]])
         self._ranges: dict[str, NumberRange] = {}
+        # A compact input space (a few whole numbers and booleans) repeats its
+        # inputs; identical inputs share a split group, so a corpus with twins would
+        # collapse into one group. Such an expression also draws whole-number ranges
+        # with two decimal places. Decided once per expression from a seeded pilot,
+        # so every stage (and a later process reusing a cached corpus) agrees.
+        self.fine = False
+        pilot = random.Random(_stream_seed(f"{config.seed}:{self.ir.get('id')}:space"))
+        distinct = {_key(self.sample(pilot)) for _ in range(SPACE_PILOT_DRAWS)}
+        self.fine = len(distinct) < SPACE_COMPACT_DISTINCT
 
     # Labels ---------------------------------------------------------------
 
@@ -268,6 +291,8 @@ class ConstraintSampler:
             value = min(high, max(low, value))
             return _number(round(value, max(numbers.decimals, _decimals_of(threshold))))
         decimals = numbers.decimals if numbers.decimals and rng.random() < 0.3 else 0
+        if self._fine_draw(numbers, rng):
+            return _number(round(rng.uniform(low, high), FINE_DECIMALS))
         if numbers.distribution == "count":
             if rng.random() < 0.5 and low <= 0 <= high:
                 return 0
@@ -281,6 +306,25 @@ class ConstraintSampler:
             value = rng.uniform(low, high)
         value = min(high, max(low, value))
         return _number(round(value, decimals))
+
+    def spread_number(self, key: str, rng: random.Random) -> int | float:
+        """A value drawn evenly over the whole range (no threshold or zero bias)."""
+
+        numbers = self.range_for(key)
+        low, high = numbers.low, numbers.high
+        if self._fine_draw(numbers, rng):
+            return _number(round(rng.uniform(low, high), FINE_DECIMALS))
+        if numbers.decimals and rng.random() < 0.3:
+            return _number(round(rng.uniform(low, high), numbers.decimals))
+        first, last = math.ceil(low), math.floor(high)
+        if first > last:
+            return _number(round(rng.uniform(low, high), max(numbers.decimals, 1)))
+        return rng.randint(first, last)
+
+    def _fine_draw(self, numbers: NumberRange, rng: random.Random) -> bool:
+        # Only a compact expression's whole-number ranges; the draw from ``rng``
+        # happens only then, so other expressions' streams are unchanged.
+        return self.fine and numbers.decimals == 0 and rng.random() < FINE_SHARE
 
     def sample_string(self, key: str, rng: random.Random) -> str:
         facts = self.facts.get(key)
@@ -316,24 +360,31 @@ class ConstraintSampler:
         # bound the path only loosely, so the range keeps room for many distinct
         # inputs.
         own = bool(facts.thresholds)
-        # Lists, never bare starred arguments: a path with no negative threshold and
-        # no gold-example value would make these one-argument min()/max() calls.
-        low = min([0.0, *(2 * value for value in thresholds if value < 0), *examples])
+        fractional = bool(thresholds) and not all(float(value).is_integer() for value in thresholds)
         # Bounds round outwards to whole numbers, or to the thresholds' decimal
         # places when every threshold is fractional (a 0..1 score).
-        scale = 1.0
-        if thresholds and max(thresholds) <= 0:
-            # Only negative (or zero) thresholds: as much room above zero as below.
-            high = max([1.0, -low, *examples])
-        elif thresholds and not all(float(value).is_integer() for value in thresholds):
-            # Fractional thresholds (a 0..1 score): twice the largest, not a floor of
-            # 10 that would put most draws past every threshold.
-            high = max([2 * max(thresholds), *examples])
-            scale = 10.0**decimals
-        elif thresholds:
-            high = max([10.0 if own else 100.0, 2 * max(thresholds), *examples])
+        scale = 10.0**decimals if fractional else 1.0
+        # Lists, never bare starred arguments: a path with no threshold and no
+        # gold-example value would make these one-argument min()/max() calls.
+        if thresholds and (min(thresholds) < 0 or facts.signed):
+            # A negative threshold, or a comparison that holds at or below zero
+            # (``balance < 0``, ``amount <= 0``): the sign decides, so the range is
+            # symmetric around zero with as much room on either side (at least -10
+            # to 10 for whole-number thresholds).
+            magnitude = max([abs(value) for value in values])
+            floor = [] if fractional else [10.0 if own else 100.0]
+            high = max([2 * magnitude, *floor])
+            low = -high
         else:
-            high = max([100.0, *examples])
+            low = min([0.0, *examples])
+            if fractional:
+                # Fractional thresholds (a 0..1 score): twice the largest, not a floor
+                # of 10 that would put most draws past every threshold.
+                high = max([2 * max(thresholds), *examples])
+            elif thresholds:
+                high = max([10.0 if own else 100.0, 2 * max(thresholds), *examples])
+            else:
+                high = max([100.0, *examples])
         high = math.ceil(high * scale) / scale
         low = math.floor(low * scale) / scale
         if decimals == 0 and low == 0 and max(values, default=0) <= 10 and own:
@@ -397,6 +448,8 @@ class ConstraintSampler:
         current: Any,
         rng: random.Random,
         peer_values: Sequence[Any] = (),
+        *,
+        spread: bool = False,
     ) -> list[Any]:
         if not leaf.present:
             return [self.sample_type(leaf.spec, leaf.key, rng) for _ in range(3)]
@@ -407,6 +460,13 @@ class ConstraintSampler:
             values = [not current]
         elif kind == "number":
             numbers = self.range_for(leaf.key)
+            if spread:
+                # A counterfactual twin tries values spread over the whole range
+                # first: were every twin on or beside a threshold, anchors from all
+                # over the range would share a few twin inputs, identical inputs
+                # share a split group, and a small input space would collapse into
+                # one group with nothing left to hold out.
+                values.extend(self.spread_number(leaf.key, rng) for _ in range(SPREAD_DRAWS))
             for threshold in self.thresholds_for(leaf.key):
                 step = _step(threshold, numbers.decimals)
                 for delta in (0, step, -step):
@@ -429,7 +489,8 @@ class ConstraintSampler:
                             round(peer + delta, max(numbers.decimals, _decimals_of(float(peer))))
                         )
                     )
-            values.extend(self.sample_number(leaf.key, rng) for _ in range(4))
+            if not spread:
+                values.extend(self.sample_number(leaf.key, rng) for _ in range(4))
         elif kind == "string":
             facts = self.facts.get(leaf.key)
             values = [*(sorted(facts.strings) if facts else []), rng.choice(STRING_POOL)]
@@ -466,9 +527,13 @@ class ConstraintSampler:
         return unique
 
     def edits(
-        self, inputs: Mapping[str, JsonValue], rng: random.Random
+        self, inputs: Mapping[str, JsonValue], rng: random.Random, *, spread: bool = False
     ) -> Iterator[tuple[_Leaf, Any, Any, dict[str, JsonValue]]]:
-        """Single-field edits of ``inputs`` in a random order: (leaf, old, new, twin)."""
+        """Single-field edits of ``inputs`` in a random order: (leaf, old, new, twin).
+
+        ``spread`` (counterfactual twins) tries number values spread over the range
+        before the ones on or beside a threshold (boundary pairs keep those first).
+        """
 
         leaves = self.leaves(inputs)
         values_by_key: dict[str, list[Any]] = {}
@@ -484,7 +549,7 @@ class ConstraintSampler:
                 for peer in sorted(facts.peers if facts is not None else ())
                 for value in values_by_key.get(peer, ())
             ]
-            for value in self.candidate_values(leaf, current, rng, peer_values):
+            for value in self.candidate_values(leaf, current, rng, peer_values, spread=spread):
                 twin = copy.deepcopy(dict(inputs))
                 _set(twin, leaf.segments, value)
                 yield leaf, current, value, twin
@@ -566,9 +631,14 @@ class ConstraintSampler:
                         float(cast(float, literal))
                     )
                 elif path_key is not None and _is_number(literal):
-                    self.facts.setdefault(path_key, _PathFacts()).thresholds.add(
-                        float(cast(float, literal))
-                    )
+                    facts = self.facts.setdefault(path_key, _PathFacts())
+                    threshold = float(cast(float, literal))
+                    facts.thresholds.add(threshold)
+                    # ``path < c`` / ``path <= c``, or ``c > path`` / ``c >= path`` written
+                    # the other way round, with c at most zero.
+                    at_most = ("<", "<=") if path_side is expression["left"] else (">", ">=")
+                    if threshold <= 0 and expression["operator"] in at_most:
+                        facts.signed = True
                 elif path_key is not None and isinstance(literal, str):
                     self.facts.setdefault(path_key, _PathFacts()).strings.add(literal)
         for child_name in ("object", "index", "operand", "left", "right"):
@@ -921,8 +991,8 @@ class ConstraintsTeacher:
             if self._fallback is None:
                 raise TeacherConfigurationError(
                     f"{describe_expression(ir)}: {cached}, so the constraints teacher cannot "
-                    "label it. Add always/never constraints that decide every input, or add a "
-                    "[teacher.fallback] table with a language-model teacher (docs/teachers.md)"
+                    "label it. Add always/never constraints that decide every input, or let a "
+                    f"language-model teacher label it: {FALLBACK_HOWTO}"
                 )
             return None
         return cached
@@ -1063,7 +1133,7 @@ class ConstraintsTeacher:
 def _counterfactual(
     sampler: ConstraintSampler, anchor: GeneratedCase, rng: random.Random
 ) -> CounterfactualProposal | None:
-    for leaf, old, new, twin in sampler.edits(anchor.inputs, rng):
+    for leaf, old, new, twin in sampler.edits(anchor.inputs, rng, spread=True):
         try:
             label = sampler.label(twin)
         except ConstraintEvaluationError:
@@ -1140,10 +1210,18 @@ def incomplete_constraints_error(
     return TeacherConfigurationError(
         f"{sampler.where}: {why}, so the constraints teacher cannot label it alone. "
         f"For the input {_key(inputs)} the constraints {admits}. Add constraints until "
-        "exactly one output is admissible for every input, or add a [teacher.fallback] "
-        "table with a language-model teacher to label the inputs the constraints leave "
-        "open (docs/teachers.md)"
+        "exactly one output is admissible for every input, or label the inputs the "
+        f"constraints leave open with a language-model teacher: {FALLBACK_HOWTO}"
     )
+
+
+# How to configure mixed mode, for messages: the ``constraints`` keyword cannot
+# carry a fallback, so the user needs a teacher file.
+FALLBACK_HOWTO = (
+    'write a teacher TOML with [teacher] backend = "constraints" and a [teacher.fallback] '
+    'table (backend = "anthropic" or "ollama" and its model), and pass it with '
+    "--teacher <file> (docs/teachers.md)"
+)
 
 
 # --- helpers ------------------------------------------------------------------
@@ -1191,6 +1269,10 @@ def _step(threshold: float, decimals: int) -> float:
 
 def _number(value: float) -> int | float:
     return int(value) if float(value).is_integer() else float(value)
+
+
+def _stream_seed(material: str) -> int:
+    return int(hashlib.sha256(material.encode()).hexdigest()[:16], 16)
 
 
 def _key(value: Any) -> str:

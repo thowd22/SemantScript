@@ -261,6 +261,17 @@ def train_bundle(
         if function_id not in reused:
             say(f"{function_id}: generating {total} cases ({gold} gold)")
         base = SyntheticDatasetGenerator(teacher, cache_root).generate(ir, total)
+        distinct = len({json.dumps(case.inputs, sort_keys=True) for case in base.cases})
+        if function_id not in reused and distinct * 2 < len(base.cases):
+            from semantscript_trainer.teachers.constraints import describe_expression
+
+            say(
+                f"warning: {describe_expression(ir)}: only {distinct} distinct inputs among "
+                f"{len(base.cases)} cases; the teacher repeated inputs because the input space "
+                "is small, so held-out accuracy says less than the count suggests (a "
+                "[teacher.ranges] table widens a constraints teacher's number ranges; "
+                "docs/teachers.md)"
+            )
         adversarial: AdversarialDataset | None = None
         if cast(list[Any], definition.get("constraints", [])):
             if not isinstance(teacher, AdversarialTeacher):

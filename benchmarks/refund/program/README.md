@@ -96,3 +96,16 @@ node --test benchmarks/refund/program/program.test.mjs
 PYTHONPATH=trainer/src:model/src:.python-packages \
   python -m pytest benchmarks/refund/program/test_pipeline.py -q
 ```
+
+## Jev diagnostic comparator
+
+`run_jev_comparator.py` sends every case of the frozen final set to TypeSafe's
+Jev decision model through OpenRouter's decisions endpoint as one choice
+question over the same policy text, hard constraints and canonical inputs the
+generative baselines receive, and scores the answers with the benchmark's
+metric definitions. It reads `OPENROUTER_API_KEY` from the environment, caps
+spend with `--max-cost-usd`, caches raw answers so a rerun re-spends nothing,
+and writes a diagnostic record (not a sealed system entry) under the output
+directory; `data/results-jev-2026-09-25/README.md` reads its run.
+`test_jev_comparator.py` covers the request shape, the scoring and the budget
+without the network.

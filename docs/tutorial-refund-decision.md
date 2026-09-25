@@ -89,16 +89,15 @@ This step was run on 2026-09-25 and takes under a second after the install.
 Pick a teacher. All four routes produce the same artifact layout; the
 [teachers page](teachers.md) compares them in detail.
 
-| Route                                    | Command                                                                                                                                            | What it needs            | Measured cost and time for this expression                   |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------ |
-| Anthropic API                            | `ANTHROPIC_API_KEY=… npx semantscript train`                                                                                                       | an Anthropic key         | about USD 0.003 per generated case; a minute of GPU training |
-| Sonnet 5 through OpenRouter              | the benchmark's labeling and baseline transports (`run_local_teacher_experiment.py`, `run-benchmark.mjs`); not yet wired into `semantscript train` | an OpenRouter key        | USD 0.0029 per label measured 2026-09-25, 4 s per request    |
-| Claude Code CLI on a subscription        | the refund benchmark's `claude_cli_teacher.py` path (`benchmarks/refund/program/CLAUDE_CLI_TRAINING.md`)                                           | a logged-in `claude` CLI | subscription quota, about 4 to 6 s per request               |
-| No language model (complete constraints) | `npm run train` in `examples/refund-service`                                                                                                       | nothing                  | free; nine expressions in about 4 minutes on the GPU         |
+| Route                                    | Command                                                                                                                                                                                          | What it needs            | Measured cost and time for this expression                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------- |
+| Anthropic API                            | `ANTHROPIC_API_KEY=… npx semantscript train`                                                                                                                                                     | an Anthropic key         | about USD 0.003 per generated case; a minute of GPU training                              |
+| Sonnet 5 through OpenRouter              | `[teacher]` TOML with `backend = "anthropic"`, `model = "anthropic/claude-sonnet-5"`, `base_url = "https://openrouter.ai/api"`, `mode = "direct"`; `ANTHROPIC_API_KEY` set to the OpenRouter key | an OpenRouter key        | about USD 0.026 per generated case (8,300-token teacher prompt); a minute of GPU training |
+| Claude Code CLI on a subscription        | the refund benchmark's `claude_cli_teacher.py` path (`benchmarks/refund/program/CLAUDE_CLI_TRAINING.md`)                                                                                         | a logged-in `claude` CLI | subscription quota, about 4 to 6 s per request                                            |
+| No language model (complete constraints) | `npm run train` in `examples/refund-service`                                                                                                                                                     | nothing                  | free; nine expressions in about 4 minutes on the GPU                                      |
 
 For this tutorial's expression a teacher must read the text (its constraints
-do not cover every input), so the Anthropic route is the one `train` takes
-today. With a key:
+do not cover every input), so the first two routes apply. With a key:
 
 ```sh
 npx semantscript train --cases 200 --epochs 4 --device cuda

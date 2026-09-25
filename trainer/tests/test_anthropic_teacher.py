@@ -285,6 +285,22 @@ def test_rejects_nonterminal_structured_responses(stop_reason: str | None) -> No
         teacher.generate(ir(), 1)
 
 
+def test_ignores_thinking_blocks_beside_the_text_block() -> None:
+    # OpenRouter's Anthropic-format route prepends a thinking block; the text block
+    # alone is the answer, and the request asks for thinking to be disabled.
+    response = SimpleNamespace(
+        stop_reason="end_turn",
+        content=[
+            SimpleNamespace(type="thinking", thinking="reasoning"),
+            SimpleNamespace(type="text", text='{"inputs":{"message":"first"},"output":true}'),
+        ],
+    )
+    client = FakeClient(direct_messages=[response])
+    teacher = AnthropicTeacher(config(mode="direct"), client=client)
+    assert teacher.generate(ir(), 1) == (GeneratedCase(inputs={"message": "first"}, output=True),)
+    assert client.messages.create_calls[0]["thinking"] == {"type": "disabled"}
+
+
 @pytest.mark.parametrize(
     "response",
     [

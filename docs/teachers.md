@@ -33,15 +33,28 @@ for you when the key is set and no file exists.
 **Sonnet through OpenRouter.** OpenRouter serves the same model on an
 Anthropic-format route (`https://openrouter.ai/api/v1/messages`) that honors
 JSON-schema structured output and accepts the OpenRouter key as either
-`x-api-key` or a bearer token (verified 2026-09-25). The refund benchmark's
-structured-output baseline transport and the local-teacher labeling driver
-use it. The trainer's `anthropic` backend pointed at it (`base_url =
-"https://openrouter.ai/api"`, `mode = "direct"`, the OpenRouter key as
-`api_key`) is **not verified for generation**: in a two-case probe the route
-answered, but the trainer's strict decoder rejected the reply (the response
-carried more than one content block), so generating a corpus this way needs
-that decoder relaxed first. Until then, `semantscript train` needs an
-Anthropic key or a local backend.
+`x-api-key` or a bearer token:
+
+```toml
+[teacher]
+backend = "anthropic"
+model = "anthropic/claude-sonnet-5"
+base_url = "https://openrouter.ai/api"
+mode = "direct"          # OpenRouter has no Message Batches
+max_tokens = 4096
+```
+
+Run `semantscript train` with `ANTHROPIC_API_KEY` set to the OpenRouter key
+for that process (the SDK reads it; the file holds no secret). Verified
+2026-09-25 on the Express example: both expressions generated their cases
+through the route. Two things the route does differently, both handled by
+the trainer: it turns extended thinking on unless the request says
+`thinking: {"type": "disabled"}` (the teacher now sends that, so a case
+costs 66 output tokens instead of about 1,900), and its replies can carry a
+thinking block beside the text block (the decoder ignores non-text blocks).
+A case costs about USD 0.026 through this route because the teacher prompt
+(the IR-derived schema and instructions) is about 8,300 input tokens; a
+200-case corpus for one expression is therefore about USD 5.
 
 **Ollama** (local, OpenAI-compatible endpoint):
 

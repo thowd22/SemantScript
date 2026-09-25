@@ -374,17 +374,10 @@ class AnthropicTeacher:
                 f"Anthropic response for {custom_id!r} stopped with {stop_reason!r}"
             )
 
-        content = _field(message, "content")
-        if not isinstance(content, (list, tuple)) or len(content) != 1:
-            raise TeacherResponseError(
-                f"Anthropic response for {custom_id!r} must contain exactly one text block"
-            )
-        block = content[0]
-        if _field(block, "type") != "text" or not isinstance(_field(block, "text"), str):
-            raise TeacherResponseError(
-                f"Anthropic response for {custom_id!r} must contain exactly one text block"
-            )
-        text = _field(block, "text")
+        text = _sole_text_block(
+            _field(message, "content"),
+            f"Anthropic response for {custom_id!r} must contain exactly one text block",
+        )
         encoded_length = len(text.encode("utf-8", errors="surrogatepass"))
         aggregate_response_bytes[0] += encoded_length
         if aggregate_response_bytes[0] > MAXIMUM_TEACHER_RESPONSE_BYTES:
@@ -437,6 +430,7 @@ class AnthropicTeacher:
                         "schema": wire_schema,
                     }
                 },
+                thinking={"type": "disabled"},
             )
         except TeacherConfigurationError:
             raise
@@ -448,14 +442,11 @@ class AnthropicTeacher:
         stop_reason = _field(message, "stop_reason")
         if stop_reason != "end_turn":
             raise TeacherResponseError(f"Anthropic {context} response stopped with {stop_reason!r}")
-        content = _field(message, "content")
-        if not isinstance(content, (list, tuple)) or len(content) != 1:
-            raise TeacherResponseError(
-                f"Anthropic {context} response must contain exactly one text block"
-            )
-        block = content[0]
-        text = _field(block, "text")
-        if _field(block, "type") != "text" or not isinstance(text, str) or not text.strip():
+        text = _sole_text_block(
+            _field(message, "content"),
+            f"Anthropic {context} response must contain exactly one text block",
+        )
+        if not text.strip():
             raise TeacherResponseError(
                 f"Anthropic {context} response must contain exactly one nonempty text block"
             )
@@ -489,6 +480,10 @@ class AnthropicTeacher:
                     "schema": wire_schema,
                 }
             },
+            # Explicit so every route answers with the text block alone: extended
+            # thinking is off by default on the Anthropic API, but OpenRouter's
+            # Anthropic-format route turns it on and prepends a thinking block.
+            "thinking": {"type": "disabled"},
         }
 
     def _custom_ids(self, ir: Mapping[str, Any], n: int) -> tuple[str, ...]:
@@ -723,3 +718,18 @@ def _batch_item_error(custom_id: str, outcome: Any) -> str:
 
 
 __all__ = ["AnthropicTeacher", "BatchHandle"]
+
+
+def _sole_text_block(content: Any, message: str) -> str:
+    """The text of the response's only text block; other block kinds (thinking) are ignored."""
+
+    if not isinstance(content, (list, tuple)):
+        raise TeacherResponseError(message)
+    texts = [
+        _field(block, "text")
+        for block in content
+        if _field(block, "type") == "text" and isinstance(_field(block, "text"), str)
+    ]
+    if len(texts) != 1:
+        raise TeacherResponseError(message)
+    return texts[0]

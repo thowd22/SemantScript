@@ -99,16 +99,18 @@ and never installs anything or touches the network. Run it before committing.
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push,
-every pull request and on demand, as three parallel jobs on `ubuntu-latest`.
+every pull request and on demand, as four parallel jobs on `ubuntu-latest`
+(the `python` job runs twice, once per install).
 A newer push to a branch other than `main`, or to a pull request, cancels
 that ref's run still in progress; every commit on `main` keeps its own run. No job uses
 a secret or a teacher: the examples run on a fixture artifact.
 
-| Job             | What it runs                                                                                                                                                                                                                                                                                                                                                                                                   | Reproduce locally                                                                                                                         |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `node`          | `npm ci`, `npm run build`, `npm run lint:node`, `npm run test:node` (every workspace suite; the compiler's `docs-examples` test compiles every program under `docs/examples`), `npx prettier@3.9.9 --check docs README.md` (pinned, so a Prettier release cannot turn a run red). Python 3.12 is set up because the CLI and refund benchmark tests start `python3` fixture drivers.                            | the same commands                                                                                                                         |
-| `python`        | a `.venv` with `pip install -e '.[dev]'` (no training extra, so every test that needs PyTorch or ONNX skips), `npm run lint:python`, then `npm ci` and `npm run build` (some trainer tests drive `runtime/dist` and `cli/dist`) and `npm run test:python`.                                                                                                                                                     | the same commands in a clean virtual environment                                                                                          |
-| `fresh-install` | the install exactly as the docs give it, with no npm cache: `npm install` and `npm run build` at the root, then `npm install`, `npm run build` and `npm test` in `examples/express-app` and in `examples/refund-service`, `npm run fixture-artifact` in the Express example, `docker build -f examples/express-app/deploy/Dockerfile .` and a smoke run of the image (`POST /tickets` and `POST /refunds/o1`). | the same commands; `npm run fixture-artifact` refuses to replace an existing artifact unless run as `npm run fixture-artifact -- --force` |
+| Job                       | What it runs                                                                                                                                                                                                                                                                                                                                                                                                           | Reproduce locally                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `node`                    | `npm ci`, `npm run build`, `npm run lint:node`, `npm run test:node` (every workspace suite; the compiler's `docs-examples` test compiles every program under `docs/examples`), `npx prettier@3.9.9 --check docs README.md` (pinned, so a Prettier release cannot turn a run red). Python 3.12 is set up because the CLI and refund benchmark tests start `python3` fixture drivers.                                    | the same commands                                                                                                                         |
+| `python` (`dev`)          | a `.venv` with `pip install -e '.[dev]'` (no training extra: proves the torch-free install and that every test needing PyTorch or ONNX skips cleanly), `npm run lint:python`, then `npm ci` and `npm run build` (some trainer tests drive `runtime/dist` and `cli/dist`) and `npm run test:python`.                                                                                                                    | the same commands in a clean virtual environment                                                                                          |
+| `python` (`dev,training`) | the same, with the pinned `torch` installed first from the CPU wheel index (`--index-url https://download.pytorch.org/whl/cpu`) and then `pip install -e '.[dev,training]'`: every test that runs on a CPU. Only tests that need a live Ollama server, the ModernBERT CUDA smoke test, a network download of the pinned tokenizer, or a different install (the two environment-specific `test_primitives` cases) skip. | the same commands; a GPU is not used                                                                                                      |
+| `fresh-install`           | the install exactly as the docs give it, with no npm cache: `npm install` and `npm run build` at the root, then `npm install`, `npm run build` and `npm test` in `examples/express-app` and in `examples/refund-service`, `npm run fixture-artifact` in the Express example, `docker build -f examples/express-app/deploy/Dockerfile .` and a smoke run of the image (`POST /tickets` and `POST /refunds/o1`).         | the same commands; `npm run fixture-artifact` refuses to replace an existing artifact unless run as `npm run fixture-artifact -- --force` |
 
 The example installs link `../../compiler`, `../../runtime` and
 `../../framework` with `file:` dependencies, and those packages resolve their
@@ -116,42 +118,52 @@ own dependencies from the root `node_modules`, so the root `npm install` and
 `npm run build` come first. The `node` and `python` jobs set
 `ONNXRUNTIME_NODE_INSTALL=skip`, which stops `onnxruntime-node` from fetching
 its optional CUDA provider on Linux x64; the `fresh-install` job does not, so
-it installs with the defaults a new user gets.
+it installs with the defaults a new user gets, apart from the workflow-wide
+`npm_config_fund=false` and `npm_config_audit=false`, which only silence npm's
+funding and audit messages.
 
 ### Measured adoption cost
 
 Wall times on GitHub-hosted `ubuntu-latest` runners, 2026-09-25, from
 `gh run view --json jobs`. Run
-[36157665549](https://github.com/thowd22/SemantScript/actions/runs/36157665549)
-has every job green and a `fresh-install` job that restored no npm cache
-(its log shows `package-manager-cache: false`). The `fresh-install` job of
-run [36155452753](https://github.com/thowd22/SemantScript/actions/runs/36155452753)
-also found no npm cache and passed. Two earlier green runs are not used for
-the install figure: `actions/setup-node@v5` enables npm caching on its own
-when `package.json` names a `packageManager`, and their `fresh-install` jobs
+[36158884114](https://github.com/thowd22/SemantScript/actions/runs/36158884114)
+is the current workflow (four jobs), triggered by a pull request; its
+`fresh-install` job restored no npm cache (its log shows
+`package-manager-cache: false`). Run
+[36157665549](https://github.com/thowd22/SemantScript/actions/runs/36157665549),
+a push to `main` before the `dev,training` job existed, is the second column,
+also with no npm cache. Two earlier green runs are not used for the install
+figure: `actions/setup-node@v5` enables npm caching on its own when
+`package.json` names a `packageManager`, and their `fresh-install` jobs
 restored a warm 181 MB npm cache before the job turned it off.
 
-| Measurement                                                  | Run 36157665549 | Run 36155452753 |
-| ------------------------------------------------------------ | --------------- | --------------- |
-| Whole workflow, push to last job finished (jobs in parallel) | 1 min 38 s      | (`node` failed) |
-| `node` job                                                   | 1 min 34 s      | (failed)        |
-| `python` job (412 passed, 45 skipped)                        | 1 min 5 s       | 1 min 26 s      |
-| `fresh-install` job, fresh clone to a smoke-tested image     | 1 min 32 s      | 1 min 50 s      |
+| Measurement                                                     | Run 36158884114 | Run 36157665549 |
+| --------------------------------------------------------------- | --------------- | --------------- |
+| Whole workflow, trigger to last job finished (jobs in parallel) | 3 min 16 s      | 1 min 38 s      |
+| `node` job                                                      | 1 min 39 s      | 1 min 34 s      |
+| `python` (`dev`) job: 412 passed, 45 skipped                    | 1 min 29 s      | 1 min 5 s       |
+| `python` (`dev,training`) job: 528 passed, 5 skipped            | 3 min 10 s      | (not yet run)   |
+| `fresh-install` job, fresh clone to a smoke-tested image        | 1 min 37 s      | 1 min 32 s      |
 
-The `fresh-install` job's steps in run 36157665549, with no npm cache:
+The `dev,training` job sets the workflow's wall time: installing CPU PyTorch
+and the rest of the training extra takes 54 s and its test run 1 min 41 s.
+
+The `fresh-install` job's steps in run 36158884114, with no npm cache:
 
 | Step                                                               | Time |
 | ------------------------------------------------------------------ | ---- |
-| Set up Node 22 from `.nvmrc`                                       | 4 s  |
-| `npm install` and `npm run build` at the root                      | 13 s |
+| Set up Node 22 from `.nvmrc`                                       | 5 s  |
+| `npm install` and `npm run build` at the root                      | 14 s |
 | Express example: `npm install`, `npm run build`, `npm test`        | 18 s |
-| Refund service example: `npm install`, `npm run build`, `npm test` | 16 s |
-| Fixture artifact                                                   | 1 s  |
-| `docker build` (no layer cache)                                    | 32 s |
-| Smoke run of the image                                             | 2 s  |
+| Refund service example: `npm install`, `npm run build`, `npm test` | 17 s |
+| Fixture artifact                                                   | <1 s |
+| `docker build` (no layer cache)                                    | 36 s |
+| Smoke run of the image                                             | 3 s  |
 
-The adoption flow a new developer follows, a fresh clone to a built, tested
-example, is therefore under a minute of commands on a hosted runner, and a
+This measures the fresh-clone path to the in-repository examples, not the
+[getting-started](getting-started.md) flow of adding SemantScript to your own
+app with `npx semantscript init`, which CI does not run. A fresh clone to a
+built, tested example is under a minute of commands on a hosted runner, and a
 deployable image of the Express example about half a minute more. The image
 is 624 MB. Its production `node_modules` is 384 MB (the same install
 measured on the development machine), of which `onnxruntime-node` is 288 MB

@@ -32,6 +32,7 @@ from semantscript_trainer.teacher import (  # noqa: E402
     TeacherDescriptor,
 )
 from semantscript_trainer.teacher_config import ConstraintsTeacherConfig  # noqa: E402
+from semantscript_trainer.teacher_spend import SpendMeter, free_price  # noqa: E402
 from semantscript_trainer.teachers import ConstraintsTeacher  # noqa: E402
 from semantscript_trainer.training import TrainingConfig  # noqa: E402
 from semantscript_trainer.verification import VerificationConfig  # noqa: E402
@@ -414,10 +415,14 @@ def test_trains_verifies_and_exports_the_refund_example_bundle(tmp_path: Path) -
         base_model_weights_sha256="4" * 64,
         trainer_commit="abcdef0",
         log=messages.append,
+        meter=SpendMeter(free_price("rule-fixture")),
     )
 
     report = result.report
     assert report["kind"] == "semantscript.train-report" and report["status"] == "passed"
+    assert report["teacher"]["spend"]["requests"] == 0
+    assert report["teacher"]["spend"]["costUsd"] == 0
+    assert any(": teacher: 0 request(s)" in m for m in messages)
     assert report["application"] == {"id": "refund-example", "version": "0.0.0"}
     assert report["teacher"]["provider"] == "rule-fixture"
     (entry,) = report["functions"]
@@ -719,7 +724,9 @@ def test_main_maps_flags_into_configs_and_writes_the_report(
         return SimpleNamespace(report={"kind": "semantscript.train-report", "status": "passed"})
 
     monkeypatch.setattr(cli_module, "train_bundle", fake_train_bundle)
-    monkeypatch.setattr(cli_module, "create_teacher", lambda config: ("teacher", config.model))
+    monkeypatch.setattr(
+        cli_module, "create_teacher", lambda config, **options: ("teacher", config.model)
+    )
     report_path = tmp_path / "out" / "report.json"
 
     code = cli_module.main(
@@ -1036,3 +1043,200 @@ def test_missing_artifact_is_re_exported_from_cache_without_training(
     assert exported.report["functions"][0]["cache"] == "reused"
     assert (tmp_path / "artifact" / "current.json").is_file()
     assert run_cli_test(tmp_path / "artifact")["ok"] is True
+
+
+# ---- teacher spend: estimate, cap and probe (TASK-14.5) -------------------------------
+
+
+def _anthropic_toml(tmp_path: Path) -> Path:
+    path = tmp_path / "teacher.toml"
+    path.write_text(
+        '[teacher]\nbackend = "anthropic"\nmodel = "claude-sonnet-5"\nmode = "direct"\n'
+        'api_key = "test-key"\n'
+    )
+    return path
+
+
+def test_main_estimate_prints_json_without_building_a_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bundle = compile_project(
+        tmp_path / "project", {"refund.sem.ts": REFUND_SOURCE.read_text()}, "refund-example"
+    )
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(bundle))
+
+    def refuse(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("--estimate must not train or call the teacher")
+
+    monkeypatch.setattr(cli_module, "train_bundle", refuse)
+    code = cli_module.main(
+        [
+            "train",
+            "--bundle",
+            str(bundle_path),
+            "--artifact",
+            str(tmp_path / "artifact"),
+            "--teacher",
+            str(_anthropic_toml(tmp_path)),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--cases",
+            "32",
+            "--counterfactual-ratio",
+            "0.5",
+            "--max-cost-usd",
+            "2",
+            "--estimate",
+        ]
+    )
+    assert code == 0
+    estimate = json.loads(capsys.readouterr().out)
+    assert estimate["kind"] == "semantscript.train-estimate"
+    assert estimate["maxCostUsd"] == 2.0
+    (row,) = estimate["functions"]
+    assert row["sourcePath"] == "src/refund.sem.ts"
+    assert row["plannedRequests"]["synthetic"] == 31
+    assert estimate["total"]["costUsd"] > 0
+
+    code = cli_module.main(
+        [
+            "train",
+            "--bundle",
+            str(bundle_path),
+            "--artifact",
+            str(tmp_path / "artifact"),
+            "--teacher",
+            "constraints",
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--estimate",
+        ]
+    )
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["total"]["costUsd"] == 0
+
+
+def test_spend_cap_stops_the_run_keeps_paid_responses_and_a_rerun_replays_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from semantscript_trainer.teacher_config import create_teacher as real_create_teacher
+
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps({"kind": "semantscript.ir-bundle", "bundleVersion": 1}))
+    ir = {
+        "id": "nf_" + "1" * 64,
+        "definition": {"template": [{"kind": "text", "text": "Classify."}], "examples": []},
+        "inputs": [{"name": "message", "index": 0, "type": {"kind": "string"}}],
+        "output": {"kind": "scalar", "head": {"kind": "boolean", "support": [False, True]}},
+    }
+    sent: list[dict[str, Any]] = []
+
+    class Messages:
+        def create(self, **params: Any) -> Any:
+            sent.append(params)
+            return SimpleNamespace(
+                stop_reason="end_turn",
+                content=[
+                    SimpleNamespace(
+                        type="text",
+                        text=json.dumps({"inputs": {"message": f"m{len(sent)}"}, "output": True}),
+                    )
+                ],
+                usage=SimpleNamespace(input_tokens=400, output_tokens=60),
+            )
+
+    client = SimpleNamespace(messages=Messages())
+    monkeypatch.setattr(
+        cli_module,
+        "create_teacher",
+        lambda config, **options: real_create_teacher(
+            config, client=client, schema_transform=lambda schema: schema, **options
+        ),
+    )
+
+    def fake_train_bundle(bundle: Any, artifact_root: Any, **kwargs: Any) -> Any:
+        kwargs["teacher"].generate(ir, 6)
+        return SimpleNamespace(
+            report={
+                "kind": "semantscript.train-report",
+                "status": "passed",
+                "teacher": {"spend": kwargs["meter"].summary()},
+            }
+        )
+
+    monkeypatch.setattr(cli_module, "train_bundle", fake_train_bundle)
+    arguments = [
+        "train",
+        "--bundle",
+        str(bundle_path),
+        "--artifact",
+        str(tmp_path / "artifact"),
+        "--teacher",
+        str(_anthropic_toml(tmp_path)),
+        "--cache-dir",
+        str(tmp_path / "cache"),
+        "--report",
+        str(tmp_path / "report.json"),
+    ]
+
+    # Each request costs USD 0.0014 here and is expected, before it is sent, at its own
+    # prompt size: a USD 0.006 cap stops the run after a few of the six.
+    assert cli_module.main([*arguments, "--max-cost-usd", "0.006"]) == 1
+    stopped = capsys.readouterr().err
+    paid = len(sent)
+    assert 0 < paid < 6
+    assert "error: spend cap USD 0.006 reached" in stopped
+    assert f"{paid} paid teacher response(s) are kept" in stopped
+    assert "rerun with a higher --max-cost-usd" in stopped
+    assert f"teacher: {paid} request(s), {400 * paid:,} in / {60 * paid} out tokens" in stopped
+    assert not (tmp_path / "report.json").exists()
+
+    assert cli_module.main(arguments) == 0
+    spend = json.loads((tmp_path / "report.json").read_text())["teacher"]["spend"]
+    assert (spend["requests"], spend["replayed"]) == (6 - paid, paid)
+    assert len(sent) == 6
+    stats = json.loads((tmp_path / "cache" / "teacher-stats.json").read_text())
+    assert next(iter(stats.values()))["requests"] == 6 - paid
+
+
+def test_teacher_probe_reports_model_latency_tokens_and_cost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from semantscript_trainer import doctor as doctor_module
+
+    assert cli_module.main(["teacher", "probe", "--teacher", "constraints", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["kind"] == "semantscript.teacher-probe"
+    assert (result["requestSent"], result["costUsd"]) == (False, 0.0)
+
+    seen: list[Any] = []
+
+    def fake_probe(config: Any, mode: str = "request", **kwargs: Any) -> Any:
+        seen.append((config, mode))
+        return doctor_module.ProbeResult(
+            True,
+            f"one request to {config.model} answered in 1.2 s, 16 in / 4 out tokens",
+            latency_seconds=1.2,
+            input_tokens=16,
+            output_tokens=4,
+        )
+
+    monkeypatch.setattr(doctor_module, "probe_teacher", fake_probe)
+    code = cli_module.main(
+        ["teacher", "probe", "--teacher", str(_anthropic_toml(tmp_path)), "--json"]
+    )
+    assert code == 0
+    result = json.loads(capsys.readouterr().out)
+    assert seen[0][1] == "request" and seen[0][0].max_retries == 0
+    assert result["model"] == "claude-sonnet-5" and result["latencySeconds"] == 1.2
+    assert result["costUsd"] == pytest.approx((16 * 2 + 4 * 10) / 1_000_000)
+    assert result["summary"].endswith("USD 0.000072")
+
+    fallback = tmp_path / "mixed.toml"
+    fallback.write_text(
+        '[teacher]\nbackend = "constraints"\n[teacher.fallback]\nbackend = "ollama"\n'
+        'model = "qwen3:14b"\n'
+    )
+    assert cli_module.main(["teacher", "probe", "--teacher", str(fallback)]) == 0
+    assert capsys.readouterr().out.startswith("teacher probe: fallback: one request to qwen3:14b")

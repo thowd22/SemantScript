@@ -95,11 +95,12 @@ committed result. The hashes detect accidental corruption but do not protect
 against an attacker who can rewrite both content and digest; place the cache only
 in a trusted, access-controlled local directory.
 
-Resumability is therefore at completed-result granularity. A valid published result
-can be reused across processes without another teacher call, but an in-flight
-provider request has no per-case checkpoint: the current `Teacher.generate(ir, n)`
-protocol returns one atomic tuple, so retrying a failed request may regenerate its
-entire synthetic remainder.
+A valid published result can be reused across processes without another teacher
+call. Within an unfinished dataset, the Anthropic backend keeps every paid response
+in a response journal (`semantscript_trainer.teacher_spend.ResponseJournal`,
+`<cache-dir>/teacher-responses/`), keyed by the exact request and its occurrence, so
+a rerun after a stop (a spend cap, a crash, a network error) replays them at no
+cost; the other backends are free and keep none.
 
 The teacher descriptor records a declared model name, not immutable resolved
 weights. For reproducible caches, use an immutable model identifier (and record a
@@ -439,6 +440,32 @@ verification and adversarial settings map to `TrainingConfig`,
 flags keep the library defaults. The Node CLI (`cli/`) spawns this module and
 renders the report.
 
+`--estimate` writes a `semantscript.train-estimate` (`estimateVersion` 1) JSON
+document to stdout and exits 0 without creating a teacher client, loading
+PyTorch or training: per function the planned, expected and maximum requests,
+input, cache-read and output tokens, USD and seconds, and their total, with the
+price and its source (`semantscript_trainer.teacher_estimate.estimate_bundle`).
+`--max-cost-usd <x>` gives the run a `teacher_spend.SpendMeter` with that cap:
+the teacher reserves each request before sending it and raises
+`TeacherBudgetExceeded` instead of passing the cap; the driver then exits 1 naming
+the cached datasets and the journal. Every run's meter prints a running line to
+stderr every 25 requests and after each function, and the report's `teacher`
+object gains `spend` (`requests`, `replayed`, `inputTokens`, `cacheReadTokens`,
+`cacheWriteTokens`, `outputTokens`, `costUsd`, `maxCostUsd`, `priceSource`,
+`seconds`; `reportVersion` stays 1). `python -m semantscript_trainer.cli teacher
+probe --teacher <toml> [--json]` sends one small request through the teacher (its
+fallback for a mixed constraints teacher, nothing for a pure one) and prints a
+`semantscript.teacher-probe` result with the model, latency, tokens and USD.
+
+Prices (`teacher_spend.resolve_price`): nothing for the constraints teacher and
+Ollama; OpenRouter's public model list for an OpenRouter `base_url` (cached a day
+in `<cache-dir>/teacher-prices.json`, pinned table offline); the pinned Anthropic
+list prices otherwise; and a `[teacher.pricing]` table (`input_usd_per_million`,
+`output_usd_per_million`, `cache_read_usd_per_million`,
+`cache_write_usd_per_million`, `seconds_per_request`) over either. A model with no
+known price raises `TeacherPriceUnknown`. Pricing is excluded from the
+configuration digest.
+
 Every function trains over one shared encoder and adapter, and
 `semantscript_trainer.build_cache` keeps the result under
 `<cache-dir>/applications/<application-id>/`: the exact encoder and adapter
@@ -480,7 +507,11 @@ Both provider implementations use a one-case JSON Schema derived from the IR and
 then independently parse and validate every response. Server-side structured
 output is never treated as the validation boundary. Prompts, schemas, backend
 options, and model names are deterministic inputs to the secret-free teacher
-configuration digest used by later cache/provenance work.
+configuration digest used by later cache/provenance work; the digest of a
+language-model teacher includes `promptVersion` (`teacher_prompt.TEACHER_PROMPT_VERSION`,
+4: the compact layout with the function contract in the system prompt, which the
+Anthropic backend marks for prompt caching), while `PROMPT_CONTRACT_VERSION` in the
+dataset request digest stays 3 so the constraints teacher's datasets are unchanged.
 
 The built-in providers account for response bytes as each direct or batch result
 is decoded and stop before retaining more than 64 MiB of aggregate response JSON.

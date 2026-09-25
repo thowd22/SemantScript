@@ -7,13 +7,16 @@ the behavior in prose.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
+                   [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>]
                    [--python <exe>] [--trainer-module <module>]
 semantscript doctor [--python <exe>] [--teacher <teacher.toml>|constraints] [--probe request|free|none]
                     [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher]
                     [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>]
                    [--route-domains] [--domain-depth <name>=<layers>]...
-semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints] [options]
+semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints]
+                   [--estimate] [--max-cost-usd <x>] [options]
+semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe>] [--json]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
@@ -21,11 +24,11 @@ semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <j
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                                                                                          |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                             |
-| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, an unknown `--call` export, or any other error while working. |
-| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).                                                 |
+| Code | Meaning                                                                                                                                                                                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                              |
+| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, or any other error while working. |
+| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).                                                                                                                                  |
 
 Usage errors print the message and the usage text to stderr. Every other
 failure prints its message to stderr; compile diagnostics carry the file, line,
@@ -71,11 +74,24 @@ environment is ready for `train` or how many checks failed. The checks never
 change its exit status: the wiring succeeded either way, and a doctor that
 cannot run is reported as a line, not an error.
 
-| Flag               | Value  | Effect                                                  |
-| ------------------ | ------ | ------------------------------------------------------- |
-| `--no-doctor`      |        | Skip the environment checks.                            |
-| `--python`         | exe    | The interpreter the checks use (default above).         |
-| `--trainer-module` | module | The trainer module the checks run; for tests and forks. |
+| Flag               | Value                                              | Effect                                                                                                                                                                       |
+| ------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--teacher`        | `anthropic`, `openrouter`, `ollama`, `constraints` | Write `.semantscript/teacher.toml` for that teacher (below). Without the flag, `init` asks on an interactive terminal when no teacher file exists; elsewhere it writes none. |
+| `--teacher-model`  | id                                                 | The model the teacher file names (defaults: `claude-sonnet-5`, `anthropic/claude-sonnet-5`, `qwen3:14b`); not for `constraints`.                                             |
+| `--no-doctor`      |                                                    | Skip the environment checks.                                                                                                                                                 |
+| `--python`         | exe                                                | The interpreter the checks use (default above).                                                                                                                              |
+| `--trainer-module` | module                                             | The trainer module the checks run; for tests and forks.                                                                                                                      |
+
+The teacher file never holds a key. `anthropic` writes the Anthropic backend
+with `mode = "auto"`; `openrouter` writes the Anthropic backend pointed at
+`https://openrouter.ai/api` with `anthropic/claude-sonnet-5` and
+`mode = "direct"`, and a comment saying to run with
+`ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`; `ollama` writes the local backend;
+`constraints` writes the built-in constraints teacher. An existing
+`semantscript.teacher.toml`, `teacher.toml` or `.semantscript/teacher.toml`
+is never replaced (the line says `unchanged`), and the closing checks run
+against the teacher file `init` wrote or found. Exit 2 for an unknown
+`--teacher`.
 
 ## `doctor`
 
@@ -171,6 +187,31 @@ printing that input and the outputs the constraints admit (see
 | `--python`         | exe    | The interpreter to run the trainer with.                                                                                                                                                                                                                         |
 | `--trainer-module` | module | The Python module to invoke (default `semantscript_trainer.cli`); for tests and forks.                                                                                                                                                                           |
 | `--no-preflight`   |        | Skip the environment preflight.                                                                                                                                                                                                                                  |
+| `--estimate`       |        | Print what the teacher would cost and exit 0 without the preflight, a teacher request or any training (below).                                                                                                                                                   |
+| `--max-cost-usd`   | USD    | Stop before the teacher request that would take the run past this many dollars (below). Exit 2 unless it is a positive number.                                                                                                                                   |
+
+`--estimate` prints, per expression and in total, the teacher requests the
+run would send (the expected count and the maximum the generators allow), the
+input tokens (and how many of them the prompt cache serves), the output
+tokens, the USD cost at the configured backend's price and the wall time. An
+expression whose datasets are cached costs nothing; the constraints teacher
+and Ollama cost nothing. Tokens are the characters of the exact prompts
+divided by a calibrated ratio (2.1 characters per token), and the price comes
+from OpenRouter's public price list, the pinned Anthropic list prices or a
+`[teacher.pricing]` table ([teachers](teachers.md#cost-estimate-and-spend-cap)).
+With `--max-cost-usd` it also says whether the cap covers the expected and
+the maximum cost.
+
+With `--max-cost-usd`, every request is reserved against the cap before it
+is sent, at more than it can be expected to cost; the request that would pass
+the cap is not sent, and the run exits 1 naming the cap, the spend so far and
+where the paid work is kept. Every dataset finished before the stop stays
+cached and every paid response is kept in the response journal
+([build cache](build-cache.md)), so a rerun with a higher cap (or none)
+replays them at no cost and continues. Every run prints a running
+`teacher: <n> request(s), <tokens>, USD <x>` line every 25 requests and after
+each expression, and the report table ends with
+`teacher: <n> requests (<m> replayed), USD <x> of the USD <cap> cap`.
 
 Options handed to the trainer unchanged:
 
@@ -189,9 +230,31 @@ Options handed to the trainer unchanged:
 | `--max-constraint-violation-rate`                                 | fraction | Share of raw predictions allowed to violate an active constraint (default 0; the value used is recorded). |
 | `--counterfactual-ratio`                                          | fraction | Share of synthetic cases that get a counterfactual twin (default 1).                                      |
 | `--adapter-bottleneck-size`                                       | integer  | Width of the per-domain adapter.                                                                          |
+| `--max-cost-usd`                                                  | USD      | The spend cap above.                                                                                      |
 | `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest.                                                                                 |
 | `--no-cache`                                                      |          | Ignore the build cache and write nothing to it.                                                           |
 | `--full`                                                          |          | Retrain every function jointly, discarding cached function records.                                       |
+
+## `teacher probe`
+
+Sends one small request through the teacher `train` would use (`--teacher`,
+else the teacher file lookup above) and prints the backend, the model and the
+host it goes through, the latency, the input and output tokens and the cost
+with its price source. The request is one short user message with
+`max_tokens` 8 and thinking disabled: 16 input and 4 output tokens, USD
+0.000072 on Sonnet 5 through OpenRouter; nothing through Ollama. The
+constraints teacher sends no request and reports USD 0; a constraints teacher
+with a `[teacher.fallback]` probes the fallback. The key comes from the
+environment and is scrubbed from any error. Exit 1 when the request fails
+(with the fix), 2 when there is no teacher to probe.
+
+| Flag               | Value  | Effect                                                              |
+| ------------------ | ------ | ------------------------------------------------------------------- |
+| `--teacher`        | path   | The teacher file, or `constraints`.                                 |
+| `--python`         | exe    | The interpreter (default above).                                    |
+| `--cache-dir`      | path   | Where the fetched OpenRouter price list is cached for a day.        |
+| `--json`           |        | Print the `semantscript.teacher-probe` result instead of the lines. |
+| `--trainer-module` | module | The trainer module to invoke; for tests and forks.                  |
 
 ## `dev`
 

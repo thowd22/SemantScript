@@ -17,6 +17,7 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -69,9 +70,17 @@ from semantscript_trainer.teacher import (
     JsonValue,
     NeuralFunctionIr,
     Teacher,
+    TeacherBudgetExceeded,
     TeacherDescriptor,
 )
 from semantscript_trainer.teacher_config import create_teacher, load_teacher_config
+from semantscript_trainer.teacher_spend import (
+    ResponseJournal,
+    SpendMeter,
+    TeacherPriceUnknown,
+    language_model_config,
+    resolve_price,
+)
 from semantscript_trainer.training import (
     TrainingConfig,
     TrainingResult,
@@ -148,6 +157,7 @@ def train_bundle(
     use_cache: bool = True,
     full: bool = False,
     log: Callable[[str], None] | None = None,
+    meter: SpendMeter | None = None,
 ) -> TrainBundleResult:
     """Train, verify and export every function of ``bundle`` into ``artifact_root``.
 
@@ -159,6 +169,8 @@ def train_bundle(
     jointly; ``use_cache=False`` ignores and does not write the cache.
     ``tokenizer``, ``encoder`` and ``base_model_weights_sha256`` default to the
     pinned Hugging Face encoder of ``training_config``; tests inject fakes.
+    ``meter`` (the spend meter the teacher charges) adds a running cost line after
+    each expression's datasets and the ``teacher.spend`` object to the report.
     """
 
     say = log if log is not None else (lambda _message: None)
@@ -221,6 +233,7 @@ def train_bundle(
                 "provider": descriptor.provider,
                 "model": descriptor.model,
                 "configurationSha256": descriptor.configuration_sha256,
+                **({} if meter is None else {"spend": meter.summary()}),
             },
             "cache": {
                 "reused": len(reused),
@@ -284,6 +297,8 @@ def train_bundle(
             adversarial = AdversarialDatasetGenerator(
                 teacher, cache_root, config=resolved_adversarial
             ).generate(ir, base)
+        if meter is not None and function_id not in reused:
+            say(f"{function_id}: {meter.line()}")
         record = reused.get(function_id)
         if record is not None and (
             record.dataset_sha256 != base.dataset_sha256
@@ -914,6 +929,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-cache", action="store_true", help="ignore and do not write the build cache"
     )
     train.add_argument("--full", action="store_true", help="retrain every function jointly")
+    train.add_argument(
+        "--estimate",
+        action="store_true",
+        help="print what the teacher would cost (requests, tokens, USD, time) as JSON and "
+        "exit without calling it",
+    )
+    train.add_argument(
+        "--max-cost-usd",
+        type=float,
+        help="stop before the teacher request that would take the run past this many USD",
+    )
+    teacher = commands.add_parser("teacher", help="teacher utilities")
+    teacher_commands = teacher.add_subparsers(dest="teacher_command", required=True)
+    probe = teacher_commands.add_parser(
+        "probe", help="send one small request through the configured teacher"
+    )
+    probe.add_argument(
+        "--teacher", required=True, type=Path, help="teacher TOML, or the keyword constraints"
+    )
+    probe.add_argument("--cache-dir", type=Path, default=Path(".semantscript/cache"))
+    probe.add_argument("--json", action="store_true", help="print the JSON result")
     doctor = commands.add_parser(
         "doctor", help="check the interpreter, packages, device and teacher before a run"
     )
@@ -957,17 +993,44 @@ def main(argv: list[str] | None = None) -> int:
     arguments = _build_parser().parse_args(argv)
     if arguments.command == "doctor":
         return run_doctor_from_arguments(arguments)
+    if arguments.command == "teacher":
+        return run_teacher_probe(arguments)
     if arguments.command != "train":  # pragma: no cover - argparse enforces the choice
         return 2
 
     def log(message: str) -> None:
         print(message, file=sys.stderr, flush=True)
 
+    if arguments.estimate:
+        return _run_estimate(arguments, log)
+
     report: dict[str, Any] | None = None
     code = 0
+    meter: SpendMeter | None = None
+    journal: ResponseJournal | None = None
+    model_config = None
     try:
+        if arguments.max_cost_usd is not None and not (
+            arguments.max_cost_usd > 0 and arguments.max_cost_usd < float("inf")
+        ):
+            raise ValueError("--max-cost-usd must be a positive number")
         bundle = json.loads(Path(arguments.bundle).read_text(encoding="utf-8"))
-        teacher = create_teacher(load_teacher_config(arguments.teacher))
+        config = load_teacher_config(arguments.teacher)
+        model_config = language_model_config(config)
+        price = None
+        try:
+            price = resolve_price(config, cache_directory=arguments.cache_dir)
+        except TeacherPriceUnknown as error:
+            if arguments.max_cost_usd is not None:
+                raise
+            log(f"warning: {error}; the run counts requests and tokens but not USD")
+        meter = SpendMeter(price, max_cost_usd=arguments.max_cost_usd, log=log)
+        if model_config is None:
+            teacher = create_teacher(config)
+        else:
+            if not arguments.no_cache:
+                journal = ResponseJournal(arguments.cache_dir, model_config.configuration_sha256)
+            teacher = create_teacher(config, meter=meter, journal=journal)
         adversarial_config = (
             AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
             if arguments.counterfactual_ratio is not None
@@ -988,6 +1051,7 @@ def main(argv: list[str] | None = None) -> int:
             use_cache=not arguments.no_cache,
             full=arguments.full,
             log=log,
+            meter=meter,
             **(
                 {"adapter_bottleneck_size": arguments.adapter_bottleneck_size}
                 if arguments.adapter_bottleneck_size is not None
@@ -995,6 +1059,16 @@ def main(argv: list[str] | None = None) -> int:
             ),
         )
         report = result.report
+    except TeacherBudgetExceeded as error:
+        journaled = "no" if journal is None else str(journal.count())
+        log(
+            f"error: {error}. Every dataset finished before the stop stays cached in "
+            f"{arguments.cache_dir}, and {journaled} paid teacher response(s) are kept in "
+            f"{'no journal (--no-cache)' if journal is None else journal.directory}; rerun "
+            "with a higher --max-cost-usd (or without it) to resume: journaled responses "
+            "replay at no cost"
+        )
+        code = 1
     except TrainBundleFailure as error:
         log(f"error: {error}")
         report = error.report
@@ -1002,6 +1076,10 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, RuntimeError, TypeError, BuildCacheError) as error:
         log(f"error: {error}")
         code = 1
+    if meter is not None and (meter.requests or meter.replayed):
+        log(meter.line())
+        if model_config is not None:
+            meter.record_stats(arguments.cache_dir, model_config.configuration_sha256)
     if report is not None:
         text = _dump(report)
         if arguments.report is not None:
@@ -1009,6 +1087,108 @@ def main(argv: list[str] | None = None) -> int:
             Path(arguments.report).write_text(text, encoding="utf-8")
         sys.stdout.write(text)
     return code
+
+
+def _run_estimate(arguments: argparse.Namespace, log: Callable[[str], None]) -> int:
+    """``train --estimate``: the teacher's cost as JSON on stdout; no request is sent."""
+
+    from semantscript_trainer.teacher_estimate import estimate_bundle
+
+    try:
+        bundle = json.loads(Path(arguments.bundle).read_text(encoding="utf-8"))
+        functions = _bundle_functions(bundle)
+        adversarial_config = (
+            AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
+            if arguments.counterfactual_ratio is not None
+            else None
+        )
+        estimate = estimate_bundle(
+            functions,
+            load_teacher_config(arguments.teacher),
+            cache_directory=arguments.cache_dir,
+            cases=arguments.cases,
+            adversarial_config=adversarial_config,
+            use_cache=not arguments.no_cache,
+        )
+    except (OSError, ValueError, RuntimeError, TypeError) as error:
+        log(f"error: {error}")
+        return 1
+    if arguments.max_cost_usd is not None:
+        estimate["maxCostUsd"] = arguments.max_cost_usd
+    sys.stdout.write(_dump(estimate))
+    return 0
+
+
+PROBE_KIND = "semantscript.teacher-probe"
+
+
+def run_teacher_probe(arguments: argparse.Namespace) -> int:
+    """``teacher probe``: one small request through the configured teacher (its fallback
+    for a mixed constraints teacher; none for a pure one), with model, latency, tokens
+    and USD cost. Exits 1 when the request fails."""
+
+    from semantscript_trainer.doctor import _with_key, probe_teacher
+
+    try:
+        config = load_teacher_config(arguments.teacher)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    model_config = language_model_config(config)
+    result: dict[str, Any] = {"kind": PROBE_KIND, "probeVersion": 1}
+    if model_config is None:
+        result.update(
+            ok=True,
+            backend="constraints",
+            model=None,
+            requestSent=False,
+            latencySeconds=0.0,
+            inputTokens=0,
+            outputTokens=0,
+            costUsd=0.0,
+            priceSource="free (the constraints teacher sends no request)",
+            summary="the constraints teacher sends no request; nothing to probe, USD 0",
+            fix=None,
+        )
+    else:
+        probe = probe_teacher(_with_key(model_config, os.environ), "request")
+        price = None
+        price_note = None
+        try:
+            price = resolve_price(model_config, cache_directory=arguments.cache_dir)
+        except TeacherPriceUnknown as error:
+            price_note = str(error)
+        cost = (
+            None
+            if price is None or probe.input_tokens is None or probe.output_tokens is None
+            else price.cost(probe.input_tokens, probe.output_tokens)
+        )
+        summary = probe.summary
+        if cost is not None:
+            summary += f", USD {cost:.6f}"
+        if model_config is not config:
+            summary = f"fallback: {summary}"
+        result.update(
+            ok=probe.ok,
+            backend=model_config.backend,
+            model=model_config.model,
+            baseUrl=model_config.base_url,
+            requestSent=probe.latency_seconds is not None,
+            latencySeconds=probe.latency_seconds,
+            inputTokens=probe.input_tokens,
+            outputTokens=probe.output_tokens,
+            costUsd=None if cost is None else round(cost, 8),
+            priceSource=price.source if price is not None else price_note,
+            summary=summary,
+            fix=probe.fix,
+        )
+    if arguments.json:
+        sys.stdout.write(json.dumps(result, ensure_ascii=True) + "\n")
+    else:
+        sys.stdout.write(f"teacher probe: {result['summary']}\n")
+        if result.get("fix"):
+            sys.stdout.write(f"  fix: {result['fix']}\n")
+    return 0 if result["ok"] else 1
 
 
 __all__ = [
@@ -1021,6 +1201,7 @@ __all__ = [
     "TrainBundleResult",
     "TrainedFunction",
     "main",
+    "run_teacher_probe",
     "train_bundle",
 ]
 

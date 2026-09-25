@@ -9,8 +9,10 @@ from semantscript_trainer.teacher_prompt import (
     MAXIMUM_REJECTION_NOTES,
     PROMPT_CONTRACT_VERSION,
     SYSTEM_PROMPT,
+    TEACHER_PROMPT_VERSION,
     RejectionNote,
     build_case_messages,
+    build_contract,
     build_coverage_brief,
 )
 
@@ -38,14 +40,23 @@ def test_builds_deterministic_provider_neutral_prompt() -> None:
     second = build_case_messages(ir, 1, 3)
 
     assert PROMPT_CONTRACT_VERSION == 3
+    assert TEACHER_PROMPT_VERSION == 4
     assert first == second
-    assert first[0] == SYSTEM_PROMPT
-    assert first[1].startswith("Generate case 2 of 3 from this contract:\n")
-    assert '"coverageBrief"' in first[1]
-    assert '"responseSchema"' in first[1]
-    assert '"approve"' in first[1]
-    assert '"constraints"' in first[1]
-    assert "trainingProvenance" not in first[1]
+    # The stable contract rides in the system prompt, so every case of one function
+    # shares a byte-identical, cacheable prefix; the user message is the case brief.
+    assert first[0] == SYSTEM_PROMPT + "\n\nContract:\n" + build_contract(ir)
+    assert build_case_messages(ir, 2, 3)[0] == first[0]
+    assert first[1].startswith("Generate case 2 of 3. coverageBrief:\n")
+    assert '"constraintFocus"' in first[1]
+    assert '"approve"' in first[0]
+    assert '"constraints"' in first[0]
+    # The response schema travels as the structured-output format, not as prompt text,
+    # and the predicate AST (for the local checks) is left out of the contract.
+    assert "responseSchema" not in first[0] + first[1]
+    assert '"predicate"' not in first[0]
+    assert '"source":"order.ageDays > 90"' in first[0]
+    assert "\n  " not in first[0] + first[1]
+    assert "trainingProvenance" not in first[0] + first[1]
     assert "rejectedAttempts" not in first[1]
 
 

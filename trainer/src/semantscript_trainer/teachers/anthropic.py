@@ -34,6 +34,7 @@ from semantscript_trainer.teacher import (
     GeneratedCase,
     TeacherBatchError,
     TeacherBatchTimeout,
+    TeacherBudgetExceeded,
     TeacherConfigurationError,
     TeacherDescriptor,
     TeacherResponseError,
@@ -41,6 +42,7 @@ from semantscript_trainer.teacher import (
 )
 from semantscript_trainer.teacher_config import TeacherConfig
 from semantscript_trainer.teacher_prompt import build_case_messages
+from semantscript_trainer.teacher_spend import ResponseJournal, SpendMeter
 
 _FUNCTION_ID = re.compile(r"^nf_[a-f0-9]{64}$")
 _CUSTOM_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -100,7 +102,12 @@ class AnthropicTeacher:
         schema_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
+        meter: SpendMeter | None = None,
+        journal: ResponseJournal | None = None,
     ) -> None:
+        """``meter`` charges every request and enforces the run's spend cap before it is
+        sent; ``journal`` keeps every paid direct response and replays it for free when
+        the identical request comes again (a rerun after a stop)."""
         if config.backend != "anthropic":
             raise TeacherConfigurationError(
                 f"AnthropicTeacher requires backend='anthropic', got {config.backend!r}"
@@ -110,6 +117,8 @@ class AnthropicTeacher:
         self._schema_transform = schema_transform
         self._clock = clock
         self._sleeper = sleeper
+        self._meter = meter
+        self._journal = journal
 
     @property
     def descriptor(self) -> TeacherDescriptor:
@@ -187,6 +196,14 @@ class AnthropicTeacher:
             }
             _update_request_digest(request_digest, request)
             requests.append(request)
+        if self._meter is not None:
+            self._meter.reserve(
+                sum(
+                    self._meter.estimate_request_usd(_prompt_characters(item["params"]), batch=True)
+                    for item in requests
+                ),
+                requests=len(requests),
+            )
         try:
             batch = self._get_client().messages.batches.create(requests=requests)
         except TeacherConfigurationError:
@@ -242,6 +259,8 @@ class AnthropicTeacher:
                 outcome = _field(entry, "result")
                 outcome_type = _field(outcome, "type")
                 if outcome_type == "succeeded":
+                    if self._meter is not None:
+                        self._meter.charge(_field(_field(outcome, "message"), "usage"), batch=True)
                     cases[custom_id] = self._decode_message(
                         ir,
                         _field(outcome, "message"),
@@ -314,10 +333,8 @@ class AnthropicTeacher:
         aggregate_response_bytes = [0]
         for index in range(n):
             try:
-                message = self._get_client().messages.create(
-                    **self._request_params(ir, index, n, wire_schema)
-                )
-            except TeacherConfigurationError:
+                message = self._send(self._request_params(ir, index, n, wire_schema))
+            except (TeacherConfigurationError, TeacherBudgetExceeded):
                 raise
             except Exception as error:
                 raise _transport_error(
@@ -419,20 +436,22 @@ class AnthropicTeacher:
     ) -> str:
         wire_schema = self._transform_wire_schema(schema)
         try:
-            message = self._get_client().messages.create(
-                model=self._config.model,
-                max_tokens=self._config.max_tokens,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-                output_config={
-                    "format": {
-                        "type": "json_schema",
-                        "schema": wire_schema,
-                    }
-                },
-                thinking={"type": "disabled"},
+            message = self._send(
+                {
+                    "model": self._config.model,
+                    "max_tokens": self._config.max_tokens,
+                    "system": _cached_system(system),
+                    "messages": [{"role": "user", "content": user}],
+                    "output_config": {
+                        "format": {
+                            "type": "json_schema",
+                            "schema": wire_schema,
+                        }
+                    },
+                    "thinking": {"type": "disabled"},
+                }
             )
-        except TeacherConfigurationError:
+        except (TeacherConfigurationError, TeacherBudgetExceeded):
             raise
         except Exception as error:
             raise _transport_error(
@@ -472,7 +491,7 @@ class AnthropicTeacher:
         return {
             "model": self._config.model,
             "max_tokens": self._config.max_tokens,
-            "system": system,
+            "system": _cached_system(system),
             "messages": [{"role": "user", "content": user}],
             "output_config": {
                 "format": {
@@ -485,6 +504,27 @@ class AnthropicTeacher:
             # Anthropic-format route turns it on and prepends a thinking block.
             "thinking": {"type": "disabled"},
         }
+
+    def _send(self, params: dict[str, Any]) -> Any:
+        """One Messages request through the journal and the spend meter."""
+
+        key = None
+        if self._journal is not None:
+            key = self._journal.next_key(params)
+            replayed = self._journal.load(key)
+            if replayed is not None:
+                if self._meter is not None:
+                    self._meter.replay()
+                return replayed
+        if self._meter is not None:
+            self._meter.reserve(self._meter.estimate_request_usd(_prompt_characters(params)))
+        started = time.monotonic()
+        message = self._get_client().messages.create(**params)
+        if self._meter is not None:
+            self._meter.charge(_field(message, "usage"), seconds=time.monotonic() - started)
+        if self._journal is not None and key is not None:
+            self._journal.store(key, message)
+        return message
 
     def _custom_ids(self, ir: Mapping[str, Any], n: int) -> tuple[str, ...]:
         function_id = _function_id(ir)
@@ -528,6 +568,37 @@ class AnthropicTeacher:
                 ) from error
             self._schema_transform = transform_schema
         return self._schema_transform
+
+
+def _cached_system(system: str) -> list[dict[str, Any]]:
+    """The system prompt as one text block marked for prompt caching.
+
+    Every request for one function and one request kind starts with the same system
+    prompt (instructions plus the compact contract), so from the second request on the
+    provider reads it from its cache at a tenth of the input price. A prompt shorter
+    than the model's minimum cacheable length is simply not cached.
+    """
+
+    return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+
+
+def _prompt_characters(params: Mapping[str, Any]) -> int:
+    """Characters of the prompt a request sends: system, messages and the output schema."""
+
+    system = params.get("system")
+    text = (
+        system
+        if isinstance(system, str)
+        else "".join(str(_field(block, "text") or "") for block in system or [])
+    )
+    messages = params.get("messages") or []
+    user = "".join(str(_field(item, "content") or "") for item in messages)
+    schema = json.dumps(
+        _field(_field(params.get("output_config"), "format"), "schema"),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return len(text) + len(user) + len(schema)
 
 
 def _validate_count(n: int) -> None:

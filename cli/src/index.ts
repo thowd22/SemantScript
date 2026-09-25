@@ -9,15 +9,17 @@ import { doctorCommand } from "./doctor.js";
 import { initCommand } from "./init.js";
 import { CliUsageError, processIo, type CliIo } from "./io.js";
 import { runCommand } from "./run.js";
+import { teacherCommand } from "./teacher.js";
 import { testCommand } from "./test-command.js";
 import { trainCommand } from "./train.js";
 
 export const USAGE = `usage: semantscript <command> [options]
 
   init   [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
+         [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>]
          [--python <exe>] [--trainer-module <module>]
-         wire the compiler into the project's build tool and add a starter expression,
-         then check the environment
+         wire the compiler into the project's build tool, add a starter expression
+         and write .semantscript/teacher.toml (no key), then check the environment
   doctor [--python <exe>] [--teacher <teacher.toml>|constraints] [--probe request|free|none]
          [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher]
          [--runtime] [--json]
@@ -30,9 +32,14 @@ export const USAGE = `usage: semantscript <command> [options]
          [--cache-dir <dir>] [--report <path>] [--python <exe>] [--cases <n>]
          [--epochs <n>] [--batch-size <n>] [--learning-rate <x>] [--seed <n>]
          [--device <name>] [--select-best-epoch] [--ece-threshold <x>]
-         [--no-preflight] ...
+         [--estimate] [--max-cost-usd <x>] [--no-preflight] ...
          check the Python side and the teacher, then generate data, train,
-         verify and export an artifact from the bundle
+         verify and export an artifact from the bundle; --estimate prints the
+         teacher's requests, tokens, USD and time without calling it, and
+         --max-cost-usd stops before the request that would pass the cap
+  teacher probe [--teacher <teacher.toml>|constraints] [--python <exe>] [--json]
+         send one small request through the teacher and report the model,
+         latency, tokens and cost
   dev    [build and train options] [--debounce <ms>] [--once]
          build and train, then watch the sources and repeat on every save
   test   [--artifact <root>] [--bundle <path>] [--json]
@@ -54,6 +61,7 @@ export {
   doctorCommand,
   initCommand,
   runCommand,
+  teacherCommand,
   testCommand,
   trainCommand,
 };
@@ -67,6 +75,9 @@ export {
   resolveBundlePath,
   resolvePython,
   resolveTeacherConfig,
+  teacherToml,
+  TEACHER_CHOICES,
+  type TeacherChoice,
 } from "./defaults.js";
 export {
   checkNode,
@@ -77,7 +88,12 @@ export {
   type DoctorCheck,
 } from "./doctor.js";
 export { canonical } from "./test-command.js";
-export { renderTrainReport } from "./train.js";
+export { renderEstimate, renderTrainReport } from "./train.js";
+export {
+  parseTeacherProbe,
+  renderTeacherProbe,
+  type TeacherProbeResult,
+} from "./teacher.js";
 export { readArtifactSummary } from "./manifest.js";
 export type { CliIo } from "./io.js";
 
@@ -91,6 +107,7 @@ const COMMANDS: Readonly<
   dev: devCommand,
   test: testCommand,
   run: runCommand,
+  teacher: teacherCommand,
 };
 
 /** Dispatch one invocation; returns the process exit status. */

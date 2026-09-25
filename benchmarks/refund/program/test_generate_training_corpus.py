@@ -15,7 +15,7 @@ from benchmarks.refund.program.generate_training_corpus import (
 )
 
 STUB_SOURCE = f"""#!{sys.executable}
-import json, sys
+import json, re, sys
 argv = sys.argv[1:]
 if argv == ["--version"]:
     print({CLAUDE_CLI_VERSION!r}); raise SystemExit(0)
@@ -43,7 +43,8 @@ def variant(position, *, age=None, status=None, prior=None, output):
 
 properties = schema["properties"]
 if "predicateFalse" in properties:
-    index = payload["selectedConstraint"]["index"]
+    # The user message is the selected constraint (index, kind, output, source).
+    index = payload["index"]
     # One boundary pair per compiled constraint, each differing in exactly one path.
     pairs = {{
         0: (variant(0, output="approve"), variant(0, status="fraudulent", output="review")),
@@ -56,13 +57,13 @@ if "predicateFalse" in properties:
     false_side, true_side = pairs[index]
     out = {{"predicateFalse": false_side, "predicateTrue": true_side}}
 elif "twin" in properties:
-    anchor = payload["anchor"]
+    anchor = payload  # the user message is the anchor case
     twin = json.loads(json.dumps(anchor))
     twin["inputs"]["order"]["ageDays"] = 120
     twin["output"] = "deny"
     out = {{"twin": twin, "reason": "Only order.ageDays moved past the 90-day always-deny boundary."}}
 else:
-    out = case(payload["casePosition"]["index"] + 1)
+    out = case(int(re.match(r"Generate case (\\d+) of", text).group(1)))
 print(json.dumps({{"type": "result", "subtype": "success", "is_error": False, "num_turns": 3,
     "permission_denials": [], "modelUsage": {{"claude-sonnet-5": {{}}}}, "structured_output": out}}))
 """

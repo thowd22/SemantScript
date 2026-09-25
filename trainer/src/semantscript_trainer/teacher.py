@@ -30,6 +30,15 @@ class TeacherResponseError(TeacherError):
     """A teacher response is malformed or violates the case contract."""
 
 
+class TeacherBudgetExceeded(TeacherError):
+    """The next teacher request would take the run past its spend cap (``--max-cost-usd``).
+
+    Raised before the request is sent; every dataset finished before it stays cached
+    and every paid response stays in the response journal, so a rerun with a higher
+    cap resumes without paying for them again.
+    """
+
+
 class TeacherBatchError(TeacherError):
     """A submitted teacher batch is incomplete or failed."""
 
@@ -181,6 +190,7 @@ __all__ = [
     "Teacher",
     "TeacherBatchError",
     "TeacherBatchTimeout",
+    "TeacherBudgetExceeded",
     "TeacherConfigurationError",
     "TeacherDescriptor",
     "TeacherError",

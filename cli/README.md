@@ -6,10 +6,11 @@ implementations: `build` is the compiler, `train` is the Python trainer's
 bundle driver, `test` and `run` are the runtime.
 
 ```text
-semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--python <exe>] [--trainer-module <module>]
+semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>] [--python <exe>] [--trainer-module <module>]
 semantscript doctor [--python <exe>] [--teacher <teacher.toml>|constraints] [--probe request|free|none] [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher] [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>] [--domain-depth <name>=<layers>]...
-semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints] [options]
+semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints] [--estimate] [--max-cost-usd <x>] [options]
+semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe>] [--json]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
@@ -49,6 +50,13 @@ below, without a billed teacher request, so a missing Python package, key or
 GPU shows before the first `train`. The checks do not change `init`'s exit
 status; `--no-doctor` skips them, and `--python` and `--trainer-module` choose
 the interpreter and trainer module they run, as for `doctor`.
+
+`--teacher anthropic|openrouter|ollama|constraints` writes
+`.semantscript/teacher.toml` for that teacher (`--teacher-model` names another
+model); on an interactive terminal with no teacher file, `init` asks instead.
+The file never holds a key, an existing teacher file is never replaced, and
+the closing checks run against it. `semantscript teacher probe` then sends one
+small request through it and prints the model, latency, tokens and cost.
 
 ### Defaults
 
@@ -142,6 +150,16 @@ Before the trainer starts, `train` runs the `doctor` Python and teacher checks
 as a preflight (about 5 seconds; no billed request) and exits 1 with the fix
 lines when any fails, instead of failing minutes into a run. `--no-preflight`
 skips it.
+
+`--estimate` prints what the teacher would cost instead of running: per
+expression and in total, the requests, input tokens (and the share the prompt
+cache serves), output tokens, USD at the configured backend's price and the
+wall time, without the preflight, a teacher request or PyTorch.
+`--max-cost-usd <x>` caps a run: the request that would pass the cap is not
+sent, the run exits 1, and every finished dataset and paid response is kept so
+the next run replays them free. Every run prints a running
+`teacher: … USD …` line, and the report table ends with the run's requests,
+replays and cost (docs/teachers.md).
 
 ### Build cache
 

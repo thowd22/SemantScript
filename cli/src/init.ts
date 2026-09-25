@@ -14,6 +14,11 @@ import ts from "typescript";
 import {
   DEFAULT_ARTIFACT_PATH,
   ARTIFACT_ENVIRONMENT_VARIABLE,
+  TEACHER_CHOICES,
+  TEACHER_CONFIG_CANDIDATES,
+  isTeacherChoice,
+  teacherToml,
+  type TeacherChoice,
 } from "./defaults.js";
 import { collectChecks, renderChecks } from "./doctor.js";
 import { CliUsageError, type CliIo } from "./io.js";
@@ -30,6 +35,7 @@ const ESBUILD_MODULE = `${COMPILER_PACKAGE}/esbuild`;
 const LOADER_MODULE = `${COMPILER_PACKAGE}/loader`;
 const EDITOR_PLUGIN = `${COMPILER_PACKAGE}/ts-plugin`;
 const STARTER_FILE = "hello.sem.ts";
+const TEACHER_FILE = ".semantscript/teacher.toml";
 const STARTER_SOURCE = `import { sema } from "${CORE_PACKAGE}";
 
 /**
@@ -91,6 +97,14 @@ type Outcome =
       readonly snippet: string;
     };
 
+interface TeacherOutcome {
+  readonly kind: "changed" | "unchanged";
+  readonly file: string;
+  readonly what: string;
+  /** The teacher file the doctor checks. */
+  readonly path: string;
+}
+
 interface PackageJson {
   version?: unknown;
   scripts?: Record<string, unknown>;
@@ -105,7 +119,10 @@ interface PackageJson {
  * starter expression, so the next build compiles a sema site. It ends with the
  * doctor's checks (no billed teacher request) so a missing piece shows now,
  * not minutes into the first `semantscript train`; they never change its exit
- * status.
+ * status. `--teacher anthropic|openrouter|ollama|constraints` (asked for on an
+ * interactive terminal when no teacher file exists) writes
+ * `.semantscript/teacher.toml` without any key; an existing teacher file is
+ * never replaced.
  */
 export async function initCommand(
   args: readonly string[],
@@ -119,9 +136,13 @@ export async function initCommand(
       "no-doctor": { type: "boolean" },
       python: { type: "string" },
       "trainer-module": { type: "string" },
+      teacher: { type: "string" },
+      "teacher-model": { type: "string" },
     },
     allowPositionals: false,
   });
+  const requestedTeacher =
+    values.teacher === undefined ? undefined : parseTeacher(values.teacher);
   const root = io.cwd;
   const packagePath = join(root, "package.json");
   if (!existsSync(packagePath)) {
@@ -143,12 +164,26 @@ export async function initCommand(
   if (values["no-example"] !== true) {
     outcomes.push(writeStarter(root, tool));
   }
+  const teacher = await chooseTeacher(root, requestedTeacher, io);
+  const teacherOutcome =
+    teacher === undefined
+      ? undefined
+      : writeTeacher(root, teacher, values["teacher-model"]);
+  if (teacherOutcome !== undefined) outcomes.push(teacherOutcome);
 
   io.stdout(render(tool, root, outcomes));
   if (values["no-doctor"] !== true) {
     let checks: Awaited<ReturnType<typeof collectChecks>>;
+    // init's --teacher is a choice, not a path: the doctor checks the file it wrote.
+    const doctorValues = {
+      ...values,
+      teacher: teacherOutcome === undefined ? undefined : teacherOutcome.path,
+    };
     try {
-      checks = await collectChecks(values, io, { probe: "free", quick: true });
+      checks = await collectChecks(doctorValues, io, {
+        probe: "free",
+        quick: true,
+      });
     } catch (error: unknown) {
       // The wiring succeeded; a doctor that breaks its contract is reported, not fatal.
       io.stdout(
@@ -198,6 +233,76 @@ export function detectBuildTool(root: string, pkg: PackageJson): BuildTool {
   throw new CliUsageError(
     "no build tool detected (next.config, vite.config, esbuild in package.json or a tsconfig.json); pass --tool next|vite|esbuild|tsc",
   );
+}
+
+function parseTeacher(value: string): TeacherChoice {
+  if (isTeacherChoice(value)) return value;
+  throw new CliUsageError(
+    `--teacher must be one of ${TEACHER_CHOICES.join(", ")}`,
+  );
+}
+
+/**
+ * The teacher to write: `--teacher`, else the answer to one question when stdin is
+ * an interactive terminal and no teacher file exists yet, else none.
+ */
+async function chooseTeacher(
+  root: string,
+  requested: TeacherChoice | undefined,
+  io: CliIo,
+): Promise<TeacherChoice | undefined> {
+  if (requested !== undefined) return requested;
+  if (io.ask === undefined || existingTeacher(root) !== undefined) {
+    return undefined;
+  }
+  for (;;) {
+    const answer = (
+      await io.ask(
+        `teacher for semantscript train (${TEACHER_CHOICES.join(", ")}; empty to skip): `,
+      )
+    )
+      .trim()
+      .toLowerCase();
+    if (answer === "") return undefined;
+    if (isTeacherChoice(answer)) return answer;
+    io.stdout(`  ${answer} is not one of ${TEACHER_CHOICES.join(", ")}\n`);
+  }
+}
+
+function existingTeacher(root: string): string | undefined {
+  return TEACHER_CONFIG_CANDIDATES.find((candidate) =>
+    existsSync(join(root, candidate)),
+  );
+}
+
+function writeTeacher(
+  root: string,
+  choice: TeacherChoice,
+  model: string | undefined,
+): TeacherOutcome {
+  const existing = existingTeacher(root);
+  if (existing !== undefined) {
+    return {
+      kind: "unchanged",
+      file: existing,
+      what: `a teacher file already exists; left as is (init --teacher ${choice} writes ${TEACHER_FILE} only when there is none)`,
+      path: join(root, existing),
+    };
+  }
+  if (choice === "constraints" && model !== undefined) {
+    throw new CliUsageError(
+      "--teacher-model does not apply to the constraints teacher",
+    );
+  }
+  const path = join(root, TEACHER_FILE);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, teacherToml(choice, model));
+  return {
+    kind: "changed",
+    file: TEACHER_FILE,
+    what: `${choice} teacher${choice === "constraints" ? "" : ` (${model ?? "default model"})`}, no key in the file`,
+    path,
+  };
 }
 
 function parseTool(value: string): BuildTool {
@@ -641,8 +746,9 @@ function render(
     "next steps:",
     "  1. npm install",
     `  2. ${buildInstructions(tool)}   (writes the IR bundle next to the build output)`,
-    "  3. semantscript train   (uses ANTHROPIC_API_KEY with the default teacher, --teacher <toml>, or --teacher constraints when the constraints decide every input)",
-    `  4. call loadSemaArtifact() once at startup; it reads ${DEFAULT_ARTIFACT_PATH} unless ${ARTIFACT_ENVIRONMENT_VARIABLE} is set`,
+    "  3. semantscript teacher probe, then semantscript train --estimate   (one small request to the teacher; then the cost and time of the run, without calling it)",
+    "  4. semantscript train   (the teacher file init wrote, ANTHROPIC_API_KEY with the default teacher, --teacher <toml>, or --teacher constraints when the constraints decide every input; --max-cost-usd <x> caps the spend)",
+    `  5. call loadSemaArtifact() once at startup; it reads ${DEFAULT_ARTIFACT_PATH} unless ${ARTIFACT_ENVIRONMENT_VARIABLE} is set`,
     "  editor: after npm install, hover a sema expression for its verified accuracy (VS Code loads the plugin from node_modules; no extension needed)",
     "",
   );

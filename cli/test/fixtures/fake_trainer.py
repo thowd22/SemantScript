@@ -10,6 +10,10 @@ no report behind so the CLI's handling of a silent trainer can be checked.
 ``FAKE_DOCTOR_BAD_ID`` reports a check the contract does not know and
 ``FAKE_DOCTOR_RAW_TEACHER`` puts the ``--teacher`` path, unescaped, in the
 teacher-config summary (as a non-ASCII checkout or user name would appear).
+
+``train --estimate`` prints an estimate document; ``teacher probe`` prints a
+probe result (``FAKE_PROBE_FAIL`` makes it a failed one). ``FAKE_TRAINER_SPEND``
+adds a ``teacher.spend`` object to the report.
 """
 
 from __future__ import annotations
@@ -62,9 +66,98 @@ def doctor(argv: list[str]) -> int:
     return 1 if failing else 0
 
 
+def estimate(values: dict[str, str | bool]) -> int:
+    cases = int(values.get("cases", 64))
+    row = {
+        "id": "nf_" + "3" * 64,
+        "sourcePath": "src/app.sem.ts",
+        "cached": {"dataset": False, "adversarial": False},
+        "plannedRequests": {"synthetic": cases - 1, "boundary": 2, "counterfactual": 10},
+        "expectedRequests": 90,
+        "maximumRequests": 300,
+        "batchRequests": 0,
+        "inputTokens": 180000,
+        "cacheReadTokens": 150000,
+        "outputTokens": 9000,
+        "costUsd": 0.2,
+        "maximumCostUsd": 0.66,
+        "seconds": 360.0,
+    }
+    cached = {
+        **row,
+        "id": "nf_" + "4" * 64,
+        "sourcePath": "src/other.sem.ts",
+        "cached": {"dataset": True, "adversarial": None},
+        "plannedRequests": {"synthetic": 0, "boundary": 0, "counterfactual": 0},
+        "expectedRequests": 0,
+        "maximumRequests": 0,
+        "inputTokens": 0,
+        "cacheReadTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0.0,
+        "maximumCostUsd": 0.0,
+        "seconds": 0.0,
+    }
+    document = {
+        "kind": "semantscript.train-estimate",
+        "estimateVersion": 1,
+        "teacher": {"backend": "anthropic", "model": "claude-sonnet-5", "fallback": False},
+        "price": {
+            "model": "claude-sonnet-5",
+            "inputUsdPerMillion": 2.0,
+            "outputUsdPerMillion": 10.0,
+            "cacheReadUsdPerMillion": 0.2,
+            "cacheWriteUsdPerMillion": 2.5,
+            "source": "pinned Anthropic list price 2026-09-25",
+        },
+        "secondsPerRequest": 4.0,
+        "secondsSource": "pinned default",
+        "charactersPerToken": 2.1,
+        "cases": cases,
+        "functions": [row, cached],
+        "total": {key: row[key] for key in row if isinstance(row[key], (int, float))},
+    }
+    if "max-cost-usd" in values:
+        document["maxCostUsd"] = float(values["max-cost-usd"])
+    print(json.dumps(document))
+    return 0
+
+
+def teacher_probe(argv: list[str]) -> int:
+    record_path = os.environ.get("FAKE_DOCTOR_ARGV_PATH")
+    if record_path:
+        Path(record_path).write_text(json.dumps({"argv": argv}), encoding="utf-8")
+    failed = bool(os.environ.get("FAKE_PROBE_FAIL"))
+    print(
+        json.dumps(
+            {
+                "kind": "semantscript.teacher-probe",
+                "probeVersion": 1,
+                "ok": not failed,
+                "backend": "anthropic",
+                "model": "anthropic/claude-sonnet-5",
+                "baseUrl": "https://openrouter.ai/api",
+                "requestSent": True,
+                "latencySeconds": 1.25,
+                "inputTokens": 16,
+                "outputTokens": 4,
+                "costUsd": 0.000072,
+                "priceSource": "OpenRouter price list (2026-09-25)",
+                "summary": "one-request probe failed"
+                if failed
+                else "one request to anthropic/claude-sonnet-5 answered in 1.2 s",
+                "fix": "check the network" if failed else None,
+            }
+        )
+    )
+    return 1 if failed else 0
+
+
 def main(argv: list[str]) -> int:
     if argv[:1] == ["doctor"]:
         return doctor(argv[1:])
+    if argv[:2] == ["teacher", "probe"]:
+        return teacher_probe(argv[2:])
     values: dict[str, str | bool] = {}
     index = 0
     while index < len(argv):
@@ -82,6 +175,8 @@ def main(argv: list[str]) -> int:
             json.dumps({"argv": argv, "pythonpath": os.environ.get("PYTHONPATH", "")}),
             encoding="utf-8",
         )
+    if values.get("estimate") is True:
+        return estimate(values)
     exit_code = int(os.environ.get("FAKE_TRAINER_EXIT", "0"))
     if os.environ.get("FAKE_TRAINER_SKIP_REPORT"):
         return exit_code
@@ -140,6 +235,19 @@ def main(argv: list[str]) -> int:
             }
         ],
     }
+    if os.environ.get("FAKE_TRAINER_SPEND"):
+        report["teacher"]["spend"] = {
+            "requests": 40,
+            "replayed": 12,
+            "inputTokens": 90000,
+            "cacheReadTokens": 70000,
+            "cacheWriteTokens": 2300,
+            "outputTokens": 2700,
+            "costUsd": 0.0931,
+            "maxCostUsd": float(values["max-cost-usd"]) if "max-cost-usd" in values else None,
+            "priceSource": "pinned Anthropic list price 2026-09-25",
+            "seconds": 150.0,
+        }
     report_path = Path(values["report"])
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

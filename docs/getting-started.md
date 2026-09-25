@@ -175,14 +175,35 @@ build with a `TS91xx` diagnostic at the site; the
 
 ## 5. Train
 
-With `ANTHROPIC_API_KEY` set:
+Pick the teacher once, if `init` did not already ask:
+
+```sh
+npx semantscript init --teacher anthropic   # or openrouter, ollama, constraints
+```
+
+That writes `.semantscript/teacher.toml` with no key in it (the Anthropic
+backend reads `ANTHROPIC_API_KEY`; for OpenRouter set it to the OpenRouter
+key). Before the first paid run, check the teacher with one small request and
+see what the run will cost:
+
+```sh
+npx semantscript teacher probe
+npx semantscript train --estimate
+```
+
+The estimate prints each expression's teacher requests, tokens, USD cost and
+time without calling the teacher; `--max-cost-usd <x>` then caps the real
+run, stopping before the request that would pass the cap with everything
+paid for kept for the next run ([teachers](teachers.md#cost-estimate-and-spend-cap)).
+Then:
 
 ```sh
 npx semantscript train
 ```
 
-Without a key, write `.semantscript/teacher.toml` for a local model first
-(`backend = "ollama"`, see [teachers](teachers.md)) and run the same command.
+With `ANTHROPIC_API_KEY` set and no teacher file, `train` writes the default
+Anthropic teacher file itself. A local model through Ollama costs nothing
+(`--teacher ollama` at `init`, see [teachers](teachers.md)).
 When the expression's constraints decide every input, no model is needed:
 `npx semantscript train --teacher constraints` labels the cases from the
 constraints (an input they leave open stops the build with that input named).

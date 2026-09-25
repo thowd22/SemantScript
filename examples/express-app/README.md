@@ -82,6 +82,29 @@ Generation cost about USD 10 through OpenRouter for the two expressions
 for each of five counterfactual anchors the teacher could not twin); the
 seed reruns cost nothing because the datasets were cached.
 
+That release was generated with the teacher prompt of that day. The prompt
+has since been made compact and is served through prompt caching
+([teachers](../../docs/teachers.md#prompt-size-and-caching)): the
+decideRefund case request went from 6,552 input tokens and USD 0.0138 to
+USD 0.0071 for the first request and USD 0.0017 once cached. Because the
+teacher's configuration digest includes the prompt layout, the next
+`semantscript train` with this teacher regenerates both datasets.
+Before that paid run, `semantscript train --estimate` with the recipe above
+prints:
+
+```text
+teacher: anthropic anthropic/claude-sonnet-5; price: OpenRouter price list (2026-09-25) (USD 2 in / 10 out per million tokens)
+function      source              requests        input tokens  cached     output tokens  USD              time
+------------  ------------------  --------------  ------------  ---------  -------------  ---------------  ------
+nf_957c2b2b…  src/refunds.sem.ts  407 (max 1344)  997,984       877,912    38,834         0.81 (max 2.67)  27 min
+nf_bcbf93e1…  src/triage.sem.ts   189 (max 189)   253,827       218,080    9,450          0.21 (max 0.21)  13 min
+total                             596 (max 1533)  1,251,811     1,095,992  48,284         1.02 (max 2.88)  40 min
+```
+
+About USD 1 against the USD 10 the release above cost. The verified accuracy
+of a release trained on regenerated datasets has not been measured yet; pass
+`--max-cost-usd 3` to bound that run.
+
 `dist/semantscript.ir.v1.json` is the IR bundle the trainer consumes. The
 transformer writes it every build, so `semantscript train` always sees the
 current sites. Source maps point at `src/triage.sem.ts`; a runtime error inside

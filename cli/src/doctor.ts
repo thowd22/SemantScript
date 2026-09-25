@@ -531,7 +531,8 @@ function withSkipped(
   return [...given, ...skipped];
 }
 
-function capture(
+/** Run `command` with the trainer's PYTHONPATH and UTF-8 output, capturing stdout and stderr. */
+export function capture(
   command: string,
   args: readonly string[],
   io: CliIo,

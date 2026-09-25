@@ -59,7 +59,9 @@ against 54% for a 7B generative model reading the same policy. See the
   `train`, `test` and `run`; or start
   [from a fresh clone](docs/tutorial-refund-decision.md) with the refund
   decision itself. `semantscript doctor` checks the environment first
-  ([environment guide](docs/environment.md)).
+  ([environment guide](docs/environment.md)), and
+  `semantscript train --estimate` says what the teacher will cost before a
+  paid run ([teachers](docs/teachers.md#cost-estimate-and-spend-cap)).
 - [Phase 1 results](docs/phase-1-results.md): the refund benchmark, its
   systems and versions, the go/no-go and the encoder sizing rule.
 - [Architecture](docs/architecture.md): compiler, trainer, model, runtime,

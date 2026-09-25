@@ -10,8 +10,9 @@ import {
   resolvePython,
   resolveTeacherConfig,
 } from "./defaults.js";
-import { preflight, unusedVirtualEnvironment } from "./doctor.js";
+import { capture, preflight, unusedVirtualEnvironment } from "./doctor.js";
 import {
+  CliUsageError,
   listOf,
   numberOf,
   objectOf,
@@ -43,6 +44,7 @@ const PASSTHROUGH_STRING = [
   "max-constraint-violation-rate",
   "counterfactual-ratio",
   "adapter-bottleneck-size",
+  "max-cost-usd",
 ] as const;
 const PASSTHROUGH_BOOLEAN = [
   "local-files-only",
@@ -63,6 +65,7 @@ export const TRAIN_OPTIONS: Record<
   python: { type: "string" },
   "trainer-module": { type: "string" },
   "no-preflight": { type: "boolean" },
+  estimate: { type: "boolean" },
   ...Object.fromEntries(
     PASSTHROUGH_STRING.map((name) => [name, { type: "string" }]),
   ),
@@ -92,6 +95,8 @@ export async function trainCommand(
  * `--no-preflight` is passed (or `options.preflight` is false), the doctor's
  * Python and teacher checks run first, without a billed teacher request, so a
  * missing interpreter, package, key or model stops the run in seconds.
+ * `--estimate` prints what the teacher would cost and exits without the
+ * preflight, the teacher or any training.
  */
 export async function runTrain(
   values: OptionValues,
@@ -112,7 +117,21 @@ export async function runTrain(
   const python = resolvePython(values, io);
   const trainerModule =
     stringOption(values, "trainer-module") ?? DEFAULT_TRAINER_MODULE;
-  if (values["no-preflight"] !== true && options.preflight !== false) {
+  const maxCost = stringOption(values, "max-cost-usd");
+  if (maxCost !== undefined) {
+    const parsed = Number(maxCost);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new CliUsageError(
+        "--max-cost-usd must be a positive number of USD",
+      );
+    }
+  }
+  const estimate = values["estimate"] === true;
+  if (
+    !estimate &&
+    values["no-preflight"] !== true &&
+    options.preflight !== false
+  ) {
     const device = stringOption(values, "device");
     const virtualEnvironment = unusedVirtualEnvironment(values, io);
     const ready = await preflight(
@@ -150,6 +169,27 @@ export async function runTrain(
   }
   for (const name of PASSTHROUGH_BOOLEAN) {
     if (values[name] === true) commandArgs.push(`--${name}`);
+  }
+  if (estimate) {
+    commandArgs.push("--estimate");
+    const outcome = await capture(python, commandArgs, io);
+    if (outcome.error !== undefined) {
+      io.stderr(`unable to run ${python}: ${outcome.error.message}\n`);
+      return 1;
+    }
+    if (outcome.stderr.length > 0) io.stderr(outcome.stderr);
+    if (outcome.status !== 0) return outcome.status;
+    let document: unknown;
+    try {
+      document = JSON.parse(outcome.stdout);
+    } catch {
+      io.stderr(
+        `${python} -m ${trainerModule} train --estimate printed no JSON estimate\n`,
+      );
+      return 1;
+    }
+    io.stdout(renderEstimate(document));
+    return 0;
   }
 
   io.stderr(`semantscript train: ${python} ${commandArgs.join(" ")}\n`);
@@ -302,6 +342,17 @@ export function renderTrainReport(document: unknown): string {
     const where = typeof directory === "string" ? ` (${directory})` : " (off)";
     lines.push(`build cache: ${reused} reused, ${trained} trained${where}\n`);
   }
+  const teacher = report["teacher"];
+  if (
+    teacher !== null &&
+    typeof teacher === "object" &&
+    !Array.isArray(teacher)
+  ) {
+    const spend = (teacher as Record<string, unknown>)["spend"];
+    if (spend !== null && spend !== undefined) {
+      lines.push(renderSpend(objectOf(spend, "report.teacher.spend")));
+    }
+  }
   const artifact = report["artifact"];
   if (artifact !== null && artifact !== undefined) {
     const record = objectOf(artifact, "report.artifact");
@@ -315,4 +366,142 @@ export function renderTrainReport(document: unknown): string {
       : `train ${status}\n`,
   );
   return lines.join("");
+}
+
+/** `teacher: 596 requests (12 replayed), USD 1.0213 of the USD 5 cap`. */
+function renderSpend(spend: Readonly<Record<string, unknown>>): string {
+  const requests = numberOf(spend["requests"], "report.teacher.spend.requests");
+  const replayed =
+    typeof spend["replayed"] === "number" && spend["replayed"] > 0
+      ? ` (${String(spend["replayed"])} replayed)`
+      : "";
+  const cost =
+    typeof spend["costUsd"] === "number"
+      ? `USD ${spend["costUsd"].toFixed(4)}`
+      : "USD unknown";
+  const cap =
+    typeof spend["maxCostUsd"] === "number"
+      ? ` of the USD ${String(spend["maxCostUsd"])} cap`
+      : "";
+  return `teacher: ${String(requests)} request${requests === 1 ? "" : "s"}${replayed}, ${cost}${cap}\n`;
+}
+
+/** Render `train --estimate`'s JSON as one row per expression plus the total. */
+export function renderEstimate(document: unknown): string {
+  const estimate = objectOf(document, "estimate");
+  if (estimate["kind"] !== "semantscript.train-estimate") {
+    throw new Error("estimate.kind must be semantscript.train-estimate");
+  }
+  const price = objectOf(estimate["price"], "estimate.price");
+  const teacher = objectOf(estimate["teacher"], "estimate.teacher");
+  const row = (
+    name: string,
+    source: string,
+    entry: Readonly<Record<string, unknown>>,
+    path: string,
+  ): string[] => {
+    const expected = numberOf(
+      entry["expectedRequests"],
+      `${path}.expectedRequests`,
+    );
+    const maximum = numberOf(
+      entry["maximumRequests"],
+      `${path}.maximumRequests`,
+    );
+    const cost = numberOf(entry["costUsd"], `${path}.costUsd`);
+    const maximumCost = numberOf(
+      entry["maximumCostUsd"],
+      `${path}.maximumCostUsd`,
+    );
+    const batch = numberOf(entry["batchRequests"], `${path}.batchRequests`);
+    return [
+      name,
+      source,
+      expected === 0 && maximum === 0
+        ? "0"
+        : `${String(expected)} (max ${String(maximum)})`,
+      numberOf(entry["inputTokens"], `${path}.inputTokens`).toLocaleString(
+        "en-US",
+      ),
+      numberOf(
+        entry["cacheReadTokens"],
+        `${path}.cacheReadTokens`,
+      ).toLocaleString("en-US"),
+      numberOf(entry["outputTokens"], `${path}.outputTokens`).toLocaleString(
+        "en-US",
+      ),
+      `${cost.toFixed(2)} (max ${maximumCost.toFixed(2)})`,
+      formatDuration(numberOf(entry["seconds"], `${path}.seconds`)) +
+        (batch > 0 ? ` + batch of ${String(batch)}` : ""),
+    ];
+  };
+  const functions = listOf(estimate["functions"], "estimate.functions").map(
+    (entry, index) => {
+      const path = `estimate.functions[${String(index)}]`;
+      const fn = objectOf(entry, path);
+      const cached = objectOf(fn["cached"], `${path}.cached`);
+      const reused =
+        cached["dataset"] === true && cached["adversarial"] !== false
+          ? " (cached)"
+          : "";
+      return row(
+        shortId(stringOf(fn["id"], `${path}.id`)),
+        (typeof fn["sourcePath"] === "string" ? fn["sourcePath"] : "") + reused,
+        fn,
+        path,
+      );
+    },
+  );
+  functions.push(
+    row(
+      "total",
+      "",
+      objectOf(estimate["total"], "estimate.total"),
+      "estimate.total",
+    ),
+  );
+  const model =
+    typeof teacher["model"] === "string"
+      ? `${stringOf(teacher["backend"], "estimate.teacher.backend")} ${teacher["model"]}${teacher["fallback"] === true ? " (fallback)" : ""}`
+      : stringOf(teacher["backend"], "estimate.teacher.backend");
+  const lines = [
+    `teacher: ${model}; price: ${stringOf(price["source"], "estimate.price.source")} (USD ${String(numberOf(price["inputUsdPerMillion"], "estimate.price.inputUsdPerMillion"))} in / ${String(numberOf(price["outputUsdPerMillion"], "estimate.price.outputUsdPerMillion"))} out per million tokens)\n`,
+    renderTable(
+      [
+        "function",
+        "source",
+        "requests",
+        "input tokens",
+        "cached",
+        "output tokens",
+        "USD",
+        "time",
+      ],
+      functions,
+    ),
+    `time per request: ${String(numberOf(estimate["secondsPerRequest"], "estimate.secondsPerRequest"))} s (${stringOf(estimate["secondsSource"], "estimate.secondsSource")}); tokens are characters / ${String(numberOf(estimate["charactersPerToken"], "estimate.charactersPerToken"))}; no teacher request was sent\n`,
+  ];
+  const cap = estimate["maxCostUsd"];
+  if (typeof cap === "number") {
+    const total = objectOf(estimate["total"], "estimate.total");
+    const expected = numberOf(total["costUsd"], "estimate.total.costUsd");
+    const maximum = numberOf(
+      total["maximumCostUsd"],
+      "estimate.total.maximumCostUsd",
+    );
+    lines.push(
+      expected > cap
+        ? `--max-cost-usd ${String(cap)} is below the expected USD ${expected.toFixed(2)}: the run will stop before it finishes\n`
+        : maximum > cap
+          ? `--max-cost-usd ${String(cap)} covers the expected cost but not the maximum (USD ${maximum.toFixed(2)})\n`
+          : `--max-cost-usd ${String(cap)} covers the maximum cost\n`,
+    );
+  }
+  return lines.join("");
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 90) return `${seconds.toFixed(0)} s`;
+  if (seconds < 5400) return `${(seconds / 60).toFixed(0)} min`;
+  return `${(seconds / 3600).toFixed(1)} h`;
 }

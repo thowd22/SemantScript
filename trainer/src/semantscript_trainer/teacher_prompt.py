@@ -7,6 +7,16 @@ support, cycles a constraint focus through *none*, *satisfy* and *near-miss* for
 every input-dependent constraint, and derives per-leaf variation hints from a
 hash of the function id, case index and input path. Rejection notes let a
 retrying teacher tell the model why the previous inputs were refused.
+
+The layout is compact (``TEACHER_PROMPT_VERSION`` 4): the stable function
+contract (behavior text, gold examples, inputs, output and each constraint as
+its kind, output and TypeScript source, without the predicate AST the local
+checks use) is appended to the system prompt as compact JSON, so every request
+for one function shares a byte-identical prefix that prompt caching can serve,
+and the user message carries only the case position and its coverage brief.
+The response schema is not repeated in the text: every backend already sends
+it as the structured-output format. On the Express example this took the
+decideRefund request from about 20,400 characters to about 4,500.
 """
 
 from __future__ import annotations
@@ -17,7 +27,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
-from semantscript_trainer.case_contract import _head_support, build_case_schema
+from semantscript_trainer.case_contract import _head_support
 from semantscript_trainer.constraints import (
     ConstraintError,
     json_values_equal,
@@ -25,7 +35,13 @@ from semantscript_trainer.constraints import (
 )
 from semantscript_trainer.teacher import JsonValue
 
+# Part of every dataset request digest, whatever the teacher (the constraints teacher
+# included), so it stays 3; the prompt layout below is versioned separately.
 PROMPT_CONTRACT_VERSION = 3
+# The layout the language-model teachers send (case, boundary and counterfactual
+# prompts). It is part of a language-model TeacherConfig's digest, so changing it
+# regenerates only language-model datasets.
+TEACHER_PROMPT_VERSION = 4
 
 SYSTEM_PROMPT = """You generate one labeled training case for a typed SemantScript function.
 Return only the JSON object required by the supplied response schema. The output must always be
@@ -37,7 +53,8 @@ which inputs to write; if no inputs satisfying constraintFocus can correctly pro
 constraintFocus and label truthfully with a different output. Produce realistic, specific,
 varied inputs. Do not reuse a typical example, values another case in this corpus would
 obviously use, or any inputs listed under rejectedAttempts. Do not explain the answer and do
-not wrap JSON in Markdown."""
+not wrap JSON in Markdown. The function contract follows as compact JSON; the user message gives
+the case position and its coverageBrief."""
 
 MAXIMUM_VARIATION_HINTS = 64
 MAXIMUM_REJECTION_NOTES = 8
@@ -91,21 +108,9 @@ def build_case_messages(
     if any(not isinstance(note, RejectionNote) for note in notes):
         raise ValueError("rejected attempts must be a sequence of RejectionNote values")
 
-    try:
-        projection = {
-            "functionId": ir["id"],
-            "casePosition": {"index": index, "total": total},
-            "coverageBrief": build_coverage_brief(ir, index),
-            "definition": ir["definition"],
-            "inputs": ir["inputs"],
-            "output": ir["output"],
-            "responseSchema": build_case_schema(ir),
-        }
-    except KeyError as error:
-        raise ValueError(f"IR is missing required prompt field {error.args[0]!r}") from error
-
-    payload = _dump(projection)
-    user = f"Generate case {index + 1} of {total} from this contract:\n{payload}"
+    system = SYSTEM_PROMPT + "\n\nContract:\n" + build_contract(ir)
+    brief = _dump(build_coverage_brief(ir, index))
+    user = f"Generate case {index + 1} of {total}. coverageBrief:\n{brief}"
     if notes:
         recent = notes[-MAXIMUM_REJECTION_NOTES:]
         rejected_payload = _dump(
@@ -124,7 +129,54 @@ def build_case_messages(
             " Produce materially different inputs that fix every reason:\n"
             f"{rejected_payload}"
         )
-    return SYSTEM_PROMPT, user
+    return system, user
+
+
+def build_contract(ir: Mapping[str, Any]) -> str:
+    """The stable, compact JSON contract of one function shared by all its teacher prompts.
+
+    Constraints keep their position, kind, output and TypeScript source; the predicate
+    AST (for the local checks only) is left out. Inputs drop their positional index.
+    """
+
+    try:
+        definition = ir["definition"]
+        inputs = ir["inputs"]
+        projection: dict[str, Any] = {
+            "functionId": ir["id"],
+            "definition": _compact_definition(definition),
+            "inputs": [_compact_input(entry) for entry in inputs],
+            "output": ir["output"],
+        }
+    except KeyError as error:
+        raise ValueError(f"IR is missing required prompt field {error.args[0]!r}") from error
+    if not isinstance(definition, Mapping) or not isinstance(inputs, list):
+        raise ValueError("IR definition must be an object and inputs a list")
+    return _dump(projection)
+
+
+def _compact_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
+    compact = {key: value for key, value in definition.items() if key != "constraints"}
+    raw = definition.get("constraints")
+    if isinstance(raw, list):
+        compact["constraints"] = [
+            {
+                "index": position,
+                "kind": constraint.get("kind"),
+                "output": constraint.get("output"),
+                "source": constraint.get("source"),
+            }
+            if isinstance(constraint, Mapping)
+            else constraint
+            for position, constraint in enumerate(raw)
+        ]
+    return compact
+
+
+def _compact_input(entry: Any) -> Any:
+    if not isinstance(entry, Mapping):
+        return entry
+    return {key: value for key, value in entry.items() if key != "index"}
 
 
 def build_coverage_brief(ir: Mapping[str, Any], index: int) -> dict[str, Any]:
@@ -330,7 +382,9 @@ def _pick(seed: str, path: str, options: Sequence[Any]) -> Any:
 
 
 def _dump(value: Mapping[str, Any]) -> str:
-    return json.dumps(value, allow_nan=False, ensure_ascii=False, indent=2, sort_keys=True)
+    return json.dumps(
+        value, allow_nan=False, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
 
 
 def _dump_compact(value: Any) -> str:
@@ -342,7 +396,9 @@ __all__ = [
     "MAXIMUM_VARIATION_HINTS",
     "PROMPT_CONTRACT_VERSION",
     "SYSTEM_PROMPT",
+    "TEACHER_PROMPT_VERSION",
     "RejectionNote",
     "build_case_messages",
+    "build_contract",
     "build_coverage_brief",
 ]

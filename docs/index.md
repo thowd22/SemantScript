@@ -27,8 +27,9 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   each with inputs, outputs, configuration and how to run it alone.
 - [Teachers](teachers.md): the Anthropic and Ollama backends, the OpenRouter
   and Claude CLI routes, the built-in constraints teacher (and constraints with
-  a language-model fallback), measured costs, and the local-versus-reference
-  result.
+  a language-model fallback), choosing one at `init`, the one-request probe,
+  the cost estimate and spend cap, prompt size and caching, measured costs,
+  and the local-versus-reference result.
 - [Framework guide](framework-guide.md): controllers, guards before and
   after the model, request scopes, Express, Nest and Next.js mounting, and
   transactions gated by decisions.
@@ -44,7 +45,8 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [CLI reference](cli-reference.md): every command, flag, default,
   environment variable and exit code of `semantscript`.
 - [Build cache](build-cache.md): what is content-addressed, when retraining
-  happens, where the caches live and how to clear them.
+  happens, where the caches live (including the teacher response journal) and
+  how to clear them.
 - [Diagnostics catalogue](diagnostics.md): every compiler diagnostic, editor
   warning, trainer and verifier failure and runtime error, with cause and fix.
 - [Language reference](language-reference.md): `sema<T>` syntax, inputs,

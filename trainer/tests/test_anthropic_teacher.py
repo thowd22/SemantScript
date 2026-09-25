@@ -16,11 +16,17 @@ from semantscript_trainer.teacher import (
     GeneratedCase,
     TeacherBatchError,
     TeacherBatchTimeout,
+    TeacherBudgetExceeded,
     TeacherConfigurationError,
     TeacherResponseError,
     TeacherTransportError,
 )
 from semantscript_trainer.teacher_config import TeacherConfig
+from semantscript_trainer.teacher_spend import (
+    ResponseJournal,
+    SpendMeter,
+    TeacherPrice,
+)
 from semantscript_trainer.teachers.anthropic import AnthropicTeacher, BatchHandle
 
 
@@ -67,6 +73,117 @@ def test_direct_requests_use_structured_output_and_validate_each_case() -> None:
         }
         assert "output_format" not in params
         assert "temperature" not in params
+
+
+SONNET = TeacherPrice("claude-sonnet-5", 2.0, 10.0, 0.2, 2.5, "test")
+
+
+def paid_message(text: str, *, read: int = 0, written: int = 0) -> Any:
+    reply = message(text)
+    reply.usage = SimpleNamespace(
+        input_tokens=300,
+        output_tokens=70,
+        cache_read_input_tokens=read,
+        cache_creation_input_tokens=written,
+    )
+    return reply
+
+
+def test_direct_requests_mark_the_system_prompt_for_caching_and_charge_the_meter() -> None:
+    client = FakeClient(
+        direct_messages=[
+            paid_message(case_text("first", True), written=2000),
+            paid_message(case_text("second", False), read=2000),
+        ]
+    )
+    meter = SpendMeter(SONNET)
+    teacher = AnthropicTeacher(
+        config(mode="direct"), client=client, schema_transform=lambda s: s, meter=meter
+    )
+
+    teacher.generate(ir(), 2)
+
+    first, second = client.messages.create_calls
+    assert first["system"] == second["system"]
+    assert first["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "Contract:" in first["system"][0]["text"]
+    assert meter.requests == 2
+    assert (meter.cache_write_tokens, meter.cache_read_tokens) == (2000, 2000)
+    # 600 uncached + 2000 written + 2000 read input tokens and 140 output tokens.
+    assert meter.cost_usd == pytest.approx(
+        (600 * 2.0 + 2000 * 2.5 + 2000 * 0.2 + 140 * 10.0) / 1_000_000
+    )
+    assert meter.summary()["costUsd"] == pytest.approx(meter.cost_usd)
+
+
+def test_spend_cap_stops_before_the_request_that_would_pass_it() -> None:
+    client = FakeClient(
+        direct_messages=[paid_message(case_text(f"case {n}", True)) for n in range(5)]
+    )
+    # Each request costs USD 0.0013 and is reserved at about USD 0.0035 (its prompt at
+    # the cache-write price with a margin, plus the output): a USD 0.006 cap admits two.
+    meter = SpendMeter(SONNET, max_cost_usd=0.006)
+    teacher = AnthropicTeacher(
+        config(mode="direct"), client=client, schema_transform=lambda s: s, meter=meter
+    )
+
+    with pytest.raises(TeacherBudgetExceeded, match=r"spend cap USD 0\.006 reached"):
+        teacher.generate(ir(), 5)
+
+    sent = len(client.messages.create_calls)
+    assert 0 < sent < 5
+    assert meter.requests == sent
+    assert meter.cost_usd <= 0.006
+
+
+def test_journal_replays_paid_responses_for_free_and_keeps_retries_distinct(
+    tmp_path: Any,
+) -> None:
+    teacher_config = config(mode="direct")
+    responses = [
+        paid_message(case_text("first", True)),
+        paid_message(case_text("second", False)),
+    ]
+    journal = ResponseJournal(tmp_path, teacher_config.configuration_sha256)
+    meter = SpendMeter(SONNET)
+    client = FakeClient(direct_messages=list(responses))
+    teacher = AnthropicTeacher(
+        teacher_config, client=client, schema_transform=lambda s: s, meter=meter, journal=journal
+    )
+    # Two identical prompts (the same case position twice) are two journal entries.
+    params = teacher._request_params(ir(), 0, 1, teacher._wire_schema(ir()))
+    assert teacher._send(dict(params)).content[0].text == case_text("first", True)
+    assert teacher._send(dict(params)).content[0].text == case_text("second", False)
+    assert journal.count() == 2
+
+    rerun_client = FakeClient()
+    rerun_meter = SpendMeter(SONNET)
+    rerun = AnthropicTeacher(
+        teacher_config,
+        client=rerun_client,
+        schema_transform=lambda s: s,
+        meter=rerun_meter,
+        journal=ResponseJournal(tmp_path, teacher_config.configuration_sha256),
+    )
+    replayed = [rerun._send(dict(params)), rerun._send(dict(params))]
+    assert [item["content"][0]["text"] for item in replayed] == [
+        case_text("first", True),
+        case_text("second", False),
+    ]
+    assert rerun_client.messages.create_calls == []
+    assert (rerun_meter.requests, rerun_meter.replayed, rerun_meter.cost_usd) == (0, 2, 0.0)
+
+
+def test_batch_submission_reserves_the_whole_batch_before_submitting() -> None:
+    client = FakeClient()
+    meter = SpendMeter(SONNET, max_cost_usd=0.001)
+    teacher = AnthropicTeacher(
+        config(mode="batch"), client=client, schema_transform=lambda s: s, meter=meter
+    )
+
+    with pytest.raises(TeacherBudgetExceeded, match="the next 3 requests"):
+        teacher.submit_batch(ir(), 3)
+    assert client.messages.batches.create_calls == []
 
 
 def test_direct_adversarial_requests_return_boundary_pair_and_reasoned_twin() -> None:

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlsplit
 
 from semantscript_trainer.teacher import TeacherConfigurationError
+from semantscript_trainer.teacher_prompt import TEACHER_PROMPT_VERSION
 
 if TYPE_CHECKING:
     from semantscript_trainer.teacher import Teacher
@@ -28,6 +29,55 @@ CONSTRAINTS_TEACHER_KIND = "semantscript.constraints-teacher"
 # Bumped whenever sampling, labelling or pair generation changes what a seed produces,
 # so cached datasets from an older algorithm are never reused.
 CONSTRAINTS_ALGORITHM_VERSION = 3
+
+
+PRICING_KEYS = (
+    "input_usd_per_million",
+    "output_usd_per_million",
+    "cache_read_usd_per_million",
+    "cache_write_usd_per_million",
+    "seconds_per_request",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class TeacherPricing:
+    """A ``[teacher.pricing]`` table: what a request costs and takes, when the pinned or
+    fetched figures do not fit. Every key is optional; each one given overrides the
+    resolved figure. It never enters a digest, so changing it regenerates nothing."""
+
+    input_usd_per_million: float | None = None
+    output_usd_per_million: float | None = None
+    cache_read_usd_per_million: float | None = None
+    cache_write_usd_per_million: float | None = None
+    seconds_per_request: float | None = None
+
+    def __post_init__(self) -> None:
+        for name in PRICING_KEYS:
+            value = getattr(self, name)
+            if value is None:
+                continue
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise TeacherConfigurationError(
+                    f"[teacher.pricing] {name} must be a non-negative finite number"
+                )
+
+    @classmethod
+    def from_mapping(cls, value: Any) -> TeacherPricing:
+        if not isinstance(value, Mapping):
+            raise TeacherConfigurationError("pricing must be a [teacher.pricing] table")
+        unknown = sorted(set(value) - set(PRICING_KEYS))
+        if unknown:
+            raise TeacherConfigurationError(
+                f"unknown [teacher.pricing] keys: {', '.join(unknown)} "
+                f"(valid keys: {', '.join(PRICING_KEYS)})"
+            )
+        return cls(**dict(value))
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,8 +96,13 @@ class TeacherConfig:
     poll_interval_seconds: float = 60.0
     poll_timeout_seconds: float = 86_400.0
     seed: int = 1
+    pricing: TeacherPricing | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
+        if isinstance(self.pricing, Mapping):
+            object.__setattr__(self, "pricing", TeacherPricing.from_mapping(self.pricing))
+        if self.pricing is not None and not isinstance(self.pricing, TeacherPricing):
+            raise TeacherConfigurationError("pricing must be a [teacher.pricing] table")
         if self.backend not in ("anthropic", "ollama"):
             raise TeacherConfigurationError(f"unsupported teacher backend {self.backend!r}")
         if not isinstance(self.model, str) or not self.model.strip():
@@ -81,8 +136,11 @@ class TeacherConfig:
         return hashlib.sha256(encoded).hexdigest()
 
     def public_projection(self) -> dict[str, str | int | float | None]:
+        # ``pricing`` is left out on purpose: it changes what a run reports, not what the
+        # teacher is asked, so it must never invalidate a dataset.
         return {
             "backend": self.backend,
+            "promptVersion": TEACHER_PROMPT_VERSION,
             "model": self.model,
             "base_url": self.base_url,
             "max_tokens": self.max_tokens,

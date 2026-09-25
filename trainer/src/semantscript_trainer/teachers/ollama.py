@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
@@ -33,6 +34,7 @@ from semantscript_trainer.teacher import (
 )
 from semantscript_trainer.teacher_config import TeacherConfig
 from semantscript_trainer.teacher_prompt import build_case_messages
+from semantscript_trainer.teacher_spend import SpendMeter
 
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 _LOCAL_API_KEY = "ollama"
@@ -54,18 +56,25 @@ class _OpenAIClient(Protocol):
 class OllamaTeacher:
     """Generate independently validated cases through local Ollama."""
 
-    __slots__ = ("_client", "_config", "_descriptor")
+    __slots__ = ("_client", "_config", "_descriptor", "_meter")
 
     def __init__(
         self,
         config: TeacherConfig,
         *,
         client: _OpenAIClient | None = None,
+        meter: SpendMeter | None = None,
+        journal: object | None = None,
     ) -> None:
+        """``meter`` counts every request, its tokens and latency (local requests cost
+        nothing). ``journal`` is accepted for a uniform provider interface and unused:
+        replaying a free local response saves nothing."""
+        del journal
         if config.backend != "ollama":
             raise TeacherConfigurationError("OllamaTeacher requires the 'ollama' backend")
         self._config = config
         self._client = client
+        self._meter = meter
         self._descriptor = TeacherDescriptor(
             provider="ollama",
             model=config.model,
@@ -173,8 +182,9 @@ class OllamaTeacher:
         index: int,
         total: int,
     ) -> object:
+        started = time.monotonic()
         try:
-            return self._get_client().chat.completions.create(
+            response = self._get_client().chat.completions.create(
                 model=self._config.model,
                 messages=[
                     {"role": "system", "content": system_message},
@@ -200,6 +210,9 @@ class OllamaTeacher:
             raise TeacherTransportError(
                 f"Ollama request {index + 1} of {total} failed: {error}"
             ) from error
+        if self._meter is not None:
+            self._meter.charge(getattr(response, "usage", None), seconds=time.monotonic() - started)
+        return response
 
     def _get_client(self) -> _OpenAIClient:
         if self._client is not None:

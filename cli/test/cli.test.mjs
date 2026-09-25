@@ -1334,3 +1334,275 @@ test("init keeps exit status 0 when the doctor breaks its report contract", asyn
     /environment \(semantscript doctor\): the checks did not run: .*no JSON report/u,
   );
 });
+
+test("train --estimate renders the teacher's cost without the preflight or a run", async (t) => {
+  const root = await scratch(t, "semantscript-cli-estimate-");
+  await writeFile(join(root, "bundle.json"), "{}");
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const argvPath = join(root, "argv.json");
+  const env = {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_ARGV_PATH: argvPath,
+    // A failing preflight would stop a real run; the estimate never runs it.
+    FAKE_DOCTOR_FAIL: "teacher-config",
+  };
+  const python = process.platform === "win32" ? "python" : "python3";
+  const args = [
+    "train",
+    "--bundle",
+    "bundle.json",
+    "--teacher",
+    "teacher.toml",
+    "--python",
+    python,
+    "--trainer-module",
+    "fake_trainer",
+    "--cases",
+    "32",
+    "--estimate",
+  ];
+  const run = capture(root, env);
+  assert.equal(await runCli(args, run.io), 0, run.stderr());
+  const recorded = JSON.parse(await readFile(argvPath, "utf8")).argv;
+  assert.ok(recorded.includes("--estimate"));
+  assert.doesNotMatch(run.stderr(), /environment preflight/u);
+  assert.match(
+    run.stdout(),
+    /^teacher: anthropic claude-sonnet-5; price: pinned Anthropic list price 2026-09-25 \(USD 2 in \/ 10 out per million tokens\)\n/u,
+  );
+  assert.match(
+    run.stdout(),
+    /nf_33333333…\s+src\/app\.sem\.ts\s+90 \(max 300\)\s+180,000\s+150,000\s+9,000\s+0\.20 \(max 0\.66\)\s+6 min/u,
+  );
+  assert.match(
+    run.stdout(),
+    /nf_44444444…\s+src\/other\.sem\.ts \(cached\)\s+0\s/u,
+  );
+  assert.match(run.stdout(), /\ntotal\s+90 \(max 300\)/u);
+  assert.match(run.stdout(), /no teacher request was sent\n$/u);
+
+  const capped = capture(root, env);
+  assert.equal(
+    await runCli([...args, "--max-cost-usd", "0.1"], capped.io),
+    0,
+    capped.stderr(),
+  );
+  assert.match(
+    capped.stdout(),
+    /--max-cost-usd 0\.1 is below the expected USD 0\.20: the run will stop before it finishes/u,
+  );
+  const covered = capture(root, env);
+  assert.equal(await runCli([...args, "--max-cost-usd", "5"], covered.io), 0);
+  assert.match(covered.stdout(), /--max-cost-usd 5 covers the maximum cost/u);
+
+  const invalid = capture(root, env);
+  assert.equal(
+    await runCli([...args, "--max-cost-usd", "free"], invalid.io),
+    2,
+  );
+  assert.match(invalid.stderr(), /--max-cost-usd must be a positive number/u);
+});
+
+test("train passes --max-cost-usd through and prints the teacher's running cost", async (t) => {
+  const root = await scratch(t, "semantscript-cli-spend-");
+  await writeFile(join(root, "bundle.json"), "{}");
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const argvPath = join(root, "argv.json");
+  const run = capture(root, {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_ARGV_PATH: argvPath,
+    FAKE_TRAINER_SPEND: "1",
+  });
+  assert.equal(
+    await runCli(
+      [
+        "train",
+        "--bundle",
+        "bundle.json",
+        "--teacher",
+        "teacher.toml",
+        "--python",
+        process.platform === "win32" ? "python" : "python3",
+        "--trainer-module",
+        "fake_trainer",
+        "--no-preflight",
+        "--max-cost-usd",
+        "2.5",
+      ],
+      run.io,
+    ),
+    0,
+    run.stderr(),
+  );
+  const recorded = JSON.parse(await readFile(argvPath, "utf8")).argv;
+  assert.equal(recorded[recorded.indexOf("--max-cost-usd") + 1], "2.5");
+  assert.match(
+    run.stdout(),
+    /teacher: 40 requests \(12 replayed\), USD 0\.0931 of the USD 2\.5 cap\n/u,
+  );
+});
+
+test("teacher probe reports the model, latency, tokens and cost of one request", async (t) => {
+  const root = await scratch(t, "semantscript-cli-probe-");
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const argvPath = join(root, "probe-argv.json");
+  const python = process.platform === "win32" ? "python" : "python3";
+  const args = [
+    "teacher",
+    "probe",
+    "--python",
+    python,
+    "--trainer-module",
+    "fake_trainer",
+  ];
+  const run = capture(root, {
+    PYTHONPATH: fixtures,
+    FAKE_DOCTOR_ARGV_PATH: argvPath,
+  });
+  assert.equal(await runCli(args, run.io), 0, run.stderr());
+  const recorded = JSON.parse(await readFile(argvPath, "utf8")).argv;
+  assert.equal(
+    recorded[recorded.indexOf("--teacher") + 1],
+    join(root, "teacher.toml"),
+  );
+  assert.ok(recorded.includes("--json"));
+  assert.match(
+    run.stdout(),
+    /model {4}anthropic\/claude-sonnet-5 via openrouter\.ai\n {2}latency {2}1\.25 s\n {2}tokens {3}16 in \/ 4 out\n {2}cost {5}USD 0\.000072 \(OpenRouter price list \(2026-09-25\)\)\n {2}ok {7}one request/u,
+  );
+
+  const json = capture(root, { PYTHONPATH: fixtures });
+  assert.equal(await runCli([...args, "--json"], json.io), 0);
+  assert.equal(JSON.parse(json.stdout()).costUsd, 0.000072);
+
+  const failed = capture(root, { PYTHONPATH: fixtures, FAKE_PROBE_FAIL: "1" });
+  assert.equal(await runCli(args, failed.io), 1);
+  assert.match(
+    failed.stdout(),
+    /failed {3}one-request probe failed\n {2}fix {6}check the network\n/u,
+  );
+
+  const empty = await scratch(t, "semantscript-cli-probe-empty-");
+  const missing = capture(empty, { PYTHONPATH: fixtures });
+  assert.equal(await runCli(args, missing.io), 2);
+  assert.match(missing.stderr(), /no teacher to probe/u);
+  const bare = capture(root, { PYTHONPATH: fixtures });
+  assert.equal(await runCli(["teacher"], bare.io), 2);
+});
+
+test("init writes the chosen teacher without a key, asks only on a terminal and never replaces one", async (t) => {
+  const python = process.platform === "win32" ? "python" : "python3";
+  const expected = {
+    anthropic: [/backend = "anthropic"/u, /model = "claude-sonnet-5"/u],
+    openrouter: [
+      /model = "anthropic\/claude-sonnet-5"/u,
+      /base_url = "https:\/\/openrouter\.ai\/api"/u,
+      /mode = "direct"/u,
+      /ANTHROPIC_API_KEY="\$OPENROUTER_API_KEY"/u,
+    ],
+    ollama: [/backend = "ollama"/u, /model = "qwen3:14b"/u],
+    constraints: [/backend = "constraints"/u],
+  };
+  for (const [choice, patterns] of Object.entries(expected)) {
+    const root = await scratch(t, `semantscript-cli-init-${choice}-`);
+    await writeFile(
+      join(root, "package.json"),
+      '{ "name": "app", "type": "module" }\n',
+    );
+    await writeFile(join(root, "tsconfig.json"), '{ "compilerOptions": {} }\n');
+    const doctorPath = join(root, "doctor-argv.json");
+    const run = capture(root, {
+      PYTHONPATH: fixtures,
+      FAKE_DOCTOR_ARGV_PATH: doctorPath,
+      ANTHROPIC_API_KEY: "sk-test-secret",
+    });
+    const args = [
+      "init",
+      "--no-example",
+      "--teacher",
+      choice,
+      "--python",
+      python,
+      "--trainer-module",
+      "fake_trainer",
+    ];
+    assert.equal(await runCli(args, run.io), 0, run.stderr());
+    const written = await readFile(
+      join(root, ".semantscript", "teacher.toml"),
+      "utf8",
+    );
+    for (const pattern of patterns) assert.match(written, pattern, choice);
+    assert.doesNotMatch(written, /sk-test-secret|api_key/u);
+    assert.match(run.stdout(), /changed {4}\.semantscript\/teacher\.toml: /u);
+    const checked = JSON.parse(await readFile(doctorPath, "utf8")).argv;
+    assert.equal(
+      checked[checked.indexOf("--teacher") + 1],
+      join(root, ".semantscript", "teacher.toml"),
+    );
+
+    const again = capture(root, { PYTHONPATH: fixtures });
+    assert.equal(
+      await runCli([...args.slice(0, 3), "ollama", ...args.slice(4)], again.io),
+      0,
+    );
+    assert.match(
+      again.stdout(),
+      /unchanged {2}\.semantscript\/teacher\.toml: a teacher file already exists/u,
+    );
+    assert.equal(
+      await readFile(join(root, ".semantscript", "teacher.toml"), "utf8"),
+      written,
+    );
+  }
+
+  const root = await scratch(t, "semantscript-cli-init-ask-");
+  await writeFile(
+    join(root, "package.json"),
+    '{ "name": "app", "type": "module" }\n',
+  );
+  await writeFile(join(root, "tsconfig.json"), '{ "compilerOptions": {} }\n');
+  const answers = ["gpt", "OpenRouter"];
+  const questions = [];
+  const asked = capture(root, { PYTHONPATH: fixtures });
+  const io = {
+    ...asked.io,
+    ask: async (question) => {
+      questions.push(question);
+      return answers.shift() ?? "";
+    },
+  };
+  assert.equal(
+    await runCli(["init", "--no-example", "--no-doctor"], io),
+    0,
+    asked.stderr(),
+  );
+  assert.equal(questions.length, 2);
+  assert.match(questions[0], /anthropic, openrouter, ollama, constraints/u);
+  assert.match(asked.stdout(), /gpt is not one of/u);
+  assert.match(
+    await readFile(join(root, ".semantscript", "teacher.toml"), "utf8"),
+    /openrouter\.ai/u,
+  );
+
+  const quiet = await scratch(t, "semantscript-cli-init-quiet-");
+  await writeFile(
+    join(quiet, "package.json"),
+    '{ "name": "app", "type": "module" }\n',
+  );
+  await writeFile(join(quiet, "tsconfig.json"), '{ "compilerOptions": {} }\n');
+  const plain = capture(quiet, { PYTHONPATH: fixtures });
+  assert.equal(
+    await runCli(["init", "--no-example", "--no-doctor"], plain.io),
+    0,
+  );
+  assert.ok(!existsSync(join(quiet, ".semantscript", "teacher.toml")));
+  const wrong = capture(quiet, { PYTHONPATH: fixtures });
+  assert.equal(
+    await runCli(["init", "--no-doctor", "--teacher", "gpt"], wrong.io),
+    2,
+  );
+  assert.match(
+    wrong.stderr(),
+    /--teacher must be one of anthropic, openrouter, ollama, constraints/u,
+  );
+});

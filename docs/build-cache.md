@@ -20,8 +20,20 @@ anyway, where everything lives and how to clear it.
         verified-ir.json                      the exact verified IR bytes the artifact was exported from
         head.safetensors                      the function's head weights
     datasets/…                                synthetic corpora, keyed by IR, teacher and case count
-    adversarial/…                             boundary pairs and counterfactual sidecars, keyed by IR, base dataset and teacher
+    adversarial-datasets/…                    boundary pairs and counterfactual sidecars, keyed by IR, base dataset and teacher
+    teacher-responses/<teacher digest>/…      every paid Anthropic response, keyed by the exact request and its occurrence
+    teacher-prices.json                       OpenRouter's price list, fetched at most once a day
+    teacher-stats.json                        the mean request latency of the last metered run, per teacher
 ```
+
+The response journal is what makes a spend cap cheap to hit: a run stopped by
+`--max-cost-usd` (or by a crash, a network error or Ctrl-C) keeps every
+response it paid for, and the next run with the same teacher and settings
+sends the same requests in the same order, so each one is answered from the
+journal at no cost and the run carries on where it stopped. A dataset, once
+complete, comes from the dataset cache and needs no journal. The journal
+holds response text and token counts only, never a key; `--no-cache` neither
+reads nor writes it.
 
 `--cache-dir` moves the whole tree; `init` writes `.semantscript/.gitignore`
 so neither the artifact nor the cache is committed. The weights are stored as
@@ -32,15 +44,15 @@ safetensors, so a cache is roughly the size of the application's encoder.
 A cached function is reused only when all of these match the bundle and the
 current run:
 
-| Key                  | What it covers                                                                                                                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Function id          | Derived by the compiler from the expression's semantic identity: template text, input and output types, examples, constraints and runtime policy, plus its file and duplicate ordinal.     |
-| Semantic digest      | The same identity without the file, so a moved expression whose text is unchanged still matches when its id is preserved.                                                                  |
-| Model binding digest | The function's `model` block: its adapter ref, encoder ref and depth. Changing a domain's depth or routing changes it.                                                                     |
-| Recipe digest        | Encoder name and revision, canonical input version, adapter size, every training, verification and adversarial setting, and the teacher's provider, model and configuration digest.        |
-| Shared-state digest  | The combined digest of the encoder weights and the function's adapter weights the head was trained on; a retrained encoder or adapter invalidates every head on it.                        |
-| Dataset digests      | The synthetic and adversarial datasets the function trained on. The datasets are cached by content too, so an unchanged expression regenerates nothing; a teacher change regenerates both. |
-| File digests         | Every cache file is hashed on read; a corrupted or truncated file is a miss for that function, and a damaged shared file is a miss for the whole application.                              |
+| Key                  | What it covers                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Function id          | Derived by the compiler from the expression's semantic identity: template text, input and output types, examples, constraints and runtime policy, plus its file and duplicate ordinal.                                                                                                                                                                                                                                                                                     |
+| Semantic digest      | The same identity without the file, so a moved expression whose text is unchanged still matches when its id is preserved.                                                                                                                                                                                                                                                                                                                                                  |
+| Model binding digest | The function's `model` block: its adapter ref, encoder ref and depth. Changing a domain's depth or routing changes it.                                                                                                                                                                                                                                                                                                                                                     |
+| Recipe digest        | Encoder name and revision, canonical input version, adapter size, every training, verification and adversarial setting, and the teacher's provider, model and configuration digest.                                                                                                                                                                                                                                                                                        |
+| Shared-state digest  | The combined digest of the encoder weights and the function's adapter weights the head was trained on; a retrained encoder or adapter invalidates every head on it.                                                                                                                                                                                                                                                                                                        |
+| Dataset digests      | The synthetic and adversarial datasets the function trained on. The datasets are cached by content too, so an unchanged expression regenerates nothing; a teacher change regenerates both. A language-model teacher's digest includes its prompt layout version, so the compact prompt of 2026-09-25 (version 4) regenerates Anthropic and Ollama datasets once; the constraints teacher's datasets are unaffected. A `[teacher.pricing]` table is never part of a digest. |
+| File digests         | Every cache file is hashed on read; a corrupted or truncated file is a miss for that function, and a damaged shared file is a miss for the whole application.                                                                                                                                                                                                                                                                                                              |
 
 The cache version is part of every record (`cacheVersion`); a cache written by
 an older trainer layout is treated as empty.
@@ -76,8 +88,10 @@ that matters.
 ## Clearing it
 
 Deleting `.semantscript/cache` (or the `--cache-dir` you passed) is always
-safe; the next `train` regenerates datasets through the teacher and trains
-from scratch. Deleting one `functions/<function-id>` directory retrains that
+safe; the next `train` regenerates datasets through the teacher (paying for
+them again: run `semantscript train --estimate` first to see how much) and
+trains from scratch. Deleting `teacher-responses/` alone is safe once the
+datasets are complete. Deleting one `functions/<function-id>` directory retrains that
 function's head on the cached shared state. Deleting the artifact root without
 the cache makes the next `train` re-export from cached weights without
 training. `--no-cache` is the way to ignore the cache for one run without

@@ -1,4 +1,5 @@
 import process from "node:process";
+import { createInterface } from "node:readline/promises";
 
 /** Where a command reads its environment and writes its output; tests inject their own. */
 export interface CliIo {
@@ -8,6 +9,11 @@ export interface CliIo {
   readonly stderr: (text: string) => void;
   /** Ends long-running commands (`dev`); the process wires SIGINT to it. */
   readonly signal?: AbortSignal;
+  /**
+   * Asks the user one question and resolves to the answer; present only when stdin
+   * is an interactive terminal, so tests and CI never block on a prompt.
+   */
+  readonly ask?: (question: string) => Promise<string>;
 }
 
 export function processIo(): CliIo {
@@ -25,6 +31,21 @@ export function processIo(): CliIo {
     stderr: (text) => {
       process.stderr.write(text);
     },
+    ...(process.stdin.isTTY
+      ? {
+          ask: async (question: string): Promise<string> => {
+            const reader = createInterface({
+              input: process.stdin,
+              output: process.stdout,
+            });
+            try {
+              return await reader.question(question);
+            } finally {
+              reader.close();
+            }
+          },
+        }
+      : {}),
   };
 }
 

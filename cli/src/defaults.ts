@@ -38,6 +38,71 @@ export const DEFAULT_TEACHER_TOML = `[teacher]
 backend = "anthropic"
 model = "${DEFAULT_TEACHER_MODEL}"
 `;
+/** The teacher choices `init --teacher` accepts. */
+export const TEACHER_CHOICES = [
+  "anthropic",
+  "openrouter",
+  "ollama",
+  "constraints",
+] as const;
+export type TeacherChoice = (typeof TEACHER_CHOICES)[number];
+export const DEFAULT_TEACHER_MODELS: Readonly<Record<TeacherChoice, string>> = {
+  anthropic: DEFAULT_TEACHER_MODEL,
+  openrouter: `anthropic/${DEFAULT_TEACHER_MODEL}`,
+  ollama: "qwen3:14b",
+  constraints: "",
+};
+
+/**
+ * The `.semantscript/teacher.toml` that `init --teacher <choice>` writes. It never
+ * holds a key: the Anthropic SDK reads ANTHROPIC_API_KEY from the environment.
+ */
+export function teacherToml(choice: TeacherChoice, model?: string): string {
+  const chosen = model ?? DEFAULT_TEACHER_MODELS[choice];
+  switch (choice) {
+    case "anthropic":
+      return `# Anthropic Messages API. The key is not here: export ANTHROPIC_API_KEY=<key>.
+# Before the first paid run: semantscript teacher probe, then semantscript train --estimate.
+[teacher]
+backend = "anthropic"
+model = "${chosen}"
+mode = "auto"            # direct | batch | auto (Message Batches at batch_threshold, half price)
+batch_threshold = 32
+max_tokens = 2048
+`;
+    case "openrouter":
+      return `# Sonnet through OpenRouter's Anthropic-format route. The key is not here: run with
+# ANTHROPIC_API_KEY set to the OpenRouter key, e.g. export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY".
+# Before the first paid run: semantscript teacher probe, then semantscript train --estimate.
+[teacher]
+backend = "anthropic"
+model = "${chosen}"
+base_url = "https://openrouter.ai/api"
+mode = "direct"          # OpenRouter has no Message Batches
+max_tokens = 4096
+`;
+    case "ollama":
+      return `# A local model through Ollama: no key and no cost. ollama pull ${chosen} first.
+# Labels from a local model are weaker than Sonnet's (docs/teachers.md).
+[teacher]
+backend = "ollama"
+model = "${chosen}"
+max_tokens = 2048
+`;
+    case "constraints":
+      return `# The built-in constraints teacher: labels inputs with each expression's own
+# always/never constraints. No language model, no key, no cost. Add a [teacher.fallback]
+# table for inputs the constraints leave open (docs/teachers.md).
+[teacher]
+backend = "constraints"
+`;
+  }
+}
+
+export function isTeacherChoice(value: string): value is TeacherChoice {
+  return (TEACHER_CHOICES as readonly string[]).includes(value);
+}
+
 export const PYTHON_ENVIRONMENT_VARIABLE = "SEMANTSCRIPT_PYTHON";
 export const DEFAULT_TRAINER_MODULE = "semantscript_trainer.cli";
 

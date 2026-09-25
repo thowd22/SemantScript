@@ -3,8 +3,31 @@
 A teacher turns an expression's text into training cases: synthetic inputs
 with labels, boundary pairs on either side of each constraint, and
 counterfactual twins. It runs at build time only; nothing it produces ships
-except through the weights it trained. This page covers the backends, what
-they cost, and what the local-versus-reference experiment measured.
+except through the weights it trained. This page covers the backends, how to
+choose one and check it, what a run will cost before it starts and how to cap
+it, and what the local-versus-reference experiment measured.
+
+## Choosing a teacher
+
+`semantscript init --teacher anthropic|openrouter|ollama|constraints` (or the
+answer to its one question on an interactive terminal) writes
+`.semantscript/teacher.toml` for that teacher, with no key in it; an existing
+teacher file is never replaced. Then:
+
+```sh
+semantscript teacher probe        # one small request: model, latency, tokens, cost
+semantscript train --estimate     # what the run would cost and take, without calling the teacher
+semantscript train --max-cost-usd 2
+```
+
+| Choice        | What it writes                                                                    | Key                                           |
+| ------------- | --------------------------------------------------------------------------------- | --------------------------------------------- |
+| `anthropic`   | `backend = "anthropic"`, `claude-sonnet-5`, `mode = "auto"`                       | `ANTHROPIC_API_KEY`                           |
+| `openrouter`  | the Anthropic backend at `https://openrouter.ai/api`, `anthropic/claude-sonnet-5` | `ANTHROPIC_API_KEY` set to the OpenRouter key |
+| `ollama`      | `backend = "ollama"`, `qwen3:14b`                                                 | none                                          |
+| `constraints` | `backend = "constraints"`                                                         | none                                          |
+
+`--teacher-model <id>` names another model.
 
 ## Backends
 
@@ -52,13 +75,15 @@ the trainer: it turns extended thinking on unless the request says
 `thinking: {"type": "disabled"}` (the teacher now sends that, so a case
 costs 66 output tokens instead of about 1,900), and its replies can carry a
 thinking block beside the text block (the decoder ignores non-text blocks).
-A request costs about USD 0.017 through this route (the teacher prompt, the
-IR-derived schema and instructions, is about 8,300 input tokens; OpenRouter
-caches part of it). A constrained expression needs about twice as many
-requests as cases (boundary pairs, counterfactual twins at the configured
-ratio, and up to three attempts for an anchor the teacher cannot twin): the
-Express example's two expressions at 192 cases each cost about USD 10 and
-published on the third training seed, all from the same cached datasets.
+With the prompt of that day a request cost about USD 0.017 through this route
+(about 8,300 input tokens on average; the decideRefund case prompt alone was
+6,552). A constrained expression needs about twice as many requests as cases
+(boundary pairs, counterfactual twins at the configured ratio, and up to
+three attempts for an anchor the teacher cannot twin): the Express example's
+two expressions at 192 cases each cost about USD 10 and published on the
+third training seed, all from the same cached datasets. The prompt has since
+been reduced and is served through prompt caching (below): the same case
+costs USD 0.0071 for the first request and USD 0.0017 from the cache.
 
 **Ollama** (local, OpenAI-compatible endpoint):
 
@@ -237,6 +262,13 @@ when an expression has no `examples` entry and names it.
 
 ## Checking a teacher before a run
 
+`semantscript teacher probe` sends one small request through the teacher
+`train` would use and prints the backend, the model and host, the latency,
+the tokens and the cost with its price source (2026-09-25: 2.3 s, 16 in / 4
+out tokens, USD 0.000072 for Sonnet 5 through OpenRouter; 8.3 s including the
+model load, USD 0, for Qwen3-14B through Ollama; no request and USD 0 for the
+constraints teacher; a mixed constraints teacher probes its fallback).
+
 `semantscript doctor` checks the teacher `train` would use: the file is found
 and valid, the key is in the environment, and one minimal request succeeds.
 The Anthropic request is one short user message with `max_tokens` 8 and
@@ -273,6 +305,119 @@ the teacher: with the same 93 teacher cases the Express example's refund
 expression learned nothing useful without them (0.53) and nearly everything
 with them (0.98).
 
+## Prompt size and caching
+
+Every teacher request carries the function's contract. Until 2026-09-25 it
+was indented JSON with each constraint's full predicate AST and a copy of the
+response schema, which the structured-output format already sends; the
+decideRefund case prompt was 20,433 characters. The prompt is now compact
+(prompt layout version 4): the stable contract (behavior text, gold
+examples, inputs, output, and each constraint as its kind, output and
+TypeScript source) is appended to the system prompt as compact JSON, and the
+user message carries only the case position and its coverage brief (or the
+selected constraint, or the anchor of a twin). The Anthropic backend marks
+the system prompt for prompt caching, so from the second request of a kind
+the provider reads it at a tenth of the input price; a prompt shorter than
+the model's minimum (1,024 tokens on Sonnet 5, 512 on Opus 5, 4,096 on Haiku
+4.5) is simply not cached.
+
+Measured 2026-09-25 on the Express example (characters counted locally,
+tokens and dollars as Sonnet 5 through OpenRouter reported them for case 6 of
+189 and the case after it):
+
+| decideRefund                       | Characters                     | Input tokens                                | Output tokens | USD       |
+| ---------------------------------- | ------------------------------ | ------------------------------------------- | ------------- | --------- |
+| Case prompt before (layout 3)      | 21,103                         | 6,552                                       | 68            | 0.013784  |
+| Case prompt now, first request     | 5,468                          | 2,611 (2,347 written to the cache, 264 not) | 68            | 0.0070755 |
+| Case prompt now, next request      | 5,568                          | 2,639 (2,347 read from the cache, 292 not)  | 66            | 0.0017134 |
+| Boundary prompt before / now       | 23,641 / 3,727 plus the schema | not sent                                    |               |           |
+| Counterfactual prompt before / now | 19,737 / 3,606 plus the schema | not sent                                    |               |           |
+
+Half of the USD 0.017 per request recorded for the old prompt is USD 0.0085;
+a request now costs USD 0.0017 once its kind is cached and USD 0.0071 when
+it is the first. The triage case prompt went from 3,816 to 2,527 characters.
+Qwen3-14B through Ollama answered six cases of each expression with the new
+prompt without a schema failure. What has not been measured is the verified
+accuracy of a model trained on datasets regenerated with the new prompt; the
+full comparison (both Express expressions at 192 cases, then the same recipe
+and seed 3) is estimated at USD 1.02 (at most USD 2.88) and has not been run.
+
+A language-model teacher's configuration digest includes the prompt layout
+version, so datasets cached with the old prompt are regenerated once for the
+Anthropic and Ollama backends; the constraints teacher's datasets, which send
+no prompt, are unchanged.
+
+## Cost estimate and spend cap
+
+`semantscript train --estimate` prints, per expression and in total, the
+teacher requests the run would send, the input tokens (and the share the
+prompt cache serves), the output tokens, the USD cost and the wall time,
+without calling the teacher, loading PyTorch or training. On the Express
+example with the OpenRouter teacher (`--cases 192 --counterfactual-ratio 0.5`,
+no cached datasets):
+
+```text
+teacher: anthropic anthropic/claude-sonnet-5; price: OpenRouter price list (2026-09-25) (USD 2 in / 10 out per million tokens)
+function      source              requests        input tokens  cached     output tokens  USD              time
+------------  ------------------  --------------  ------------  ---------  -------------  ---------------  ------
+nf_957c2b2b…  src/refunds.sem.ts  407 (max 1344)  997,984       877,912    38,834         0.81 (max 2.67)  27 min
+nf_bcbf93e1…  src/triage.sem.ts   189 (max 189)   253,827       218,080    9,450          0.21 (max 0.21)  13 min
+total                             596 (max 1533)  1,251,811     1,095,992  48,284         1.02 (max 2.88)  40 min
+time per request: 4 s (pinned default); tokens are characters / 2.1; no teacher request was sent
+```
+
+How it counts:
+
+- **Requests.** An expression whose datasets are cached costs nothing. Otherwise the synthetic dataset asks for `cases - gold` cases, one per request; an expression with constraints adds one boundary-pair request per constraint and a twin request for `--counterfactual-ratio` of the synthetic cases. The expected count multiplies a constrained expression's requests by 1.4 (label replacements, repeated attempts, skipped anchors), calibrated on the 2026-09-25 Express run (about 600 requests where 479 were planned, all the extra on the constrained expression); the maximum is the bound the generators enforce (three replacement rounds, three attempts per boundary pair and per anchor, as many skipped anchors as pairs). A mixed constraints teacher counts only the share of inputs its constraints leave open.
+- **Tokens.** The characters of the exact prompts the teacher builds, plus the response schema, divided by 2.1: the ratio Sonnet 5 reported for the compact prompts (5,468 characters, 2,611 tokens; the old indented prompt ran at about 3.2). No Claude tokenizer runs offline, so this is the one approximation; output tokens are the size of a serialized case (twice for a pair, plus a reason for a twin) over the same ratio. With direct Anthropic requests the schema and system prompt are counted as cache reads after the first request of each kind when they reach the model's minimum cacheable length. Message Batches (`mode = "batch"`, or `auto` at `batch_threshold`) are priced at half and listed apart; a batch usually ends within an hour.
+- **Price.** The constraints teacher and Ollama cost nothing. An Anthropic-backend model is priced from a pinned table of Anthropic list prices (USD per million input / output tokens, 2026-09-25: `claude-sonnet-5` 2 / 10, `claude-opus-5` 5 / 25, `claude-opus-5-5` 4 / 20, `claude-haiku-4-5` 1 / 5, `claude-sonnet-4-6` 3 / 15, `claude-opus-4-8` 5 / 25; cache reads at 0.1 times the input price, writes at 1.25 times, batches at half). With an OpenRouter `base_url` the price comes from OpenRouter's public model list (`GET https://openrouter.ai/api/v1/models`, no key), cached a day in `<cache-dir>/teacher-prices.json`, with the pinned table as the offline fallback; the output names the source.
+- **Time.** Requests times the seconds per request: the `[teacher.pricing]` figure, else the mean the last metered run of the same teacher recorded (`<cache-dir>/teacher-stats.json`), else a pinned figure (4 s for Sonnet 5 through OpenRouter; 1 s for Qwen3-14B through Ollama on one RX 9070 XT, both measured on the Express prompts).
+
+Checked on a small run: the estimate for the Express example at `--cases 8
+--counterfactual-ratio 0.5` said 26 requests (at most 61) and USD 0.06; the
+three runs below sent 19 paid requests in all for USD 0.060, and replayed 8
+more from the journal after the stops.
+
+A `[teacher.pricing]` table overrides any figure, and is required for a model
+the estimate cannot price (the error names it). It never enters a digest:
+
+```toml
+[teacher.pricing]
+input_usd_per_million = 3
+output_usd_per_million = 15
+cache_read_usd_per_million = 0.3    # optional; default 0.1 x input
+cache_write_usd_per_million = 3.75  # optional; default 1.25 x input
+seconds_per_request = 4
+```
+
+`--max-cost-usd <x>` caps a run. Before each request the trainer reserves it
+at more than it can be expected to cost (its own prompt with a 20% token
+margin at the cache-write price, plus the largest answer seen so far and a
+quarter; a Message Batch is reserved whole before it is submitted), and the
+request that would pass the cap is not sent: the run exits 1 with
+`error: spend cap USD <x> reached …`. Every dataset finished before the stop
+stays cached, and every paid response is kept in the response journal
+(`<cache-dir>/teacher-responses/`, see the [build cache](build-cache.md)), so
+the next run replays them at no cost and continues. Every run prints its
+running cost (the second capped run below):
+
+```text
+error: spend cap USD 0.02 reached: the next request (about USD 0.0084) would take the run from USD 0.0186 past it after 6 paid request(s). …
+teacher: 6 request(s) (1 replayed from the journal), 17,246 in (14,360 cached) / 882 out tokens, USD 0.0186 of the USD 0.02 cap
+```
+
+The line appears every 25 requests and after each expression's datasets, the
+report table ends with `teacher: <n> requests (<m> replayed), USD <x> of the
+USD <cap> cap`, and the JSON report carries the same numbers as
+`teacher.spend`. The cost is computed from the token usage each response
+reports (OpenRouter's own `usage.cost` matched it to the digit on the probe
+requests). Measured on the Express example at `--cases 8`: a first run capped
+at USD 0.02 stopped after six requests (it spent USD 0.0223: that run used an
+earlier, looser reservation, since tightened to the one above); a second run
+with the same cap replayed the journaled boundary pair, paid for six more and
+stopped at USD 0.0186; a third with USD 0.10 replayed seven and finished the
+datasets for USD 0.0194.
+
 ## Cost and time, as measured
 
 | Teacher                           | Per request                                         | Latency                           | Where measured                                                  |
@@ -280,6 +425,8 @@ with them (0.98).
 | Sonnet 5 via OpenRouter, label    | USD 0.0028 to 0.0031 (960 input tokens)             | 4.0 s p50                         | 1,800 labels, `results-local-teacher-2026-09-25`                |
 | Sonnet 5 via OpenRouter, baseline | USD 0.0031 (decision plus distribution)             | 4.2 s p50                         | 170 requests, `results-final-2026-09-25`                        |
 | Sonnet 5 via OpenRouter, teacher  | USD 0.017 per request (8,300-token prompt)          | about 4 s                         | `semantscript train` on the Express example, about 600 requests |
+| Same, compact prompt (layout 4)   | USD 0.0017 cached, 0.0071 first of a kind           | 2.6 to 3.0 s                      | two decideRefund case requests, 2026-09-25                      |
+| Qwen3-14B via Ollama, teacher     | none                                                | 1.0 s per case                    | six cases per Express expression, compact prompt                |
 | Claude Code CLI (Sonnet 5)        | subscription quota, about two cents list-equivalent | 4 to 6 s (2.3 s at concurrency 4) | refund pilot corpus, 2026-09-23                                 |
 | Qwen3-14B via Ollama, local       | none                                                | 0.17 s p50 on the GPU             | 1,800 labels                                                    |
 | Jev (typed-decision model)        | USD 0.00004 (not a teacher; see decision-11)        | 0.15 s                            | 160 cases, `results-jev-2026-09-25`                             |

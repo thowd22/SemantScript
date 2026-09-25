@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 23:07'
+updated_date: '2026-09-25 23:11'
 labels:
   - dx
   - train
@@ -67,4 +67,6 @@ IMPLEMENT complete (2026-09-25), uncommitted before the CI push:
 - Docs: teachers.md (choosing, probe, prompt size and caching, estimate and cap, pricing), cli-reference.md, getting-started.md, diagnostics.md, build-cache.md, index.md, components.md, tutorial-refund-decision.md, README.md, cli/README.md, trainer/README.md, examples/express-app/README.md.
 - Gates: npm run build ok; npm run lint:node ok; npm run test:node all pass (89/105/22/8/85); npm run test:python 630 passed 4 skipped; npm run lint:python ok; prettier --check docs README.md ok.
 - AC4 open: equal verification not measured; full comparison estimated USD 1.02 expected (max 2.88) + GPU retrain, above the USD 0.50 budget.
+
+Committed 205dbe6 (TASK-14.5: teacher cost estimate, spend cap, probe, init teacher choice, compact cached prompt), pushed to origin main; CI run 36199729866 success on every job (Node lint/build/tests, Python dev and dev+training, fresh clone/examples/Docker, doctor on Windows and macOS).
 <!-- SECTION:NOTES:END -->

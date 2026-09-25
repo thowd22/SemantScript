@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 18:51'
+updated_date: '2026-09-25 19:12'
 labels:
   - dx
   - train
@@ -59,4 +59,6 @@ Risks: generic range inference may not reproduce the reference numbers (fallback
 
 <!-- SECTION:NOTES:BEGIN -->
 IMPLEMENT: added teachers/constraints.py (ConstraintSampler + ConstraintsTeacher, pure and mixed mode, sample_decided), ConstraintsTeacherConfig/NumberRange in teacher_config.py (keyword 'constraints', backend = "constraints" tables with [teacher.ranges] and [teacher.fallback]), doctor checks for the constraints backend, train_bundle gold-example precondition. New trainer/tests/test_constraints_teacher.py (25 tests, CPU only), 4 test_cli cases (built-in teacher end to end with provenance, pure-mode error and mixed mode on examples/refund.sem.ts, no-gold error, --teacher constraints), 1 doctor test; all pass.
+
+IMPLEMENT (cont.): Node CLI passes --teacher constraints through to train, its preflight and doctor (BUILT_IN_TEACHERS in cli/src/defaults.ts; a file of that name still wins); cli test added. examples/refund-service: train.py deleted; npm run train = semantscript train --teacher constraints with the old recipe (800 cases, 12 epochs, select-best-epoch, cfr 0.5, 0.005 tolerance, cuda) && npm run heldout (scripts/heldout.py, heldout stream, cached training inputs excluded); semantscript devDependency file:../../cli. GPU run 2026-09-25 (11 min wall): release 2f9eb3e890d1, all 9 verified (accuracy 1.0000, ECE 0.0000, 0 violations of 14,456 records, selected epoch 3), teacher constraints/compiled-constraints-v1 digest c58c02b8...; inferred ranges sufficed (no teacher TOML). npm test 3/3; npm run measure: 7 of 9 at 200/200, orders.sem.ts:103 and :122 at 199/200 (amounts just past 2,000 and 5,000). Docs updated (teachers, cli-reference, reference-application, tutorial, index, examples/README, trainer/README, refund-service README). Gates: build, lint:node, test:node, ruff check/format, test:python (577 passed), prettier on touched markdown all green. Commit 64c29cd pushed; CI run 36177879923 success.
 <!-- SECTION:NOTES:END -->

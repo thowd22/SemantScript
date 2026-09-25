@@ -43,12 +43,14 @@ export interface MalformedSemaSite {
   readonly reason: string;
 }
 
+/** Whether a TypeScript source file is a `.sem.ts` file the compiler analyzes. */
 export function isSemantScriptSourceFile(sourceFile: ts.SourceFile): boolean {
   return (
     !sourceFile.isDeclarationFile && sourceFile.fileName.endsWith(".sem.ts")
   );
 }
 
+/** Find every canonical `sema<T>` tagged template of a program (or one file) in source order, matched by import identity. */
 export function findSemaSites(
   program: ts.Program,
   sourceFile?: ts.SourceFile,

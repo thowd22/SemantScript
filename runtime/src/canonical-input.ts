@@ -93,6 +93,7 @@ export type SemaInputErrorReason =
 
 export type SemaInputPath = readonly (string | number)[];
 
+/** A call's inputs do not match the function's declared input types or exceed the byte limit (`reason` says how). */
 export class SemaInputError extends TypeError {
   public readonly code = "SEMA_INPUT_INVALID";
   public readonly path: SemaInputPath;
@@ -144,15 +145,20 @@ interface InspectedRecord {
 export const CANONICAL_INPUT_V1 = "semantscript.canonical-input/v1";
 export const CANONICAL_INPUT_V2 = "semantscript.canonical-input/v2";
 export type CanonicalInputVersion = 1 | 2;
-export type CanonicalInputEncoding = typeof CANONICAL_INPUT_V1 | typeof CANONICAL_INPUT_V2;
+export type CanonicalInputEncoding =
+  typeof CANONICAL_INPUT_V1 | typeof CANONICAL_INPUT_V2;
 
-const CANONICAL_INPUT_ENCODINGS: Readonly<Record<CanonicalInputVersion, CanonicalInputEncoding>> = {
+const CANONICAL_INPUT_ENCODINGS: Readonly<
+  Record<CanonicalInputVersion, CanonicalInputEncoding>
+> = {
   1: CANONICAL_INPUT_V1,
   2: CANONICAL_INPUT_V2,
 };
 
 /** Maps a manifest encoding identifier to its serializer version, or undefined when unimplemented. */
-export function canonicalInputVersion(encoding: string): CanonicalInputVersion | undefined {
+export function canonicalInputVersion(
+  encoding: string,
+): CanonicalInputVersion | undefined {
   if (encoding === CANONICAL_INPUT_V1) return 1;
   if (encoding === CANONICAL_INPUT_V2) return 2;
   return undefined;
@@ -181,18 +187,28 @@ export function serializeCanonicalInputs(
   const envelope = encodeCanonicalInputEnvelope(schema, inputs);
 
   if (options.maximumBytes !== undefined) {
-    if (!Number.isSafeInteger(options.maximumBytes) || options.maximumBytes < 1) {
+    if (
+      !Number.isSafeInteger(options.maximumBytes) ||
+      options.maximumBytes < 1
+    ) {
       throw new RangeError("maximumBytes must be a positive safe integer");
     }
-    if (version === 1) return writeBoundedExactJson(envelope, options.maximumBytes);
+    if (version === 1)
+      return writeBoundedExactJson(envelope, options.maximumBytes);
     const bytes = textEncoder.encode(writeCompact(envelope));
     if (bytes.length > options.maximumBytes) {
-      inputFailure("limit", [], `canonical input exceeds the ${String(options.maximumBytes)} byte limit`);
+      inputFailure(
+        "limit",
+        [],
+        `canonical input exceeds the ${String(options.maximumBytes)} byte limit`,
+      );
     }
     return bytes;
   }
 
-  return textEncoder.encode(version === 1 ? writeExactJson(envelope) : writeCompact(envelope));
+  return textEncoder.encode(
+    version === 1 ? writeExactJson(envelope) : writeCompact(envelope),
+  );
 }
 
 /** String form intended for golden-vector tests and diagnostics. */
@@ -206,7 +222,9 @@ export function serializeCanonicalInputsString(
   return version === 1 ? writeExactJson(envelope) : writeCompact(envelope);
 }
 
-function resolveVersion(version: CanonicalInputVersion | undefined): CanonicalInputVersion {
+function resolveVersion(
+  version: CanonicalInputVersion | undefined,
+): CanonicalInputVersion {
   if (version === undefined) return 1;
   if (!(version in CANONICAL_INPUT_ENCODINGS)) {
     throw new RangeError("canonical input version must be 1 or 2");
@@ -243,10 +261,17 @@ function encodeCanonicalInputEnvelope(
     const descriptor = inspectedInputs.descriptors[entry.name];
 
     if (!descriptor?.enumerable || !("value" in descriptor)) {
-      inputFailure("missing", path, `missing required input ${quoteForMessage(entry.name)}`);
+      inputFailure(
+        "missing",
+        path,
+        `missing required input ${quoteForMessage(entry.name)}`,
+      );
     }
 
-    pairs.push([entry.name, encodeInputValue(entry.type, descriptor.value, path, context, 0)]);
+    pairs.push([
+      entry.name,
+      encodeInputValue(entry.type, descriptor.value, path, context, 0),
+    ]);
   }
 
   return ["semantscript-input", 1, pairs];
@@ -310,7 +335,11 @@ function encodeLiteral(
   return encoded;
 }
 
-function encodeEnum(type: EnumInputType, value: unknown, path: SemaInputPath): TypedInputValue {
+function encodeEnum(
+  type: EnumInputType,
+  value: unknown,
+  path: SemaInputPath,
+): TypedInputValue {
   let declarationIndex: number;
   let encoded: PrimitiveTypedValue;
 
@@ -319,11 +348,15 @@ function encodeEnum(type: EnumInputType, value: unknown, path: SemaInputPath): T
       expectedType(path, `member of enum ${type.name}`);
     }
     assertUnicodeScalarString(value, path);
-    declarationIndex = type.values.findIndex((candidate) => candidate === value);
+    declarationIndex = type.values.findIndex(
+      (candidate) => candidate === value,
+    );
     encoded = ["string", value];
   } else {
     encoded = encodeNumber(value, path);
-    declarationIndex = type.values.findIndex((candidate) => Object.is(candidate, value));
+    declarationIndex = type.values.findIndex((candidate) =>
+      Object.is(candidate, value),
+    );
   }
 
   if (declarationIndex < 0) {
@@ -345,7 +378,11 @@ function encodeArray(
   }
 
   if (value.length > context.budget.remaining) {
-    inputFailure("limit", path, `input work exceeds the limit of ${String(MAX_INPUT_NODES)} nodes`);
+    inputFailure(
+      "limit",
+      path,
+      `input work exceeds the limit of ${String(MAX_INPUT_NODES)} nodes`,
+    );
   }
 
   const descriptors = inspectArray(value, path);
@@ -417,7 +454,11 @@ function encodeObject(
     assertDataDescriptor(descriptor, [...path, key]);
 
     if (!fields.has(key)) {
-      inputFailure("extra", [...path, key], `unexpected property ${quoteForMessage(key)}`);
+      inputFailure(
+        "extra",
+        [...path, key],
+        `unexpected property ${quoteForMessage(key)}`,
+      );
     }
   }
 
@@ -430,14 +471,24 @@ function encodeObject(
 
       if (!descriptor?.enumerable || !("value" in descriptor)) {
         if (!field.optional) {
-          inputFailure("missing", fieldPath, `missing required property ${quoteForMessage(field.name)}`);
+          inputFailure(
+            "missing",
+            fieldPath,
+            `missing required property ${quoteForMessage(field.name)}`,
+          );
         }
         continue;
       }
 
       pairs.push([
         field.name,
-        encodeInputValue(field.type, descriptor.value, fieldPath, context, depth + 1),
+        encodeInputValue(
+          field.type,
+          descriptor.value,
+          fieldPath,
+          context,
+          depth + 1,
+        ),
       ]);
     }
 
@@ -455,18 +506,32 @@ function encodeUnion(
 ): TypedInputValue {
   for (const [index, variant] of type.variants.entries()) {
     try {
-      return ["union", index, encodeInputValue(variant, value, path, context, depth + 1)];
+      return [
+        "union",
+        index,
+        encodeInputValue(variant, value, path, context, depth + 1),
+      ];
     } catch (error) {
-      if (!(error instanceof SemaInputError) || isFatalInputFailure(error.reason)) {
+      if (
+        !(error instanceof SemaInputError) ||
+        isFatalInputFailure(error.reason)
+      ) {
         throw error;
       }
     }
   }
 
-  inputFailure("no-union-variant", path, "value does not match any union variant");
+  inputFailure(
+    "no-union-variant",
+    path,
+    "value does not match any union variant",
+  );
 }
 
-function encodePrimitive(value: unknown, path: SemaInputPath): PrimitiveTypedValue {
+function encodePrimitive(
+  value: unknown,
+  path: SemaInputPath,
+): PrimitiveTypedValue {
   if (value === null) {
     return ["null"];
   }
@@ -487,7 +552,10 @@ function encodePrimitive(value: unknown, path: SemaInputPath): PrimitiveTypedVal
   expectedType(path, "primitive literal");
 }
 
-function encodeNumber(value: unknown, path: SemaInputPath): readonly ["number", string] {
+function encodeNumber(
+  value: unknown,
+  path: SemaInputPath,
+): readonly ["number", string] {
   if (typeof value !== "number") {
     expectedType(path, "number");
   }
@@ -515,15 +583,25 @@ function inspectPlainRecord(
   const prototype = Object.getPrototypeOf(value) as unknown;
 
   if (prototype !== Object.prototype && prototype !== null) {
-    inputFailure("class-instance", path, `${description} must be a plain object`);
+    inputFailure(
+      "class-instance",
+      path,
+      `${description} must be a plain object`,
+    );
   }
 
   if (Object.getOwnPropertySymbols(value).length > 0) {
-    inputFailure("symbol-key", path, `${description} cannot contain symbol-keyed properties`);
+    inputFailure(
+      "symbol-key",
+      path,
+      `${description} cannot contain symbol-keyed properties`,
+    );
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const enumerableKeys = Object.keys(descriptors).filter((key) => descriptors[key]?.enumerable);
+  const enumerableKeys = Object.keys(descriptors).filter(
+    (key) => descriptors[key]?.enumerable,
+  );
   return { descriptors, enumerableKeys };
 }
 
@@ -532,18 +610,28 @@ function inspectArray(
   path: SemaInputPath,
 ): Readonly<Record<string, PropertyDescriptor>> {
   if (Object.getOwnPropertySymbols(value).length > 0) {
-    inputFailure("symbol-key", path, "arrays cannot contain symbol-keyed properties");
+    inputFailure(
+      "symbol-key",
+      path,
+      "arrays cannot contain symbol-keyed properties",
+    );
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const enumerableKeys = Object.keys(descriptors).filter((key) => descriptors[key]?.enumerable);
+  const enumerableKeys = Object.keys(descriptors).filter(
+    (key) => descriptors[key]?.enumerable,
+  );
 
   for (const key of enumerableKeys) {
     const descriptor = descriptors[key];
     assertDataDescriptor(descriptor, [...path, key]);
 
     if (!isArrayIndexForLength(key, value.length)) {
-      inputFailure("array-property", [...path, key], "arrays cannot have enumerable non-index properties");
+      inputFailure(
+        "array-property",
+        [...path, key],
+        "arrays cannot have enumerable non-index properties",
+      );
     }
   }
 
@@ -561,7 +649,10 @@ function inspectArray(
 }
 
 function rejectHostObject(value: unknown, path: SemaInputPath): void {
-  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function")
+  ) {
     return;
   }
 
@@ -581,9 +672,15 @@ function rejectHostObject(value: unknown, path: SemaInputPath): void {
 
   if (
     (Array.isArray(value) && prototype !== Array.prototype) ||
-    (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null)
+    (!Array.isArray(value) &&
+      prototype !== Object.prototype &&
+      prototype !== null)
   ) {
-    inputFailure("class-instance", path, "class instances and host objects are not supported");
+    inputFailure(
+      "class-instance",
+      path,
+      "class instances and host objects are not supported",
+    );
   }
 }
 
@@ -615,7 +712,9 @@ function validateAndOrderSchema(
 
   for (const [expectedIndex, entry] of ordered.entries()) {
     if (entry.index !== expectedIndex) {
-      schemaFailure(`input indices must be unique and dense from zero; missing index ${String(expectedIndex)}`);
+      schemaFailure(
+        `input indices must be unique and dense from zero; missing index ${String(expectedIndex)}`,
+      );
     }
 
     assertUnicodeScalarString(entry.name, ["$schema", expectedIndex, "name"]);
@@ -659,7 +758,9 @@ function validateInputType(
         assertUnicodeScalarString(type.name, ["$schema", "enum", "name"]);
 
         if (type.name.length === 0 || type.values.length === 0) {
-          schemaFailure("enum input schemas require a name and at least one value");
+          schemaFailure(
+            "enum input schemas require a name and at least one value",
+          );
         }
 
         const values = type.values.map((value) => {
@@ -681,20 +782,31 @@ function validateInputType(
         return JSON.stringify(["enum", type.name, type.base, values]);
       }
       case "array":
-        return JSON.stringify(["array", validateInputType(type.items, active, budget, depth + 1)]);
+        return JSON.stringify([
+          "array",
+          validateInputType(type.items, active, budget, depth + 1),
+        ]);
       case "tuple":
         return JSON.stringify([
           "tuple",
-          type.items.map((item) => validateInputType(item, active, budget, depth + 1)),
+          type.items.map((item) =>
+            validateInputType(item, active, budget, depth + 1),
+          ),
         ]);
       case "object": {
         assertUnicodeScalarString(type.name, ["$schema", "object", "name"]);
         const names = new Set<string>();
         const fields = type.fields.map((field) => {
-          assertUnicodeScalarString(field.name, ["$schema", type.name, "field"]);
+          assertUnicodeScalarString(field.name, [
+            "$schema",
+            type.name,
+            "field",
+          ]);
 
           if (names.has(field.name)) {
-            schemaFailure(`object ${type.name} contains duplicate field ${quoteForMessage(field.name)}`);
+            schemaFailure(
+              `object ${type.name} contains duplicate field ${quoteForMessage(field.name)}`,
+            );
           }
 
           names.add(field.name);
@@ -727,7 +839,9 @@ function validateInputType(
   }
 }
 
-function assertSchemaPrimitive(value: unknown): asserts value is string | number | boolean | null {
+function assertSchemaPrimitive(
+  value: unknown,
+): asserts value is string | number | boolean | null {
   if (value === null || typeof value === "boolean") {
     return;
   }
@@ -754,8 +868,13 @@ function primitiveSchemaKey(value: string | number | boolean | null): string {
   return `${value === null ? "null" : typeof value}:${String(value)}`;
 }
 
-function primitiveSameValue(value: unknown, expected: string | number | boolean | null): boolean {
-  return typeof expected === "number" ? Object.is(value, expected) : value === expected;
+function primitiveSameValue(
+  value: unknown,
+  expected: string | number | boolean | null,
+): boolean {
+  return typeof expected === "number"
+    ? Object.is(value, expected)
+    : value === expected;
 }
 
 function assertDataDescriptor(
@@ -763,7 +882,11 @@ function assertDataDescriptor(
   path: SemaInputPath,
 ): asserts descriptor is PropertyDescriptor & { readonly value: unknown } {
   if (!descriptor || !("value" in descriptor)) {
-    inputFailure("accessor", path, "input validation does not invoke getters or setters");
+    inputFailure(
+      "accessor",
+      path,
+      "input validation does not invoke getters or setters",
+    );
   }
 }
 
@@ -775,24 +898,44 @@ function assertUnicodeScalarString(value: string, path: SemaInputPath): void {
       const next = value.charCodeAt(index + 1);
 
       if (!(next >= 0xdc00 && next <= 0xdfff)) {
-        inputFailure("invalid-unicode", path, "strings cannot contain unpaired UTF-16 surrogates");
+        inputFailure(
+          "invalid-unicode",
+          path,
+          "strings cannot contain unpaired UTF-16 surrogates",
+        );
       }
       index += 1;
     } else if (code >= 0xdc00 && code <= 0xdfff) {
-      inputFailure("invalid-unicode", path, "strings cannot contain unpaired UTF-16 surrogates");
+      inputFailure(
+        "invalid-unicode",
+        path,
+        "strings cannot contain unpaired UTF-16 surrogates",
+      );
     }
   }
 }
 
-function consumeWork(budget: WorkBudget, path: SemaInputPath, depth: number): void {
+function consumeWork(
+  budget: WorkBudget,
+  path: SemaInputPath,
+  depth: number,
+): void {
   if (depth > MAX_INPUT_DEPTH) {
-    inputFailure("limit", path, `input nesting exceeds the limit of ${String(MAX_INPUT_DEPTH)}`);
+    inputFailure(
+      "limit",
+      path,
+      `input nesting exceeds the limit of ${String(MAX_INPUT_DEPTH)}`,
+    );
   }
 
   budget.remaining -= 1;
 
   if (budget.remaining < 0) {
-    inputFailure("limit", path, `input work exceeds the limit of ${String(MAX_INPUT_NODES)} nodes`);
+    inputFailure(
+      "limit",
+      path,
+      `input work exceeds the limit of ${String(MAX_INPUT_NODES)} nodes`,
+    );
   }
 }
 
@@ -818,7 +961,12 @@ function isArrayIndexForLength(key: string, length: number): boolean {
   }
 
   const index = Number(key);
-  return Number.isSafeInteger(index) && index >= 0 && index < length && String(index) === key;
+  return (
+    Number.isSafeInteger(index) &&
+    index >= 0 &&
+    index < length &&
+    String(index) === key
+  );
 }
 
 function compareUtf8(left: string, right: string): number {
@@ -848,7 +996,9 @@ function writeExactJson(value: ExactJson): string {
 
   if (typeof value === "number") {
     if (!Number.isSafeInteger(value) || value < 0) {
-      throw new TypeError("canonical input envelope integers must be unsigned safe integers");
+      throw new TypeError(
+        "canonical input envelope integers must be unsigned safe integers",
+      );
     }
     return String(value);
   }
@@ -916,12 +1066,16 @@ function compactValue(value: ExactJson): string {
     case "object":
       return `{${expectList(typed[1]).map(compactPair).join(",")}}`;
     default:
-      throw new TypeError(`canonical input typed value has unknown tag ${JSON.stringify(tag)}`);
+      throw new TypeError(
+        `canonical input typed value has unknown tag ${JSON.stringify(tag)}`,
+      );
   }
 }
 
 function compactString(value: string): string {
-  return BARE_TOKEN.test(value) && !RESERVED_TOKENS.has(value) ? value : quoteExactJsonString(value);
+  return BARE_TOKEN.test(value) && !RESERVED_TOKENS.has(value)
+    ? value
+    : quoteExactJsonString(value);
 }
 
 /** ECMAScript Number-to-string spelling, except that negative zero keeps its sign. */
@@ -931,33 +1085,43 @@ function compactNumber(value: number): string {
 }
 
 function hexToDouble(hex: string): number {
-  if (hex.length !== 16) throw new TypeError("canonical input number is not 16 hex digits");
+  if (hex.length !== 16)
+    throw new TypeError("canonical input number is not 16 hex digits");
   const view = new DataView(new ArrayBuffer(8));
   for (let index = 0; index < 8; index += 1) {
     const byte = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
-    if (!Number.isInteger(byte)) throw new TypeError("canonical input number is not hexadecimal");
+    if (!Number.isInteger(byte))
+      throw new TypeError("canonical input number is not hexadecimal");
     view.setUint8(index, byte);
   }
   return view.getFloat64(0, false);
 }
 
 function expectString(value: ExactJson | undefined): string {
-  if (typeof value !== "string") throw new TypeError("canonical input typed value is malformed");
+  if (typeof value !== "string")
+    throw new TypeError("canonical input typed value is malformed");
   return value;
 }
 
 function expectJson(value: ExactJson | undefined): ExactJson {
-  if (value === undefined) throw new TypeError("canonical input typed value is malformed");
+  if (value === undefined)
+    throw new TypeError("canonical input typed value is malformed");
   return value;
 }
 
-function writeBoundedExactJson(value: ExactJson, maximumBytes: number): Uint8Array {
+function writeBoundedExactJson(
+  value: ExactJson,
+  maximumBytes: number,
+): Uint8Array {
   const writer = new BoundedUtf8Writer(maximumBytes);
   writeBoundedExactJsonValue(value, writer);
   return writer.finish();
 }
 
-function writeBoundedExactJsonValue(value: ExactJson, writer: BoundedUtf8Writer): void {
+function writeBoundedExactJsonValue(
+  value: ExactJson,
+  writer: BoundedUtf8Writer,
+): void {
   if (typeof value === "string") {
     writer.writeJsonString(value);
     return;
@@ -970,7 +1134,9 @@ function writeBoundedExactJsonValue(value: ExactJson, writer: BoundedUtf8Writer)
 
   if (typeof value === "number") {
     if (!Number.isSafeInteger(value) || value < 0) {
-      throw new TypeError("canonical input envelope integers must be unsigned safe integers");
+      throw new TypeError(
+        "canonical input envelope integers must be unsigned safe integers",
+      );
     }
     writer.writeAscii(String(value));
     return;
@@ -981,7 +1147,9 @@ function writeBoundedExactJsonValue(value: ExactJson, writer: BoundedUtf8Writer)
     if (index > 0) writer.writeAscii(",");
     const entry = value[index];
     if (entry === undefined) {
-      throw new TypeError("canonical input arrays cannot contain absent elements");
+      throw new TypeError(
+        "canonical input arrays cannot contain absent elements",
+      );
     }
     writeBoundedExactJsonValue(entry, writer);
   }
@@ -1042,11 +1210,15 @@ class BoundedUtf8Writer {
           } else if (code >= 0xd800 && code <= 0xdbff) {
             const next = value.charCodeAt(index + 1);
             if (!(next >= 0xdc00 && next <= 0xdfff)) {
-              throw new TypeError("canonical input strings cannot contain unpaired UTF-16 surrogates");
+              throw new TypeError(
+                "canonical input strings cannot contain unpaired UTF-16 surrogates",
+              );
             }
             index += 1;
           } else if (code >= 0xdc00 && code <= 0xdfff) {
-            throw new TypeError("canonical input strings cannot contain unpaired UTF-16 surrogates");
+            throw new TypeError(
+              "canonical input strings cannot contain unpaired UTF-16 surrogates",
+            );
           }
           break;
       }
@@ -1070,7 +1242,11 @@ class BoundedUtf8Writer {
     while (start < end) {
       this.#ensureWritable();
       let chunkEnd = Math.min(start + 4096, end);
-      if (chunkEnd < end && value.charCodeAt(chunkEnd - 1) >= 0xd800 && value.charCodeAt(chunkEnd - 1) <= 0xdbff) {
+      if (
+        chunkEnd < end &&
+        value.charCodeAt(chunkEnd - 1) >= 0xd800 &&
+        value.charCodeAt(chunkEnd - 1) <= 0xdbff
+      ) {
         chunkEnd -= 1;
       }
       const chunk = value.slice(start, chunkEnd);
@@ -1157,7 +1333,9 @@ function quoteExactJsonString(value: string): string {
       const next = value.charCodeAt(index + 1);
 
       if (!(next >= 0xdc00 && next <= 0xdfff)) {
-        throw new TypeError("canonical input strings cannot contain unpaired UTF-16 surrogates");
+        throw new TypeError(
+          "canonical input strings cannot contain unpaired UTF-16 surrogates",
+        );
       }
 
       result += value[index] ?? "";
@@ -1167,7 +1345,9 @@ function quoteExactJsonString(value: string): string {
     }
 
     if (code >= 0xdc00 && code <= 0xdfff) {
-      throw new TypeError("canonical input strings cannot contain unpaired UTF-16 surrogates");
+      throw new TypeError(
+        "canonical input strings cannot contain unpaired UTF-16 surrogates",
+      );
     }
 
     result += value[index] ?? "";
@@ -1177,7 +1357,9 @@ function quoteExactJsonString(value: string): string {
 }
 
 function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 function expectedType(path: SemaInputPath, expected: string): never {
@@ -1207,7 +1389,9 @@ function formatPath(path: SemaInputPath): string {
 
   return `inputs${path
     .map((segment) =>
-      typeof segment === "number" ? `[${String(segment)}]` : `[${quoteForMessage(segment)}]`,
+      typeof segment === "number"
+        ? `[${String(segment)}]`
+        : `[${quoteForMessage(segment)}]`,
     )
     .join("")}`;
 }

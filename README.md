@@ -52,7 +52,11 @@ against 54% for a 7B generative model reading the same policy. See the
 
 - [Getting started](docs/getting-started.md): add one expression to an
   existing Express or Next.js app and take it through `init`, `build`,
-  `train`, `test` and `run`.
+  `train`, `test` and `run`; or start
+  [from a fresh clone](docs/tutorial-refund-decision.md) with the refund
+  decision itself.
+- [Phase 1 results](docs/phase-1-results.md): the refund benchmark, its
+  systems and versions, the go/no-go and the encoder sizing rule.
 - [Architecture](docs/architecture.md): compiler, trainer, model, runtime,
   CLI and framework in one diagram.
 - [The reference application](docs/reference-application.md): a refund,
@@ -70,7 +74,8 @@ against 54% for a 7B generative model reading the same policy. See the
   [diagnostics catalogue](docs/diagnostics.md) and the
   [build tool pages](docs/build-tools/tsc.md).
 - [Framework guide](docs/framework-guide.md): controllers, request scopes,
-  guards and transactions gated by decisions.
+  guards and transactions gated by decisions;
+  [component guides](docs/components.md) and [teachers](docs/teachers.md).
 - [All documentation](docs/index.md), including the normative
   [`SPEC.md`](SPEC.md) and [`IR.md`](IR.md), the recorded decisions and the
   research notes.

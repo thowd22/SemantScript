@@ -29,6 +29,7 @@ def build_boundary_messages(
     ir: NeuralFunctionIr,
     constraint_index: int,
 ) -> tuple[str, str]:
+    """Return the system and user prompts asking a teacher for a boundary pair of one constraint."""
     constraints = constraints_from_ir(ir)
     if isinstance(constraint_index, bool) or not isinstance(constraint_index, int):
         raise ValueError("constraint index must be an integer")
@@ -51,6 +52,7 @@ def build_counterfactual_messages(
     ir: NeuralFunctionIr,
     anchor: GeneratedCase,
 ) -> tuple[str, str]:
+    """Return the system and user prompts asking a teacher for a counterfactual twin of ``anchor``."""
     if not isinstance(anchor, GeneratedCase):
         raise ValueError("counterfactual anchor must be a GeneratedCase")
     projection = _projection(ir)

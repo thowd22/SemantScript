@@ -138,6 +138,7 @@ const planSeals = new WeakMap<SemaCompilationPlan, CompilationPlanSeal>();
 export interface CompileSemantScriptProgramOptions
   extends PlanSemaCompilationOptions, EmitSemaCompilationOptions {}
 
+/** Plan a program's sema compilation (function ids, the source-stage IR bundle and its exact text) without writing files. */
 export async function planSemaCompilation(
   program: ts.Program,
   options: PlanSemaCompilationOptions,
@@ -491,6 +492,7 @@ export function emitSemaSourceFile(
   };
 }
 
+/** Emit the program's JavaScript with every sema site rewritten, then the IR bundle, atomically, from a plan returned by `planSemaCompilation`. */
 export async function emitSemaCompilation(
   program: ts.Program,
   plan: SemaCompilationPlan,
@@ -595,6 +597,7 @@ export async function emitSemaCompilation(
   return { ok: true, value: { plan, emittedFiles, bundlePath } };
 }
 
+/** Plan and emit a program in one call; a failed analysis returns diagnostics and writes nothing. */
 export async function compileSemantScriptProgram(
   program: ts.Program,
   options: CompileSemantScriptProgramOptions,

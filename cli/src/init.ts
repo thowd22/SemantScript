@@ -133,6 +133,7 @@ export function initCommand(
   return Promise.resolve(0);
 }
 
+/** Detect the project's build tool from its config files and dependencies: Next.js, Vite, esbuild, else tsc. */
 export function detectBuildTool(root: string, pkg: PackageJson): BuildTool {
   const dependencies = { ...pkg.dependencies, ...pkg.devDependencies };
   if (

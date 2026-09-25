@@ -48,6 +48,7 @@ export type ArtifactLoadErrorCode =
   | "SEMA_ARTIFACT_QUOTA"
   | "SEMA_ARTIFACT_RESOURCE";
 
+/** An artifact could not be loaded: invalid pointer or manifest, incompatible ABI, failed digest, unsafe path, quota or resource (`code` names which). */
 export class ArtifactLoadError extends Error {
   readonly code: ArtifactLoadErrorCode;
   readonly artifactPath: string | undefined;

@@ -25,6 +25,7 @@ MAXIMUM_CASE_COUNT = 100_000
 
 
 def validate_case_count(n: int) -> int:
+    """Return ``n`` when it is a non-negative case count within the configured maximum."""
     if isinstance(n, bool) or not isinstance(n, int) or n < 0:
         raise TeacherConfigurationError("case count must be a non-negative integer")
     if n > MAXIMUM_CASE_COUNT:
@@ -120,6 +121,7 @@ def validate_generated_cases(
     *,
     expected_count: int,
 ) -> tuple[GeneratedCase, ...]:
+    """Validate exactly ``expected_count`` teacher cases against the IR and return them as a tuple."""
     expected = validate_case_count(expected_count)
     try:
         iterator = iter(cases)

@@ -104,6 +104,7 @@ def cache_recipe(
     adapter_bottleneck_size: int,
     teacher: TeacherDescriptor,
 ) -> CacheRecipe:
+    """Digest every setting that must match for a cached function to be reused."""
     return CacheRecipe(
         encoder_name=training.encoder_name,
         encoder_revision=training.encoder_revision,

@@ -68,10 +68,12 @@ export class SemaBuildError extends Error {
   }
 }
 
+/** Whether a file name ends in `.sem.ts` (or `.sem.mts`/`.sem.cts`), the files the adapters rewrite. */
 export function isSemaSourceFileName(fileName: string): boolean {
   return fileName.endsWith(".sem.ts");
 }
 
+/** Render build diagnostics as `file:line:column: message` lines for a bundler's error output. */
 export function formatSemaBuildDiagnostics(
   diagnostics: readonly ts.Diagnostic[],
   cwd: string,

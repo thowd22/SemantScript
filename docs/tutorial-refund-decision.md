@@ -1,0 +1,146 @@
+# Tutorial: from a fresh clone to a running refund decision
+
+This is the end-to-end path through the repository as it stands: clone, build
+both halves, compile the refund-decision expression, train its artifact, and
+call it. Every command was run on the development machine described below;
+where a step needs something you must provide (a teacher), the alternatives
+are listed with what each costs. The [getting-started guide](getting-started.md)
+covers the other direction, adding one expression to an app you already have.
+
+## Hardware and time
+
+| Need              | Used here                                                                                        | Minimum that works                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Node              | 22.22, npm 10                                                                                    | Node 22.13 or later                                                   |
+| Python            | 3.12 with PyTorch, Transformers, ONNX, ONNX Runtime                                              | 3.12; the `training` extra installs the rest                          |
+| GPU for training  | AMD Radeon RX 9070 XT, 16 GB, ROCm under WSL2                                                    | Any CUDA or ROCm GPU with 8 GB; a CPU works and takes tens of minutes |
+| CPU for inference | Ryzen 9 9900X; 4.8 ms per call at depth 6, 28 ms at full depth                                   | Any x64 or arm64 CPU; the ONNX bindings are prebuilt                  |
+| Disk              | 600 MB for the encoder checkpoint, 275 to 600 MB per artifact, as much again for the build cache | 3 GB free                                                             |
+| Network           | Once, for the ModernBERT-base checkpoint from the Hugging Face Hub, plus the teacher if remote   |                                                                       |
+
+## 1. Clone and build
+
+```sh
+git clone <this repository> semantscript && cd semantscript
+npm install                    # links the workspaces
+npm run build                  # tsc -b: compiler, runtime, cli, framework, refund benchmark
+python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e '.[dev,training]'   # trainer, model, torch, transformers, onnx, onnxruntime
+npm run check                  # both lints, both test suites: about three minutes
+```
+
+Without `venv` on the host Python, install into the ignored target instead
+(`python3 -m pip install --target .python-packages '.[dev,training]'`; never
+add `--upgrade` to a later single-package install into that target, it wipes
+the `bin` directory). On an AMD GPU under WSL, run Python with
+`PYTHONNOUSERSITE=1 HSA_ENABLE_DXG_DETECTION=1`; the model README's ROCm
+section has the wheel to install.
+
+## 2. The expression
+
+The refund decision lives in the Express example, already wired to the
+compiler through its `tsconfig.json`:
+
+```ts
+// examples/express-app/src/refunds.sem.ts
+import { always, never, sema } from "@semantscript/core";
+
+export function decideRefund(customer: Customer, order: Order): RefundDecision {
+  return sema<RefundDecision>({
+    examples: [
+      {
+        inputs: {
+          customer: { priorRefunds: 0, tier: "enterprise" },
+          order: { ageDays: 45, status: "paid", total: 129 },
+        },
+        output: "approve",
+      },
+    ],
+    constraints: [
+      never(() => order.status === "fraudulent", "approve"),
+      always(() => order.ageDays > 90, "deny"),
+    ],
+  })`Apply our refund policy. Enterprise customers get 60 days; everyone else gets 30. Suspicious circumstances go to review.
+Customer: ${customer}
+Order: ${order}`;
+}
+```
+
+The output type is the support (`"approve" | "deny" | "review"`), the
+interpolations are the inputs, the example is an attested case the verifier
+must reproduce, and the two constraints are rules the release gate checks.
+The text is what a teacher reads to generate the corpus.
+
+## 3. Compile
+
+```sh
+cd examples/express-app
+npm install                    # file: links to ../../compiler, ../../runtime, ../../framework
+npm run build                  # tspc -p tsconfig.json
+ls dist/refunds.sem.js dist/semantscript.ir.v1.json
+```
+
+`dist/refunds.sem.js` now calls the runtime by function id and
+`dist/semantscript.ir.v1.json` holds the IR record and the execution plan.
+This step was run on 2026-09-25 and takes under a second after the install.
+
+## 4. Train
+
+Pick a teacher. All four routes produce the same artifact layout; the
+[teachers page](teachers.md) compares them in detail.
+
+| Route                                    | Command                                                                                                                                            | What it needs            | Measured cost and time for this expression                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------ |
+| Anthropic API                            | `ANTHROPIC_API_KEY=… npx semantscript train`                                                                                                       | an Anthropic key         | about USD 0.003 per generated case; a minute of GPU training |
+| Sonnet 5 through OpenRouter              | the benchmark's labeling and baseline transports (`run_local_teacher_experiment.py`, `run-benchmark.mjs`); not yet wired into `semantscript train` | an OpenRouter key        | USD 0.0029 per label measured 2026-09-25, 4 s per request    |
+| Claude Code CLI on a subscription        | the refund benchmark's `claude_cli_teacher.py` path (`benchmarks/refund/program/CLAUDE_CLI_TRAINING.md`)                                           | a logged-in `claude` CLI | subscription quota, about 4 to 6 s per request               |
+| No language model (complete constraints) | `npm run train` in `examples/refund-service`                                                                                                       | nothing                  | free; nine expressions in about 4 minutes on the GPU         |
+
+For this tutorial's expression a teacher must read the text (its constraints
+do not cover every input), so the Anthropic route is the one `train` takes
+today. With a key:
+
+```sh
+npx semantscript train --cases 200 --epochs 4 --device cuda
+```
+
+`train` finds the bundle under `dist/`, writes `.semantscript/teacher.toml`
+when `ANTHROPIC_API_KEY` is set (or takes `--teacher`), generates the cases,
+trains ModernBERT-base plus one head, fits the calibration temperature,
+verifies the gold example and the constraints, and publishes
+`.semantscript/artifact`. Expect the encoder download the first time (600 MB),
+then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
+The report table names any verification failure with the failing cases.
+
+To see the whole flow without any key, run the reference application instead,
+whose expressions are labeled by their own constraints:
+
+```sh
+cd ../refund-service && npm install && npm run build && npm run train && npm test
+```
+
+## 5. Test and call
+
+```sh
+npx semantscript test --bundle dist/semantscript.ir.v1.json
+npx semantscript run dist/refunds.sem.js --call decideRefund \
+  --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
+"approve"
+npm start        # POST /refunds/:orderId decides over PGlite and commits only on approve
+```
+
+`test` replays the IR's example through the runtime and reports the shipped
+verification; `run` loads the artifact, imports the compiled module and calls
+the export with the JSON arguments. The server loads the artifact once at
+startup with `loadSemaArtifact()` and no path.
+
+## What you have
+
+A compiled function whose behavior lives in a 275 to 600 MB artifact beside
+`dist/`, answers in milliseconds on a CPU with no network, and was verified
+against its example and constraints before it was published. Changing the
+text, examples or constraints and running `train` again retrains only that
+expression's head through the [build cache](build-cache.md); `semantscript dev`
+does it on every save. The [architecture overview](architecture.md) shows
+what each step produced and the [Phase 1 results](phase-1-results.md) what
+the same expression measures against generative baselines.

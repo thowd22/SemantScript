@@ -56,6 +56,7 @@ export interface SourceNeuralFunctionIr {
   readonly verification: { readonly status: "pending" };
 }
 
+/** Wrap a successful site analysis in a complete source-stage NeuralFunction IR record. */
 export function createSourceNeuralFunctionIr(
   analysis: SemaSiteAnalysis,
   options: SourceIrOptions,

@@ -16,14 +16,17 @@ type TypedJsonNode =
   | readonly ["array", readonly TypedJsonNode[]]
   | readonly ["object", readonly (readonly [string, TypedJsonNode])[]];
 
+/** Encode a JSON value as `semantscript.semantic-json/v1` bytes (sorted keys, exact numbers). */
 export function semanticJsonBytes(value: unknown): Uint8Array {
   return encoder.encode(semanticJsonString(value));
 }
 
+/** Encode a JSON value as a `semantscript.semantic-json/v1` string. */
 export function semanticJsonString(value: unknown): string {
   return JSON.stringify(["semantscript-semantic-json", 1, toTypedNode(value)]);
 }
 
+/** Lexicographic byte comparison for sorting semantic-JSON encodings. */
 export function compareBytes(left: Uint8Array, right: Uint8Array): number {
   const length = Math.min(left.length, right.length);
 
@@ -38,6 +41,7 @@ export function compareBytes(left: Uint8Array, right: Uint8Array): number {
   return left.length - right.length;
 }
 
+/** Lowercase hexadecimal of a byte array, as digests are written. */
 export function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",

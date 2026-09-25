@@ -202,6 +202,7 @@ export function pythonPath(existing: string | undefined): string {
   return entries.join(delimiter);
 }
 
+/** Render the trainer's JSON report as the per-function table `semantscript train` prints. */
 export function renderTrainReport(document: unknown): string {
   const report = objectOf(document, "report");
   const status = stringOf(report["status"], "report.status");

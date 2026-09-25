@@ -14,7 +14,9 @@ export interface OnnxContainerInspection {
  * data. Tensor names, dtypes, and shapes are checked against live ORT session
  * metadata in the worker before it reports ready.
  */
-export function inspectOnnxContainer(bytes: Uint8Array): OnnxContainerInspection {
+export function inspectOnnxContainer(
+  bytes: Uint8Array,
+): OnnxContainerInspection {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) {
     throw new TypeError("ONNX model bytes must be a non-empty Uint8Array");
   }
@@ -32,13 +34,19 @@ export function inspectOnnxContainer(bytes: Uint8Array): OnnxContainerInspection
     } else if (field === 8 && wire === 2) {
       const entry = inspectOpsetImport(reader.message());
       if (imports.has(entry.domain)) {
-        throw new TypeError(`ONNX model repeats opset domain ${JSON.stringify(entry.domain)}`);
+        throw new TypeError(
+          `ONNX model repeats opset domain ${JSON.stringify(entry.domain)}`,
+        );
       }
       imports.set(entry.domain, entry.version);
     } else if (field === 20 && wire === 2) {
-      throw new TypeError("ONNX training graphs are not allowed in runtime artifacts");
+      throw new TypeError(
+        "ONNX training graphs are not allowed in runtime artifacts",
+      );
     } else if (field === 25 && wire === 2) {
-      throw new TypeError("ONNX local function definitions are not allowed in runtime artifacts");
+      throw new TypeError(
+        "ONNX local function definitions are not allowed in runtime artifacts",
+      );
     } else {
       reader.skip(wire);
     }
@@ -47,25 +55,35 @@ export function inspectOnnxContainer(bytes: Uint8Array): OnnxContainerInspection
   if (!sawGraph) {
     throw new TypeError("ONNX model does not contain a graph");
   }
-  const defaultOpset = imports.get(DEFAULT_DOMAIN) ?? imports.get(STANDARD_DOMAIN_ALIAS);
+  const defaultOpset =
+    imports.get(DEFAULT_DOMAIN) ?? imports.get(STANDARD_DOMAIN_ALIAS);
   if (defaultOpset === undefined) {
-    throw new TypeError("ONNX model does not import the standard operator domain");
+    throw new TypeError(
+      "ONNX model does not import the standard operator domain",
+    );
   }
   for (const domain of imports.keys()) {
     if (domain !== DEFAULT_DOMAIN && domain !== STANDARD_DOMAIN_ALIAS) {
-      throw new TypeError(`ONNX model imports unsupported custom domain ${JSON.stringify(domain)}`);
+      throw new TypeError(
+        `ONNX model imports unsupported custom domain ${JSON.stringify(domain)}`,
+      );
     }
   }
   for (const domain of operatorDomains) {
     if (domain !== DEFAULT_DOMAIN && domain !== STANDARD_DOMAIN_ALIAS) {
-      throw new TypeError(`ONNX model uses unsupported custom domain ${JSON.stringify(domain)}`);
+      throw new TypeError(
+        `ONNX model uses unsupported custom domain ${JSON.stringify(domain)}`,
+      );
     }
   }
 
   return Object.freeze({ defaultOpset, operatorDomains });
 }
 
-function inspectOpsetImport(reader: ProtoReader): { readonly domain: string; readonly version: number } {
+function inspectOpsetImport(reader: ProtoReader): {
+  readonly domain: string;
+  readonly version: number;
+} {
   let domain = DEFAULT_DOMAIN;
   let version: number | undefined;
   while (!reader.done) {
@@ -84,7 +102,11 @@ function inspectOpsetImport(reader: ProtoReader): { readonly domain: string; rea
   return { domain, version };
 }
 
-function inspectGraph(reader: ProtoReader, domains: Set<string>, depth: number): void {
+function inspectGraph(
+  reader: ProtoReader,
+  domains: Set<string>,
+  depth: number,
+): void {
   assertDepth(depth);
   while (!reader.done) {
     const tag = reader.tag();
@@ -100,7 +122,11 @@ function inspectGraph(reader: ProtoReader, domains: Set<string>, depth: number):
   }
 }
 
-function inspectNode(reader: ProtoReader, domains: Set<string>, depth: number): void {
+function inspectNode(
+  reader: ProtoReader,
+  domains: Set<string>,
+  depth: number,
+): void {
   assertDepth(depth);
   let domain = DEFAULT_DOMAIN;
   while (!reader.done) {
@@ -116,7 +142,11 @@ function inspectNode(reader: ProtoReader, domains: Set<string>, depth: number): 
   domains.add(domain);
 }
 
-function inspectAttribute(reader: ProtoReader, domains: Set<string>, depth: number): void {
+function inspectAttribute(
+  reader: ProtoReader,
+  domains: Set<string>,
+  depth: number,
+): void {
   assertDepth(depth);
   while (!reader.done) {
     const tag = reader.tag();
@@ -184,7 +214,13 @@ class ProtoReader {
     const tag = this.#varint();
     const field = Number(tag >> 3n);
     const wire = Number(tag & 7n);
-    if (!Number.isSafeInteger(field) || field < 1 || wire > 5 || wire === 3 || wire === 4) {
+    if (
+      !Number.isSafeInteger(field) ||
+      field < 1 ||
+      wire > 5 ||
+      wire === 3 ||
+      wire === 4
+    ) {
       throw new TypeError("ONNX protobuf contains an invalid field tag");
     }
     return { field, wire };
@@ -202,7 +238,9 @@ class ProtoReader {
     try {
       return textDecoder.decode(this.bytes());
     } catch (error) {
-      throw new TypeError("ONNX protobuf contains invalid UTF-8", { cause: error });
+      throw new TypeError("ONNX protobuf contains invalid UTF-8", {
+        cause: error,
+      });
     }
   }
 
@@ -210,7 +248,9 @@ class ProtoReader {
     const length = this.safeUnsignedInteger("ONNX length-delimited field");
     const end = this.#offset + length;
     if (!Number.isSafeInteger(end) || end > this.#end) {
-      throw new TypeError("ONNX protobuf length exceeds the containing message");
+      throw new TypeError(
+        "ONNX protobuf length exceeds the containing message",
+      );
     }
     const value = this.#bytes.subarray(this.#offset, end);
     this.#offset = end;
@@ -236,7 +276,9 @@ class ProtoReader {
         this.#advance(4);
         return;
       default:
-        throw new TypeError(`ONNX protobuf uses unsupported wire type ${String(wire)}`);
+        throw new TypeError(
+          `ONNX protobuf uses unsupported wire type ${String(wire)}`,
+        );
     }
   }
 

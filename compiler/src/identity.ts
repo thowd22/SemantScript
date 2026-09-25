@@ -37,6 +37,7 @@ export function createSemanticProjection(
   };
 }
 
+/** The SHA-256 of a NeuralFunction record's semantic identity projection (`irVersion`, `definition`, `inputs`, `output`, `runtime`). */
 export function computeSemanticSha256(
   source: NeuralFunctionSemanticProjection,
 ): string {

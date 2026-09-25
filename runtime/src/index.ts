@@ -156,6 +156,7 @@ export const __sema: SemaRuntimeDispatcher = {
   },
 };
 
+/** Declare that the output must be `output` whenever `predicate` holds; compiled into the IR and never executed at runtime. */
 export function always<T>(
   predicate: () => boolean,
   requiredOutput: T,
@@ -167,6 +168,7 @@ export function always<T>(
   return { [semaConstraintKind]: requiredOutput };
 }
 
+/** Declare that the output must never be `output` whenever `predicate` holds; compiled into the IR and never executed at runtime. */
 export function never<T>(
   predicate: () => boolean,
   forbiddenOutput: T,

@@ -81,6 +81,7 @@ export type SemaInferenceErrorCode =
   | "unknown-function"
   | "worker-failed";
 
+/** The inference worker failed; `code` distinguishes initialization, input, timeout, protocol and backend failures. */
 export class SemaInferenceError extends Error {
   readonly code: SemaInferenceErrorCode;
 
@@ -95,6 +96,7 @@ export class SemaInferenceError extends Error {
   }
 }
 
+/** The inference worker could not start (typically a missing native ONNX Runtime or tokenizer binding). */
 export class SemaInferenceInitializationError extends SemaInferenceError {
   constructor(message: string, options?: ErrorOptions) {
     super("initialization", message, options);
@@ -102,6 +104,7 @@ export class SemaInferenceInitializationError extends SemaInferenceError {
   }
 }
 
+/** The inference worker rejected a request's inputs. */
 export class SemaInferenceInputError extends SemaInferenceError {
   constructor(message: string, options?: ErrorOptions) {
     super("invalid-input", message, options);
@@ -109,6 +112,7 @@ export class SemaInferenceInputError extends SemaInferenceError {
   }
 }
 
+/** An inference call exceeded its timeout. */
 export class SemaInferenceTimeoutError extends SemaInferenceError {
   constructor(message: string, options?: ErrorOptions) {
     super("timeout", message, options);
@@ -116,6 +120,7 @@ export class SemaInferenceTimeoutError extends SemaInferenceError {
   }
 }
 
+/** The called function id is not in the loaded artifact. */
 export class SemaUnknownFunctionError extends SemaInferenceError {
   readonly functionId: string;
 

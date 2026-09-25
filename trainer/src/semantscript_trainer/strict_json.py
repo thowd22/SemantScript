@@ -16,6 +16,8 @@ class StrictJsonError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class StrictJsonLimits:
+    """Byte, depth and node ceilings a strict JSON document may not exceed."""
+
     maximum_bytes: int = 8 * 1024 * 1024
     maximum_depth: int = 100
     maximum_nodes: int = 100_000

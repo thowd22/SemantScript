@@ -24,7 +24,11 @@ export function parseStrictJson(
   const maximumDepth = options.maximumDepth ?? 128;
   const maximumNodes = options.maximumNodes ?? 1_000_000;
 
-  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || bytes.byteLength > maximumBytes) {
+  if (
+    !Number.isSafeInteger(maximumBytes) ||
+    maximumBytes < 1 ||
+    bytes.byteLength > maximumBytes
+  ) {
     throw new StrictJsonError("JSON byte limit exceeded", 0);
   }
 
@@ -59,7 +63,8 @@ class StrictJsonParser {
   readonly #text: string;
   readonly #maximumDepth: number;
   readonly #maximumNodes: number;
-  readonly #numberPattern = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/uy;
+  readonly #numberPattern =
+    /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/uy;
   #offset = 0;
   #nodes = 0;
 
@@ -125,7 +130,10 @@ class StrictJsonParser {
       const name = this.#parseString();
 
       if (names.has(name)) {
-        throw new StrictJsonError(`duplicate object property ${JSON.stringify(name)}`, nameOffset);
+        throw new StrictJsonError(
+          `duplicate object property ${JSON.stringify(name)}`,
+          nameOffset,
+        );
       }
 
       names.add(name);
@@ -310,12 +318,18 @@ function assertUnicodeScalarString(value: string, offset: number): void {
       const next = value.charCodeAt(index + 1);
 
       if (!(next >= 0xdc00 && next <= 0xdfff)) {
-        throw new StrictJsonError("JSON strings must contain only Unicode scalar values", offset);
+        throw new StrictJsonError(
+          "JSON strings must contain only Unicode scalar values",
+          offset,
+        );
       }
 
       index += 1;
     } else if (code >= 0xdc00 && code <= 0xdfff) {
-      throw new StrictJsonError("JSON strings must contain only Unicode scalar values", offset);
+      throw new StrictJsonError(
+        "JSON strings must contain only Unicode scalar values",
+        offset,
+      );
     }
   }
 }

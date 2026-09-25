@@ -266,6 +266,7 @@ class MarkerResolver {
   }
 }
 
+/** Resolve one sema site's output head, inputs, definition and identity into an analysis, or diagnostics. */
 export function analyzeSemaSite(
   program: ts.Program,
   site: SemaSite,
@@ -302,6 +303,7 @@ export function analyzeSemaSite(
   }
 }
 
+/** Analyze every discovered sema site of a program in source order. */
 export function analyzeSemaSites(
   program: ts.Program,
   sourceFile?: ts.SourceFile,

@@ -35,6 +35,7 @@ export class Rollback<T = unknown> {
   ) {}
 }
 
+/** Return a `Rollback` from a `transactional` body to roll the transaction back with `reason` (and an optional value). */
 export function rollback<T = unknown>(reason: string, value?: T): Rollback<T> {
   return new Rollback(reason, value);
 }

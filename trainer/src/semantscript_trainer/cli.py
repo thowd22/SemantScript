@@ -904,6 +904,7 @@ def _verification_config(arguments: argparse.Namespace) -> VerificationConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run ``semantscript_trainer.cli train`` from ``argv`` and return the process exit status."""
     arguments = _build_parser().parse_args(argv)
     if arguments.command != "train":  # pragma: no cover - argparse enforces the choice
         return 2

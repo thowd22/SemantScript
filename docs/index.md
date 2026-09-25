@@ -16,6 +16,14 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [Getting started](getting-started.md): add one sema expression to an
   existing Express (or Next.js) app and take it through `init`, `build`,
   `train`, `test` and `run`, with the hardware, teacher and time it needs.
+- [Tutorial: from a fresh clone](tutorial-refund-decision.md): clone, build
+  both halves, compile the refund-decision expression, train it through one
+  of four teacher routes, and call it, with hardware and time stated.
+- [Component guides](components.md): compiler, trainer, model and runtime,
+  each with inputs, outputs, configuration and how to run it alone.
+- [Teachers](teachers.md): the Anthropic and Ollama backends, the OpenRouter
+  and Claude CLI routes, constraint labels, measured costs, and the
+  local-versus-reference result.
 - [Framework guide](framework-guide.md): controllers, guards before and
   after the model, request scopes, Express, Nest and Next.js mounting, and
   transactions gated by decisions.
@@ -48,6 +56,10 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [Structured outputs](structured-outputs.md): flat interface outputs, how
   each field becomes a head, what verification reports per field, and the
   diagnostic result shape.
+- [Phase 1 results](phase-1-results.md): the refund benchmark write-up: task,
+  held-out data, systems with exact versions, protocol, the five-system
+  result and go/no-go, and the encoder size against latency and accuracy
+  with the per-application sizing rule.
 - [Scaling results](scaling-results.md): the parallel-head, batch, one-stage
   application and depth-routing measurements, with guidance on when fusing
   helps.

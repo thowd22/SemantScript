@@ -38,13 +38,18 @@ export type SemaFallback = (
   requiredConfidence: number,
 ) => unknown;
 
+/** A `@confidence` expression answered below its threshold and no fallback is registered. */
 export class SemaConfidenceError extends Error {
   readonly code = "SEMA_CONFIDENCE_BELOW_THRESHOLD";
   readonly functionId: string;
   readonly threshold: number;
   readonly diagnostic: SemaDiagnosticResult;
 
-  constructor(functionId: string, threshold: number, diagnostic: SemaDiagnosticResult) {
+  constructor(
+    functionId: string,
+    threshold: number,
+    diagnostic: SemaDiagnosticResult,
+  ) {
     super(
       `semantic function ${JSON.stringify(functionId)} returned confidence below ${String(threshold)}`,
     );
@@ -57,6 +62,7 @@ export class SemaConfidenceError extends Error {
 
 export type SemaFallbackErrorReason = "missing" | "invalid-result" | "cycle";
 
+/** A registered fallback returned a value outside the declared type or re-entered the expression it guards. */
 export class SemaFallbackError extends TypeError {
   readonly code = "SEMA_FALLBACK_INVALID";
   readonly reason: SemaFallbackErrorReason;

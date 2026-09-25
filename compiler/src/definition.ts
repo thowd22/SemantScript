@@ -145,6 +145,7 @@ class DefinitionFailure extends Error {
 
 class DefinitionLimitFailure extends DefinitionFailure {}
 
+/** Resolve a site's template parts, headers (`@confidence`, `@domain`), examples and constraints into the IR definition, or diagnostics. */
 export function resolveDefinitionConfiguration(
   program: ts.Program,
   site: SemaSite,

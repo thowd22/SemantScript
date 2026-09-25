@@ -45,6 +45,7 @@ export class Reply {
   ) {}
 }
 
+/** Return a `Reply` with an explicit status, body and headers from a handler. */
 export function reply(
   status: number,
   body: unknown,

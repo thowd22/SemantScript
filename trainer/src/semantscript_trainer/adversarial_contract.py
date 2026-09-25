@@ -63,6 +63,7 @@ def parse_boundary_pair_response(
     *,
     limits: StrictJsonLimits = DEFAULT_STRICT_JSON_LIMITS,
 ) -> BoundaryPairProposal:
+    """Parse and validate a teacher's strict-JSON boundary-pair response for the IR."""
     value = _parse_object(response, limits=limits)
     if set(value) != {"predicateFalse", "predicateTrue"}:
         raise TeacherResponseError(
@@ -80,6 +81,7 @@ def parse_counterfactual_response(
     *,
     limits: StrictJsonLimits = DEFAULT_STRICT_JSON_LIMITS,
 ) -> CounterfactualProposal:
+    """Parse and validate a teacher's strict-JSON counterfactual response for the IR."""
     value = _parse_object(response, limits=limits)
     if set(value) != {"twin", "reason"}:
         raise TeacherResponseError("counterfactual response must contain exactly twin and reason")

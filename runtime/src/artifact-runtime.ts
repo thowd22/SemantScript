@@ -132,6 +132,7 @@ export interface SemaArtifactHandle {
   close(): Promise<void>;
 }
 
+/** A sema call was made before `loadSemaArtifact()` resolved. */
 export class SemaRuntimeNotLoadedError extends Error {
   readonly code = "SEMA_RUNTIME_NOT_LOADED";
 
@@ -141,6 +142,7 @@ export class SemaRuntimeNotLoadedError extends Error {
   }
 }
 
+/** A handle was used after it was closed or replaced by a reload. */
 export class SemaArtifactInactiveError extends Error {
   readonly code = "SEMA_ARTIFACT_INACTIVE";
   readonly manifestSha256: string;

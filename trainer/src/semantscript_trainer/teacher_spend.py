@@ -177,7 +177,7 @@ def resolve_price(
         return free_price("constraints", "free (the constraints teacher sends no request)")
     pricing = model_config.pricing
     if model_config.backend == "ollama":
-        base = free_price(model_config.model, "free (local Ollama)")
+        base = free_price(model_config.model, "local Ollama, free")
     elif (
         pricing is not None
         and pricing.input_usd_per_million is not None
@@ -550,7 +550,7 @@ class ResponseJournal:
     def __init__(self, cache_directory: str | Path, configuration_sha256: str) -> None:
         self.directory = Path(cache_directory) / JOURNAL_DIRECTORY / configuration_sha256[:32]
         self._seen: Counter[str] = Counter()
-        self._touched: list[str] = []
+        self._touched: list[Path] = []
 
     def next_key(self, params: Mapping[str, Any]) -> str:
         encoded = json.dumps(
@@ -570,7 +570,7 @@ class ResponseJournal:
             return None
         if not isinstance(document, dict) or not isinstance(document.get("content"), list):
             return None
-        self._touched.append(key)
+        self._touched.append(self._path(key))
         return document
 
     def store(self, key: str, message: Any) -> None:
@@ -595,7 +595,7 @@ class ResponseJournal:
         }
         with contextlib.suppress(OSError):
             _write_json(self._path(key), document)
-            self._touched.append(key)
+            self._touched.append(self._path(key))
 
     def discard(self, key: str) -> None:
         """Drop one entry, so its request is sent again next time."""
@@ -603,12 +603,57 @@ class ResponseJournal:
         with contextlib.suppress(OSError):
             self._path(key).unlink(missing_ok=True)
 
+    # Message Batches: the journal keeps the handle of every submitted batch, so a run
+    # stopped while a batch is processing (the spend cap elsewhere, a crash, Ctrl-C, a
+    # poll timeout) collects that same batch on the rerun instead of paying for a new
+    # one. A collected batch stays recorded, so a rerun that sends the identical batch
+    # request again re-reads its results (at no cost) while the provider keeps them.
+
+    def next_batch_key(self, request_sha256: str) -> str:
+        """The key of the next batch with this exact request digest in this run."""
+
+        self._seen["batch:" + request_sha256] += 1
+        return f"{request_sha256}-{self._seen['batch:' + request_sha256]}"
+
+    def _batch_path(self, key: str) -> Path:
+        return self.directory / "batches" / f"{key}.json"
+
+    def load_batch(self, key: str) -> dict[str, Any] | None:
+        """The recorded batch (``batch_id``, ``custom_ids``, ``collected``), if any."""
+
+        try:
+            document = json.loads(self._batch_path(key).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if (
+            not isinstance(document, dict)
+            or not isinstance(document.get("batch_id"), str)
+            or not isinstance(document.get("custom_ids"), list)
+            or not all(isinstance(value, str) for value in document["custom_ids"])
+        ):
+            return None
+        self._touched.append(self._batch_path(key))
+        return document
+
+    def store_batch(
+        self, key: str, batch_id: str, custom_ids: tuple[str, ...], *, collected: bool
+    ) -> None:
+        document = {"batch_id": batch_id, "custom_ids": list(custom_ids), "collected": collected}
+        with contextlib.suppress(OSError):
+            _write_json(self._batch_path(key), document)
+            self._touched.append(self._batch_path(key))
+
+    def discard_batch(self, key: str) -> None:
+        """Forget one batch, so its request is submitted again next time."""
+
+        with contextlib.suppress(OSError):
+            self._batch_path(key).unlink(missing_ok=True)
+
     def discard_touched(self) -> int:
         """Drop every entry this run replayed or stored; returns how many existed."""
 
         dropped = 0
-        for key in dict.fromkeys(self._touched):
-            path = self._path(key)
+        for path in dict.fromkeys(self._touched):
             with contextlib.suppress(OSError):
                 if path.exists():
                     path.unlink()
@@ -618,7 +663,9 @@ class ResponseJournal:
 
     def count(self) -> int:
         try:
-            return sum(1 for _ in self.directory.rglob("*.json"))
+            return sum(
+                1 for path in self.directory.rglob("*.json") if path.parent.name != "batches"
+            )
         except OSError:
             return 0
 

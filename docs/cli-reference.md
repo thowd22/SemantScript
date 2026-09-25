@@ -230,7 +230,6 @@ Options handed to the trainer unchanged:
 | `--max-constraint-violation-rate`                                 | fraction | Share of raw predictions allowed to violate an active constraint (default 0; the value used is recorded). |
 | `--counterfactual-ratio`                                          | fraction | Share of synthetic cases that get a counterfactual twin (default 1).                                      |
 | `--adapter-bottleneck-size`                                       | integer  | Width of the per-domain adapter.                                                                          |
-| `--max-cost-usd`                                                  | USD      | The spend cap above.                                                                                      |
 | `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest.                                                                                 |
 | `--no-cache`                                                      |          | Ignore the build cache and write nothing to it.                                                           |
 | `--full`                                                          |          | Retrain every function jointly, discarding cached function records.                                       |

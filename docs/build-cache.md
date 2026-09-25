@@ -21,7 +21,7 @@ anyway, where everything lives and how to clear it.
         head.safetensors                      the function's head weights
     datasets/…                                synthetic corpora, keyed by IR, teacher and case count
     adversarial-datasets/…                    boundary pairs and counterfactual sidecars, keyed by IR, base dataset and teacher
-    teacher-responses/<teacher digest>/…      every paid direct Anthropic response the run accepted, keyed by the exact request and its occurrence
+    teacher-responses/<teacher digest>/…      every paid direct Anthropic response the run accepted, keyed by the exact request and its occurrence, and every submitted Message Batch's handle (batches/)
     teacher-prices.json                       OpenRouter's price list, fetched at most once a day
     teacher-stats.json                        the mean request latency of the last metered run, per teacher
 ```
@@ -42,8 +42,19 @@ that fails because the teacher's answers were rejected (for example
 entry it replayed or wrote and says so
 (`note: the teacher's answers were rejected, so the <n> journaled response(s) this run used were discarded …`),
 so the rerun asks the teacher again instead of failing on the same answers.
-Message Batch results are not journaled: a batch is charged when it is
-collected, and a batch stopped part way is resumed through its handle.
+Message Batches (`mode = "batch"`, or `auto` at `batch_threshold`) are
+journaled by their handle: the batch ID is written to `teacher-responses/…/batches/`
+as soon as the batch is submitted, keyed by the digest of the exact batch
+request. A run stopped while a batch is processing (by a crash, Ctrl-C, a
+network error or the poll timeout) therefore collects that same batch on the
+rerun instead of submitting and paying for a new one; the batch is charged
+when it is collected. A collected batch stays recorded, so a rerun that sends
+the identical batch request again re-reads its results at no cost for as long
+as Anthropic keeps them (29 days); a recorded batch the provider no longer has
+is submitted once more. A batch whose results are rejected is forgotten like a
+rejected direct response. The one gap is a stop in the moment between the
+provider accepting a batch and the handle reaching the disk: that batch is not
+found again.
 
 `--cache-dir` moves the whole tree; `init` writes `.semantscript/.gitignore`
 so neither the artifact nor the cache is committed. The weights are stored as

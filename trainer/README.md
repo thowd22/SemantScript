@@ -100,7 +100,9 @@ call. Within an unfinished dataset, the Anthropic backend keeps every paid respo
 in a response journal (`semantscript_trainer.teacher_spend.ResponseJournal`,
 `<cache-dir>/teacher-responses/`), keyed by the exact request and its occurrence, so
 a rerun after a stop (a spend cap, a crash, a network error) replays them at no
-cost; the other backends keep none. A response that breaks the contract is dropped
+cost. In batch mode it records each submitted Message Batch's handle the moment the
+batch is accepted, so a rerun collects that batch instead of paying for a new one.
+The other backends keep no journal. A response that breaks the contract is dropped
 from the journal, and a run that fails on rejected teacher answers drops every entry
 it used, so a rerun asks the teacher again. The spend cap applies to every backend
 with a price, including an OpenAI-compatible endpoint behind the `ollama` backend with

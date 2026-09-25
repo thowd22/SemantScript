@@ -143,8 +143,7 @@ class AnthropicTeacher:
         if mode == "direct":
             return self._generate_direct(ir, n)
         if mode == "batch":
-            handle = self.submit_batch(ir, n)
-            return self.collect_batch(ir, handle)
+            return self._generate_batch(ir, n)
         raise TeacherConfigurationError(f"unsupported Anthropic teacher mode {mode!r}")
 
     def generate_boundary_pair(
@@ -189,6 +188,12 @@ class AnthropicTeacher:
         """Submit one non-streaming Messages request for each desired case."""
 
         _validate_positive_count(n)
+        requests, custom_ids, request_sha256 = self._batch_requests(ir, n)
+        return self._submit_requests(ir, requests, custom_ids, request_sha256)
+
+    def _batch_requests(
+        self, ir: Mapping[str, Any], n: int
+    ) -> tuple[list[dict[str, Any]], tuple[str, ...], str]:
         wire_schema = self._wire_schema(ir)
         custom_ids = self._custom_ids(ir, n)
         request_digest = hashlib.sha256(_REQUEST_DIGEST_DOMAIN)
@@ -200,6 +205,15 @@ class AnthropicTeacher:
             }
             _update_request_digest(request_digest, request)
             requests.append(request)
+        return requests, custom_ids, request_digest.hexdigest()
+
+    def _submit_requests(
+        self,
+        ir: Mapping[str, Any],
+        requests: list[dict[str, Any]],
+        custom_ids: tuple[str, ...],
+        request_sha256: str,
+    ) -> BatchHandle:
         if self._meter is not None:
             self._meter.reserve(
                 sum(
@@ -223,8 +237,67 @@ class AnthropicTeacher:
             custom_ids=custom_ids,
             function_id=_function_id(ir),
             configuration_sha256=self._config.configuration_sha256,
-            request_sha256=request_digest.hexdigest(),
+            request_sha256=request_sha256,
         )
+
+    def _generate_batch(self, ir: Mapping[str, Any], n: int) -> tuple[GeneratedCase, ...]:
+        """Submit (or, after a stop, resume) one batch and collect it.
+
+        With a journal the batch handle is recorded as soon as the batch is submitted,
+        so a rerun of a run stopped while the batch was processing collects the batch
+        it already paid for instead of submitting a new one. A batch whose results the
+        run rejects is forgotten, so the rerun submits it again.
+        """
+
+        _validate_positive_count(n)
+        requests, custom_ids, request_sha256 = self._batch_requests(ir, n)
+        journal = self._journal
+        key = journal.next_batch_key(request_sha256) if journal is not None else None
+        stored = journal.load_batch(key) if journal is not None and key is not None else None
+        handle: BatchHandle | None = None
+        replay = False
+        if stored is not None:
+            try:
+                handle = BatchHandle(
+                    batch_id=stored["batch_id"],
+                    custom_ids=tuple(stored["custom_ids"]),
+                    function_id=_function_id(ir),
+                    configuration_sha256=self._config.configuration_sha256,
+                    request_sha256=request_sha256,
+                )
+            except TeacherBatchError:
+                handle = None
+            if handle is not None and handle.custom_ids != custom_ids:
+                handle = None
+            replay = handle is not None and stored.get("collected") is True
+        for attempt in (1, 2):
+            resumed = handle is not None
+            if handle is None:
+                handle = self._submit_requests(ir, requests, custom_ids, request_sha256)
+                replay = False
+                if journal is not None and key is not None:
+                    journal.store_batch(key, handle.batch_id, handle.custom_ids, collected=False)
+            try:
+                cases = self._collect(ir, handle, replay=replay)
+            except TeacherBatchTimeout:
+                raise
+            except TeacherTransportError as error:
+                # A recorded batch the provider no longer has (results are kept for a
+                # limited time): forget it and submit the request once more.
+                if resumed and attempt == 1 and _status_code(error) == 404:
+                    if journal is not None and key is not None:
+                        journal.discard_batch(key)
+                    handle = None
+                    continue
+                raise
+            except (TeacherBatchError, TeacherResponseError):
+                if journal is not None and key is not None:
+                    journal.discard_batch(key)
+                raise
+            if journal is not None and key is not None and not replay:
+                journal.store_batch(key, handle.batch_id, handle.custom_ids, collected=True)
+            return cases
+        raise TeacherBatchError("Anthropic batch could not be resumed or resubmitted")
 
     def collect_batch(
         self,
@@ -232,6 +305,17 @@ class AnthropicTeacher:
         handle: BatchHandle,
     ) -> tuple[GeneratedCase, ...]:
         """Wait for and atomically reconcile all results in a submitted batch."""
+
+        return self._collect(ir, handle, replay=False)
+
+    def _collect(
+        self,
+        ir: Mapping[str, Any],
+        handle: BatchHandle,
+        *,
+        replay: bool,
+    ) -> tuple[GeneratedCase, ...]:
+        """``replay`` marks a batch an earlier run already collected and charged."""
 
         if not isinstance(handle, BatchHandle):
             raise TeacherBatchError("collect_batch requires a BatchHandle")
@@ -263,7 +347,9 @@ class AnthropicTeacher:
                 outcome = _field(entry, "result")
                 outcome_type = _field(outcome, "type")
                 if outcome_type == "succeeded":
-                    if self._meter is not None:
+                    if self._meter is not None and replay:
+                        self._meter.replay()
+                    elif self._meter is not None:
                         self._meter.charge(_field(_field(outcome, "message"), "usage"), batch=True)
                     cases[custom_id] = self._decode_message(
                         ir,
@@ -783,6 +869,12 @@ def _field(value: Any, name: str) -> Any:
     if isinstance(value, Mapping):
         return value.get(name)
     return getattr(value, name, None)
+
+
+def _status_code(error: BaseException) -> int | None:
+    cause = error.__cause__
+    status = getattr(cause, "status_code", None)
+    return status if isinstance(status, int) else None
 
 
 def _transport_error(message: str, error: Exception) -> TeacherTransportError:

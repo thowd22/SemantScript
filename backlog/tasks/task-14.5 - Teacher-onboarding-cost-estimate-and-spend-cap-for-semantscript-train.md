@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 23:31'
+updated_date: '2026-09-25 23:50'
 labels:
   - dx
   - train
@@ -77,4 +77,10 @@ FIX round 1 (2026-09-25):
 - Advisory fixes: docs state the cap can be passed by one unusually long answer; build-cache/diagnostics/trainer README describe journal dropping and that batch results are not journaled; old USD 0.60 and USD 0.003-per-case figures replaced with --estimate figures; train's no-teacher error mentions init --teacher.
 - AC4 still unverified (paid comparison USD 1.02 expected / 2.88 max needs user approval).
 - Gates: build ok, lint:node ok, test:node all pass, test:python 634 passed 4 skipped, ruff ok, prettier ok.
+
+FIX round 2 (2026-09-25):
+- Blocking: build-cache.md claimed a stopped Message Batch is resumed through its handle, but nothing saved the handle. Now true: in batch mode AnthropicTeacher records each submitted batch's handle in the response journal (teacher-responses/<digest>/batches/<request sha256>-<occurrence>.json) as soon as the provider accepts it; a rerun with the identical batch request collects that batch instead of submitting and paying again (charged on collect); a collected batch stays recorded and a later identical run re-reads it at no cost (meter counts replays); a batch whose results are rejected (TeacherBatchError/TeacherResponseError, not a poll timeout) is forgotten; a recorded batch the provider answers 404 for is submitted once more. The rejected-answer cleanup (discard_touched) now covers batch handles; journal.count() excludes them. Tests: test_journal_resumes_a_batch_stopped_while_processing (timeout -> rerun creates no batch, 3 charged -> third run 0 charged 3 replayed), test_journal_forgets_a_batch_whose_results_are_rejected, test_journal_resubmits_a_recorded_batch_the_provider_no_longer_has. Docs corrected: build-cache.md (batch handles, the one gap between acceptance and the write), teachers.md, diagnostics.md (journal only with the Anthropic backend), trainer/README.md.
+- Advisory fixes: probe prints no price source when no request was sent; constraints probe latencySeconds null; Ollama price source 'local Ollama, free' (no doubled parentheses); duplicate --max-cost-usd row removed from cli-reference.md.
+- AC4 still open (blocking, needs user): equal verification on the Express example not measured; comparison estimated USD 1.02 expected / 2.88 max + GPU retrain, above the USD 0.50 budget. No OpenRouter spend this round.
+- Gates: npm run build ok; lint:node ok; test:node 89/105/22/8/85 pass; test:python 637 passed 4 skipped; pytest trainer/tests 491 passed 2 skipped; ruff check/format ok; prettier ok.
 <!-- SECTION:NOTES:END -->

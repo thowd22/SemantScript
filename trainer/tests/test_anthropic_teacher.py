@@ -210,6 +210,103 @@ def test_batch_submission_reserves_the_whole_batch_before_submitting() -> None:
     assert client.messages.batches.create_calls == []
 
 
+def _batch_client(results: bool, status: str = "ended") -> FakeClient:
+    client = FakeClient()
+    client.messages.batches.retrieve_values = [SimpleNamespace(processing_status=status)]
+    if results:
+        original_results = client.messages.batches.results
+
+        def fill(batch_id: str) -> list[Any]:
+            client.messages.batches.result_values = [
+                batch_success(f"{prefix}", case_text(str(index), index % 2 == 0))
+                for index, prefix in enumerate(expected_ids)
+            ]
+            return original_results(batch_id)
+
+        client.messages.batches.results = fill
+    return client
+
+
+expected_ids: list[str] = []
+
+
+def _batch_teacher(
+    client: FakeClient, journal_dir: Any, meter: SpendMeter | None = None
+) -> AnthropicTeacher:
+    clock = FakeClock()
+    teacher_config = config(mode="batch", poll_interval_seconds=2.0, poll_timeout_seconds=5.0)
+    return AnthropicTeacher(
+        teacher_config,
+        client=client,
+        schema_transform=lambda s: s,
+        clock=clock,
+        sleeper=clock.sleep,
+        meter=meter,
+        journal=ResponseJournal(journal_dir, teacher_config.configuration_sha256),
+    )
+
+
+def test_journal_resumes_a_batch_stopped_while_processing(tmp_path: Any) -> None:
+    expected_ids[:] = list(_batch_teacher(FakeClient(), tmp_path)._custom_ids(ir(), 3))
+    first = _batch_client(results=False, status="in_progress")
+    with pytest.raises(TeacherBatchTimeout):
+        _batch_teacher(first, tmp_path).generate(ir(), 3)
+    assert len(first.messages.batches.create_calls) == 1
+
+    # The rerun collects the batch the first run submitted instead of paying again.
+    second = _batch_client(results=True)
+    meter = SpendMeter(SONNET)
+    generated = _batch_teacher(second, tmp_path, meter).generate(ir(), 3)
+    assert [case.inputs["message"] for case in generated] == ["0", "1", "2"]
+    assert second.messages.batches.create_calls == []
+    assert second.messages.batches.results_calls == ["msgbatch_test"]
+    assert (meter.requests, meter.replayed) == (3, 0)
+
+    # A later identical run re-reads the collected batch and is charged nothing.
+    third = _batch_client(results=True)
+    meter = SpendMeter(SONNET)
+    assert _batch_teacher(third, tmp_path, meter).generate(ir(), 3) == generated
+    assert third.messages.batches.create_calls == []
+    assert (meter.requests, meter.replayed) == (0, 3)
+
+
+def test_journal_forgets_a_batch_whose_results_are_rejected(tmp_path: Any) -> None:
+    expected_ids[:] = list(_batch_teacher(FakeClient(), tmp_path)._custom_ids(ir(), 2))
+    first = FakeClient()
+    first.messages.batches.result_values = [
+        batch_success(expected_ids[0], case_text("0", True)),
+        batch_success(expected_ids[1], "not json"),
+    ]
+    with pytest.raises(TeacherResponseError):
+        _batch_teacher(first, tmp_path).generate(ir(), 2)
+
+    second = _batch_client(results=True)
+    assert len(_batch_teacher(second, tmp_path).generate(ir(), 2)) == 2
+    assert len(second.messages.batches.create_calls) == 1
+
+
+def test_journal_resubmits_a_recorded_batch_the_provider_no_longer_has(tmp_path: Any) -> None:
+    expected_ids[:] = list(_batch_teacher(FakeClient(), tmp_path)._custom_ids(ir(), 2))
+    with pytest.raises(TeacherBatchTimeout):
+        _batch_teacher(_batch_client(results=False, status="in_progress"), tmp_path).generate(
+            ir(), 2
+        )
+
+    second = _batch_client(results=True)
+    original_retrieve = second.messages.batches.retrieve
+    calls = [0]
+
+    def retrieve(batch_id: str) -> Any:
+        calls[0] += 1
+        if calls[0] == 1:
+            raise FakeSdkError("not found", status_code=404, request_id="req_404")
+        return original_retrieve(batch_id)
+
+    second.messages.batches.retrieve = retrieve
+    assert len(_batch_teacher(second, tmp_path).generate(ir(), 2)) == 2
+    assert len(second.messages.batches.create_calls) == 1
+
+
 def test_direct_adversarial_requests_return_boundary_pair_and_reasoned_twin() -> None:
     contract = ir()
     contract["definition"]["constraints"] = [

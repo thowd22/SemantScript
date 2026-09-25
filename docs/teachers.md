@@ -400,9 +400,11 @@ teacher's `max_tokens`, about USD 0.04 at Sonnet's output price for 4,096
 tokens) can take the run past it by that one request. When the cap is
 reached: the run exits 1 with
 `error: spend cap USD <x> reached …`. Every dataset finished before the stop
-stays cached, and every paid response is kept in the response journal
+stays cached, and with the Anthropic backend every paid response and every
+submitted Message Batch is kept in the response journal
 (`<cache-dir>/teacher-responses/`, see the [build cache](build-cache.md)), so
-the next run replays them at no cost and continues. Every run prints its
+the next run replays them at no cost (or collects the batch it already
+submitted) and continues. Every run prints its
 running cost (the second capped run below):
 
 ```text

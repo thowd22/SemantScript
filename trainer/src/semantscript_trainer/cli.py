@@ -1185,7 +1185,7 @@ def run_teacher_probe(arguments: argparse.Namespace) -> int:
             backend="constraints",
             model=None,
             requestSent=False,
-            latencySeconds=0.0,
+            latencySeconds=None,
             inputTokens=0,
             outputTokens=0,
             costUsd=0.0,
@@ -1228,7 +1228,13 @@ def run_teacher_probe(arguments: argparse.Namespace) -> int:
             inputTokens=probe.input_tokens,
             outputTokens=probe.output_tokens,
             costUsd=None if cost is None else round(cost, 8),
-            priceSource=price.source if price is not None else price_note,
+            priceSource=(
+                None
+                if not probe.request_sent
+                else price.source
+                if price is not None
+                else price_note
+            ),
             summary=summary,
             fix=probe.fix,
         )

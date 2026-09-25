@@ -3,11 +3,11 @@ id: TASK-14.3
 title: >-
   GitHub Actions CI: lint, tests, a fresh-clone install and the example builds
   on every commit
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 16:29'
+updated_date: '2026-09-25 16:35'
 labels:
   - dx
   - ci
@@ -25,9 +25,9 @@ The repository now lives at github.com/thowd22/SemantScript and has no CI: the l
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A workflow runs on every push and pull request: Node lint and every Node test suite, Python lint and the CPU-only Python tests, and the docs examples compile
-- [ ] #2 A job installs from a fresh checkout on ubuntu-latest exactly as the docs say, builds examples/express-app and examples/refund-service, runs their tests with the fixture artifact, and builds the Express Docker image
-- [ ] #3 The workflow's wall time and the fresh-install job's time are recorded in the docs as the measured adoption cost
+- [x] #1 A workflow runs on every push and pull request: Node lint and every Node test suite, Python lint and the CPU-only Python tests, and the docs examples compile
+- [x] #2 A job installs from a fresh checkout on ubuntu-latest exactly as the docs say, builds examples/express-app and examples/refund-service, runs their tests with the fixture artifact, and builds the Express Docker image
+- [x] #3 The workflow's wall time and the fresh-install job's time are recorded in the docs as the measured adoption cost
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -54,4 +54,12 @@ Fix round 1: the fresh-install job restored a warm 181 MB npm cache in runs 3615
 Fix round 2: (1) the python CI job is now a matrix: '.[dev]' (torch-free, 412 passed/45 skipped) and '.[dev,training]' with the pinned torch==2.9.1 from the CPU wheel index (528 passed, 5 skipped: Ollama live, ModernBERT CUDA live, two environment-specific test_primitives cases, and the pinned tokenizer that needs a Hugging Face download); job 3m10s (install 54s, tests 1m41s). Locally with the GPU hidden: 529 passed, 4 skipped. (2) pull_request trigger demonstrated: throwaway draft PR #1 (branch ci/task-14.3-pr-probe) ran pull_request run 36158884114, all four jobs green, alongside push run 36158879372; the PR is closed unmerged and the branch deleted. (3) examples/refund-service/README.md build block now starts with the root npm install && npm run build, runs npm test before npm run train and says the trained-artifact test skips until training; the Express README names the in-repo CLI (node ../../cli/dist/index.js). CONTRIBUTING: job table has both python rows, measured adoption cost now from run 36158884114 (workflow 3m16s, node 1m39s, python dev 1m29s, python dev,training 3m10s, fresh-install 1m37s with no npm cache; steps 5/14/18/17/<1/36/3 s, image 624MB) with 36157665549 as the second column; says the figure is the fresh-clone example path, not the getting-started npx semantscript init flow, and notes the workflow-wide npm fund/audit flags.
 
 Fix round 3: confirmed the reviewer's finding in a scratch clone (after npm install && npm run build, node_modules/.bin had no semantscript link and 'npx --no-install semantscript --help' printed 'semantscript: not found'): the cli bin pointed at dist/index.js, which does not exist at first install. The bin is now a checked-in shim cli/bin/semantscript.js (loads ../dist/index.js, prints 'the CLI is not built yet; run npm run build at the repository root' and exits 1 when dist is missing); cli/package.json files adds bin; eslint lints cli/bin. Re-verified in a patched fresh clone: the link exists right after npm install, the shim message shows before build, usage prints after build at the root and in examples/express-app, and the tutorial's 'npx semantscript run dist/refunds.sem.js --call decideRefund' works over the fixture artifact. The fresh-install CI job gained a 'CLI through npx' step (--help and the tutorial run call); run 36160701373 on main passed all four jobs and printed usage and "review". The Express and refund-service READMEs and reference-application.md now use npx semantscript. Advisories: Docker time 36 s in the Express README, a CPU torch index line in CONTRIBUTING's toolchain block, activate .venv before npm run train in the refund-service README, and the new step's 1 s time in the CONTRIBUTING step table.
+
+Finalization validation: the round-3 blocking finding (npx semantscript unlinked on fresh clone) no longer reproduces: fresh clone of 4851867 from GitHub, npm install created node_modules/.bin/semantscript -> ../semantscript/bin/semantscript.js, after npm run build npx --no-install semantscript --help printed usage at the root and in examples/express-app, and express npm test passed 3/3. AC1: push run 36161045131 (HEAD 4851867) and pull_request run 36158884114 green; node job ran lint:node, test:node including 'ok 64 - every docs/examples program compiles to source IR', prettier; python dev job 412 passed/45 skipped, dev,training 528 passed/5 skipped, lint:python in both. AC2: 36161045131 fresh-install job (ubuntu-latest, no npm cache): express 3 pass, refund 2 pass 1 skip (trained artifact) with 'rolls back a non-approval over PGlite with the fixture artifact', npx CLI step printed "review", docker build named ticket-api, smoke POST /tickets -> urgent. AC3: docs/CONTRIBUTING.md 'Measured adoption cost' (runs 36158884114/36157665549, npx step 1 s from 36160701373); README CI badge. Local: build+lint:node exit 0, test:node 89/105/11/8/85 pass 0 fail, lint:python clean, test:python (GPU hidden) 529 passed 4 skipped, prettier check docs/README/examples/.github clean.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added .github/workflows/ci.yml (push, pull_request, workflow_dispatch) with four jobs on ubuntu-latest: Node lint/build/tests plus docs-example compilation and prettier; Python lint and tests as a matrix of '.[dev]' (torch-free) and '.[dev,training]' with CPU torch; and a fresh-clone job that follows the docs literally (root install and build, express-app and refund-service install/build/test over the fixture artifact, the tutorial's npx semantscript calls, Express Docker build and a smoke run). Supporting fixes: express-app split into createApp/server with tests and a fixture-artifact script; the Dockerfile rebuilt so it builds from a clean checkout; torch-only Python tests guarded; the CLI bin is now a checked-in shim so npx semantscript is linked on a fresh install. Measured adoption cost (workflow 3m16s, fresh-install 1m37s with no npm cache) is recorded in docs/CONTRIBUTING.md, and README has the CI badge. Verified by green runs 36161045131 (push, HEAD) and 36158884114 (pull_request), a fresh GitHub clone reproducing the install and CLI steps, and local lint, Node and Python tests, and prettier all passing.
+<!-- SECTION:FINAL_SUMMARY:END -->

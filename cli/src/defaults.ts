@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -67,7 +67,7 @@ export function findTeacherConfig(
   const requested = stringOption(values, "teacher");
   if (requested !== undefined) {
     const path = resolve(io.cwd, requested);
-    if (isBuiltInTeacher(requested) && !existsSync(path)) return requested;
+    if (isBuiltInTeacher(requested) && !isFile(path)) return requested;
     return path;
   }
   for (const candidate of TEACHER_CONFIG_CANDIDATES) {
@@ -75,6 +75,14 @@ export function findTeacherConfig(
     if (existsSync(path)) return path;
   }
   return undefined;
+}
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
 }
 
 export function isBuiltInTeacher(value: string): boolean {

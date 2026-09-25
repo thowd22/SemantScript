@@ -33,7 +33,7 @@ passes before any training: the trained-artifact test skips with
 ```sh
 npm install && npm run build  # at the repository root, once
 cd examples/refund-service
-npm install                   # links ../../compiler, ../../runtime, ../../framework
+npm install                   # links ../../compiler, ../../runtime, ../../framework, ../../cli
 npm run build                 # tspc: dist/*.js and dist/semantscript.ir.v1.json
 npm test                      # bundle shape and fixture-artifact handlers, no training needed
 npm run train                 # semantscript train --teacher constraints on the GPU (the Python training extra in the active python3; activate .venv first), ~11 min: .semantscript/artifact, train-report.json, then heldout.json
@@ -254,8 +254,8 @@ range is configured here: the inferred ones train every expression (a
 [teachers](../../docs/teachers.md)).
 
 The teacher's identity (provider `constraints`, model
-`compiled-constraints-v1`, and its sampling configuration digest
-`c58c02b8…`) is recorded in every function's training provenance like any
+`compiled-constraints-v2`, and its sampling configuration digest
+`954871d5…`) is recorded in every function's training provenance like any
 other teacher, so the artifact says where its labels came from. Gold examples
 are the attested cases; teacher labels are never recorded as human-authored.
 `scripts/heldout.py` draws 200 inputs per expression from the teacher's
@@ -277,7 +277,7 @@ immutable release with a manifest, and the routed layout is visible in its
 resources:
 
 ```text
-.semantscript/artifact/  (release 2f9eb3e890d1…, 278 MB)
+.semantscript/artifact/  (release 1bf655e6e92d…, 279 MB)
   tokenizer/tokenizer.json                                   tokenizer     1.6 MB   ref tokenizer.main
   models/encoder/depth-006.onnx                              encoder     275.3 MB   ref encoder.refund-service.depth-006
   models/adapters/adapter-refund-service-orders.onnx         adapter       0.4 MB   ref adapter.refund-service.orders
@@ -351,24 +351,26 @@ per call, after a 20-call warm-up, one expression at a time.
 
 | Expression               | Domain  | Held-out accuracy | Verification ECE | p50 ms | p95 ms |
 | ------------------------ | ------- | ----------------- | ---------------- | ------ | ------ |
-| `src/orders.sem.ts:36`   | orders  | 100.0% (200/200)  | 0.0000           | 5.46   | 8.99   |
-| `src/orders.sem.ts:103`  | orders  | 99.5% (199/200)   | 0.0000           | 4.33   | 5.61   |
-| `src/orders.sem.ts:122`  | orders  | 99.5% (199/200)   | 0.0000           | 5.21   | 7.67   |
-| `src/refunds.sem.ts:28`  | refunds | 100.0% (200/200)  | 0.0000           | 5.47   | 9.04   |
-| `src/refunds.sem.ts:97`  | refunds | 100.0% (200/200)  | 0.0000           | 5.11   | 8.09   |
-| `src/refunds.sem.ts:143` | refunds | 100.0% (200/200)  | 0.0000           | 5.48   | 7.82   |
-| `src/tickets.sem.ts:15`  | tickets | 100.0% (200/200)  | 0.0000           | 4.89   | 6.67   |
-| `src/tickets.sem.ts:74`  | tickets | 100.0% (200/200)  | 0.0000           | 4.62   | 5.95   |
-| `src/tickets.sem.ts:123` | tickets | 100.0% (200/200)  | 0.0000           | 5.19   | 7.52   |
+| `src/orders.sem.ts:36`   | orders  | 100.0% (200/200)  | 0.0000           | 5.63   | 8.01   |
+| `src/orders.sem.ts:103`  | orders  | 99.5% (199/200)   | 0.0026           | 3.69   | 4.89   |
+| `src/orders.sem.ts:122`  | orders  | 99.5% (199/200)   | 0.0000           | 4.43   | 6.08   |
+| `src/refunds.sem.ts:28`  | refunds | 100.0% (200/200)  | 0.0000           | 5.39   | 7.33   |
+| `src/refunds.sem.ts:97`  | refunds | 99.5% (199/200)   | 0.0000           | 4.75   | 5.98   |
+| `src/refunds.sem.ts:143` | refunds | 99.5% (199/200)   | 0.0000           | 5.25   | 6.31   |
+| `src/tickets.sem.ts:15`  | tickets | 100.0% (200/200)  | 0.0000           | 4.72   | 6.57   |
+| `src/tickets.sem.ts:74`  | tickets | 100.0% (200/200)  | 0.0000           | 4.67   | 6.74   |
+| `src/tickets.sem.ts:123` | tickets | 100.0% (200/200)  | 0.0000           | 4.52   | 6.07   |
 
-Held-out misses:
+Held-out misses (each one input next to a threshold):
 
 - `src/orders.sem.ts:103`: 1 of 200, inputs `{"order":{"total":2011},"flag":"watch"}` expected `true` and got `false` (a 2,000 rule).
-- `src/orders.sem.ts:122`: 1 of 200, inputs `{"order":{"total":7554},"flag":"flag","account":{"priorRefunds":0}}` expected `"legal"` and got `"analyst"` (a 5,000 rule).
+- `src/orders.sem.ts:122`: 1 of 200, inputs `{"order":{"total":5621},"flag":"flag","account":{"priorRefunds":2}}` expected `"legal"` and got `"analyst"` (a 5,000 rule).
+- `src/refunds.sem.ts:97`: 1 of 200, inputs `{"order":{"ageDays":0,"status":"fraudulent","total":739},"payment":{"method":"card"}}` expected `"original-payment"` and got `"store-credit"`.
+- `src/refunds.sem.ts:143`: 1 of 200, inputs `{"customer":{"priorRefunds":0,"tier":"standard"},"order":{"ageDays":14,"status":"paid","total":2169}}` expected `"high"` and got `"medium"` (a 2,000 rule).
 
-The p50 across expressions spans 4.33 to 5.48 ms per call on the CPU; the two-stage `screenOrder` chain costs three calls in a request. The verifier's ECE is on the calibration split; accuracy here is on fresh inputs the trainer never saw.
+The p50 across expressions spans 3.69 to 5.63 ms per call on the CPU; the two-stage `screenOrder` chain costs three calls in a request. The verifier's ECE is on the calibration split; accuracy here is on fresh inputs the trainer never saw.
 
-Training: 2026-09-25, `npm run train` (the built-in constraints teacher, `semantscript train --teacher constraints`), 9 expressions jointly over one ModernBERT-base encoder cut to 6 layers and three adapters, 14456 rows in all (800 sampled cases plus boundary pairs and counterfactual twins per expression, three gold examples each), 12 epochs with the best held-out epoch kept (selected epoch 3), on an AMD Radeon RX 9070 XT, 11 minutes wall clock including generation, export and the held-out draw. Every expression passed verification with accuracy 1.0000 and ECE 0.0000; the configured raw-violation tolerance was 0.5% and the published release (`2f9eb3e890d1…`) recorded 0 constraint violations across 14,456 verification records. The earlier release from the example's custom driver (`55efd40c3dca…`) scored 200/200 on eight expressions and 199/200 on one on its own held-out draw. The report is `.semantscript/train-report.json`; the build cache under `.semantscript/cache` makes an unchanged rebuild a no-op.
+Training: 2026-09-25, `npm run train` (the built-in constraints teacher, `semantscript train --teacher constraints`), 9 expressions jointly over one ModernBERT-base encoder cut to 6 layers and three adapters, 14456 rows in all (800 sampled cases plus boundary pairs and counterfactual twins per expression, three gold examples each), 12 epochs with the best held-out epoch kept (selected epoch 4), on an AMD Radeon RX 9070 XT, 11 minutes wall clock (11:02 by `/usr/bin/time`, with 42 minutes of user CPU time across cores; the split between phases was not measured, and the former driver's stated ~4 minutes was not re-timed) including generation, export and the held-out draw. Every expression passed verification with accuracy 1.0000 and ECE at most 0.0026; the configured raw-violation tolerance was 0.5% and the published release (`1bf655e6e92d…`) recorded 0 constraint violations across 14,456 verification records. Earlier releases scored on their own held-out draws: the first built-in-teacher release (`2f9eb3e890d1…`, algorithm v1) 200/200 on seven expressions and 199/200 on two, and the example's former custom driver (`55efd40c3dca…`) 200/200 on eight and 199/200 on one. The report is `.semantscript/train-report.json`; the build cache under `.semantscript/cache` makes an unchanged rebuild a no-op.
 
 ## Tests
 

@@ -32,9 +32,17 @@ const EDITOR_PLUGIN = `${COMPILER_PACKAGE}/ts-plugin`;
 const STARTER_FILE = "hello.sem.ts";
 const STARTER_SOURCE = `import { sema } from "${CORE_PACKAGE}";
 
-/** A first decision. Replace the text with what your application needs to know. */
+/**
+ * A first decision. Replace the text with what your application needs to know.
+ * Verification needs at least one gold example per expression.
+ */
 export function needsAttentionToday(subject: string): boolean {
-  return sema<boolean>\`
+  return sema<boolean>({
+    examples: [
+      { inputs: { subject: "Checkout is down for every customer" }, output: true },
+      { inputs: { subject: "Idea: a dark mode for the dashboard" }, output: false },
+    ],
+  })\`
     Whether a support ticket with this subject needs attention today rather
     than in the normal queue.
     Subject: \${subject}

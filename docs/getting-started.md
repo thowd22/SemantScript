@@ -25,9 +25,11 @@ follows the same steps with the differences noted at the end.
 - **A teacher** to generate the training cases: either `ANTHROPIC_API_KEY`
   in the environment (the default is `claude-sonnet-5`, a few hundred short
   structured-output requests per expression) or a local Ollama server with
-  a capable model. No key and no local model means no `train`; the
-  [refund service](../examples/refund-service/README.md) shows the third
-  path, labeling from complete constraints, which needs neither.
+  a capable model. An expression whose `always`/`never` constraints decide
+  every input needs neither: `npx semantscript train --teacher constraints`
+  labels its cases from the constraints themselves (the
+  [refund service](../examples/refund-service/README.md) trains all nine of
+  its expressions that way; see [teachers](teachers.md)).
 - About 700 MB of disk for the artifact (the encoder in ONNX) and as much
   again for the build cache.
 
@@ -109,7 +111,24 @@ export type Priority = "urgent" | "normal" | "low";
 
 /** Priority of a support ticket, decided by the trained artifact at request time. */
 export function triage(subject: string, body: string): Priority {
-  return sema<Priority>`
+  return sema<Priority>({
+    examples: [
+      {
+        inputs: {
+          subject: "Checkout is down",
+          body: "Every customer sees a 500 since 9am",
+        },
+        output: "urgent",
+      },
+      {
+        inputs: {
+          subject: "Feature idea",
+          body: "Could the export include a CSV option?",
+        },
+        output: "low",
+      },
+    ],
+  })`
     Priority of a customer support ticket. "urgent" when service is down,
     data is lost or a deadline is today; "low" for questions and feature
     ideas; "normal" otherwise.
@@ -122,9 +141,11 @@ export function triage(subject: string, body: string): Priority {
 The type argument is the output's support: three string literals, so the
 runtime can only ever answer one of them. The interpolations are the inputs,
 by name. The text is the specification the teacher reads to generate cases.
-Everything the [language reference](language-reference.md) allows (examples,
-constraints, `@confidence`, interface outputs) is optional; this is the
-minimum.
+The examples are gold cases: they are trained on and verification checks the
+artifact against them, so `train` stops before generating anything when an
+expression has none. Everything else the
+[language reference](language-reference.md) allows (constraints,
+`@confidence`, interface outputs) is optional; this is the minimum.
 
 Use it in the route:
 
@@ -161,7 +182,11 @@ npx semantscript train
 ```
 
 Without a key, write `.semantscript/teacher.toml` for a local model first
-(`backend = "ollama"`, see the trainer guide) and run the same command. Either
+(`backend = "ollama"`, see [teachers](teachers.md)) and run the same command.
+When the expression's constraints decide every input, no model is needed:
+`npx semantscript train --teacher constraints` labels the cases from the
+constraints (an input they leave open stops the build with that input named).
+`triage` above has no constraints, so it needs a language-model teacher. Every
 way `train` first runs the doctor's Python and teacher checks (about five
 seconds, no billed request) and stops with the fix if one fails; then it finds
 the bundle under `dist/`, generates cases through the

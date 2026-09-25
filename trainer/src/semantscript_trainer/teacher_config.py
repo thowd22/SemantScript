@@ -27,7 +27,7 @@ BUILT_IN_TEACHERS = (CONSTRAINTS_BACKEND,)
 CONSTRAINTS_TEACHER_KIND = "semantscript.constraints-teacher"
 # Bumped whenever sampling, labelling or pair generation changes what a seed produces,
 # so cached datasets from an older algorithm are never reused.
-CONSTRAINTS_ALGORITHM_VERSION = 1
+CONSTRAINTS_ALGORITHM_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,19 +311,24 @@ def teacher_config_from_mapping(value: Mapping[str, Any]) -> AnyTeacherConfig:
 
     if not isinstance(value, Mapping):
         raise TeacherConfigurationError("teacher configuration must be a table")
-    if value.get("backend") == CONSTRAINTS_BACKEND:
+    backend = value.get("backend", "anthropic")
+    if backend == CONSTRAINTS_BACKEND:
         return ConstraintsTeacherConfig.from_mapping(value)
+    if backend not in ("anthropic", "ollama"):
+        raise TeacherConfigurationError(
+            f"unsupported teacher backend {backend!r}; expected anthropic, ollama or constraints"
+        )
     return TeacherConfig.from_mapping(value)
 
 
 def load_teacher_config(path: str | Path) -> AnyTeacherConfig:
     """Load the closed ``[teacher]`` table from a TOML file.
 
-    The keyword ``constraints`` (when no file of that name exists) selects the
+    The keyword ``constraints`` (when no regular file of that name exists) selects the
     built-in constraints teacher with its defaults.
     """
 
-    if str(path) in BUILT_IN_TEACHERS and not Path(path).exists():
+    if str(path) in BUILT_IN_TEACHERS and not Path(path).is_file():
         return ConstraintsTeacherConfig()
     with Path(path).open("rb") as stream:
         document = tomllib.load(stream)

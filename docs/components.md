@@ -40,8 +40,9 @@ if (!result.ok) console.error(result.diagnostics);
 
 ## Trainer (`semantscript_trainer`, Python)
 
-**Inputs.** An IR bundle; a teacher (`[teacher]` TOML: Anthropic or Ollama
-backend, or a Python `Teacher` object); optionally the build cache from the
+**Inputs.** An IR bundle; a teacher (`[teacher]` TOML: Anthropic, Ollama or
+the built-in constraints backend, which labels from the expression's own
+constraints, or a Python `Teacher` object); optionally the build cache from the
 previous run.
 
 **Outputs.** An immutable artifact release under the artifact root

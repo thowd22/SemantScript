@@ -103,6 +103,10 @@ class _PathFacts:
     thresholds: set[float] = field(default_factory=set)
     strings: set[str] = field(default_factory=set)
     length_thresholds: set[float] = field(default_factory=set)
+    # Other numeric input paths this path is compared with (``p.x > p.y``): their
+    # current values, and one step either side, are this path's thresholds when
+    # an input is edited.
+    peers: set[str] = field(default_factory=set)
     examples: list[JsonValue] = field(default_factory=list)
     referenced: bool = False
 
@@ -307,13 +311,24 @@ class ConstraintSampler:
         ]
         values = [*thresholds, *examples]
         decimals = min(3, max((_decimals_of(value) for value in values), default=0))
-        if thresholds:
+        low = min(0.0, *(2 * value for value in thresholds if value < 0), *examples)
+        # Bounds round outwards to whole numbers, or to the thresholds' decimal
+        # places when every threshold is fractional (a 0..1 score).
+        scale = 1.0
+        if thresholds and max(thresholds) <= 0:
+            # Only negative (or zero) thresholds: as much room above zero as below.
+            high = max(1.0, -low, *examples)
+        elif thresholds and not all(float(value).is_integer() for value in thresholds):
+            # Fractional thresholds (a 0..1 score): twice the largest, not a floor of
+            # 10 that would put most draws past every threshold.
+            high = max(2 * max(thresholds), *examples)
+            scale = 10.0**decimals
+        elif thresholds:
             high = max(10.0, 2 * max(thresholds), *examples)
         else:
             high = max(100.0, *examples)
-        low = min(0.0, *(2 * value for value in thresholds if value < 0), *examples)
-        high = float(math.ceil(high))
-        low = float(math.floor(low))
+        high = math.ceil(high * scale) / scale
+        low = math.floor(low * scale) / scale
         if decimals == 0 and low == 0 and max(values, default=0) <= 10 and thresholds:
             distribution = "count"
         elif low >= 0 and high >= 1000:
@@ -369,7 +384,13 @@ class ConstraintSampler:
                 walk(entry["type"], inputs[name], (name,), name, False)
         return found
 
-    def candidate_values(self, leaf: _Leaf, current: Any, rng: random.Random) -> list[Any]:
+    def candidate_values(
+        self,
+        leaf: _Leaf,
+        current: Any,
+        rng: random.Random,
+        peer_values: Sequence[Any] = (),
+    ) -> list[Any]:
         if not leaf.present:
             return [self.sample_type(leaf.spec, leaf.key, rng) for _ in range(3)]
         spec = leaf.spec
@@ -389,10 +410,27 @@ class ConstraintSampler:
                                 round(candidate, max(numbers.decimals, _decimals_of(threshold)))
                             )
                         )
+            # A comparison with another input path (``p.x > p.y``) moves with that
+            # path's current value: equal to it and one step either side.
+            for peer in peer_values:
+                if not _is_number(peer):
+                    continue
+                step = _step(float(peer), numbers.decimals)
+                for delta in (0, step, -step):
+                    values.append(
+                        _number(
+                            round(peer + delta, max(numbers.decimals, _decimals_of(float(peer))))
+                        )
+                    )
             values.extend(self.sample_number(leaf.key, rng) for _ in range(4))
         elif kind == "string":
             facts = self.facts.get(leaf.key)
             values = [*(sorted(facts.strings) if facts else []), rng.choice(STRING_POOL)]
+            if facts is not None and facts.length_thresholds and isinstance(current, str):
+                # One character more or fewer crosses a length threshold one step away.
+                values.append(current + rng.choice(STRING_POOL)[0])
+                if current:
+                    values.append(current[:-1])
         elif kind == "enum":
             values = list(spec["values"])
         elif kind == "union":
@@ -401,11 +439,13 @@ class ConstraintSampler:
                     values.append(variant["value"])
                 else:
                     values.append(self.sample_type(variant, leaf.key, rng))
-        elif kind == "array":
-            values = [
-                [self.sample_type(spec["items"], f"{leaf.key}[]", rng) for _ in range(length)]
-                for length in (0, 1, 2)
-            ]
+        elif kind == "array" and isinstance(current, list):
+            # Appending or removing the last item changes one JSON path (a whole new
+            # array would change several) and moves the length by one, across any
+            # length threshold one step away.
+            values = [[*current, self.sample_type(spec["items"], f"{leaf.key}[]", rng)]]
+            if current:
+                values.append(current[:-1])
         unique: list[Any] = []
         seen: set[str] = set()
         for value in values:
@@ -424,10 +464,20 @@ class ConstraintSampler:
         """Single-field edits of ``inputs`` in a random order: (leaf, old, new, twin)."""
 
         leaves = self.leaves(inputs)
+        values_by_key: dict[str, list[Any]] = {}
+        for leaf in leaves:
+            if leaf.present:
+                values_by_key.setdefault(leaf.key, []).append(_get(inputs, leaf.segments))
         rng.shuffle(leaves)
         for leaf in leaves:
             current = _get(inputs, leaf.segments) if leaf.present else _OMIT
-            for value in self.candidate_values(leaf, current, rng):
+            facts = self.facts.get(leaf.key)
+            peer_values = [
+                value
+                for peer in sorted(facts.peers if facts is not None else ())
+                for value in values_by_key.get(peer, ())
+            ]
+            for value in self.candidate_values(leaf, current, rng, peer_values):
                 twin = copy.deepcopy(dict(inputs))
                 _set(twin, leaf.segments, value)
                 yield leaf, current, value, twin
@@ -497,6 +547,10 @@ class ConstraintSampler:
             ):
                 literal = _literal_value(literal_side)
                 if literal is _NO_LITERAL:
+                    path_key = self._path_key(path_side)
+                    peer_key = self._path_key(literal_side)
+                    if path_key is not None and peer_key is not None and peer_key != path_key:
+                        self.facts.setdefault(path_key, _PathFacts()).peers.add(peer_key)
                     continue
                 length_key = self._length_key(path_side)
                 path_key = self._path_key(path_side)
@@ -695,7 +749,14 @@ class ConstraintsTeacher:
     ) -> CounterfactualProposal:
         sampler = self._sampler(ir)
         if sampler is not None:
-            proposal = _counterfactual(sampler, anchor, self._rng(ir, "counterfactual"))
+            # The first search for an anchor repeats the twin filter's search exactly
+            # (same per-anchor stream), so an anchor the filter kept always gets
+            # its twin; a retry of the same anchor continues the stream.
+            anchor_key = _key(anchor.inputs)
+            attempt_key = f"{ir['id']}:twin:{anchor_key}"
+            attempt = self._attempts.get(attempt_key, 0)
+            self._attempts[attempt_key] = attempt + 1
+            proposal = _counterfactual(sampler, anchor, self._twin_rng(ir, anchor_key, attempt))
             if proposal is not None:
                 return proposal
         if isinstance(self._fallback, AdversarialTeacher):
@@ -728,9 +789,7 @@ class ConstraintsTeacher:
         Undecided inputs are skipped, never labelled.
         """
 
-        if stream in ("train", "train-topup", "pilot", "counterfactual") or stream.startswith(
-            "boundary:"
-        ):
+        if stream in ("train", "train-topup", "pilot") or stream.startswith(("boundary:", "twin")):
             raise TeacherConfigurationError(f"stream {stream!r} is reserved for training")
         sampler = self._sampler(ir)
         if sampler is None:
@@ -802,6 +861,12 @@ class ConstraintsTeacher:
         digest = hashlib.sha256(f"{self._config.seed}:{key}:{attempt}".encode()).hexdigest()
         return random.Random(int(digest[:16], 16))
 
+    def _twin_rng(self, ir: NeuralFunctionIr, anchor_key: str, attempt: int) -> random.Random:
+        # One stream per anchor input: the twin filter and the counterfactual stage
+        # search the same edits in the same order, whatever else was drawn first.
+        material = f"{self._config.seed}:{ir['id']}:twin:{anchor_key}:{attempt}"
+        return random.Random(int(hashlib.sha256(material.encode()).hexdigest()[:16], 16))
+
     def _decided_samples(
         self,
         sampler: ConstraintSampler | None,
@@ -856,7 +921,10 @@ class ConstraintsTeacher:
             # Every training case may be picked as a counterfactual anchor, so the
             # pure-mode corpus keeps only inputs that one field edit can move across
             # the policy; interior points several edits from any boundary are dropped.
-            if twin_filter and _counterfactual(sampler, case, rng) is None:
+            if (
+                twin_filter
+                and _counterfactual(sampler, case, self._twin_rng(sampler.ir, key, 0)) is None
+            ):
                 continue
             cases[key] = case
             since_new = 0

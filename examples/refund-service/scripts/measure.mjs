@@ -1,4 +1,4 @@
-// Score the trained artifact on the held-out set train.py wrote beside it and
+// Score the trained artifact on the held-out set scripts/heldout.py wrote and
 // time every call through the Node runtime: accuracy per expression against
 // the constraint labels, p50 and p95 latency after a warm-up, and the
 // verification ECE from the trainer's report. Prints a Markdown table and

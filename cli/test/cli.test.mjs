@@ -575,7 +575,7 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   assert.ok("ts-patch" in pkg.devDependencies);
   assert.match(
     await readFile(join(root, "src", "hello.sem.ts"), "utf8"),
-    /sema<boolean>`/u,
+    /sema<boolean>\(\{\s+examples: \[/u,
   );
   assert.match(
     await readFile(join(root, ".semantscript", ".gitignore"), "utf8"),
@@ -836,6 +836,17 @@ test("--teacher constraints reaches train, its preflight and doctor as the built
     doctor.stderr(),
   );
   assert.equal(await teacherOf(doctorArgvPath), "constraints");
+
+  // A directory of that name does not shadow the keyword.
+  await mkdir(join(root, "constraints"));
+  const directory = capture(root, env);
+  assert.equal(
+    await runCli(["train", ...base, "--teacher", "constraints"], directory.io),
+    0,
+    directory.stderr(),
+  );
+  assert.equal(await teacherOf(argvPath), "constraints");
+  await rm(join(root, "constraints"), { recursive: true });
 
   // A file of that name is a teacher file like any other.
   await writeFile(join(root, "constraints"), "[teacher]\n");

@@ -303,7 +303,7 @@ def test_descriptor_records_the_constraints_teacher_and_its_sampling_digest() ->
 
     assert isinstance(teacher, Teacher) and isinstance(teacher, AdversarialTeacher)
     assert teacher.descriptor.provider == "constraints"
-    assert teacher.descriptor.model == "compiled-constraints-v1"
+    assert teacher.descriptor.model == "compiled-constraints-v2"
     assert teacher.descriptor.configuration_sha256 == config.sampling_sha256
     assert ConstraintsTeacher().descriptor == teacher.descriptor
     for changed in (
@@ -362,6 +362,20 @@ model = "qwen2.5:7b"
     keyword_file.write_text('[teacher]\nbackend = "constraints"\nseed = 3\n', encoding="utf-8")
     loaded = load_teacher_config(keyword_file)
     assert isinstance(loaded, ConstraintsTeacherConfig) and loaded.seed == 3
+
+
+def test_a_directory_named_like_the_keyword_does_not_shadow_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "constraints").mkdir()
+    monkeypatch.chdir(tmp_path)
+    assert load_teacher_config("constraints") == ConstraintsTeacherConfig()
+
+
+def test_an_unknown_backend_lists_the_valid_ones() -> None:
+    for value in ({"backend": "constraint"}, {"backend": "constraint", "model": "x"}):
+        with pytest.raises(TeacherConfigurationError, match="expected anthropic, ollama or"):
+            teacher_config_from_mapping(value)
 
 
 @pytest.mark.parametrize(
@@ -561,6 +575,160 @@ def test_samples_every_input_kind_the_case_contract_accepts() -> None:
     assert "phone" in channels and channels - {"phone"}
     assert any("note" not in case.inputs["ticket"] for case in cases)
     assert any(len(case.inputs["ticket"]["tags"]) == 3 for case in cases)
+
+
+def single_input_ir(
+    name: str,
+    input_type: dict[str, Any],
+    constraints: list[dict[str, Any]],
+    support: list[Any],
+    example: tuple[Any, Any],
+) -> dict[str, Any]:
+    """An expression over one input with a scalar output and one gold example."""
+
+    ir = refund_ir(constraints, examples=[{"inputs": {name: example[0]}, "output": example[1]}])
+    ir["inputs"] = [{"name": name, "index": 0, "tsType": "T", "type": input_type}]
+    source_kind = "boolean" if all(isinstance(value, bool) for value in support) else "string-union"
+    ir["output"]["head"] = {"kind": "nominal", "sourceKind": source_kind, "support": support}
+    return ir
+
+
+def number_fields(*names: str) -> dict[str, Any]:
+    return {
+        "kind": "object",
+        "fields": [{"name": name, "optional": False, "type": {"kind": "number"}} for name in names],
+    }
+
+
+def length(*names: str) -> dict[str, Any]:
+    return {"node": "property", "object": path(*names), "property": "length"}
+
+
+def train_adversarial(ir: dict[str, Any], teacher: ConstraintsTeacher, root: Path, n: int) -> Any:
+    base = SyntheticDatasetGenerator(teacher, root).generate(deepcopy(ir), n)
+    adversarial = AdversarialDatasetGenerator(teacher, root).generate(deepcopy(ir), base)
+    return base, adversarial
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_trains_a_comparison_between_two_inputs(tmp_path: Path, seed: int) -> None:
+    # p.x > p.y has no literal threshold: the edits move one field to the other's
+    # value (and one step either side), so every kept anchor has a twin and the
+    # production counterfactual stage finds it.
+    x, y = path("p", "x"), path("p", "y")
+    ir = single_input_ir(
+        "p",
+        number_fields("x", "y"),
+        [rule("always", op(">", x, y), "hi"), rule("always", op("<=", x, y), "lo")],
+        ["hi", "lo"],
+        ({"x": 5, "y": 3}, "hi"),
+    )
+    teacher = ConstraintsTeacher(ConstraintsTeacherConfig(seed=seed))
+
+    base, adversarial = train_adversarial(ir, teacher, tmp_path, 400)
+
+    assert len(adversarial.pairs) == 399
+    assert ConstraintSampler(ir, ConstraintsTeacherConfig()).facts["p.x"].peers == {"p.y"}
+    outputs = [case.output for case in base.cases]
+    assert 0.3 < outputs.count("hi") / len(outputs) < 0.7
+    for case in adversarial.cases:
+        assert case.output == ("hi" if case.inputs["p"]["x"] > case.inputs["p"]["y"] else "lo")
+
+
+def test_counterfactual_stage_repeats_the_twin_filter_search() -> None:
+    x, y = path("p", "x"), path("p", "y")
+    ir = single_input_ir(
+        "p",
+        number_fields("x", "y"),
+        [rule("always", op(">", x, y), "hi"), rule("always", op("<=", x, y), "lo")],
+        ["hi", "lo"],
+        ({"x": 5, "y": 3}, "hi"),
+    )
+    cases = ConstraintsTeacher().generate(deepcopy(ir), 200)
+    # A fresh teacher (as after a cached base dataset) finds the same twin for
+    # every kept anchor on its first try.
+    first, second = ConstraintsTeacher(), ConstraintsTeacher()
+    for case in cases:
+        twin = first.generate_counterfactual(ir, case)
+        assert second.generate_counterfactual(ir, case) == twin
+        assert len(changed_paths(case.inputs, twin.twin.inputs)) == 1
+
+
+def test_trains_an_array_length_threshold_by_appending_or_removing_one_item(
+    tmp_path: Path,
+) -> None:
+    items = {
+        "kind": "object",
+        "fields": [
+            {
+                "name": "items",
+                "optional": False,
+                "type": {"kind": "array", "items": {"kind": "string"}},
+            }
+        ],
+    }
+    ir = single_input_ir(
+        "c",
+        items,
+        [
+            rule("always", op(">", length("c", "items"), lit(3)), True),
+            rule("always", op("<=", length("c", "items"), lit(3)), False),
+        ],
+        [False, True],
+        ({"items": ["a", "b", "c", "d"]}, True),
+    )
+    teacher = ConstraintsTeacher()
+
+    base, adversarial = train_adversarial(ir, teacher, tmp_path, 200)
+
+    outputs = [case.output for case in base.cases]
+    assert 0.2 < outputs.count(True) / len(outputs) < 0.8
+    assert adversarial.boundary_count == 4 and len(adversarial.pairs) == 199
+    for case in adversarial.cases:
+        assert case.output == (len(case.inputs["c"]["items"]) > 3)
+    for index in range(2):
+        pair = teacher.generate_boundary_pair(ir, index)
+        before = pair.predicate_false.inputs["c"]["items"]
+        after = pair.predicate_true.inputs["c"]["items"]
+        assert abs(len(before) - len(after)) == 1
+        shorter, longer = sorted((before, after), key=len)
+        assert longer[: len(shorter)] == shorter
+
+
+def test_fractional_thresholds_get_a_range_that_balances_the_labels() -> None:
+    score = path("s", "score")
+    ir = single_input_ir(
+        "s",
+        number_fields("score"),
+        [
+            rule("always", op("<", score, lit(0.25)), "low"),
+            rule("always", op("&&", op(">=", score, lit(0.25)), op("<", score, lit(0.75))), "mid"),
+            rule("always", op(">=", score, lit(0.75)), "high"),
+        ],
+        ["high", "low", "mid"],
+        ({"score": 0.5}, "mid"),
+    )
+    sampler = ConstraintSampler(ir, ConstraintsTeacherConfig())
+    assert sampler.range_for("s.score") == NumberRange(0, 1.5, "uniform", 2)
+
+    outputs = [case.output for case in ConstraintsTeacher().generate(ir, 300)]
+    for label in ("low", "mid", "high"):
+        assert outputs.count(label) / len(outputs) > 0.12
+
+    celsius = path("t", "celsius")
+    negative = single_input_ir(
+        "t",
+        number_fields("celsius"),
+        [
+            rule("always", op("<", celsius, lit(-2)), True),
+            rule("always", op(">=", celsius, lit(-2)), False),
+        ],
+        [False, True],
+        ({"celsius": -3}, True),
+    )
+    assert ConstraintSampler(negative, ConstraintsTeacherConfig()).range_for(
+        "t.celsius"
+    ) == NumberRange(-4, 4, "uniform", 0)
 
 
 # --- incomplete constraints -----------------------------------------------------

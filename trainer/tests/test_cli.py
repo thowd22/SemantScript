@@ -583,7 +583,7 @@ def test_trains_complete_constraints_with_the_built_in_teacher_and_no_language_m
     digest = ConstraintsTeacherConfig().sampling_sha256
     assert report["teacher"] == {
         "provider": "constraints",
-        "model": "compiled-constraints-v1",
+        "model": "compiled-constraints-v2",
         "configurationSha256": digest,
     }
     (entry,) = report["functions"]
@@ -592,7 +592,7 @@ def test_trains_complete_constraints_with_the_built_in_teacher_and_no_language_m
     assert entry["adversarial"]["cases"] >= 2 * 4
     (function,) = result.exported.manifest["functions"]
     assert function["trainingProvenance"]["teacher"] == (
-        f"constraints/compiled-constraints-v1@sha256:{digest}"
+        f"constraints/compiled-constraints-v2@sha256:{digest}"
     )
     (trained,) = result.functions
     assert trained.base.teacher.provider == "constraints"

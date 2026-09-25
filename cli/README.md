@@ -7,9 +7,9 @@ bundle driver, `test` and `run` are the runtime.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--python <exe>] [--trainer-module <module>]
-semantscript doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none] [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher] [--runtime] [--json]
+semantscript doctor [--python <exe>] [--teacher <teacher.toml>|constraints] [--probe request|free|none] [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher] [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>] [--domain-depth <name>=<layers>]...
-semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
+semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints] [options]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
@@ -63,7 +63,10 @@ Every command works without flags once the project is initialised:
   `.semantscript/teacher.toml`; when none exists and `ANTHROPIC_API_KEY` is
   set, `train` writes `.semantscript/teacher.toml` for the Anthropic backend
   (`claude-sonnet-5`) and uses it. Without a key or a file, `train` asks for
-  `--teacher`. The key never enters any file.
+  `--teacher`. The key never enters any file. `--teacher constraints` (unless
+  a file of that name exists) selects the built-in constraints teacher, which
+  labels the cases from the expression's own constraints with no model and no
+  key when they decide every input.
 
 ## doctor
 
@@ -119,8 +122,9 @@ domains. The summary then lists the domains with their depths.
 
 Hands the bundle to `python -m semantscript_trainer.cli train`, which for every
 source-stage function generates the synthetic dataset through the configured
-teacher (`--teacher` is a TOML file with a `[teacher]` table; see the trainer
-README), adds the adversarial sidecar when the function declares constraints
+teacher (`--teacher` is a TOML file with a `[teacher]` table, or the keyword
+`constraints` for the built-in constraints teacher; see docs/teachers.md),
+adds the adversarial sidecar when the function declares constraints
 (the teacher must then support boundary and counterfactual generation), trains
 one classifier for a single function or the shared-encoder application for
 several, verifies every function against the release gate, binds verified IR
@@ -130,7 +134,9 @@ CLI renders per function: dataset and adversarial sizes, held-out accuracy,
 verification status, accuracy, ECE, attested cases and constraint violations,
 plus the published release digest. A function that fails verification stops the
 build with the report kept and nothing published; the trainer's exit status is
-the command's.
+the command's. Every expression needs at least one gold example (verification
+checks the artifact against them); one with none stops the command before any
+generation, with the expression named.
 
 Before the trainer starts, `train` runs the `doctor` Python and teacher checks
 as a preflight (about 5 seconds; no billed request) and exits 1 with the fix

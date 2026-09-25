@@ -210,9 +210,9 @@ constraint set is complete, so `npm run train` is `semantscript train
 --teacher constraints`, the built-in constraints teacher labelling sampled
 inputs on the ordinary `train_bundle` path, with no language model and no
 API key. On 200 held-out inputs per expression through the Node runtime,
-seven of nine expressions score 200/200 and two 199/200 (each miss an amount
-just past a threshold), the verifier's ECE is 0.0000 on all nine, and p50
-latency per call is 4.3 to 5.5 ms on the CPU at depth 6. The README has the per-expression table, the
+five of nine expressions score 200/200 and four 199/200 (each miss an input
+next to a threshold), the verifier's ECE is at most 0.0026, and p50
+latency per call is 3.7 to 5.6 ms on the CPU at depth 6. The README has the per-expression table, the
 verification story (four strict-gate failures on near-threshold amounts
 before a recorded 0.5% tolerance, and a release that then recorded zero raw
 violations) and the tests: bundle shape, the framework path over the runtime's

@@ -682,8 +682,9 @@ def _teacher_checks(
                 "fail",
                 "no semantscript.teacher.toml, teacher.toml or .semantscript/teacher.toml, "
                 "and ANTHROPIC_API_KEY is not set",
-                "write a [teacher] TOML (docs/teachers.md; Ollama needs no key), or set "
-                "ANTHROPIC_API_KEY to use the default Anthropic teacher",
+                "write a [teacher] TOML (docs/teachers.md; Ollama needs no key), set "
+                "ANTHROPIC_API_KEY to use the default Anthropic teacher, or pass --teacher "
+                "constraints when the constraints decide every input",
             ),
             *skipped,
         ]
@@ -778,7 +779,9 @@ def _constraints_checks(
 def _describe(config: TeacherConfig) -> str:
     host = urlsplit(config.base_url).netloc if config.base_url else None
     via = f" via {host}" if host else ""
-    return f"({config.backend} {config.model}{via}, mode {config.mode})"
+    # The mode chooses between direct and batch requests, which only Anthropic has.
+    mode = f", mode {config.mode}" if config.backend == "anthropic" else ""
+    return f"({config.backend} {config.model}{via}{mode})"
 
 
 def _is_openrouter(config: TeacherConfig) -> bool:

@@ -112,17 +112,23 @@ label. Sampling is threshold-aware: every comparison between an input path
 and a literal (`order.total > 1000`, `ticket.category === "outage"`)
 records a threshold or a string for that path, three draws in ten land on
 or one step beside a threshold, and a string mostly takes the values the
-predicates compare it with. A numeric range is inferred from the thresholds
-and the gold examples (up to twice the largest threshold; `count`, zero half
-the time, when every threshold is a small integer; `log` when the range
-reaches 1,000; decimals when a threshold or an example has them), and
-`[teacher.ranges]` overrides it. The reference application trains all nine
+predicates compare it with. A comparison between two inputs (`p.x > p.y`)
+edits one to the other's value or one step beside it, and an array or string
+length threshold (`items.length > 3`) is crossed by appending or removing one
+item or character, so every edit changes exactly one JSON path. A numeric
+range is inferred from the thresholds and the gold examples (at least 0 to
+10 and up to twice the largest threshold; exactly twice the largest when the
+thresholds are fractional, as for a 0 to 1 score; symmetric around zero when
+every threshold is negative; `count`, zero half the time, when every
+threshold is a small integer; `log` when the range reaches 1,000; decimals
+when a threshold or an example has them), and `[teacher.ranges]` overrides
+it. The reference application trains all nine
 of its expressions this way (`examples/refund-service`, `npm run train`),
 and the refund benchmark's release corpus labels its real inputs the same
 way (decision-7).
 
 The teacher's identity in provenance is provider `constraints`, model
-`compiled-constraints-v1` and, as the configuration digest, the SHA-256 of
+`compiled-constraints-v2` and, as the configuration digest, the SHA-256 of
 the sampling configuration (seed, twin filter, near-threshold share, ranges
 and the algorithm version), so changing any of them regenerates the cached
 datasets.

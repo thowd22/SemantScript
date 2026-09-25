@@ -87,6 +87,21 @@ from single-field edits. The reference application trains all nine of its
 expressions this way (`examples/refund-service/train.py`), and the refund
 benchmark's release corpus labels its real inputs the same way (decision-7).
 
+## What the teacher is asked for
+
+For every expression the teacher writes the synthetic cases (inputs with
+labels). For an expression with constraints it is also asked, per
+constraint, for a boundary pair (two inputs one field apart on either side of
+the predicate) and, for a share of the cases (`--counterfactual-ratio`,
+default 1.0), for a counterfactual twin (one field changed, label changed).
+Every proposal is checked locally against the schema and the constraints; a
+wrong label is replaced, a twin that changes two fields is retried, and an
+anchor the teacher cannot twin is skipped for the next one. This is automatic
+whenever constraints are declared, which is why constraints matter more than
+the teacher: with the same 93 teacher cases the Express example's refund
+expression learned nothing useful without them (0.53) and nearly everything
+with them (0.98).
+
 ## Cost and time, as measured
 
 | Teacher                           | Per request                                         | Latency                           | Where measured                                                  |

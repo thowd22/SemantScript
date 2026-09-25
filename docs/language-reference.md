@@ -141,6 +141,27 @@ rules that must hold for every production input stay in ordinary TypeScript
 Contradictory constraints that the compiler can prove overlap are a compile
 error.
 
+### Writing constraints
+
+If a rule can be written as an `if`, write it as a constraint: thresholds,
+windows, counts, forbidden outcomes. Leave the text for the judgment the rules
+do not capture. This is not a style preference; it decides whether the model
+learns the rule at all. When an expression declares constraints, the trainer
+generates, for every constraint, a pair of inputs one field apart on either
+side of its predicate, and for a share of the ordinary cases a counterfactual
+twin (one field changed, label changed), and it checks every generated label
+against the constraints before training. Without constraints there are no
+boundary cases, and a small encoder never sees where a numeric line falls.
+The Express example's refund expression scored 0.53 held-out accuracy from 93
+teacher cases with no constraints and 0.98 from the same case budget once
+its six rules were constraints; the [teachers page](teachers.md#what-the-teacher-is-asked-for)
+has the run.
+
+Constraints that together decide every input (the [reference application](reference-application.md))
+need no language model at all: the constraints label sampled inputs and the
+build runs for free. Constraints that cover only some inputs still shape the
+corpus around the rules they state and gate the release on them.
+
 ## Output types
 
 Every output has finite, compile-time-known support and maps to one or more

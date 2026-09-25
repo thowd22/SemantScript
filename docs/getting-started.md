@@ -218,7 +218,12 @@ the expression and warns when it has changed since training.
 The next things to add, in the order they usually pay off: `examples` (gold
 cases the verifier must reproduce), `constraints` (rules the model may never
 break, checked at release), and `@confidence(q)` with a fallback for answers
-the application should not act on blindly. The
+the application should not act on blindly. Constraints are not optional
+polish for a policy with numbers in it: the trainer builds its boundary and
+counterfactual cases from them, and the Express example's refund expression
+went from 0.53 to 0.98 held-out accuracy on the same case budget when its
+six rules became constraints. Write every rule you could write as an `if` as
+a constraint, and keep the text for the judgment. The
 [language reference](language-reference.md) covers each; the
 [refund service](../examples/refund-service/README.md) is a whole application
 built this way.

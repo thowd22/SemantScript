@@ -7,7 +7,9 @@ no report behind so the CLI's handling of a silent trainer can be checked.
 ``doctor`` prints a passing doctor report and records its arguments at
 ``FAKE_DOCTOR_ARGV_PATH``; ``FAKE_DOCTOR_FAIL=<check id>`` fails that check,
 ``FAKE_DOCTOR_MALFORMED`` prints text that is not a report and
-``FAKE_DOCTOR_BAD_ID`` reports a check the contract does not know.
+``FAKE_DOCTOR_BAD_ID`` reports a check the contract does not know and
+``FAKE_DOCTOR_RAW_TEACHER`` puts the ``--teacher`` path, unescaped, in the
+teacher-config summary (as a non-ASCII checkout or user name would appear).
 """
 
 from __future__ import annotations
@@ -50,7 +52,13 @@ def doctor(argv: list[str]) -> int:
     ]
     if os.environ.get("FAKE_DOCTOR_BAD_ID"):
         checks[0]["id"] = "gpu"
-    print(json.dumps({"kind": "semantscript.doctor-report", "reportVersion": 1, "checks": checks}))
+    report = {"kind": "semantscript.doctor-report", "reportVersion": 1, "checks": checks}
+    if os.environ.get("FAKE_DOCTOR_RAW_TEACHER") and "--teacher" in argv:
+        teacher = argv[argv.index("--teacher") + 1]
+        checks[DOCTOR_CHECK_IDS.index("teacher-config")]["summary"] = f"teacher {teacher}"
+        print(json.dumps(report, ensure_ascii=False))
+        return 0
+    print(json.dumps(report))
     return 1 if failing else 0
 
 

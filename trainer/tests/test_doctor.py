@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
@@ -473,3 +474,43 @@ def test_module_entry_point_runs_without_torch_imported() -> None:
         check=True,
     )
     assert completed.stdout.strip() == "False"
+
+
+def test_cli_doctor_output_survives_a_code_page_stdout(tmp_path: Path) -> None:
+    # A piped stdout on Windows uses the locale code page; a non-ASCII checkout
+    # or user name must neither crash the report nor garble it.
+    teacher = tmp_path / "项目 café" / "teacher.toml"
+    teacher.parent.mkdir()
+    teacher.write_text('[teacher]\nprovider = "ollama"\nmodel = "qwen2.5:1.5b"\n', encoding="utf-8")
+    script = (
+        "import sys\n"
+        "from semantscript_trainer import cli, doctor\n"
+        "doctor.run_import_probe = lambda env, sections: {}\n"
+        "sys.exit(cli.main(sys.argv[1:]))\n"
+    )
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    for extra in (["--json"], []):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                script,
+                "doctor",
+                *extra,
+                "--probe",
+                "none",
+                "--teacher",
+                str(teacher),
+            ],
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        stderr = completed.stderr.decode("utf-8", "replace")
+        assert "UnicodeEncodeError" not in stderr, stderr
+        output = completed.stdout.decode("ascii" if extra else "cp1252")
+        if extra:
+            report = json.loads(output)
+            assert str(teacher) in json.dumps(report, ensure_ascii=False)
+        else:
+            assert "teacher-config" in output

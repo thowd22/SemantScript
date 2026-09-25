@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 17:32'
+updated_date: '2026-09-25 17:53'
 labels:
   - dx
   - install
@@ -62,4 +62,12 @@ FIX round 1 (commits 39c5f2e, d755100; CI runs 36166910601 and 36167400159 green
 - AC #3: new CI job doctor-platforms runs doctor on windows-latest (native, x64) and macos-latest (arm64). Each run covers the default interpreter (fails, and the fix names the venv), the activated venv (passes with a CPU device warning; Windows RAM from GlobalMemoryStatusEx; macOS reports MPS present but unused) and --runtime. Output from run 36166910601 is recorded in docs/environment.md. Not observed: the Windows 'set NAME=1' fix form (no platform variable was needed) and any GPU on Windows or macOS.
 - Advisory fixes: init reports a doctor that breaks its contract instead of exiting 1. ANTHROPIC_AUTH_TOKEN counts as a key. A failing CUDA memory query fails device, not torch. The totals say '1 warning'. '<command> --help' exits 0. Usage and cli/README list --device, --trainer-module and init --python/--trainer-module. The user-site run was re-recorded from the current code with home paths shortened. The free-mode failure text says 'listing the Ollama models failed'.
 - Checks: npm run build 0; lint:node 0; lint:python clean; test:node all suites 0 fail (cli 17/17); test:python 543 passed 4 skipped; prettier clean.
+
+FIX round 2 (blocking: non-ASCII output on Windows code-page pipes).
+- Verified the reviewer's claim first: in a scratch dir named 项目 with PYTHONIOENCODING=cp1252, doctor printed 'fail trainer ... UnicodeEncodeError' and skipped 8 checks.
+- Fix, in both layers: doctor.py writes --json output with ensure_ascii=True; the human report reconfigures stdout with errors=backslashreplace; the nested import probe runs with PYTHONIOENCODING=utf-8 and decodes as UTF-8 with errors=replace. cli/src/doctor.ts sets PYTHONIOENCODING=utf-8 when it captures the Python doctor (doctor, init and the train preflight all use this path).
+- Tests: a new CLI assertion (fake trainer mode FAKE_DOCTOR_RAW_TEACHER, non-ASCII dir '项目 café', PYTHONIOENCODING=cp1252) fails without the Node fix with the same UnicodeEncodeError and passes with it. A new pytest (test_cli_doctor_output_survives_a_code_page_stdout) fails without the Python fix and passes with it.
+- Real rerun: doctor --probe free with an Ollama qwen3:14b teacher in <scratch>/项目 and <scratch>/café under PYTHONIOENCODING=cp1252: 12 passed, 0 failed, exit 0, with the paths printed intact.
+- Advisory items also fixed: a silent-failing interpreter now says 'no error output'; the Windows default interpreter (python) is given in the usage text, cli-reference, diagnostics, environment guide and cli/README; ANTHROPIC_AUTH_TOKEN appears in the cli-reference, diagnostics and cli/README teacher-key text; the tutorial's lowercase sentence start is fixed, and the tutorial now says PYTHONNOUSERSITE matters only for the .python-packages route, not the .venv.
+- Checks: build, lint:node, lint:python, test:node (cli 17/17) and test:python (544 passed, 4 skipped) are clean; prettier passes.
 <!-- SECTION:NOTES:END -->

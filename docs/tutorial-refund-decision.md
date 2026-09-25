@@ -49,9 +49,11 @@ node cli/bin/semantscript.js doctor --no-teacher   # the teacher is chosen in st
 
 Every line should read `pass` or `skip` (a `warn` on `device` means training will run on
 the CPU). A `fail` carries its fix; if `trainer` or `torch` fails and the fix
-names `.venv/bin/python`, the variable above is not set in this shell. on the WSL2 + ROCm machine used here,
-doctor reports `PYTHONNOUSERSITE=1` as needed because NumPy 2 in the user site
-breaks Transformers, and names `HSA_ENABLE_DXG_DETECTION=1` only when ROCm
+names `.venv/bin/python`, the variable above is not set in this shell. The
+`.venv` keeps the user site out, so `PYTHONNOUSERSITE=1` matters only for an
+interpreter that sees it (such as the repository's `.python-packages` route):
+on the WSL2 + ROCm machine used here that route needs it because NumPy 2 in the
+user site breaks Transformers. Doctor names `HSA_ENABLE_DXG_DETECTION=1` only when ROCm
 finds the GPU only with it. The [environment guide](environment.md) records
 the full run.
 

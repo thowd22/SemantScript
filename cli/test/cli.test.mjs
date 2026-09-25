@@ -981,6 +981,25 @@ test("doctor prints one line per check with the fix, and exits 1 on a failure", 
     /doctor printed no JSON report: this is not a report/u,
   );
 
+  // A piped Python on Windows writes the locale code page (simulated here
+  // with PYTHONIOENCODING=cp1252): the CLI must ask for UTF-8 so a
+  // non-ASCII checkout or user name neither crashes nor garbles the report.
+  const unicodeDirectory = join(root, "项目 café");
+  await mkdir(unicodeDirectory);
+  await writeFile(join(unicodeDirectory, "teacher.toml"), "[teacher]\n");
+  const unicode = capture(unicodeDirectory, {
+    ...env,
+    FAKE_DOCTOR_RAW_TEACHER: "1",
+    PYTHONIOENCODING: "cp1252",
+  });
+  assert.equal(await runCli(base, unicode.io), 0, unicode.stdout());
+  assert.ok(
+    unicode
+      .stdout()
+      .includes(`teacher ${join(unicodeDirectory, "teacher.toml")}\n`),
+    unicode.stdout(),
+  );
+
   const badId = capture(root, { ...env, FAKE_DOCTOR_BAD_ID: "1" });
   assert.equal(await runCli(base, badId.io), 1);
   assert.match(badId.stderr(), /checks\[0\]\.id "gpu" is not a known check/u);

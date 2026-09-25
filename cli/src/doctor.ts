@@ -372,7 +372,7 @@ export async function runPythonDoctor(
   }
   // The trainer did not start: say which piece is missing.
   const stderrTail =
-    outcome.stderr.trim().split("\n").at(-1) ?? "no error output";
+    outcome.stderr.trim().split("\n").at(-1) || "no error output";
   const version = await capture(
     options.python,
     ["-c", "import sys; print(sys.version.split()[0])"],
@@ -546,7 +546,14 @@ function capture(
     const err: Buffer[] = [];
     const child = spawn(command, args, {
       cwd: io.cwd,
-      env: { ...io.env, PYTHONPATH: pythonPath(io.env["PYTHONPATH"]) },
+      // The output is decoded as UTF-8 below; without this a piped Python
+      // on Windows writes the locale code page (cp1252 and the like) and
+      // fails on, or garbles, a non-ASCII user name or path.
+      env: {
+        ...io.env,
+        PYTHONPATH: pythonPath(io.env["PYTHONPATH"]),
+        PYTHONIOENCODING: "utf-8",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const abort = (): void => {

@@ -43,7 +43,8 @@ export const USAGE = `usage: semantscript <command> [options]
   defaults: the bundle is the build's semantscript.ir.v1.json, the artifact is
   .semantscript/artifact (or SEMANTSCRIPT_ARTIFACT), the teacher is teacher.toml
   or the Anthropic backend when ANTHROPIC_API_KEY is set, and the Python
-  interpreter is --python, else SEMANTSCRIPT_PYTHON, else python3.
+  interpreter is --python, else SEMANTSCRIPT_PYTHON, else python3 (python on
+  Windows).
 `;
 
 export {

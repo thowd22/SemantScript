@@ -41,7 +41,7 @@ Every command runs without flags in an initialised project:
 | Bundle             | `--bundle`, else `semantscript.ir.v1.json` under the tsconfig `outDir`, then `.`, `dist`, `out`, `build`.                                                                                                                                                    |
 | Artifact root      | `--artifact`, else `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact`. The runtime's `loadSemaArtifact()` with no path resolves the same way, searching upward from the compiled entry script and then from the working directory.                       |
 | Teacher            | `--teacher`, else the first of `semantscript.teacher.toml`, `teacher.toml`, `.semantscript/teacher.toml`; else, when `ANTHROPIC_API_KEY` is set, `train` writes `.semantscript/teacher.toml` for `claude-sonnet-5` and uses it. The key never enters a file. |
-| Python interpreter | `--python`, else `SEMANTSCRIPT_PYTHON`, else `python3`. Inside this repository the trainer and model sources (and `.python-packages` when present) are prepended to `PYTHONPATH`.                                                                            |
+| Python interpreter | `--python`, else `SEMANTSCRIPT_PYTHON`, else `python3` (`python` on Windows). Inside this repository the trainer and model sources (and `.python-packages` when present) are prepended to `PYTHONPATH`.                                                      |
 | Cache directory    | `--cache-dir`, else `.semantscript/cache`.                                                                                                                                                                                                                   |
 
 ## `init`
@@ -96,7 +96,7 @@ with a `fix:` line under every check that did not pass, then the totals. The
 | `onnxruntime`      | ONNX Runtime and ONNX import (the export and its parity check need both).                                                                                                       |
 | `platform-env`     | Environment variables the run needs: `PYTHONNOUSERSITE=1` when user-site packages break the imports, `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the GPU only with it. |
 | `teacher-config`   | The teacher file `train` would use (default above) exists and is a valid `[teacher]` table.                                                                                     |
-| `teacher-key`      | The key is in the environment (`ANTHROPIC_API_KEY`, also for OpenRouter's Anthropic route); Ollama needs none.                                                                  |
+| `teacher-key`      | The key is in the environment (`ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`, also for OpenRouter's Anthropic route); Ollama needs none.                                        |
 | `teacher-probe`    | One minimal request to the teacher succeeded, with its latency and tokens.                                                                                                      |
 
 | Flag               | Value                     | Effect                                                                                                                                                                                            |

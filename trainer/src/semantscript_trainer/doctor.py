@@ -161,9 +161,12 @@ def run_import_probe(env: Mapping[str, str], sections: Sequence[str]) -> dict[st
     try:
         completed = subprocess.run(
             [sys.executable, "-c", _IMPORT_PROBE, ",".join(sections)],
-            env=dict(env),
+            # UTF-8 both ways, so a traceback naming a non-ASCII path decodes
+            # on Windows, where a pipe otherwise uses the locale code page.
+            env={**env, "PYTHONIOENCODING": "utf-8"},
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=300,
             check=False,
         )
@@ -880,6 +883,16 @@ def add_arguments(parser: Any) -> None:
     parser.add_argument("--json", action="store_true", help="print the JSON report")
 
 
+def _tolerate_unencodable_output() -> None:
+    """Escape, rather than crash on, characters stdout's encoding lacks."""
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        try:
+            reconfigure(errors="backslashreplace")
+        except (OSError, ValueError):
+            pass
+
+
 def run_from_arguments(arguments: Any) -> int:
     report = run_doctor(
         teacher_path=arguments.teacher,
@@ -890,8 +903,12 @@ def run_from_arguments(arguments: Any) -> int:
         quick=arguments.quick,
     )
     if arguments.json:
-        sys.stdout.write(json.dumps(report, ensure_ascii=False) + "\n")
+        # ASCII-only JSON: a piped stdout on Windows uses the locale code page
+        # (cp1252 and the like), which cannot encode a non-ASCII user name or
+        # checkout path, and the reader decodes the \u escapes exactly.
+        sys.stdout.write(json.dumps(report, ensure_ascii=True) + "\n")
     else:
+        _tolerate_unencodable_output()
         sys.stdout.write(render_report(report))
     return 1 if any(check["status"] == "fail" for check in report["checks"]) else 0
 

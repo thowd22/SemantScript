@@ -83,7 +83,7 @@ not pass:
   GPU only with it. Doctor names a variable only after re-running the imports
   with and without it, so it never suggests one that changes nothing;
 - the teacher: the file `train` would use, the key in the environment
-  (including the OpenRouter case, where the key belongs in
+  (`ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`, including the OpenRouter case, where the key belongs in
   `ANTHROPIC_API_KEY`), and one minimal request with its latency and tokens
   (`--probe free` sends nothing billed, `--probe none` nothing at all).
 
@@ -202,7 +202,7 @@ Training options pass through unchanged: `--cases`, `--epochs`, `--batch-size`,
 `--adapter-bottleneck-size`, `--no-cache`, `--full`, `--application-id`,
 `--application-version`, `--compiler-version` and `--cache-dir` (default
 `.semantscript/cache`). The interpreter is `--python`,
-then `SEMANTSCRIPT_PYTHON`, then `python3`; inside this repository the trainer
+then `SEMANTSCRIPT_PYTHON`, then `python3` (`python` on Windows); inside this repository the trainer
 and model sources (and `.python-packages` when present) are put on `PYTHONPATH`
 automatically, and the caller's `PYTHONPATH` is kept after them.
 

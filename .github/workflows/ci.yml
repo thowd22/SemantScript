@@ -50,12 +50,22 @@ jobs:
         run: npx --yes prettier@3.9.9 --check docs README.md
 
   python:
-    name: Python lint and CPU-only tests
+    name: Python lint and tests (${{ matrix.extras }})
     env:
       # onnxruntime-node bundles its CPU binaries; skip its CUDA download.
       ONNXRUNTIME_NODE_INSTALL: skip
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Without the training extra: proves the torch-free install works and
+          # that every test needing PyTorch or ONNX skips cleanly.
+          - extras: dev
+          # With the training extra on CPU-only PyTorch: every test that runs
+          # without a GPU, a teacher or a live model server.
+          - extras: dev,training
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -67,12 +77,16 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      # Without the training extra: tests that need PyTorch or ONNX skip.
-      - name: Install the dev extra into .venv
+      - name: Install '.[${{ matrix.extras }}]' into .venv
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/python -m pip install -e '.[dev]'
+          if [[ "${{ matrix.extras }}" == *training* ]]; then
+            # The CPU build of the pinned torch (pyproject.toml): no CUDA wheels.
+            torch=$(grep -o '"torch==[^"]*"' pyproject.toml | tr -d '"')
+            .venv/bin/python -m pip install "$torch" --index-url https://download.pytorch.org/whl/cpu
+          fi
+          .venv/bin/python -m pip install -e '.[${{ matrix.extras }}]'
       - run: npm run lint:python
       # Some trainer tests drive runtime/dist and cli/dist.
       - run: npm ci

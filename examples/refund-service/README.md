@@ -25,11 +25,19 @@ test/app.test.mjs    the bundle's domains and plan; handlers over PGlite
 
 ## Build, train, run
 
+The linked packages resolve their own dependencies from the repository's
+`node_modules`, so install and build the repository root first. `npm test`
+passes before any training: the trained-artifact test skips with
+`train first: npm run train` until the artifact exists.
+
 ```sh
+npm install && npm run build  # at the repository root, once
+cd examples/refund-service
 npm install                   # links ../../compiler, ../../runtime, ../../framework
 npm run build                 # tspc: dist/*.js and dist/semantscript.ir.v1.json
-npm run train                 # GPU, ~4 min: .semantscript/artifact, train-report.json, heldout.json
-npm test                      # bundle shape, fixture-artifact handlers, trained-artifact handlers
+npm test                      # bundle shape and fixture-artifact handlers, no training needed
+npm run train                 # GPU and the Python training extra, ~4 min: .semantscript/artifact, train-report.json, heldout.json
+npm test                      # again: now the trained-artifact handlers run too
 npm run measure               # held-out accuracy, ECE and latency per expression
 npm start                     # http://localhost:3000
 ```

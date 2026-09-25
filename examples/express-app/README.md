@@ -27,9 +27,13 @@ npm install                 # links ../../compiler, ../../runtime and ../../fram
 npm run build               # tspc: dist/*.js, dist/*.js.map and dist/semantscript.ir.v1.json
 npm test                    # the bundle and both routes over a fixture artifact, no training needed
 npm run fixture-artifact    # optional: a fixture artifact in .semantscript/artifact, to run without training
-semantscript train          # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
+node ../../cli/dist/index.js train   # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
+
+Inside this repository the `semantscript` CLI is `node ../../cli/dist/index.js`
+(the root build writes it; nothing is installed on your `PATH`), so read
+`semantscript train` and `semantscript test` below as that command.
 
 `npm test` (`test/app.test.mjs`) checks the compiled bundle, serves both
 routes through `createApp` over a fixture artifact keyed to this bundle, and

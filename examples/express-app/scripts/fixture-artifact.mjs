@@ -9,9 +9,10 @@
 //   node scripts/fixture-artifact.mjs <dir> [--force]    # another root
 //
 // An existing artifact (for example a trained release) is kept unless --force
-// is given.
+// is given (`npm run fixture-artifact -- --force`). A non-empty directory that
+// is not an artifact root is never touched.
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -67,9 +68,24 @@ if (
     args.find((arg) => !arg.startsWith("--")) ??
       join(appRoot, ".semantscript", "artifact"),
   );
-  if (existsSync(join(target, "current.json")) && !force) {
+  const entries = existsSync(target) ? await readdir(target) : [];
+  const isArtifact = entries.includes("current.json");
+  if (entries.length > 0 && !isArtifact) {
     console.error(
-      `${target} already holds an artifact; pass --force to replace it with the fixture`,
+      `${target} is not empty and holds no artifact (no current.json); refusing to replace it`,
+    );
+    process.exit(1);
+  }
+  if (isArtifact && !force) {
+    console.error(
+      `${target} already holds an artifact; run \`npm run fixture-artifact -- --force\` to replace it with the fixture`,
+    );
+    process.exit(1);
+  }
+  const bundlePath = join(appRoot, "dist", "semantscript.ir.v1.json");
+  if (!existsSync(bundlePath)) {
+    console.error(
+      `${bundlePath} is missing; run \`npm run build\` in examples/express-app first`,
     );
     process.exit(1);
   }

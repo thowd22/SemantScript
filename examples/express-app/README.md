@@ -17,18 +17,19 @@ What adoption touched:
    artifact load is the runtime half of adoption; every sema program needs it
    once.
 
-Build and run:
+Build and run. The linked packages resolve their own dependencies from the
+repository's `node_modules`, so install and build the repository root first:
 
 ```sh
+npm install && npm run build          # at the repository root, once
+cd examples/express-app
 npm install                 # links ../../compiler, ../../runtime and ../../framework, installs express and ts-patch
 npm run build               # tspc: dist/*.js, dist/*.js.map and dist/semantscript.ir.v1.json
 npm test                    # the bundle and both routes over a fixture artifact, no training needed
-semantscript train          # bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
+npm run fixture-artifact    # optional: a fixture artifact in .semantscript/artifact, to run without training
+semantscript train          # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
-
-Run the root `npm install` and `npm run build` first: the linked packages
-resolve their own dependencies from the repository's `node_modules`.
 
 `npm test` (`test/app.test.mjs`) checks the compiled bundle, serves both
 routes through `createApp` over a fixture artifact keyed to this bundle, and
@@ -38,7 +39,8 @@ test ONNX graphs; it answers the third support value of each function
 (`"urgent"` for `triage`, `"review"` for `decideRefund`), so it proves the
 wiring and not the policy. `npm run fixture-artifact` writes it to
 `.semantscript/artifact` for a smoke run or an image build, and refuses to
-replace an existing artifact, such as a trained release, without `--force`.
+replace an existing artifact, such as a trained release, unless you run
+`npm run fixture-artifact -- --force` (npm keeps a bare `--force` for itself).
 
 ## A trained release, through OpenRouter
 
@@ -98,10 +100,16 @@ The app calls `loadSemaArtifact()` with no path. The runtime then uses
 `.semantscript/artifact` upward from the compiled entry (`dist/server.js`)
 and from the working directory, so shipping the artifact directory beside
 `dist/` is the whole deployment story. Three things travel together: `dist/`,
-`node_modules/` (installed with `npm ci --omit=dev` on the target platform;
-`onnxruntime-node` and `tokenizers` carry prebuilt binaries for linux x64 and
-arm64, macOS and Windows, nothing to build or download by hand) and
-`.semantscript/artifact/`.
+`node_modules/` (installed on the target platform; `onnxruntime-node` and
+`tokenizers` carry prebuilt binaries for linux x64 and arm64, macOS and
+Windows, nothing to build or download by hand) and `.semantscript/artifact/`.
+In this repository the example's `@semantscript/*` dependencies are `file:`
+links and its `package-lock.json` is not committed, so install the production
+tree with `npm install --omit=dev --install-links`, which copies the linked
+packages with their own dependencies, as the Dockerfile below does; `npm ci`
+needs a lockfile and would leave symlinks into the repository. An app that
+depends on published `@semantscript/*` packages and commits its lockfile uses
+`npm ci --omit=dev`.
 
 - [`deploy/Dockerfile`](deploy/Dockerfile): a two-stage image built from the
   repository root (`docker build -f examples/express-app/deploy/Dockerfile .`).

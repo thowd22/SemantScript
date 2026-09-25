@@ -38,12 +38,15 @@ Requirements: Node 22.13 or later and npm 10. From the repository root:
 ```sh
 npm install        # installs and links the workspaces
 npm run build      # tsc -b for compiler, runtime, cli, framework and the refund benchmark
-npm run lint:node  # eslint (typescript-eslint strict, type-checked) and prettier
+npm run lint:node  # eslint (typescript-eslint strict, type-checked)
 npm run test:node  # node --test in every workspace (each builds first)
 ```
 
 Build before linting a fresh clone: the type-checked rules resolve each
 workspace's imports of the others through their `dist/` declarations.
+`npm run lint` and `npm run check` build first on their own. Prettier is not
+part of `lint:node`; CI checks the docs with `npx prettier@3.9.9 --check docs
+README.md`.
 
 Package tests live in `<package>/test/*.test.mjs` and run against `dist/`, so
 build before testing a single package (`npm test -w compiler` does both).
@@ -97,14 +100,15 @@ and never installs anything or touches the network. Run it before committing.
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push,
 every pull request and on demand, as three parallel jobs on `ubuntu-latest`.
-A newer push to the same branch cancels a run still in progress. No job uses
+A newer push to a branch other than `main`, or to a pull request, cancels
+that ref's run still in progress; every commit on `main` keeps its own run. No job uses
 a secret or a teacher: the examples run on a fixture artifact.
 
-| Job             | What it runs                                                                                                                                                                                                                                                                                                                                                                                                   | Reproduce locally                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `node`          | `npm ci`, `npm run build`, `npm run lint:node`, `npm run test:node` (every workspace suite; the compiler's `docs-examples` test compiles every program under `docs/examples`), `npx prettier --check docs README.md`. Python 3.12 is set up because the CLI and refund benchmark tests start `python3` fixture drivers.                                                                                        | the same commands                                                                                       |
-| `python`        | a `.venv` with `pip install -e '.[dev]'` (no training extra, so every test that needs PyTorch or ONNX skips), `npm run lint:python`, then `npm ci` and `npm run build` (some trainer tests drive `runtime/dist` and `cli/dist`) and `npm run test:python`.                                                                                                                                                     | the same commands in a clean virtual environment                                                        |
-| `fresh-install` | the install exactly as the docs give it, with no npm cache: `npm install` and `npm run build` at the root, then `npm install`, `npm run build` and `npm test` in `examples/express-app` and in `examples/refund-service`, `npm run fixture-artifact` in the Express example, `docker build -f examples/express-app/deploy/Dockerfile .` and a smoke run of the image (`POST /tickets` and `POST /refunds/o1`). | the same commands; `npm run fixture-artifact` refuses to replace an existing artifact without `--force` |
+| Job             | What it runs                                                                                                                                                                                                                                                                                                                                                                                                   | Reproduce locally                                                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `node`          | `npm ci`, `npm run build`, `npm run lint:node`, `npm run test:node` (every workspace suite; the compiler's `docs-examples` test compiles every program under `docs/examples`), `npx prettier@3.9.9 --check docs README.md` (pinned, so a Prettier release cannot turn a run red). Python 3.12 is set up because the CLI and refund benchmark tests start `python3` fixture drivers.                            | the same commands                                                                                                                         |
+| `python`        | a `.venv` with `pip install -e '.[dev]'` (no training extra, so every test that needs PyTorch or ONNX skips), `npm run lint:python`, then `npm ci` and `npm run build` (some trainer tests drive `runtime/dist` and `cli/dist`) and `npm run test:python`.                                                                                                                                                     | the same commands in a clean virtual environment                                                                                          |
+| `fresh-install` | the install exactly as the docs give it, with no npm cache: `npm install` and `npm run build` at the root, then `npm install`, `npm run build` and `npm test` in `examples/express-app` and in `examples/refund-service`, `npm run fixture-artifact` in the Express example, `docker build -f examples/express-app/deploy/Dockerfile .` and a smoke run of the image (`POST /tickets` and `POST /refunds/o1`). | the same commands; `npm run fixture-artifact` refuses to replace an existing artifact unless run as `npm run fixture-artifact -- --force` |
 
 The example installs link `../../compiler`, `../../runtime` and
 `../../framework` with `file:` dependencies, and those packages resolve their

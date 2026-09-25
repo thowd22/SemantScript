@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 15:37'
+updated_date: '2026-09-25 15:48'
 labels:
   - dx
   - ci
@@ -46,4 +46,6 @@ The repository now lives at github.com/thowd22/SemantScript and has no CI: the l
 
 <!-- SECTION:NOTES:BEGIN -->
 Added .github/workflows/ci.yml (node, python, fresh-install jobs). Express example split into src/app.ts (createApp) and src/server.ts (PORT env), added test/app.test.mjs (3 tests, pass locally) and scripts/fixture-artifact.mjs. Dockerfile rebuilt: builds workspaces in-image, installs production tree with --install-links (verified locally: standalone layout serves /tickets and /refunds with the fixture artifact), Dockerfile.dockerignore allowlist. Python: test_training.py parametrize no longer touches torch at collection; two torch-only tests gained @requires_torch (dev-only deps: 412 passed, 45 skipped locally).
+
+CI runs: 36155452753 (node failed: type-aware lint ran before build; fixed by building first in ci.yml and in scripts/check.mjs check mode), 36155743686 (all green: workflow 1m39s, node 1m32s, python 1m32s with 412 passed/45 skipped, fresh-install 1m36s incl. docker build 33s, image 624MB, smoke POST /tickets urgent and POST /refunds/o1 committed:false), 36156428896 on aefa146 (all green: workflow 1m50s, node 1m36s, python 1m13s, fresh-install 1m42s). Docs: docs/CONTRIBUTING.md Continuous integration section with measured adoption cost; README badge; docs/index.md, examples/README.md and express-app README updated. Local npm run check exit 0 (529 passed, 4 skipped with the training extra); prettier --check docs README.md clean.
 <!-- SECTION:NOTES:END -->

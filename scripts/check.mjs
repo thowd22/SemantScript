@@ -3,8 +3,12 @@ import process from "node:process";
 
 const mode = process.argv[2] ?? "check";
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+// Build first in lint and check modes: the type-aware lint resolves each
+// workspace's imports of the others through their dist/ declarations, which a
+// fresh clone lacks.
 const steps = {
   lint: [
+    [npm, ["run", "build"]],
     [npm, ["run", "lint:node"]],
     [process.execPath, ["scripts/check-python.mjs", "lint"]],
   ],
@@ -12,8 +16,6 @@ const steps = {
     [npm, ["run", "test:node"]],
     [process.execPath, ["scripts/check-python.mjs", "test"]],
   ],
-  // Build first: the type-aware lint resolves each workspace's imports of the
-  // others through their dist/ declarations, which a fresh clone lacks.
   check: [
     [npm, ["run", "build"]],
     [npm, ["run", "lint:node"]],

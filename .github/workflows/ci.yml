@@ -38,8 +38,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: npm ci
-      - run: npm run lint:node
+      # Build before lint: type-aware lint rules read the workspaces' dist/ types.
       - run: npm run build
+      - run: npm run lint:node
       # Every workspace's node --test suite; compiler/test/docs-examples.test.mjs
       # compiles the TypeScript examples in docs/.
       - run: npm run test:node

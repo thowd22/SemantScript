@@ -394,7 +394,11 @@ export const INFERENCE_CONTROL = {
   sequence: 1,
   payloadLength: 2,
   errorCode: 3,
-  length: 4,
+  /** Model passes the last successful single call performed, after in-scope sharing. */
+  passesEncoder: 4,
+  passesAdapter: 5,
+  passesHead: 6,
+  length: 7,
 } as const;
 
 export const INFERENCE_STATE = {
@@ -436,6 +440,16 @@ export interface InvokeInferenceMessage {
   readonly canonicalInput: Uint8Array;
   readonly controlBuffer: SharedArrayBuffer;
   readonly responseBuffer: SharedArrayBuffer;
+  /**
+   * A request scope (TASK-8.1): within one scope, sentence and function
+   * embeddings are kept so sibling calls over the same input share passes.
+   */
+  readonly scopeId?: number;
+}
+
+export interface EndScopeInferenceMessage {
+  readonly kind: "end-scope";
+  readonly scopeId: number;
 }
 
 export interface InferenceStageRequest {
@@ -466,6 +480,7 @@ export type InferenceWorkerRequest =
   | InitializeInferenceMessage
   | InvokeInferenceMessage
   | InvokeStageInferenceMessage
+  | EndScopeInferenceMessage
   | ShutdownInferenceMessage;
 
 export const MAXIMUM_STAGE_REQUESTS = 64;

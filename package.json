@@ -11,13 +11,14 @@
     "compiler",
     "runtime",
     "cli",
+    "framework",
     "benchmarks/refund"
   ],
   "scripts": {
     "build": "tsc -b",
     "clean": "tsc -b --clean",
     "lint": "node scripts/check.mjs lint",
-    "lint:node": "eslint eslint.config.js scripts compiler runtime cli benchmarks/refund --max-warnings=0",
+    "lint:node": "eslint eslint.config.js scripts compiler runtime cli framework benchmarks/refund --max-warnings=0",
     "lint:python": "node scripts/check-python.mjs lint",
     "test": "node scripts/check.mjs test",
     "test:node": "npm run test --workspaces --if-present",

@@ -9,6 +9,8 @@ export {
   type DefaultSemaArtifactPathOptions,
   loadSemaArtifact,
   SEMA_ARTIFACT_ENVIRONMENT_VARIABLE,
+  semaScopePasses,
+  withSemaScope,
   SemaArtifactInactiveError,
   SemaRuntimeNotLoadedError,
   type LoadSemaArtifactOptions,

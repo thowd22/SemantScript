@@ -67,6 +67,9 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
   ONNX export with parity checks.
 - [CLI](../cli/README.md): `semantscript init | build | train | dev | test |
 run`, the zero-config defaults, the dev loop and the build cache rules.
+- [Framework](../framework/README.md): decorated controllers for Express, Nest
+  and Next.js handlers, one sema request scope per request, and deterministic
+  guards around neural results.
 - [Examples](../examples/README.md), including the
   [Express](../examples/express-app/README.md) and
   [Next.js](../examples/next-app/README.md) applications that adopt sema

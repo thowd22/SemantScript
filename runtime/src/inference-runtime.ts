@@ -57,7 +57,15 @@ export interface InferenceStageResult {
 export interface InferenceRuntime {
   readonly functionIds: ReadonlySet<string>;
   readonly maximumInputBytes: number;
-  call(functionId: string, canonicalInput: Uint8Array): unknown;
+  /** Model passes the last successful `call` performed, after in-scope sharing. */
+  readonly lastPasses: InferenceStagePasses | undefined;
+  call(
+    functionId: string,
+    canonicalInput: Uint8Array,
+    scopeId?: number,
+  ): unknown;
+  /** Lets the worker drop the embeddings a request scope kept. */
+  endScope(scopeId: number): void;
   /** Executes several functions as one stage; identical inputs share the encoder pass. */
   callStage(requests: readonly InferenceStageRequest[]): InferenceStageResult;
   close(): Promise<void>;
@@ -217,7 +225,22 @@ class WorkerInferenceRuntime implements InferenceRuntime {
     });
   }
 
-  call(functionId: string, canonicalInput: Uint8Array): unknown {
+  lastPasses: InferenceStagePasses | undefined = undefined;
+
+  endScope(scopeId: number): void {
+    if (this.#closed || this.#fault !== undefined) return;
+    try {
+      this.#worker.postMessage({ kind: "end-scope", scopeId });
+    } catch {
+      // A scope that cannot be released only keeps a few tensors until the worker closes.
+    }
+  }
+
+  call(
+    functionId: string,
+    canonicalInput: Uint8Array,
+    scopeId?: number,
+  ): unknown {
     this.#assertUsable();
     const responseSchema = this.#responseSchemas.get(functionId);
     if (responseSchema === undefined) {
@@ -244,6 +267,7 @@ class WorkerInferenceRuntime implements InferenceRuntime {
         canonicalInput,
         controlBuffer: this.#control.buffer,
         responseBuffer: this.#response.buffer,
+        ...(scopeId === undefined ? {} : { scopeId }),
       });
     } catch (error) {
       this.#fault = `failed to send inference request: ${errorMessage(error)}`;
@@ -311,7 +335,13 @@ class WorkerInferenceRuntime implements InferenceRuntime {
       }
 
       try {
-        return parseInferenceResultBytes(responseBytes, responseSchema);
+        const value = parseInferenceResultBytes(responseBytes, responseSchema);
+        this.lastPasses = {
+          encoder: Atomics.load(this.#control, INFERENCE_CONTROL.passesEncoder),
+          adapter: Atomics.load(this.#control, INFERENCE_CONTROL.passesAdapter),
+          head: Atomics.load(this.#control, INFERENCE_CONTROL.passesHead),
+        };
+        return value;
       } catch (error) {
         this.#fault = "the inference worker returned an invalid result payload";
         throw new SemaInferenceError("protocol", this.#fault, { cause: error });

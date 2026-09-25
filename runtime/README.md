@@ -113,6 +113,16 @@ returns the inputs of every function in the stage, so a later stage's inputs can
 be built from earlier results, and the outcome maps every function id to its
 result with per-stage pass counts.
 
+## Request scopes
+
+`withSemaScope(fn)` runs `fn` (synchronous or async) inside one request scope:
+the sema calls made while it runs share encoder and adapter passes over
+identical inputs, the way one execution-plan stage fuses them, without changing
+call order or the synchronous ABI. The worker keeps the embeddings a scope
+produces (at most 64 per kind) and drops them when `fn` settles;
+`semaScopePasses()` reports the passes performed so far in the current scope.
+Scopes are what the framework opens per HTTP request.
+
 ## Packaging for deployment
 
 The runtime's native dependencies ship prebuilt: `onnxruntime-node` carries

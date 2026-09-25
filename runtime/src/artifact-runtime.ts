@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { statSync, watch } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
@@ -338,6 +339,60 @@ function activateArtifact(
   });
 }
 
+interface RequestScope {
+  readonly id: number;
+  readonly passes: { encoder: number; adapter: number; head: number };
+  readonly runtimes: Set<InferenceRuntime>;
+}
+
+const requestScopes = new AsyncLocalStorage<RequestScope>();
+let nextScopeId = 1;
+
+/**
+ * Runs `fn` inside one request scope (TASK-8.1): sema calls made while it runs,
+ * synchronously or across its awaits, share encoder and adapter passes over
+ * identical inputs, the way one execution-plan stage does, and the embeddings
+ * kept for that are dropped when `fn` settles. Scopes nest by replacement.
+ */
+export function withSemaScope<T>(fn: () => T): T {
+  const scope: RequestScope = {
+    id: nextScopeId++,
+    passes: { encoder: 0, adapter: 0, head: 0 },
+    runtimes: new Set(),
+  };
+  const release = (): void => {
+    for (const runtime of scope.runtimes) runtime.endScope(scope.id);
+    scope.runtimes.clear();
+  };
+  let result: T;
+  try {
+    result = requestScopes.run(scope, fn);
+  } catch (error) {
+    release();
+    throw error;
+  }
+  if (nodeTypes.isPromise(result)) {
+    return (result as Promise<unknown>).then(
+      (value) => {
+        release();
+        return value;
+      },
+      (error: unknown) => {
+        release();
+        throw error;
+      },
+    ) as T;
+  }
+  release();
+  return result;
+}
+
+/** Model passes performed so far by the calls of the current request scope, or undefined outside one. */
+export function semaScopePasses(): SemaStagePasses | undefined {
+  const scope = requestScopes.getStore();
+  return scope === undefined ? undefined : { ...scope.passes };
+}
+
 /** Closes the active artifact, if any. Primarily useful for orderly shutdown and tests. */
 export function closeSemaArtifact(): Promise<void> {
   stopWatching();
@@ -549,7 +604,21 @@ function dispatchArtifactCall(
       version: artifact.canonicalInputVersion,
     },
   );
-  const inferenceResult = artifact.runtime.call(functionId, canonicalInput);
+  const scope = requestScopes.getStore();
+  const inferenceResult = artifact.runtime.call(
+    functionId,
+    canonicalInput,
+    scope?.id,
+  );
+  if (scope !== undefined) {
+    scope.runtimes.add(artifact.runtime);
+    const passes = artifact.runtime.lastPasses;
+    if (passes !== undefined) {
+      scope.passes.encoder += passes.encoder;
+      scope.passes.adapter += passes.adapter;
+      scope.passes.head += passes.head;
+    }
+  }
   return applyConfidencePolicy(
     artifact,
     activeFunction,

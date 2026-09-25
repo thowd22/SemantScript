@@ -17,6 +17,7 @@ root.
 | `compiler/`          | Node/TS   | `@semantscript/compiler`: finds `sema` sites in a TypeScript program, resolves types to IR, rewrites sites to runtime calls, emits the IR bundle and execution plan; ships the ts-patch, esbuild, Vite and loader adapters. |
 | `runtime/`           | Node/TS   | `@semantscript/core`: the public `sema` declarations, artifact loading, canonical input serialization, ONNX inference in a worker, calibration and confidence policy.                                                       |
 | `cli/`               | Node/TS   | `semantscript build \| train \| test \| run`.                                                                                                                                                                               |
+| `framework/`         | Node/TS   | `@semantscript/framework`: decorated controllers, per-request sema scopes and guards for Express, Nest and Next.js handlers.                                                                                                |
 | `trainer/`           | Python    | `semantscript_trainer`: datasets, adversarial cases, training, verification, verified IR, artifact export, build cache, teacher backends, the bundle driver.                                                                |
 | `model/`             | Python    | `semantscript_model`: encoder, adapter and head modules, calibration and ONNX export.                                                                                                                                       |
 | `benchmarks/refund/` | both      | The refund benchmark: TypeScript contracts, adapters and driver; Python release pipeline, teacher and experiments; committed data and results under `data/`.                                                                |
@@ -35,7 +36,7 @@ Requirements: Node 22.13 or later and npm 10. From the repository root:
 
 ```sh
 npm install        # installs and links the workspaces
-npm run build      # tsc -b for compiler, runtime, cli and the refund benchmark
+npm run build      # tsc -b for compiler, runtime, cli, framework and the refund benchmark
 npm run lint:node  # eslint (typescript-eslint strict, type-checked) and prettier
 npm run test:node  # node --test in every workspace (each builds first)
 ```

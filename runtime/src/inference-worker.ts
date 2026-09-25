@@ -43,7 +43,12 @@ interface InferenceBackend {
   invoke(
     functionId: string,
     canonicalInput: Uint8Array,
+    scopeId?: number,
   ): Promise<InferenceWorkerResult>;
+  /** Passes of the last invoke, after any in-scope sharing. */
+  readonly lastPasses: InferenceStagePasses;
+  /** Drops what a request scope kept. */
+  endScope(scopeId: number): void;
   /** One stage: identical canonical inputs share one encoder pass and one adapter pass per adapter. */
   invokeStage(
     requests: readonly InferenceStageRequest[],
@@ -79,6 +84,9 @@ async function handleRequest(request: InferenceWorkerRequest): Promise<void> {
       return;
     case "invoke-stage":
       await invokeStage(request);
+      return;
+    case "end-scope":
+      backend?.endScope(request.scopeId);
       return;
     case "shutdown":
       await shutdown();
@@ -181,7 +189,12 @@ async function invoke(request: InvokeInferenceMessage): Promise<void> {
     const value = await activeBackend.invoke(
       request.functionId,
       request.canonicalInput,
+      request.scopeId,
     );
+    const passes = activeBackend.lastPasses;
+    Atomics.store(control, INFERENCE_CONTROL.passesEncoder, passes.encoder);
+    Atomics.store(control, INFERENCE_CONTROL.passesAdapter, passes.adapter);
+    Atomics.store(control, INFERENCE_CONTROL.passesHead, passes.head);
     complete(
       control,
       response,
@@ -378,6 +391,12 @@ async function shutdown(): Promise<void> {
 class TestBackend implements InferenceBackend {
   readonly functionIds: readonly string[];
   readonly #functions: ReadonlyMap<string, TestFunctionPlan>;
+  readonly #scopes = new Map<number, Set<string>>();
+  lastPasses: InferenceStagePasses = { encoder: 0, adapter: 0, head: 0 };
+
+  endScope(scopeId: number): void {
+    this.#scopes.delete(scopeId);
+  }
 
   private constructor(functions: ReadonlyMap<string, TestFunctionPlan>) {
     this.#functions = functions;
@@ -415,8 +434,9 @@ class TestBackend implements InferenceBackend {
   async invoke(
     functionId: string,
     canonicalInput: Uint8Array,
+    scopeId?: number,
   ): Promise<InferenceWorkerResult> {
-    decodeCanonicalInput(canonicalInput);
+    const text = decodeCanonicalInput(canonicalInput);
     const functionPlan = this.#functions.get(functionId);
     if (functionPlan === undefined) {
       throw new WorkerInvocationError(
@@ -424,6 +444,22 @@ class TestBackend implements InferenceBackend {
         `unknown semantic function ${JSON.stringify(functionId)}`,
       );
     }
+    // In a scope, a repeated input costs no encoder or adapter pass.
+    let shared = false;
+    if (scopeId !== undefined) {
+      let seen = this.#scopes.get(scopeId);
+      if (seen === undefined) {
+        seen = new Set();
+        this.#scopes.set(scopeId, seen);
+      }
+      shared = seen.has(text);
+      seen.add(text);
+    }
+    this.lastPasses = {
+      encoder: shared ? 0 : 1,
+      adapter: shared ? 0 : 1,
+      head: functionPlan.heads.length,
+    };
     if (functionPlan.delayMilliseconds !== undefined) {
       await delay(
         validateDelay(functionPlan.delayMilliseconds, "inference delay"),
@@ -479,6 +515,17 @@ class OnnxBackend implements InferenceBackend {
   readonly #adapters: ReadonlyMap<string, InferenceSession>;
   readonly #functions: ReadonlyMap<string, LoadedFunction>;
   readonly #maximumSequenceLength: number;
+  /** Per request scope: the tensors kept so sibling calls share passes (TASK-8.1). */
+  readonly #scopes = new Map<number, ScopeCache>();
+  lastPasses: InferenceStagePasses = { encoder: 0, adapter: 0, head: 0 };
+
+  endScope(scopeId: number): void {
+    const cache = this.#scopes.get(scopeId);
+    if (cache === undefined) return;
+    this.#scopes.delete(scopeId);
+    for (const tensor of cache.sentence.values()) tensor.dispose();
+    for (const tensor of cache.function.values()) tensor.dispose();
+  }
 
   private constructor(
     ort: typeof import("onnxruntime-node"),
@@ -613,8 +660,12 @@ class OnnxBackend implements InferenceBackend {
   async invoke(
     functionId: string,
     canonicalInput: Uint8Array,
+    scopeId?: number,
   ): Promise<InferenceWorkerResult> {
-    const outcome = await this.invokeStage([{ functionId, canonicalInput }]);
+    const outcome = await this.invokeStage(
+      [{ functionId, canonicalInput }],
+      scopeId === undefined ? undefined : this.#scope(scopeId),
+    );
     const [result] = outcome.results;
     if (result === undefined) {
       throw new WorkerInvocationError(
@@ -622,11 +673,22 @@ class OnnxBackend implements InferenceBackend {
         "stage of one produced no result",
       );
     }
+    this.lastPasses = outcome.passes;
     return result;
+  }
+
+  #scope(scopeId: number): ScopeCache {
+    let cache = this.#scopes.get(scopeId);
+    if (cache === undefined) {
+      cache = { sentence: new Map(), function: new Map() };
+      this.#scopes.set(scopeId, cache);
+    }
+    return cache;
   }
 
   async invokeStage(
     requests: readonly InferenceStageRequest[],
+    scope?: ScopeCache,
   ): Promise<StageOutcome> {
     const plans = requests.map((request) => {
       const functionPlan = this.#functions.get(request.functionId);
@@ -653,10 +715,16 @@ class OnnxBackend implements InferenceBackend {
         const text = texts[index] ?? "";
         const encoderKey = `${functionPlan.encoderRef ?? ""}\u0000${text}`;
         if (sentenceEmbeddings.has(encoderKey)) continue;
-        sentenceEmbeddings.set(
-          encoderKey,
-          await this.#encode(text, functionPlan.encoderRef),
-        );
+        // A request scope keeps embeddings so later calls of the request share them.
+        const kept = scope?.sentence.get(encoderKey);
+        if (kept !== undefined) {
+          sentenceEmbeddings.set(encoderKey, kept);
+          continue;
+        }
+        const embedding = await this.#encode(text, functionPlan.encoderRef);
+        sentenceEmbeddings.set(encoderKey, embedding);
+        if (scope !== undefined)
+          keepInScope(scope.sentence, encoderKey, embedding);
         passes.encoder += 1;
       }
       // One adapter pass per distinct (input, adapter).
@@ -664,6 +732,11 @@ class OnnxBackend implements InferenceBackend {
         const text = texts[index] ?? "";
         const key = `${functionPlan.adapterRef}\u0000${text}`;
         if (functionEmbeddings.has(key)) continue;
+        const keptFunction = scope?.function.get(key);
+        if (keptFunction !== undefined) {
+          functionEmbeddings.set(key, keptFunction);
+          continue;
+        }
         const adapter = this.#adapters.get(functionPlan.adapterRef);
         if (adapter === undefined) {
           throw new WorkerInvocationError(
@@ -691,13 +764,13 @@ class OnnxBackend implements InferenceBackend {
             `ONNX inference failed: ${errorMessage(error)}`,
           );
         }
-        functionEmbeddings.set(
-          key,
-          requireFloatTensor(
-            adapterOutput["function_embedding"],
-            "adapter output function_embedding",
-          ),
+        const functionEmbedding = requireFloatTensor(
+          adapterOutput["function_embedding"],
+          "adapter output function_embedding",
         );
+        functionEmbeddings.set(key, functionEmbedding);
+        if (scope !== undefined)
+          keepInScope(scope.function, key, functionEmbedding);
         passes.adapter += 1;
       }
       // Every head of every function.
@@ -752,8 +825,13 @@ class OnnxBackend implements InferenceBackend {
       }
       return { results, passes };
     } finally {
-      for (const tensor of functionEmbeddings.values()) tensor.dispose();
-      for (const tensor of sentenceEmbeddings.values()) tensor.dispose();
+      // Tensors a scope keeps live until the scope ends; the rest go now.
+      for (const tensor of functionEmbeddings.values()) {
+        if (!ownedByScope(scope?.function, tensor)) tensor.dispose();
+      }
+      for (const tensor of sentenceEmbeddings.values()) {
+        if (!ownedByScope(scope?.sentence, tensor)) tensor.dispose();
+      }
     }
   }
 
@@ -816,6 +894,7 @@ class OnnxBackend implements InferenceBackend {
   }
 
   async close(): Promise<void> {
+    for (const scopeId of [...this.#scopes.keys()]) this.endScope(scopeId);
     const sessions: InferenceSession[] = [
       this.#encoder,
       ...this.#encoders.values(),
@@ -828,6 +907,38 @@ class OnnxBackend implements InferenceBackend {
       sessions.map(async (session) => session.release()),
     );
   }
+}
+
+interface ScopeCache {
+  readonly sentence: Map<string, OrtTensor>;
+  readonly function: Map<string, OrtTensor>;
+}
+
+/** A scope keeps at most this many embeddings of each kind; a request has few inputs. */
+const SCOPE_CACHE_ENTRIES = 64;
+
+function keepInScope(
+  cache: Map<string, OrtTensor>,
+  key: string,
+  tensor: OrtTensor,
+): void {
+  if (cache.size >= SCOPE_CACHE_ENTRIES) {
+    const oldest = cache.keys().next();
+    if (!oldest.done) {
+      cache.get(oldest.value)?.dispose();
+      cache.delete(oldest.value);
+    }
+  }
+  cache.set(key, tensor);
+}
+
+function ownedByScope(
+  cache: Map<string, OrtTensor> | undefined,
+  tensor: OrtTensor,
+): boolean {
+  if (cache === undefined) return false;
+  for (const kept of cache.values()) if (kept === tensor) return true;
+  return false;
 }
 
 interface LoadedHead {

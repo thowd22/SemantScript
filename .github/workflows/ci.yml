@@ -1,0 +1,132 @@
+# Lint, tests, a fresh-clone install and the example builds on every push and
+# pull request. docs/CONTRIBUTING.md#continuous-integration describes the jobs
+# and records their measured wall times.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  npm_config_fund: "false"
+  npm_config_audit: "false"
+
+jobs:
+  node:
+    name: Node lint, build and tests
+    env:
+      # onnxruntime-node bundles its CPU binaries; skip its CUDA download.
+      ONNXRUNTIME_NODE_INSTALL: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # The cli and refund benchmark tests start python3 with fixture drivers.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run lint:node
+      - run: npm run build
+      # Every workspace's node --test suite; compiler/test/docs-examples.test.mjs
+      # compiles the TypeScript examples in docs/.
+      - run: npm run test:node
+      - name: Prettier over the docs
+        run: npx prettier --check docs README.md
+
+  python:
+    name: Python lint and CPU-only tests
+    env:
+      # onnxruntime-node bundles its CPU binaries; skip its CUDA download.
+      ONNXRUNTIME_NODE_INSTALL: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # Without the training extra: tests that need PyTorch or ONNX skip.
+      - name: Install the dev extra into .venv
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e '.[dev]'
+      - run: npm run lint:python
+      # Some trainer tests drive runtime/dist and cli/dist.
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:python
+
+  fresh-install:
+    name: Fresh clone, examples and Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      # No npm cache and no install flags: this job measures a first install as
+      # a new user sees it (including onnxruntime-node's CUDA download on x64).
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: Install and build the workspace (docs/CONTRIBUTING.md)
+        run: |
+          npm install
+          npm run build
+      - name: Express example (examples/express-app/README.md)
+        working-directory: examples/express-app
+        run: |
+          npm install
+          npm run build
+          npm test
+      - name: Refund service example (examples/refund-service/README.md)
+        working-directory: examples/refund-service
+        run: |
+          npm install
+          npm run build
+          npm test
+      - name: Fixture artifact for the image
+        working-directory: examples/express-app
+        run: npm run fixture-artifact
+      - name: Build the Express Docker image
+        run: docker build -f examples/express-app/deploy/Dockerfile -t ticket-api .
+      - name: Smoke-run the image
+        run: |
+          docker run -d --name ticket-api -p 3000:3000 ticket-api
+          for attempt in $(seq 1 60); do
+            if curl -fsS -o /dev/null -X POST localhost:3000/tickets \
+                -H 'content-type: application/json' -d '{"subject":"s","body":"b"}'; then
+              break
+            fi
+            sleep 1
+          done
+          ticket=$(curl -fsS -X POST localhost:3000/tickets \
+            -H 'content-type: application/json' \
+            -d '{"subject":"Checkout is down","body":"Every customer sees a 500."}')
+          echo "POST /tickets -> $ticket"
+          echo "$ticket" | grep -q '"priority":"urgent"'
+          refund=$(curl -fsS -X POST localhost:3000/refunds/o1)
+          echo "POST /refunds/o1 -> $refund"
+          echo "$refund" | grep -q '"committed":false'
+          docker image ls ticket-api --format 'image size {{.Size}}'
+      - name: Container logs
+        if: always()
+        run: docker logs ticket-api || true

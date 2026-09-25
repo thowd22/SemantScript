@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tspc -p tsconfig.json",
-    "start": "node --enable-source-maps dist/server.js"
+    "start": "node --enable-source-maps dist/server.js",
+    "test": "node --test test/*.test.mjs",
+    "fixture-artifact": "node scripts/fixture-artifact.mjs"
   },
   "dependencies": {
     "@semantscript/core": "file:../../runtime",

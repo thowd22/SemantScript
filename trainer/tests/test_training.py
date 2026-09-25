@@ -320,24 +320,26 @@ def test_logit_validation_rejects_wrong_shape_and_nonfinite_values() -> None:
 
 @requires_torch
 @pytest.mark.parametrize(
-    ("input_dtype", "mask", "message"),
+    ("input_dtype", "mask_value", "message"),
     [
-        (torch.float32, torch.tensor([[1]], dtype=torch.long), "must use int64"),
-        (torch.long, torch.tensor([[2]], dtype=torch.long), "only zero and one"),
-        (torch.long, torch.tensor([[0]], dtype=torch.long), "at least one attended token"),
+        # Dtype names, not torch objects: the parameters are built at collection
+        # time, which must work without the training extra.
+        ("float32", 1, "must use int64"),
+        ("long", 2, "only zero and one"),
+        ("long", 0, "at least one attended token"),
     ],
 )
 def test_tokenizer_tensors_enforce_the_int64_binary_mask_abi(
-    input_dtype: Any,
-    mask: Any,
+    input_dtype: str,
+    mask_value: int,
     message: str,
 ) -> None:
     class InvalidTokenizer:
         def __call__(self, texts, **kwargs):
             del texts, kwargs
             return {
-                "input_ids": torch.tensor([[1]], dtype=input_dtype),
-                "attention_mask": mask,
+                "input_ids": torch.tensor([[1]], dtype=getattr(torch, input_dtype)),
+                "attention_mask": torch.tensor([[mask_value]], dtype=torch.long),
             }
 
     row = TrainingRow(
@@ -426,6 +428,7 @@ def categorical_corpus() -> TrainingCorpus:
     )
 
 
+@requires_torch
 def test_select_best_epoch_restores_the_best_calibration_weights(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -469,6 +472,7 @@ def test_select_best_epoch_restores_the_best_calibration_weights(
         TrainingConfig(select_best_epoch="yes")  # type: ignore[arg-type]
 
 
+@requires_torch
 def test_linear_schedule_trains_and_validates_settings() -> None:
     contract = categorical_ir()
     corpus = categorical_corpus()

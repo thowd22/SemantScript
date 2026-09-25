@@ -1,0 +1,21 @@
+# Build context for deploy/Dockerfile (BuildKit reads <Dockerfile>.dockerignore).
+# Allowlist: everything is excluded, then the files the image needs come back.
+*
+!package.json
+!package-lock.json
+!tsconfig.base.json
+!tsconfig.json
+!cli/package.json
+!benchmarks/refund/package.json
+!compiler
+!runtime
+!framework
+!examples/express-app
+**/node_modules
+**/dist
+**/.cache
+compiler/test
+runtime/test
+framework/test
+examples/express-app/.semantscript
+!examples/express-app/.semantscript/artifact

@@ -30,6 +30,16 @@ current sites. Source maps point at `src/triage.sem.ts`; a runtime error inside
 the sema call (for example starting without an artifact) shows
 `src/triage.sem.ts:7` in the stack trace under `--enable-source-maps`.
 
+## A transaction gated by a decision
+
+`src/refunds.ts` mounts `POST /refunds/:orderId` through the framework's
+decorated controller: it reads the customer and order rows from Postgres
+(PGlite in process, Postgres 17 in WebAssembly, seeded at startup; a `pg`
+Pool works the same), evaluates `decideRefund` in `src/refunds.sem.ts` over
+those plain values, inserts the refund row and commits when the decision is
+`approve`, and rolls back otherwise so nothing is written. The sema expression
+receives only the two records; it has no handle on the database.
+
 ## Deploying with the artifact
 
 The app calls `loadSemaArtifact()` with no path. The runtime then uses

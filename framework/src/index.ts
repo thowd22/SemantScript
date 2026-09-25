@@ -27,3 +27,13 @@ export {
   type ExpressLikeResponse,
 } from "./express.js";
 export { nextRouteHandlers, type NextRouteHandler } from "./next.js";
+export {
+  gate,
+  rollback,
+  Rollback,
+  transactional,
+  type PoolLike,
+  type QueryableClient,
+  type QueryResultLike,
+  type TransactionOutcome,
+} from "./persistence.js";

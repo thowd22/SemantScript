@@ -1055,3 +1055,24 @@ export const late = sema<"yes" | "no">\`
   );
   assert.match(text, /malformed @domain header/u);
 });
+
+test("a sema expression cannot take a database client as an input", async (t) => {
+  const fixture = await createProject({
+    "src/ambient.sem.ts": `import { sema } from "@semantscript/core";
+class Client {
+  query(text: string): Promise<unknown> { return Promise.resolve(text); }
+}
+declare const db: Client;
+declare const orderId: string;
+export const decision = sema<"approve" | "deny">\`PROMPT \${db} \${orderId}\`;
+`,
+  });
+  t.after(fixture.dispose);
+  const planned = await planSemaCompilation(fixture.program, {
+    projectRoot: fixture.root,
+  });
+  assert.equal(planned.ok, false);
+  assert.equal(planned.diagnostics.length, 1);
+  assert.equal(planned.diagnostics[0].code, 9112);
+  assert.match(formatDiagnostics(planned), /db/u);
+});

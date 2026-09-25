@@ -26,6 +26,7 @@
     "@semantscript/core": "0.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "express": "5.2.1"
   }
 }

@@ -441,12 +441,25 @@ def _parse_gold_case(
         ConstraintEvaluationError,
         ConstraintViolationError,
     ) as error:
-        raise DatasetConfigurationError(f"IR gold example {index} is invalid: {error}") from error
+        raise DatasetConfigurationError(
+            f"{_where(ir)}IR gold example {index} is invalid: {error}"
+        ) from error
     return DatasetCase(
         inputs=inputs,
         output=cast(JsonValue, raw["output"]),
         origin="gold",
     )
+
+
+def _where(ir: Mapping[str, object]) -> str:
+    """``src/refunds.sem.ts:28 (nf_38d661b1): `` for messages, or nothing."""
+
+    source = ir.get("source")
+    if not isinstance(source, Mapping) or not source.get("path"):
+        return ""
+    line = source.get("line")
+    at = str(source["path"]) if line is None else f"{source['path']}:{line}"
+    return f"{at} ({str(ir.get('id', '?'))[:11]}): "
 
 
 def _assert_request_unchanged(request: _DatasetRequest, teacher_ir: NeuralFunctionIr) -> None:

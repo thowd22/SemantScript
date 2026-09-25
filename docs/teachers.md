@@ -122,7 +122,19 @@ thresholds are fractional, as for a 0 to 1 score; symmetric around zero when
 every threshold is negative; `count`, zero half the time, when every
 threshold is a small integer; `log` when the range reaches 1,000; decimals
 when a threshold or an example has them), and `[teacher.ranges]` overrides
-it. The reference application trains all nine
+it. A path compared with no literal of its own, as in an arithmetic predicate
+(`pair.a - pair.b > 10`), takes every literal in the predicates as its
+thresholds and a range of at least 0 to 100, so there is room for a few hundred
+distinct inputs; a number no predicate and no gold example mentions (an
+optional field left out of the examples) is drawn from 0 to 100. Arithmetic and
+multi-field predicates are harder for the model to learn than a single
+threshold: give them more cases or epochs, or a `[teacher.ranges]` entry
+centred on the boundary, if verification reports a few violations next to it.
+Unions of object variants (`{ kind: "circle"; radius: number } | { kind:
+"square"; side: number }`) are sampled, but a predicate on the discriminant
+cannot be crossed by a single-field edit (switching the variant changes more
+than one JSON path), so the adversarial stage cannot build its boundary pair;
+put such a predicate on a plain enum or literal field instead. The reference application trains all nine
 of its expressions this way (`examples/refund-service`, `npm run train`),
 and the refund benchmark's release corpus labels its real inputs the same
 way (decision-7).
@@ -168,6 +180,35 @@ decide completely sends the fallback no request, and one with no constraints
 goes to the fallback entirely. The provenance provider is
 `constraints+<fallback backend>`, the model is the fallback's, and the digest
 covers the sampling configuration and the fallback's identity.
+
+What has been checked, and what has not: the mixed path is covered by unit
+tests with an in-process fake fallback, and one end-to-end run with a local
+model passes. An expression `route(ticket: { severity: number; vip: boolean })`
+with `always(severity >= 8, "page")` and `never(vip, "ignore")`, a
+`qwen3:14b` fallback through Ollama and
+`--cases 160 --epochs 10 --select-best-epoch --counterfactual-ratio 0`
+published a verified release in about three minutes. The same expression
+with counterfactual twins on (the default `--counterfactual-ratio 1`) fails
+with `qwen3:14b`, and an earlier run with `qwen2.5:7b` failed a step before,
+on a boundary pair whose sides did not straddle the predicate. An anchor
+decided by an `always` rule can only change label by moving into the inputs
+the constraints leave open, so its twin has to come from the fallback, and
+these models propose twins that change two fields, or that the constraints
+decide back to the anchor's own output. The error names the expression and
+the fallback:
+
+```text
+error: only 1 of 10 counterfactual pairs could be generated: base synthetic case 5 did not
+yield a valid counterfactual within 3 attempts: src/route.sem.ts:7 (nf_aa334d2c): the
+constraints could not build this case, and the [teacher.fallback] teacher (ollama/qwen3:14b)
+proposed the counterfactual twin {"ticket":{"severity":16,"vip":false}} of
+{"ticket":{"severity":16,"vip":true}}, which has the anchor's own output "page" (the
+constraints decide it)
+```
+
+With a local fallback, start with `--counterfactual-ratio 0` (or a small
+ratio), or make the constraints complete so no case needs the fallback. An
+Anthropic fallback has not been run in mixed mode.
 
 Whatever the teacher, verification reproduces every gold example exactly and
 refuses an expression with none, so `train` stops before generating anything

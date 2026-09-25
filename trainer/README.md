@@ -538,7 +538,7 @@ seed = 1
 
 [teacher.fallback]
 backend = "ollama"
-model = "qwen3:14b-q4_K_M"
+model = "qwen3:14b"
 ```
 
 `load_teacher_config` returns a `ConstraintsTeacherConfig` for it and
@@ -546,6 +546,10 @@ model = "qwen3:14b-q4_K_M"
 `constraints` (`constraints+<fallback backend>` in mixed mode) with the
 sampling configuration digest. Without a fallback, an input the constraints do
 not decide fails generation with that input and the outputs it admits.
+Mixed mode is covered by unit tests with a fake fallback and by one passing
+local run (`qwen3:14b` with `--counterfactual-ratio 0`); with counterfactual
+twins on, local fallbacks have failed to propose valid twins, and the error
+names the expression and the fallback (see `docs/teachers.md`).
 `ConstraintsTeacher.sample_decided(ir, n, stream=..., exclude=...)` draws a
 labelled held-out set from a stream the training corpus never uses. See
 `docs/teachers.md` for the sampling rules and mixed mode.

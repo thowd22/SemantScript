@@ -651,7 +651,9 @@ def _teacher_checks(
                     "teacher-config",
                     "fail",
                     f"{teacher_path} does not exist",
-                    "write a [teacher] TOML there (docs/teachers.md) or pass --teacher <file>",
+                    "write a [teacher] TOML there (docs/teachers.md), pass --teacher <file>, "
+                    "or pass --teacher constraints (lower case) to label with the "
+                    "expressions' own constraints",
                 ),
                 *skipped,
             ]

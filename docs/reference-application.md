@@ -171,7 +171,7 @@ abridged): what the runtime loads.
     "constraintViolations": 0
   },
   "trainingProvenance": {
-    "teacher": "constraint-rule/refund-service-constraints@sha256:…",
+    "teacher": "constraints/compiled-constraints-v2@sha256:954871d5…",
     "baseModel": "answerdotai/ModernBERT-base@…"
   }
 }
@@ -212,7 +212,7 @@ inputs on the ordinary `train_bundle` path, with no language model and no
 API key. On 200 held-out inputs per expression through the Node runtime,
 five of nine expressions score 200/200 and four 199/200 (each miss an input
 next to a threshold), the verifier's ECE is at most 0.0026, and p50
-latency per call is 3.7 to 5.6 ms on the CPU at depth 6. The README has the per-expression table, the
+latency per call is about 3.9 to 5.4 ms on the CPU at depth 6. The README has the per-expression table, the
 verification story (four strict-gate failures on near-threshold amounts
 before a recorded 0.5% tolerance, and a release that then recorded zero raw
 violations) and the tests: bundle shape, the framework path over the runtime's

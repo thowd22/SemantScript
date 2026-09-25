@@ -14,7 +14,7 @@ flowchart LR
     COMP["Compiler (Node)\nsites → IR, execution plan,\nrewrite to __sema.call"]
     JS["Compiled JavaScript\n(no prompt text)"]
     IR["IR bundle\nsemantscript.ir.v1.json"]
-    TEACH["Teacher\nAnthropic · Ollama · rule"]
+    TEACH["Teacher\nAnthropic · Ollama · constraints"]
     TRAIN["Trainer (Python)\ndatasets · adversarial cases ·\nfine-tune · calibrate · verify · export"]
     MODEL["Model (Python)\nencoder · adapters · heads ·\nONNX export"]
     CACHE["Build cache\n.semantscript/cache"]

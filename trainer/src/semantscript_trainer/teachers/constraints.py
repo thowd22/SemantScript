@@ -311,25 +311,32 @@ class ConstraintSampler:
         ]
         values = [*thresholds, *examples]
         decimals = min(3, max((_decimals_of(value) for value in values), default=0))
-        low = min(0.0, *(2 * value for value in thresholds if value < 0), *examples)
+        # ``own``: the path is compared with a literal directly. Otherwise its
+        # thresholds are every literal in the predicates (``a - b > 10``), which
+        # bound the path only loosely, so the range keeps room for many distinct
+        # inputs.
+        own = bool(facts.thresholds)
+        # Lists, never bare starred arguments: a path with no negative threshold and
+        # no gold-example value would make these one-argument min()/max() calls.
+        low = min([0.0, *(2 * value for value in thresholds if value < 0), *examples])
         # Bounds round outwards to whole numbers, or to the thresholds' decimal
         # places when every threshold is fractional (a 0..1 score).
         scale = 1.0
         if thresholds and max(thresholds) <= 0:
             # Only negative (or zero) thresholds: as much room above zero as below.
-            high = max(1.0, -low, *examples)
+            high = max([1.0, -low, *examples])
         elif thresholds and not all(float(value).is_integer() for value in thresholds):
             # Fractional thresholds (a 0..1 score): twice the largest, not a floor of
             # 10 that would put most draws past every threshold.
-            high = max(2 * max(thresholds), *examples)
+            high = max([2 * max(thresholds), *examples])
             scale = 10.0**decimals
         elif thresholds:
-            high = max(10.0, 2 * max(thresholds), *examples)
+            high = max([10.0 if own else 100.0, 2 * max(thresholds), *examples])
         else:
-            high = max(100.0, *examples)
+            high = max([100.0, *examples])
         high = math.ceil(high * scale) / scale
         low = math.floor(low * scale) / scale
-        if decimals == 0 and low == 0 and max(values, default=0) <= 10 and thresholds:
+        if decimals == 0 and low == 0 and max(values, default=0) <= 10 and own:
             distribution = "count"
         elif low >= 0 and high >= 1000:
             distribution = "log"
@@ -698,16 +705,22 @@ class ConstraintsTeacher:
                 cases.append(relabelled)
             shortfall = n - len(cases)
             if shortfall > 0 and decided_count > 0:
-                cases.extend(
-                    self._decided_samples(
-                        sampler,
-                        shortfall,
-                        "train-topup",
-                        strict=False,
-                        twin_filter=False,
-                        exclude=seen,
+                try:
+                    cases.extend(
+                        self._decided_samples(
+                            sampler,
+                            shortfall,
+                            "train-topup",
+                            strict=False,
+                            twin_filter=False,
+                            exclude=seen,
+                        )
                     )
-                )
+                except TeacherConfigurationError:
+                    # Every decided input is already in the corpus (a small input
+                    # space): repeat the cases found, in order, to reach the count.
+                    found = list(cases)
+                    cases.extend(found[index % len(found)] for index in range(shortfall))
             elif shortfall > 0:
                 # Nothing is decided and the fallback repeated inputs: return what it
                 # gave (repeats and all) so the count is exact.
@@ -734,10 +747,12 @@ class ConstraintsTeacher:
             proposal = self._fallback.generate_boundary_pair(ir, index)
             if sampler is None:
                 return proposal
-            return BoundaryPairProposal(
+            relabelled = BoundaryPairProposal(
                 predicate_false=_relabel(sampler, proposal.predicate_false),
                 predicate_true=_relabel(sampler, proposal.predicate_true),
             )
+            self._check_fallback_boundary(sampler, index, relabelled)
+            return relabelled
         where = describe_expression(ir)
         raise AdversarialGenerationError(
             f"{where}: constraint {index} has no two-sided boundary the constraints decide on "
@@ -757,15 +772,22 @@ class ConstraintsTeacher:
             attempt = self._attempts.get(attempt_key, 0)
             self._attempts[attempt_key] = attempt + 1
             proposal = _counterfactual(sampler, anchor, self._twin_rng(ir, anchor_key, attempt))
+            if proposal is None and attempt > 0:
+                # A repeated anchor (a small input space repeats its inputs to reach
+                # the requested count) falls back to the filter's own search, which
+                # found a twin for every anchor it kept.
+                proposal = _counterfactual(sampler, anchor, self._twin_rng(ir, anchor_key, 0))
             if proposal is not None:
                 return proposal
         if isinstance(self._fallback, AdversarialTeacher):
             proposal = self._fallback.generate_counterfactual(ir, anchor)
             if sampler is None:
                 return proposal
-            return CounterfactualProposal(
+            relabelled_twin = CounterfactualProposal(
                 twin=_relabel(sampler, proposal.twin), reason=proposal.reason
             )
+            self._check_fallback_twin(sampler, anchor, relabelled_twin)
+            return relabelled_twin
         raise AdversarialGenerationError(
             f"{describe_expression(ir)}: no single-field edit of {_key(anchor.inputs)} "
             "moves the constraints to another output"
@@ -833,6 +855,59 @@ class ConstraintsTeacher:
 
     # Internals ------------------------------------------------------------------
 
+    def _fallback_error(
+        self, sampler: ConstraintSampler, problem: str
+    ) -> AdversarialGenerationError:
+        # Names the expression and says the fallback, not the constraints, made the
+        # proposal: the adversarial stage retries it and reports the last one.
+        inner = self._fallback.descriptor if self._fallback is not None else None
+        who = f"{inner.provider}/{inner.model}" if inner is not None else "fallback"
+        return AdversarialGenerationError(
+            f"{sampler.where}: the constraints could not build this case, and the "
+            f"[teacher.fallback] teacher ({who}) proposed {problem}"
+        )
+
+    def _check_fallback_boundary(
+        self, sampler: ConstraintSampler, index: int, proposal: BoundaryPairProposal
+    ) -> None:
+        for expected, case in ((False, proposal.predicate_false), (True, proposal.predicate_true)):
+            try:
+                actual = sampler.predicate(index, case.inputs)
+            except ConstraintEvaluationError:
+                continue
+            if actual is not expected:
+                raise self._fallback_error(
+                    sampler,
+                    f"a boundary pair for constraint {index} whose predicate_"
+                    f"{str(expected).lower()} input {_key(case.inputs)} makes the predicate "
+                    f"{str(actual).lower()}",
+                )
+        changed = _changed_paths(proposal.predicate_false.inputs, proposal.predicate_true.inputs)
+        if len(changed) != 1:
+            raise self._fallback_error(
+                sampler,
+                f"a boundary pair for constraint {index} that changes {len(changed)} JSON "
+                f"paths ({', '.join(changed) or 'none'}), not exactly one",
+            )
+
+    def _check_fallback_twin(
+        self, sampler: ConstraintSampler, anchor: GeneratedCase, proposal: CounterfactualProposal
+    ) -> None:
+        changed = _changed_paths(anchor.inputs, proposal.twin.inputs)
+        if len(changed) != 1:
+            raise self._fallback_error(
+                sampler,
+                f"a counterfactual twin of {_key(anchor.inputs)} that changes {len(changed)} "
+                f"JSON paths ({', '.join(changed) or 'none'}), not exactly one",
+            )
+        if json_values_equal(proposal.twin.output, anchor.output):
+            raise self._fallback_error(
+                sampler,
+                f"the counterfactual twin {_key(proposal.twin.inputs)} of "
+                f"{_key(anchor.inputs)}, which has the anchor's own output "
+                f"{_key(anchor.output)} (the constraints decide it)",
+            )
+
     def _sampler(self, ir: NeuralFunctionIr) -> ConstraintSampler | None:
         function_key = _function_key(ir)
         cached = self._samplers.get(function_key)
@@ -885,12 +960,14 @@ class ConstraintsTeacher:
         excluded = exclude if exclude is not None else set()
         cases: dict[str, GeneratedCase] = {}
         attempts = since_new = 0
+        # Distinct decided inputs the twin filter dropped (for the error message).
+        untwinned: set[str] = set()
         last_error: ConstraintEvaluationError | None = None
         while len(cases) < n:
             attempts += 1
             since_new += 1
             if attempts > self._config.maximum_sampling_attempts or (
-                since_new > STALL_ATTEMPTS and cases
+                since_new > STALL_ATTEMPTS and (cases or excluded)
             ):
                 if cases and repeat_when_exhausted:
                     # The input space holds fewer distinct inputs than requested:
@@ -898,15 +975,28 @@ class ConstraintsTeacher:
                     found = list(cases.values())
                     return tuple(found[index % len(found)] for index in range(n))
                 detail = f" (last evaluation error: {last_error})" if last_error else ""
+                kept = (
+                    f"distinct inputs that the constraints decide and that one field edit "
+                    f"moves to another output ({len(cases) + len(untwinned)} decided, "
+                    f"{len(untwinned)} of them with no such edit)"
+                    if twin_filter
+                    else "distinct inputs the constraints decide"
+                )
                 raise TeacherConfigurationError(
-                    f"{sampler.where}: found {len(cases)} of {n} distinct inputs the "
-                    f"constraints decide in {attempts - 1} draws{detail}; widen the sampling "
-                    "ranges in the teacher TOML"
-                    + (" or set twin_filter = false" if twin_filter else "")
+                    f"{sampler.where}: found {len(cases)} of {n} {kept} in {attempts - 1} "
+                    f"draws{detail}. Write a teacher TOML with [teacher] backend = "
+                    '"constraints" and a [teacher.ranges] table that widens the sampling '
+                    "ranges"
+                    + (
+                        ", or twin_filter = false when the constraints always give one output"
+                        if twin_filter
+                        else ""
+                    )
+                    + ", and pass it with --teacher <file> (docs/teachers.md)"
                 )
             inputs = sampler.sample(rng)
             key = _key(inputs)
-            if key in cases or key in excluded:
+            if key in cases or key in excluded or key in untwinned:
                 continue
             try:
                 label = sampler.label(inputs)
@@ -925,6 +1015,7 @@ class ConstraintsTeacher:
                 twin_filter
                 and _counterfactual(sampler, case, self._twin_rng(sampler.ir, key, 0)) is None
             ):
+                untwinned.add(key)
                 continue
             cases[key] = case
             since_new = 0
@@ -992,15 +1083,31 @@ def _counterfactual(
 
 
 def _relabel(sampler: ConstraintSampler, case: GeneratedCase) -> GeneratedCase:
-    """The constraints' label for an input they decide; the teacher's label otherwise."""
+    """The constraints' label for an input they decide; the teacher's label otherwise.
 
+    Whole-number floats in a fallback input become integers (``5001.0`` is
+    ``5001``), as the constraints' own samples are, so one input never appears
+    in two spellings that land in different partitions.
+    """
+
+    inputs = cast(dict[str, JsonValue], _whole_numbers(case.inputs))
     try:
-        label = sampler.label(case.inputs)
+        label = sampler.label(inputs)
     except ConstraintEvaluationError:
-        return case
+        return GeneratedCase(inputs, case.output)
     if isinstance(label, _Undecided):
-        return case
-    return GeneratedCase(case.inputs, label)
+        return GeneratedCase(inputs, case.output)
+    return GeneratedCase(inputs, label)
+
+
+def _whole_numbers(value: Any) -> Any:
+    if isinstance(value, float) and math.isfinite(value) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {name: _whole_numbers(item) for name, item in value.items()}
+    if isinstance(value, list):
+        return [_whole_numbers(item) for item in value]
+    return value
 
 
 # --- messages -----------------------------------------------------------------
@@ -1112,6 +1219,31 @@ def _set(value: Any, segments: Sequence[str | int], new: Any) -> None:
         del target[segments[-1]]
     else:
         target[segments[-1]] = new
+
+
+def _changed_paths(left: Any, right: Any, prefix: str = "") -> list[str]:
+    """The JSON paths at which two input values differ (1 and 1.0 are equal)."""
+
+    if isinstance(left, dict) and isinstance(right, dict):
+        found: list[str] = []
+        for name in sorted(set(left) | set(right)):
+            if name not in left or name not in right:
+                found.append(f"{prefix}/{name}")
+            else:
+                found.extend(_changed_paths(left[name], right[name], f"{prefix}/{name}"))
+        return found
+    if isinstance(left, list) and isinstance(right, list):
+        # As the adversarial validator counts them: each extra item is one path.
+        return [
+            change
+            for index in range(max(len(left), len(right)))
+            for change in (
+                _changed_paths(left[index], right[index], f"{prefix}/{index}")
+                if index < len(left) and index < len(right)
+                else [f"{prefix}/{index}"]
+            )
+        ]
+    return [] if _same(left, right) else [prefix or "/"]
 
 
 def _display(segments: Sequence[str | int]) -> str:

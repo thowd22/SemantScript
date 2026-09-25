@@ -25,7 +25,9 @@ export function decideRefund(customer: Customer, order: Order): RefundDecision {
 
 The type argument is the whole output space: three literals, three logits.
 The interpolations are the inputs. The text is consumed by the build and
-never shipped.
+never shipped. Before `semantscript train` accepts it, the expression also
+needs at least one gold example (`sema<T>({ examples: [...] })`), which
+verification must reproduce; see [getting started](docs/getting-started.md).
 
 ## How it works
 

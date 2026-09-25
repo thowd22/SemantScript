@@ -731,6 +731,145 @@ def test_fractional_thresholds_get_a_range_that_balances_the_labels() -> None:
     ) == NumberRange(-4, 4, "uniform", 0)
 
 
+def test_numbers_without_a_threshold_or_a_gold_value_get_a_default_range(
+    tmp_path: Path,
+) -> None:
+    # order.total decides; coupon (optional, in no gold example), lines[].price (the
+    # gold arrays are empty) and the square variant's side (no gold example covers
+    # it) have no threshold and no example value to infer a range from.
+    total = path("order", "total")
+    shape = {
+        "kind": "union",
+        "variants": [
+            {
+                "kind": "object",
+                "fields": [
+                    {"name": "kind", "optional": False, "type": {"kind": "literal", "value": "c"}},
+                    {"name": "radius", "optional": False, "type": {"kind": "number"}},
+                ],
+            },
+            {
+                "kind": "object",
+                "fields": [
+                    {"name": "kind", "optional": False, "type": {"kind": "literal", "value": "s"}},
+                    {"name": "side", "optional": False, "type": {"kind": "number"}},
+                ],
+            },
+        ],
+    }
+    order = {
+        "kind": "object",
+        "fields": [
+            {"name": "total", "optional": False, "type": {"kind": "number"}},
+            {"name": "coupon", "optional": True, "type": {"kind": "number"}},
+            {
+                "name": "lines",
+                "optional": False,
+                "type": {"kind": "array", "items": number_fields("price")},
+            },
+            {"name": "shape", "optional": False, "type": shape},
+        ],
+    }
+    gold = {"total": 150, "lines": [], "shape": {"kind": "c", "radius": 2}}
+    ir = single_input_ir(
+        "order",
+        order,
+        [
+            rule("always", op(">", total, lit(100)), True),
+            rule("always", op("<=", total, lit(100)), False),
+        ],
+        [False, True],
+        (gold, True),
+    )
+    sampler = ConstraintSampler(ir, ConstraintsTeacherConfig())
+    for key in ("order.coupon", "order.lines[].price", "order.shape.side"):
+        assert sampler.range_for(key) == NumberRange(0, 100, "uniform", 0)
+
+    base, adversarial = train_adversarial(ir, ConstraintsTeacher(), tmp_path, 100)
+
+    assert len(adversarial.pairs) == 99
+    assert any("coupon" in case.inputs["order"] for case in base.cases)
+    assert any(case.inputs["order"]["lines"] for case in base.cases)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_trains_an_arithmetic_predicate_without_repeating_inputs(tmp_path: Path, seed: int) -> None:
+    # a - b > 10 compares no input with a literal directly: the range still leaves
+    # room for 800 distinct inputs (0..30 from the literal alone held too few).
+    gap = op("-", path("p", "a"), path("p", "b"))
+    ir = single_input_ir(
+        "p",
+        number_fields("a", "b"),
+        [
+            rule("always", op(">", gap, lit(10)), True),
+            rule("never", op(">", gap, lit(10)), False),
+            rule("always", op("<=", gap, lit(10)), False),
+        ],
+        [False, True],
+        ({"a": 30, "b": 3}, True),
+    )
+    assert ConstraintSampler(ir, ConstraintsTeacherConfig()).range_for("p.a") == NumberRange(
+        0, 100, "uniform", 0
+    )
+    teacher = ConstraintsTeacher(ConstraintsTeacherConfig(seed=seed))
+
+    base, adversarial = train_adversarial(ir, teacher, tmp_path, 800)
+
+    assert len({json.dumps(case.inputs, sort_keys=True) for case in base.cases}) == 800
+    assert len(adversarial.pairs) == 799
+    outputs = [case.output for case in base.cases]
+    assert 0.25 < outputs.count(True) / len(outputs) < 0.75
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_a_repeated_anchor_still_gets_its_twin(tmp_path: Path, seed: int) -> None:
+    # A range of 0..30 holds fewer twin-able inputs than 800, so the corpus repeats
+    # anchors and the counterfactual stage asks for the same anchor's twin more
+    # than once; a later request falls back to the stream the twin filter used.
+    gap = op("-", path("p", "a"), path("p", "b"))
+    ir = single_input_ir(
+        "p",
+        number_fields("a", "b"),
+        [
+            rule("always", op(">", gap, lit(10)), True),
+            rule("always", op("<=", gap, lit(10)), False),
+        ],
+        [False, True],
+        ({"a": 30, "b": 3}, True),
+    )
+    small = {"low": 0, "high": 30}
+    teacher = ConstraintsTeacher(
+        ConstraintsTeacherConfig(seed=seed, ranges={"a": small, "b": small})
+    )
+
+    base, adversarial = train_adversarial(ir, teacher, tmp_path, 800)
+
+    assert len({json.dumps(case.inputs, sort_keys=True) for case in base.cases}) < 800
+    assert len(adversarial.pairs) == 799
+
+
+def test_twin_filter_error_says_no_edit_changes_the_output_and_how_to_opt_out() -> None:
+    n = path("x", "n")
+    ir = single_input_ir(
+        "x",
+        number_fields("n"),
+        [
+            rule("never", op(">", n, lit(-1000000)), "b"),
+            rule("never", op("<=", n, lit(-1000000)), "b"),
+        ],
+        ["a", "b"],
+        ({"n": 3}, "a"),
+    )
+    config = ConstraintsTeacherConfig(maximum_sampling_attempts=3000)
+    with pytest.raises(TeacherConfigurationError) as raised:
+        ConstraintsTeacher(config).generate(ir, 20)
+    message = str(raised.value)
+    assert "found 0 of 20 distinct inputs that the constraints decide and that one field" in message
+    assert "decided, " in message and "of them with no such edit" in message
+    assert 'backend = "constraints"' in message and "twin_filter = false" in message
+    assert "--teacher <file>" in message
+
+
 # --- incomplete constraints -----------------------------------------------------
 
 
@@ -814,6 +953,103 @@ def test_mixed_mode_uses_the_fallback_for_pairs_the_constraints_cannot_decide() 
     twin = teacher.generate_counterfactual(ir, anchor)
     assert fallback.counterfactuals == [anchor]
     assert twin.twin.inputs["order"]["ageDays"] == 10
+
+
+class CarelessFallback(FakeFallback):
+    """Proposes a boundary pair that edits two fields and a twin the constraints undo."""
+
+    def generate_boundary_pair(self, ir: dict[str, Any], index: int, /) -> Any:
+        proposal = super().generate_boundary_pair(ir, index)
+        proposal.predicate_true.inputs["order"]["total"] = 51
+        return proposal
+
+    def generate_counterfactual(self, ir: dict[str, Any], anchor: GeneratedCase, /) -> Any:
+        from semantscript_trainer import CounterfactualProposal
+
+        twin = deepcopy(anchor.inputs)
+        twin["order"]["ageDays"] += 1
+        return CounterfactualProposal(twin=GeneratedCase(twin, "review"), reason="one day")
+
+
+def test_mixed_mode_names_the_expression_and_the_fallback_for_a_bad_proposal() -> None:
+    ir = incomplete_ir()
+    teacher = ConstraintsTeacher(fallback=CarelessFallback())
+
+    with pytest.raises(AdversarialGenerationError) as boundary:
+        teacher.generate_boundary_pair(ir, 1)
+    assert str(boundary.value) == (
+        "src/refund.sem.ts:16 (nf_aaaaaaaa): the constraints could not build this case, "
+        "and the [teacher.fallback] teacher (fake-llm/fake-model) proposed a boundary pair "
+        "for constraint 1 that changes 2 JSON paths (/order/ageDays, /order/total), not "
+        "exactly one"
+    )
+    anchor = GeneratedCase(
+        {
+            "customer": {"priorRefunds": 0, "tier": "standard"},
+            "order": {"ageDays": 120, "status": "paid", "total": 50},
+        },
+        "deny",
+    )
+    with pytest.raises(
+        AdversarialGenerationError,
+        match=r"fake-llm/fake-model\) proposed the "
+        r"counterfactual twin .*which has the anchor's own output \"deny\"",
+    ):
+        teacher.generate_counterfactual(ir, anchor)
+
+
+def test_mixed_mode_writes_whole_number_floats_from_the_fallback_as_integers() -> None:
+    class FloatFallback(FakeFallback):
+        def generate(self, ir: dict[str, Any], n: int, /) -> tuple[GeneratedCase, ...]:
+            cases = super().generate(ir, n)
+            for case in cases:
+                case.inputs["order"]["ageDays"] = float(case.inputs["order"]["ageDays"])
+            return cases
+
+    fallback = FloatFallback()
+    cases = ConstraintsTeacher(fallback=fallback).generate(incomplete_ir(), 40)
+    assert fallback.generated
+    for case in cases:
+        assert type(case.inputs["order"]["ageDays"]) is int
+
+
+def test_mixed_mode_repeats_cases_when_the_input_space_is_smaller_than_the_count() -> None:
+    # severity 8..16 with vip true or false: 18 decided inputs. The fallback repeats
+    # itself, and the decided top-up finds nothing new, so the corpus repeats.
+    severity, vip = path("t", "severity"), path("t", "vip")
+    ticket = {
+        "kind": "object",
+        "fields": [
+            {"name": "severity", "optional": False, "type": {"kind": "number"}},
+            {"name": "vip", "optional": False, "type": {"kind": "boolean"}},
+        ],
+    }
+    ir = single_input_ir(
+        "t",
+        ticket,
+        [
+            rule("always", op(">=", severity, lit(8)), "page"),
+            rule("never", vip, "ignore"),
+        ],
+        ["ignore", "page", "queue"],
+        ({"severity": 9, "vip": False}, "page"),
+    )
+
+    class RepetitiveFallback(FakeFallback):
+        def generate(self, ir: dict[str, Any], n: int, /) -> tuple[GeneratedCase, ...]:
+            self.generated.append(n)
+            return tuple(
+                GeneratedCase({"t": {"severity": 2, "vip": True}}, "queue") for _ in range(n)
+            )
+
+    fallback = RepetitiveFallback()
+    cases = ConstraintsTeacher(fallback=fallback).generate(ir, 160)
+
+    assert len(cases) == 160
+    assert fallback.generated
+    for case in cases:
+        validate_case(ir, case)
+        validate_case_constraints(ir, case)
 
 
 def test_mixed_mode_sends_no_request_when_the_constraints_decide_everything() -> None:

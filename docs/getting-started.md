@@ -186,7 +186,7 @@ Without a key, write `.semantscript/teacher.toml` for a local model first
 When the expression's constraints decide every input, no model is needed:
 `npx semantscript train --teacher constraints` labels the cases from the
 constraints (an input they leave open stops the build with that input named).
-`triage` above has no constraints, so it needs a language-model teacher. Every
+`triage` above has no constraints, so it needs a language-model teacher. Either
 way `train` first runs the doctor's Python and teacher checks (about five
 seconds, no billed request) and stops with the fix if one fails; then it finds
 the bundle under `dist/`, generates cases through the

@@ -7,9 +7,10 @@
   "types": "./dist/index.d.ts",
   "sideEffects": false,
   "bin": {
-    "semantscript": "./dist/index.js"
+    "semantscript": "./bin/semantscript.js"
   },
   "files": [
+    "bin",
     "dist"
   ],
   "exports": {

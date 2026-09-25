@@ -36,7 +36,7 @@ cd examples/refund-service
 npm install                   # links ../../compiler, ../../runtime, ../../framework
 npm run build                 # tspc: dist/*.js and dist/semantscript.ir.v1.json
 npm test                      # bundle shape and fixture-artifact handlers, no training needed
-npm run train                 # GPU and the Python training extra, ~4 min: .semantscript/artifact, train-report.json, heldout.json
+npm run train                 # GPU and the Python training extra in the active python3 (activate .venv first), ~4 min: .semantscript/artifact, train-report.json, heldout.json
 npm test                      # again: now the trained-artifact handlers run too
 npm run measure               # held-out accuracy, ECE and latency per expression
 npm start                     # http://localhost:3000
@@ -46,11 +46,11 @@ Any exported sema function runs directly through the CLI once the artifact
 exists (`--input` spreads a JSON array as positional arguments):
 
 ```sh
-node ../../cli/dist/index.js run --artifact .semantscript/artifact dist/app.js \
+npx semantscript run --artifact .semantscript/artifact dist/app.js \
   --call decideRefund --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
 "approve"
 
-node ../../cli/dist/index.js run --artifact .semantscript/artifact dist/app.js \
+npx semantscript run --artifact .semantscript/artifact dist/app.js \
   --call screenOrder --input '[{"total":6200},{"mismatchedAddress":true,"ordersLastHour":5,"chargebacks":1},{"priorRefunds":1}]'
 {
   "flag": "flag",

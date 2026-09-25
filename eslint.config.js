@@ -6,7 +6,12 @@ export default tseslint.config(
     ignores: ["**/dist/**", "**/node_modules/**"],
   },
   {
-    files: ["eslint.config.js", "scripts/**/*.mjs", "**/test/**/*.mjs"],
+    files: [
+      "eslint.config.js",
+      "scripts/**/*.mjs",
+      "**/test/**/*.mjs",
+      "cli/bin/*.js",
+    ],
     extends: [eslint.configs.recommended],
     languageOptions: {
       globals: {
@@ -29,7 +34,10 @@ export default tseslint.config(
       "framework/src/**/*.ts",
       "benchmarks/refund/src/**/*.ts",
     ],
-    extends: [eslint.configs.recommended, ...tseslint.configs.strictTypeChecked],
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.strictTypeChecked,
+    ],
     languageOptions: {
       parserOptions: {
         projectService: true,

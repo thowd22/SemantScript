@@ -27,13 +27,14 @@ npm install                 # links ../../compiler, ../../runtime and ../../fram
 npm run build               # tspc: dist/*.js, dist/*.js.map and dist/semantscript.ir.v1.json
 npm test                    # the bundle and both routes over a fixture artifact, no training needed
 npm run fixture-artifact    # optional: a fixture artifact in .semantscript/artifact, to run without training
-node ../../cli/dist/index.js train   # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
+npx semantscript train      # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
 
-Inside this repository the `semantscript` CLI is `node ../../cli/dist/index.js`
-(the root build writes it; nothing is installed on your `PATH`), so read
-`semantscript train` and `semantscript test` below as that command.
+The root `npm install` links the workspace `semantscript` CLI into the
+repository's `node_modules/.bin`, and the root build compiles it, so
+`npx semantscript` works from any directory in the clone; nothing is installed
+on your `PATH`. Run before the root build, it says to build first.
 
 `npm test` (`test/app.test.mjs`) checks the compiled bundle, serves both
 routes through `createApp` over a fixture artifact keyed to this bundle, and
@@ -126,7 +127,7 @@ depends on published `@semantscript/*` packages and commits its lockfile uses
   user. [`deploy/Dockerfile.dockerignore`](deploy/Dockerfile.dockerignore)
   limits the context to those sources, so local installs never enter it. CI
   builds the image from a fresh clone on every push with the fixture artifact
-  and smoke-runs both routes; the image is 624 MB and builds in about 32 s
+  and smoke-runs both routes; the image is 624 MB and builds in about 36 s
   without a layer cache
   ([measured](../../docs/CONTRIBUTING.md#continuous-integration)). To ship
   a trained model, train first so `.semantscript/artifact` holds the release,

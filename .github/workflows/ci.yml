@@ -126,6 +126,14 @@ jobs:
       - name: Fixture artifact for the image
         working-directory: examples/express-app
         run: npm run fixture-artifact
+      # The tutorial and the example READMEs call the CLI as `npx semantscript`
+      # from the example directory; this fails if npm did not link the bin.
+      - name: CLI through npx (docs/tutorial-refund-decision.md)
+        working-directory: examples/express-app
+        run: |
+          npx --no-install semantscript --help
+          npx --no-install semantscript run dist/refunds.sem.js --call decideRefund \
+            --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
       - name: Build the Express Docker image
         run: docker build -f examples/express-app/deploy/Dockerfile -t ticket-api .
       - name: Smoke-run the image

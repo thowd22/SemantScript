@@ -220,8 +220,9 @@ fixture artifact, and every controller over the trained artifact.
 Run it:
 
 ```sh
+npm install && npm run build   # at the repository root, once
 cd examples/refund-service
 npm install && npm run build && npm run train && npm test
-node ../../cli/dist/index.js run --artifact .semantscript/artifact dist/app.js \
+npx semantscript run --artifact .semantscript/artifact dist/app.js \
   --call decideRefund --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
 ```

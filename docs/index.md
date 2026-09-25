@@ -7,8 +7,23 @@ project has produced so far. Start with the language reference if you write
 `.sem.ts` files, the IR and artifact reference if you build tooling around the
 compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
 
+## Start here
+
+- [Getting started](getting-started.md): add one sema expression to an
+  existing Express (or Next.js) app and take it through `init`, `build`,
+  `train`, `test` and `run`, with the hardware, teacher and time it needs.
+- [Build tools](build-tools/tsc.md): setup and known limitations per adapter,
+  [tsc](build-tools/tsc.md), [esbuild](build-tools/esbuild.md),
+  [Vite](build-tools/vite.md) and [Next.js](build-tools/next.md).
+
 ## Reader-facing references
 
+- [CLI reference](cli-reference.md): every command, flag, default,
+  environment variable and exit code of `semantscript`.
+- [Build cache](build-cache.md): what is content-addressed, when retraining
+  happens, where the caches live and how to clear them.
+- [Diagnostics catalogue](diagnostics.md): every compiler diagnostic, editor
+  warning, trainer and verifier failure and runtime error, with cause and fix.
 - [Language reference](language-reference.md): `sema<T>` syntax, inputs,
   examples, constraints, every v1 output type, `@confidence`,
   `sema.withConfidence`, runtime behavior and compile errors, with runnable
@@ -58,6 +73,9 @@ compiler, trainer or runtime, and CONTRIBUTING if you change the repository.
   domain adapters as the default layout for depth routing and isolation.
 - [Laya analysis](research/laya-analysis.md): what was adopted from the Laya
   typed-decision models and what was not.
+- [Universal encoder investigation](universal-encoder.md): whether a frozen
+  universal encoder with tiny heads could make compilation take seconds
+  (measured: no), and decision-9's recommendation.
 
 ## Component guides
 

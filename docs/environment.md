@@ -143,14 +143,40 @@ semantscript train: environment preflight (0.0 s)
 semantscript train: stopped before training; fix the failed checks above (semantscript doctor explains each one) or pass --no-preflight
 ```
 
-### Linux: GitHub Actions (Ubuntu, CPU only)
+### Linux: GitHub Actions (Ubuntu, CPU only; CI run 36164465531, 2026-09-25)
 
-CI runs doctor on every push: the fresh-install job runs
-`npx semantscript doctor --runtime` in `examples/express-app` (the bindings
-must load after a first `npm install`), and the Python job with the training
-extra runs `doctor --python .venv/bin/python --no-teacher` against the
-CPU-only PyTorch install, where `device` is a warning and nothing fails. See
-[CONTRIBUTING](CONTRIBUTING.md#continuous-integration).
+CI runs doctor on every push (see
+[CONTRIBUTING](CONTRIBUTING.md#continuous-integration)). The fresh-install job
+runs `npx semantscript doctor --runtime` in `examples/express-app` after a
+first `npm install`:
+
+```text
+  pass  node              Node 22.22.0 (linux-x64)
+  pass  runtime-bindings  onnxruntime-node 1.30.0 and tokenizers 0.23.2 loaded for linux-x64
+2 passed, 0 warnings, 0 failed, 0 skipped
+```
+
+The Python job with the training extra runs
+`doctor --python .venv/bin/python --no-teacher` against the CPU-only PyTorch
+install, where `device` is a warning and nothing fails (repository paths
+shortened to `~/SemantScript`):
+
+```text
+  pass  node              Node 22.22.0 (linux-x64)
+  pass  runtime-bindings  onnxruntime-node 1.30.0 and tokenizers 0.23.2 loaded for linux-x64
+  pass  python            Python 3.12.14 at ~/SemantScript/.venv/bin/python
+  pass  trainer           semantscript_trainer 0.0.0 from ~/SemantScript/trainer/src/semantscript_trainer
+  pass  model             semantscript_model 0.0.0 from ~/SemantScript/model/src/semantscript_model
+  pass  torch             torch 2.9.1+cpu (CPU-only build), transformers 5.17.0
+  warn  device            no CUDA or ROCm device: trains on the CPU (15.6 GiB RAM), expect a slow run
+        fix: if this machine has an NVIDIA or AMD GPU, install the matching torch build (https://pytorch.org/get-started/locally/); otherwise lower --cases or --epochs
+  pass  onnxruntime       onnxruntime 1.30.0 and onnx 1.23.0 (export checks: AzureExecutionProvider, CPUExecutionProvider)
+  pass  platform-env      no extra environment variables needed
+  skip  teacher-config    teacher checks not requested (--no-teacher)
+  skip  teacher-key       teacher checks not requested (--no-teacher)
+  skip  teacher-probe     teacher checks not requested (--no-teacher)
+8 passed, 1 warnings, 0 failed, 3 skipped
+```
 
 ### Windows (native) and macOS: not run
 

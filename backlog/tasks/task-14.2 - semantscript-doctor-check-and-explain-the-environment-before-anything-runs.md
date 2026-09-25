@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 17:01'
+updated_date: '2026-09-25 17:05'
 labels:
   - dx
   - install
@@ -52,4 +52,6 @@ Risks: HSA_ENABLE_DXG_DETECTION is not required for torch on this machine today 
 IMPLEMENT: trainer/src/semantscript_trainer/doctor.py (closed doctor report, subprocess import probes, PYTHONNOUSERSITE and HSA_ENABLE_DXG_DETECTION detection by retrying the imports, teacher config/key/probe with a reusable probe_teacher) wired as 'python -m semantscript_trainer.cli doctor'; cli/src/doctor.ts (node, runtime-bindings, Python report validation, rendering), train/dev preflight (--no-preflight), init runs doctor (--no-doctor). Tests: trainer/tests/test_doctor.py 14 passed; cli suite 14 passed; npm run test:node all green; lint:node clean; ruff clean; pytest trainer/tests 397 passed 2 skipped.
 
 Docs: new docs/environment.md (checks, detection of PYTHONNOUSERSITE/HSA_ENABLE_DXG_DETECTION, recorded WSL2+ROCm runs: full doctor with one OpenRouter probe of 16 in/4 out tokens (~USD 0.0001), user-site-on run, train preflight stop without a key in 5 s, missing interpreter in 0.3 s; Windows and macOS explicitly not run), linked from docs/index.md and README; cli-reference, cli/README, getting-started, tutorial, teachers, diagnostics, CONTRIBUTING, trainer/README, components, architecture updated. CI: fresh-install runs 'npx --no-install semantscript doctor --runtime'; python (dev,training) runs doctor against .venv with --no-teacher.
+
+CI run 36164465531 (commit 31cf345) green on all four jobs; doctor --runtime passed in fresh-install, doctor against .venv passed in python (dev,training) with device warn (7 s). CI output recorded in docs/environment.md and the steps in CONTRIBUTING's CI table. Criterion #3: Windows native and macOS runs not recorded (not available here); Linux WSL2+ROCm and Ubuntu CI recorded.
 <!-- SECTION:NOTES:END -->

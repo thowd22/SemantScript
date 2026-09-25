@@ -52,9 +52,13 @@ the trainer: it turns extended thinking on unless the request says
 `thinking: {"type": "disabled"}` (the teacher now sends that, so a case
 costs 66 output tokens instead of about 1,900), and its replies can carry a
 thinking block beside the text block (the decoder ignores non-text blocks).
-A case costs about USD 0.026 through this route because the teacher prompt
-(the IR-derived schema and instructions) is about 8,300 input tokens; a
-200-case corpus for one expression is therefore about USD 5.
+A request costs about USD 0.017 through this route (the teacher prompt, the
+IR-derived schema and instructions, is about 8,300 input tokens; OpenRouter
+caches part of it). A constrained expression needs about twice as many
+requests as cases (boundary pairs, counterfactual twins at the configured
+ratio, and up to three attempts for an anchor the teacher cannot twin): the
+Express example's two expressions at 192 cases each cost about USD 10 and
+published on the third training seed, all from the same cached datasets.
 
 **Ollama** (local, OpenAI-compatible endpoint):
 
@@ -85,14 +89,15 @@ benchmark's release corpus labels its real inputs the same way (decision-7).
 
 ## Cost and time, as measured
 
-| Teacher                           | Per request                                         | Latency                           | Where measured                                   |
-| --------------------------------- | --------------------------------------------------- | --------------------------------- | ------------------------------------------------ |
-| Sonnet 5 via OpenRouter, label    | USD 0.0028 to 0.0031 (960 input tokens)             | 4.0 s p50                         | 1,800 labels, `results-local-teacher-2026-09-25` |
-| Sonnet 5 via OpenRouter, baseline | USD 0.0031 (decision plus distribution)             | 4.2 s p50                         | 170 requests, `results-final-2026-09-25`         |
-| Claude Code CLI (Sonnet 5)        | subscription quota, about two cents list-equivalent | 4 to 6 s (2.3 s at concurrency 4) | refund pilot corpus, 2026-09-23                  |
-| Qwen3-14B via Ollama, local       | none                                                | 0.17 s p50 on the GPU             | 1,800 labels                                     |
-| Jev (typed-decision model)        | USD 0.00004 (not a teacher; see decision-11)        | 0.15 s                            | 160 cases, `results-jev-2026-09-25`              |
-| Constraint labels                 | none                                                | microseconds                      | refund service, nine expressions                 |
+| Teacher                           | Per request                                         | Latency                           | Where measured                                                  |
+| --------------------------------- | --------------------------------------------------- | --------------------------------- | --------------------------------------------------------------- |
+| Sonnet 5 via OpenRouter, label    | USD 0.0028 to 0.0031 (960 input tokens)             | 4.0 s p50                         | 1,800 labels, `results-local-teacher-2026-09-25`                |
+| Sonnet 5 via OpenRouter, baseline | USD 0.0031 (decision plus distribution)             | 4.2 s p50                         | 170 requests, `results-final-2026-09-25`                        |
+| Sonnet 5 via OpenRouter, teacher  | USD 0.017 per request (8,300-token prompt)          | about 4 s                         | `semantscript train` on the Express example, about 600 requests |
+| Claude Code CLI (Sonnet 5)        | subscription quota, about two cents list-equivalent | 4 to 6 s (2.3 s at concurrency 4) | refund pilot corpus, 2026-09-23                                 |
+| Qwen3-14B via Ollama, local       | none                                                | 0.17 s p50 on the GPU             | 1,800 labels                                                    |
+| Jev (typed-decision model)        | USD 0.00004 (not a teacher; see decision-11)        | 0.15 s                            | 160 cases, `results-jev-2026-09-25`                             |
+| Constraint labels                 | none                                                | microseconds                      | refund service, nine expressions                                |
 
 A first build of one expression with 200 cases through Sonnet costs about
 USD 0.60 in labels and a minute of GPU time; every later build reuses the

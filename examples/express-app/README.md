@@ -24,6 +24,41 @@ semantscript train          # bundle from dist/, artifact to .semantscript/artif
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
 
+## A trained release, through OpenRouter
+
+Both expressions carry three gold examples, and `decideRefund` carries the
+policy's six rules as constraints (`src/refunds.sem.ts`), which is what makes
+a numeric policy learnable from a few hundred teacher cases: the trainer
+labels boundary pairs and counterfactual twins against them and the release
+gate refuses a model that breaks one. Trained 2026-09-25 with Sonnet 5 through
+OpenRouter's Anthropic-format route (`.semantscript/teacher.toml`, git-ignored:
+`backend = "anthropic"`, `model = "anthropic/claude-sonnet-5"`,
+`base_url = "https://openrouter.ai/api"`, `mode = "direct"`, with
+`ANTHROPIC_API_KEY` set to the OpenRouter key for the process):
+
+```sh
+semantscript train --teacher .semantscript/teacher.toml --cases 192 --epochs 8 --seed 3 \
+  --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 --device cuda
+```
+
+| Expression     | Rows (synthetic + adversarial + gold) | Best epoch | Verified accuracy | ECE   | Pair consistency | Constraint violations |
+| -------------- | ------------------------------------- | ---------- | ----------------- | ----- | ---------------- | --------------------- |
+| `decideRefund` | 192 + 202                             | 6          | 0.987             | 0.008 | 0.979            | 0 of 394              |
+| `triage`       | 192                                   | 6          | 1.000             | 0.000 | 1.000            | 0 of 192              |
+
+Release `5c755d08…`, published under decision-8's recorded 1% violation
+tolerance and in fact recording zero raw violations; `semantscript test
+--bundle dist/semantscript.ir.v1.json` passes and `semantscript run
+dist/refunds.sem.js --call decideRefund --input '[…]'` answers `approve`,
+`deny`, `review` on the seeded cases and `deny` on a standard-tier order at 45
+days. Two earlier seeds (1 and 2) trained from the same cached datasets failed
+the gate on standard-tier orders at 45 days (2.0% and 1.3% violations), so the
+seed is part of the record, as it was for the refund benchmark's release.
+Generation cost about USD 10 through OpenRouter for the two expressions
+(about 600 requests at roughly 8,000 prompt tokens each, plus three attempts
+for each of five counterfactual anchors the teacher could not twin); the
+seed reruns cost nothing because the datasets were cached.
+
 `dist/semantscript.ir.v1.json` is the IR bundle the trainer consumes. The
 transformer writes it every build, so `semantscript train` always sees the
 current sites. Source maps point at `src/triage.sem.ts`; a runtime error inside

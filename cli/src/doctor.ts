@@ -215,7 +215,7 @@ export function withVirtualEnvironmentHint(
   python: string,
   venv: string,
 ): readonly DoctorCheck[] {
-  const hint = `if the packages are in ${venv} rather than ${python} (the default interpreter), pass --python ${venv} or set SEMANTSCRIPT_PYTHON=${venv}`;
+  const hint = `if the packages are in ${venv} rather than ${python} (the default interpreter), pass --python ${venv} or set the SEMANTSCRIPT_PYTHON environment variable to ${venv}`;
   return checks.map((check) =>
     check.status === "fail" && INTERPRETER_CHECK_IDS.includes(check.id)
       ? {
@@ -411,7 +411,7 @@ export async function runPythonDoctor(
         id: "trainer",
         status: "fail",
         summary: `${options.python} cannot import ${options.trainerModule}: ${stderrTail}`,
-        fix: `pip install -e '.[training]' from the SemantScript checkout into ${options.python}, or run the CLI from the checkout (it adds trainer/src and model/src to PYTHONPATH)`,
+        fix: `pip install -e ".[training]" from the SemantScript checkout into ${options.python}, or run the CLI from the checkout (it adds trainer/src and model/src to PYTHONPATH)`,
       }
     : noDoctor
       ? {

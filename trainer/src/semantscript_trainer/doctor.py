@@ -52,7 +52,7 @@ CHECK_IDS = (
 MINIMUM_PYTHON = (3, 12)
 DISTRIBUTION = "semantscript-python"
 TRAINING_EXTRA_FIX = (
-    "install the training extra into this interpreter: pip install -e '.[training]' from the "
+    'install the training extra into this interpreter: pip install -e ".[training]" from the '
     "SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from "
     "https://pytorch.org/get-started/locally/ first)"
 )
@@ -362,7 +362,7 @@ def _heavy_checks(
         if not _imports_ok(shared, ALL_SECTIONS):
             notes.append(
                 "PYTHONNOUSERSITE=1 is set and needed (without it: "
-                f"{_first_error(shared)}); keep it in the shell profile"
+                f"{_first_error(shared)}); {_persist_advice({'PYTHONNOUSERSITE': ''}, 'keep')}"
             )
 
     # HSA_ENABLE_DXG_DETECTION: ROCm on WSL2 reaches the GPU through /dev/dxg;
@@ -409,7 +409,7 @@ def _heavy_checks(
                 "platform-env",
                 "fail",
                 "; ".join(f"{name}=1 needed: {why}" for name, why in needed.items()),
-                f"{env_fix}, and add it to the shell profile so train and dev inherit it",
+                f"{env_fix}; {_persist_advice(needed, 'add')}",
             )
         )
     else:
@@ -423,13 +423,35 @@ def _heavy_checks(
     return checks
 
 
+def _on_windows() -> bool:
+    """Whether fix lines use Windows shell syntax (read per call so tests can patch it)."""
+    return sys.platform == "win32"
+
+
 def _export_fix(needed: Mapping[str, str]) -> str | None:
+    """The command that sets each needed variable to 1 in the current shell.
+
+    POSIX shells get one ``export``. On Windows the default shell is
+    PowerShell, where ``set NAME=1`` only creates a PowerShell variable named
+    ``NAME=1``; so the fix gives the PowerShell form first and the cmd form
+    (quoted, so ``&&`` adds no trailing space to the value) second.
+    """
     if not needed:
         return None
-    assignments = " ".join(f"{name}=1" for name in needed)
-    if sys.platform == "win32":
-        return " & ".join(f"set {name}=1" for name in needed)
-    return f"export {assignments}"
+    if _on_windows():
+        powershell = "; ".join(f'$env:{name} = "1"' for name in needed)
+        cmd = " && ".join(f'set "{name}=1"' for name in needed)
+        return f"in PowerShell: {powershell} (in cmd: {cmd})"
+    return "export " + " ".join(f"{name}=1" for name in needed)
+
+
+def _persist_advice(names: Mapping[str, str], verb: str) -> str:
+    """How to keep the variables set for later terminals, train and dev."""
+    if _on_windows():
+        setx = " and ".join(f"setx {name} 1" for name in names)
+        return f"{verb} it for new terminals with {setx} (a user environment variable)"
+    where = "to the shell profile" if verb == "add" else "in the shell profile"
+    return f"{verb} it {where} so train and dev inherit it"
 
 
 def _first_error(result: Mapping[str, Any]) -> str:
@@ -708,16 +730,34 @@ def _key_check(config: TeacherConfig, env: Mapping[str, str]) -> Check:
             "fail",
             "ANTHROPIC_API_KEY is not set; OPENROUTER_API_KEY is, but the anthropic backend "
             "reads only ANTHROPIC_API_KEY",
-            'export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY" for this shell (base_url points at '
-            "OpenRouter, which accepts its own key on the Anthropic route)",
+            f"{_copy_openrouter_key()} for this shell (base_url points at OpenRouter, which "
+            "accepts its own key on the Anthropic route)",
         )
     return Check(
         "teacher-key",
         "fail",
         "ANTHROPIC_API_KEY is not set",
-        "export ANTHROPIC_API_KEY=<key> (an OpenRouter key when base_url is OpenRouter), or "
+        f"{_set_key('<key>')} (an OpenRouter key when base_url is OpenRouter), or "
         "switch to the ollama backend (docs/teachers.md)",
     )
+
+
+def _set_key(value: str) -> str:
+    if _on_windows():
+        return (
+            f'in PowerShell: $env:ANTHROPIC_API_KEY = "{value}" '
+            f'(in cmd: set "ANTHROPIC_API_KEY={value}")'
+        )
+    return f"export ANTHROPIC_API_KEY={value}"
+
+
+def _copy_openrouter_key() -> str:
+    if _on_windows():
+        return (
+            "in PowerShell: $env:ANTHROPIC_API_KEY = $env:OPENROUTER_API_KEY "
+            '(in cmd: set "ANTHROPIC_API_KEY=%OPENROUTER_API_KEY%")'
+        )
+    return 'export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"'
 
 
 def _with_key(config: TeacherConfig, env: Mapping[str, str]) -> TeacherConfig:

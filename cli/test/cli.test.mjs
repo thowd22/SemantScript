@@ -1041,7 +1041,7 @@ test("doctor prints one line per check with the fix, and exits 1 on a failure", 
     noModule.stdout(),
     / {2}fail {2}trainer {11}.* cannot import no_such_trainer_module/u,
   );
-  assert.match(noModule.stdout(), /fix: pip install -e '\.\[training\]'/u);
+  assert.match(noModule.stdout(), /fix: pip install -e "\.\[training\]"/u);
 
   const badProbe = capture(root, env);
   assert.equal(await runCli([...base, "--probe", "maybe"], badProbe.io), 2);

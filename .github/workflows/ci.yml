@@ -143,7 +143,12 @@ jobs:
       # trainer packages are missing and doctor must say which interpreter
       # holds them. Its exit status is 1 by design; the output is the record.
       - name: semantscript doctor with the default interpreter
-        run: node cli/bin/semantscript.js doctor --no-teacher || echo "doctor exited $?"
+        run: |
+          status=0
+          node cli/bin/semantscript.js doctor --no-teacher > doctor-default.txt 2>&1 || status=$?
+          cat doctor-default.txt
+          test "$status" = 1 || { echo "expected exit 1, got $status"; exit 1; }
+          grep -q "SEMANTSCRIPT_PYTHON environment variable to .venv" doctor-default.txt
       # Activated venv: the default interpreter is now the venv's, and every
       # check must pass (the CPU device is a warning).
       - name: semantscript doctor in the activated .venv
@@ -152,6 +157,19 @@ jobs:
           node cli/bin/semantscript.js doctor --no-teacher
       - name: semantscript doctor --runtime
         run: node cli/bin/semantscript.js doctor --runtime
+      # Native Windows shells: doctor under PowerShell, and the Windows fix
+      # lines (PowerShell and cmd forms) run in the real shells, since Git
+      # Bash above cannot show that they set the variables.
+      - name: semantscript doctor in PowerShell, Windows fix lines in PowerShell and cmd
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .venv\Scripts\Activate.ps1
+          node cli/bin/semantscript.js doctor --no-teacher
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip install pytest
+          $env:PYTHONPATH = "trainer/src;model/src"
+          python -m pytest -q -rs trainer/tests/test_doctor.py -k windows_fix_lines
 
   fresh-install:
     name: Fresh clone, examples and Docker image

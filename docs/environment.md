@@ -21,20 +21,20 @@ Each line reads `pass`, `fail`, `warn` or `skip`, the check id and what was
 found; every line that did not pass has a `fix:` line under it. Exit 0 when
 nothing failed, 1 otherwise.
 
-| Check              | Passes when                                                                                                                           | Common failures and their fix                                                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `node`             | Node is 22.13 or later.                                                                                                               | Older Node: install 22.13+ (`.nvmrc` pins the tested release).                                                                                                     |
-| `runtime-bindings` | `onnxruntime-node` and `tokenizers`, resolved from `@semantscript/core`, load for this platform.                                      | A `node_modules` copied from another OS or architecture, or an interrupted install: `npm install`, or `npm rebuild onnxruntime-node tokenizers`.                   |
-| `python`           | The interpreter the CLI uses (`--python`, `SEMANTSCRIPT_PYTHON`, else `python3`, or `python` on Windows) starts and is 3.12 or later. | Not on the path, or too old (checked even when the trainer's 3.12 syntax stops it importing): install 3.12 or point the CLI at one.                                |
-| `trainer`          | `semantscript_trainer` imports with the teacher clients `anthropic` and `openai`.                                                     | Outside the checkout with the package not installed: `pip install -e '.[training]'` into that interpreter.                                                         |
-| `model`            | `semantscript_model` imports.                                                                                                         | As for `trainer`.                                                                                                                                                  |
-| `torch`            | PyTorch and Transformers import; the line names the build (CUDA, ROCm or CPU-only).                                                   | The training extra is missing (install it), or a user-site package breaks the import (see `platform-env`).                                                         |
-| `device`           | A CUDA or ROCm GPU is visible; the line gives its total and free memory.                                                              | No GPU: a `warn`, training runs on the CPU (the RAM is shown). Apple MPS is reported but the trainer does not use it yet. `--device cuda` with no GPU is a `fail`. |
-| `onnxruntime`      | ONNX Runtime and ONNX import (the export and its parity check need both).                                                             | The training extra is missing.                                                                                                                                     |
-| `platform-env`     | The imports and the GPU work with the current environment.                                                                            | `PYTHONNOUSERSITE=1` when packages under `~/.local` break the imports; `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the GPU only with it.                  |
-| `teacher-config`   | The teacher file `train` would use exists and is a valid `[teacher]` table.                                                           | No file and no `ANTHROPIC_API_KEY`, or an invalid table: see [teachers](teachers.md).                                                                              |
-| `teacher-key`      | The key is in the environment (Ollama needs none); `ANTHROPIC_AUTH_TOKEN` counts too.                                                 | `export ANTHROPIC_API_KEY=…`; with an OpenRouter `base_url` and only `OPENROUTER_API_KEY` set, `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`.                   |
-| `teacher-probe`    | One minimal request succeeded; the line gives the latency and tokens.                                                                 | A refused key, a wrong model name, or an Ollama server that is down or lacks the model (`ollama serve`, `ollama pull <model>`; a name without a tag is `:latest`). |
+| Check              | Passes when                                                                                                                           | Common failures and their fix                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node`             | Node is 22.13 or later.                                                                                                               | Older Node: install 22.13+ (`.nvmrc` pins the tested release).                                                                                                        |
+| `runtime-bindings` | `onnxruntime-node` and `tokenizers`, resolved from `@semantscript/core`, load for this platform.                                      | A `node_modules` copied from another OS or architecture, or an interrupted install: `npm install`, or `npm rebuild onnxruntime-node tokenizers`.                      |
+| `python`           | The interpreter the CLI uses (`--python`, `SEMANTSCRIPT_PYTHON`, else `python3`, or `python` on Windows) starts and is 3.12 or later. | Not on the path, or too old (checked even when the trainer's 3.12 syntax stops it importing): install 3.12 or point the CLI at one.                                   |
+| `trainer`          | `semantscript_trainer` imports with the teacher clients `anthropic` and `openai`.                                                     | Outside the checkout with the package not installed: `pip install -e ".[training]"` into that interpreter (double quotes work in every shell).                        |
+| `model`            | `semantscript_model` imports.                                                                                                         | As for `trainer`.                                                                                                                                                     |
+| `torch`            | PyTorch and Transformers import; the line names the build (CUDA, ROCm or CPU-only).                                                   | The training extra is missing (install it), or a user-site package breaks the import (see `platform-env`).                                                            |
+| `device`           | A CUDA or ROCm GPU is visible; the line gives its total and free memory.                                                              | No GPU: a `warn`, training runs on the CPU (the RAM is shown). Apple MPS is reported but the trainer does not use it yet. `--device cuda` with no GPU is a `fail`.    |
+| `onnxruntime`      | ONNX Runtime and ONNX import (the export and its parity check need both).                                                             | The training extra is missing.                                                                                                                                        |
+| `platform-env`     | The imports and the GPU work with the current environment.                                                                            | `PYTHONNOUSERSITE=1` when packages under `~/.local` break the imports; `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the GPU only with it.                     |
+| `teacher-config`   | The teacher file `train` would use exists and is a valid `[teacher]` table.                                                           | No file and no `ANTHROPIC_API_KEY`, or an invalid table: see [teachers](teachers.md).                                                                                 |
+| `teacher-key`      | The key is in the environment (Ollama needs none); `ANTHROPIC_AUTH_TOKEN` counts too.                                                 | `export ANTHROPIC_API_KEY=…`; with an OpenRouter `base_url` and only `OPENROUTER_API_KEY` set, `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"` (Windows: see below). |
+| `teacher-probe`    | One minimal request succeeded; the line gives the latency and tokens.                                                                 | A refused key, a wrong model name, or an Ollama server that is down or lacks the model (`ollama serve`, `ollama pull <model>`; a name without a tag is `:latest`).    |
 
 When the interpreter was left at its default and a `.venv` exists in the
 working directory or above it, every failed `python`, `trainer`, `model`,
@@ -87,8 +87,12 @@ semantscript doctor: ~/SemantScript/examples/express-app
 12 passed, 0 warnings, 0 failed, 0 skipped
 ```
 
+This run predates the third review round, which reworded the end of the
+`platform-env` note to "keep it in the shell profile so train and dev inherit
+it" (on Windows: "keep it for new terminals with setx PYTHONNOUSERSITE 1").
+
 The same machine with the user site enabled (no `PYTHONNOUSERSITE`) and a
-local Ollama teacher (re-run 2026-09-25 after the review fixes). NumPy 2 under
+local Ollama teacher (re-run 2026-09-25 after the third review round). NumPy 2 under
 `~/.local` breaks Transformers; doctor proves the fix by importing again with
 the variable set:
 
@@ -101,11 +105,11 @@ semantscript doctor: ~/SemantScript/examples/express-app
   pass  model             semantscript_model 0.0.0 from ~/SemantScript/model/src/semantscript_model
   fail  torch             torch 2.9.1+rocm7.2.0.git7e1940d4 (ROCm 7.2.26015-fc0010cf6a); transformers does not import: AttributeError: module 'numpy' has no attribute 'long'
         fix: export PYTHONNOUSERSITE=1 (see platform-env)
-  pass  device            trains on ROCm device AMD Radeon RX 9070 XT: 15.8 GiB total, 13.3 GiB free
+  pass  device            trains on ROCm device AMD Radeon RX 9070 XT: 15.8 GiB total, 14.0 GiB free
   pass  onnxruntime       onnxruntime 1.30.0 and onnx 1.23.0 (export checks: AzureExecutionProvider, CPUExecutionProvider)
   fail  platform-env      PYTHONNOUSERSITE=1 needed: packages in the user site (~/.local/lib/python3.12/site-packages) break the imports: transformers: AttributeError: module 'numpy' has no attribute 'long'
-        fix: export PYTHONNOUSERSITE=1, and add it to the shell profile so train and dev inherit it
-  pass  teacher-config    /tmp/scratch/ollama.toml (ollama qwen2.5:1.5b-instruct-q4_K_M, mode auto)
+        fix: export PYTHONNOUSERSITE=1; add it to the shell profile so train and dev inherit it
+  pass  teacher-config    /tmp/scratch/ollama.toml (ollama qwen2.5:1.5b-instruct-q4_K_M via 127.0.0.1:11434, mode auto)
   pass  teacher-key       the Ollama backend needs no key
   pass  teacher-probe     one request to qwen2.5:1.5b-instruct-q4_K_M answered in 2.1 s, 36 in / 2 out tokens
 10 passed, 0 warnings, 2 failed, 0 skipped
@@ -152,7 +156,7 @@ semantscript train: environment preflight (5.0 s)
 semantscript train: stopped before training; fix the failed checks above (semantscript doctor explains each one) or pass --no-preflight
 ```
 
-And with an interpreter that does not exist, in a quarter of a second:
+And with an interpreter that does not exist, in well under a second:
 
 ```text
 semantscript train: environment preflight (0.0 s)
@@ -321,9 +325,40 @@ semantscript doctor: ~/SemantScript
 2 passed, 0 warnings, 0 failed, 0 skipped
 ```
 
+### Fix lines on Windows
+
+A fix that sets a variable is shell syntax, and on Windows the default shell
+is PowerShell, where `set NAME=1` only creates a PowerShell variable named
+`NAME=1`. So on Windows doctor prints the PowerShell form first and the cmd
+form second, and says how to keep the variable (`setx`, a user environment
+variable) instead of pointing at a shell profile. The `platform-env` fix for
+the user site reads:
+
+```text
+        fix: in PowerShell: $env:PYTHONNOUSERSITE = "1" (in cmd: set "PYTHONNOUSERSITE=1"); add it for new terminals with setx PYTHONNOUSERSITE 1 (a user environment variable)
+```
+
+and the `teacher-key` fixes read
+`in PowerShell: $env:ANTHROPIC_API_KEY = "<key>" (in cmd: set "ANTHROPIC_API_KEY=<key>")`
+and, with an OpenRouter `base_url`,
+`in PowerShell: $env:ANTHROPIC_API_KEY = $env:OPENROUTER_API_KEY (in cmd: set "ANTHROPIC_API_KEY=%OPENROUTER_API_KEY%")`.
+The cmd form quotes the assignment so `&&` between two variables adds no
+trailing space to the value. The tests in `trainer/tests/test_doctor.py`
+(`-k windows_fix_lines`) run each form in the real Windows PowerShell and
+`cmd.exe` and check the variable afterwards; they run on the Windows CI
+runner and on WSL through interop, and are skipped where neither shell
+exists.
+
 ### Not yet observed
 
-No run so far has needed a platform variable on Windows, so the `set NAME=1`
-form of the `platform-env` fix has not been printed on a real machine (it is
-covered by the unit tests only). No run has used a GPU on Windows or macOS:
-the runners have none that PyTorch uses for training.
+- No recorded run has needed a platform variable on Windows or macOS, so the
+  Windows `platform-env` fix above has been printed only by the tests, not by
+  a doctor run on a Windows machine that needed it.
+- The teacher checks (`teacher-config`, `teacher-key`, `teacher-probe`) have
+  not run on Windows or macOS: every recorded run there uses `--no-teacher`,
+  since the CI runners have no teacher key and no Ollama server.
+- The Windows runs above ran under Git Bash (the job's default shell), except
+  the PowerShell run of the activated venv recorded by the same job's `pwsh`
+  step. No run used `cmd.exe` for doctor itself.
+- No run has used a GPU on Windows or macOS: the runners have none that
+  PyTorch uses for training.

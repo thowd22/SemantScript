@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
@@ -14,6 +16,7 @@ from typing import Any
 import pytest
 
 from semantscript_trainer import cli as cli_module
+from semantscript_trainer import doctor as doctor_module
 from semantscript_trainer.doctor import (
     CHECK_IDS,
     REPORT_KIND,
@@ -140,7 +143,7 @@ def test_report_is_closed_and_ordered() -> None:
 def test_missing_training_extra_fails_with_the_install_fix() -> None:
     checks = by_id(doctor(import_probe=FakeProbe(lambda env: NO_TORCH)))
     assert checks["torch"]["status"] == "fail"
-    assert "pip install -e '.[training]'" in checks["torch"]["fix"]
+    assert 'pip install -e ".[training]"' in checks["torch"]["fix"]
     assert checks["device"]["status"] == "skip"
     assert checks["onnxruntime"]["status"] == "fail"
     assert checks["platform-env"]["status"] == "pass"
@@ -514,3 +517,128 @@ def test_cli_doctor_output_survives_a_code_page_stdout(tmp_path: Path) -> None:
             assert str(teacher) in json.dumps(report, ensure_ascii=False)
         else:
             assert "teacher-config" in output
+
+
+# --- Windows fix lines -------------------------------------------------------
+#
+# PowerShell is the default Windows shell, and there `set NAME=1` creates a
+# PowerShell variable literally named `NAME=1` without touching the
+# environment. So on Windows every fix that sets a variable gives the
+# PowerShell form and the cmd form, and the tests below run both in the real
+# shells wherever they exist (a Windows runner, or WSL through interop).
+
+WINDOWS_FIX = re.compile(r"in PowerShell: (?P<ps>.+?) \(in cmd: (?P<cmd>.+?)\)")
+
+
+def windows_fixes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, str]:
+    monkeypatch.setattr(doctor_module, "_on_windows", lambda: True)
+    both = FakeProbe(lambda env: GPU_OK if env.get("PYTHONNOUSERSITE") else BROKEN_NUMPY)
+    env_checks = by_id(doctor(import_probe=both, user_site_exists=True))
+    openrouter = 'backend = "anthropic"\nmodel = "anthropic/claude-sonnet-5"\n'
+    openrouter += 'base_url = "https://openrouter.ai/api"\n'
+    copy = teacher_checks(tmp_path, openrouter, env={"OPENROUTER_API_KEY": "sk-or-x"})
+    no_key = teacher_checks(tmp_path, 'backend = "anthropic"\nmodel = "claude-sonnet-5"\n')
+    return {
+        "platform-env": env_checks["platform-env"]["fix"],
+        "torch": env_checks["torch"]["fix"],
+        "copy-key": copy["teacher-key"]["fix"],
+        "key": no_key["teacher-key"]["fix"],
+        "two": doctor_module._export_fix({"PYTHONNOUSERSITE": "", "HSA_ENABLE_DXG_DETECTION": ""})
+        or "",
+    }
+
+
+def test_windows_fix_lines_use_powershell_and_cmd_syntax(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixes = windows_fixes(monkeypatch, tmp_path)
+    assert fixes["platform-env"] == (
+        'in PowerShell: $env:PYTHONNOUSERSITE = "1" (in cmd: set "PYTHONNOUSERSITE=1"); '
+        "add it for new terminals with setx PYTHONNOUSERSITE 1 (a user environment variable)"
+    )
+    assert fixes["torch"].endswith("(see platform-env)")
+    assert fixes["two"] == (
+        'in PowerShell: $env:PYTHONNOUSERSITE = "1"; $env:HSA_ENABLE_DXG_DETECTION = "1" '
+        '(in cmd: set "PYTHONNOUSERSITE=1" && set "HSA_ENABLE_DXG_DETECTION=1")'
+    )
+    assert fixes["copy-key"].startswith(
+        "in PowerShell: $env:ANTHROPIC_API_KEY = $env:OPENROUTER_API_KEY "
+        '(in cmd: set "ANTHROPIC_API_KEY=%OPENROUTER_API_KEY%")'
+    )
+    assert fixes["key"].startswith('in PowerShell: $env:ANTHROPIC_API_KEY = "<key>"')
+    for fix in fixes.values():
+        assert "export " not in fix
+        assert "shell profile" not in fix
+
+
+def _windows_shell(name: str) -> str | None:
+    return shutil.which(f"{name}.exe") if sys.platform != "win32" else shutil.which(name)
+
+
+def _windows_cwd() -> str | None:
+    # cmd.exe cannot start in a WSL (UNC) directory; run it from the C: drive.
+    if sys.platform == "win32":
+        return None
+    return "/mnt/c" if Path("/mnt/c").is_dir() else None
+
+
+def _windows_path(path: Path) -> str:
+    if sys.platform == "win32":
+        return str(path)
+    return subprocess.run(
+        ["wslpath", "-w", str(path)], check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def _run_windows_shell(argv: list[str]) -> str:
+    done = subprocess.run(
+        argv, capture_output=True, text=True, timeout=60, cwd=_windows_cwd(), check=False
+    )
+    assert done.returncode == 0, done.stderr
+    return done.stdout.replace("\r", "").strip().splitlines()[-1]
+
+
+SHOW = ("PYTHONNOUSERSITE", "HSA_ENABLE_DXG_DETECTION", "ANTHROPIC_API_KEY")
+
+
+@pytest.mark.skipif(_windows_shell("powershell") is None, reason="no Windows PowerShell here")
+def test_windows_fix_lines_set_the_variables_in_real_powershell(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixes = windows_fixes(monkeypatch, tmp_path)
+    shell = _windows_shell("powershell")
+    assert shell is not None
+    show = " + '|' + ".join(f"$env:{name}" for name in SHOW)
+    for key, expected in (
+        ("two", "1|1|"),
+        ("platform-env", "1||"),
+        ("copy-key", "||sk-or-test"),
+        ("key", "||<key>"),
+    ):
+        match = WINDOWS_FIX.match(fixes[key])
+        assert match is not None, fixes[key]
+        script = f'$env:OPENROUTER_API_KEY = "sk-or-test"; {match["ps"]}; {show}'
+        assert _run_windows_shell([shell, "-NoProfile", "-Command", script]) == expected, key
+
+
+@pytest.mark.skipif(_windows_shell("cmd") is None, reason="no cmd.exe here")
+def test_windows_fix_lines_set_the_variables_in_real_cmd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixes = windows_fixes(monkeypatch, tmp_path)
+    shell = _windows_shell("cmd")
+    assert shell is not None
+    show = "/".join(f"[%{name}%]" for name in SHOW)
+    for key, expected in (
+        ("two", "[1]/[1]/[]"),
+        ("copy-key", "[]/[]/[sk-or-test]"),
+        ("key", "[]/[]/[<key>]"),
+    ):
+        match = WINDOWS_FIX.match(fixes[key])
+        assert match is not None, fixes[key]
+        batch = tmp_path / f"{key}.cmd"
+        lines = ["@echo off", 'set "OPENROUTER_API_KEY=sk-or-test"', match["cmd"], f'echo "{show}"']
+        batch.write_bytes(("\r\n".join(lines) + "\r\n").encode("ascii"))
+        # The echo is quoted so a value such as <key> is not read as a redirection.
+        output = _run_windows_shell([shell, "/d", "/c", _windows_path(batch)])
+        assert output == f'"{expected}"', key

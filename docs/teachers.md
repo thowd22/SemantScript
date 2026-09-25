@@ -96,8 +96,10 @@ thinking disabled (about 16 input and 4 output tokens, well under USD 0.001
 on Sonnet through OpenRouter); the Ollama request is a tiny chat completion.
 The check prints the latency and the tokens, and scrubs the key from any error
 text. When `base_url` is OpenRouter and only `OPENROUTER_API_KEY` is set, the
-key check fails with the fix `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`,
-because the backend reads only `ANTHROPIC_API_KEY`.
+key check fails with the fix `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`
+(on Windows, `$env:ANTHROPIC_API_KEY = $env:OPENROUTER_API_KEY` in PowerShell
+and `set "ANTHROPIC_API_KEY=%OPENROUTER_API_KEY%"` in cmd), because the
+backend reads only `ANTHROPIC_API_KEY`.
 
 `train` runs the same checks first without the billed request (for Ollama it
 only asks the server for its model list and fails with `ollama pull <model>`

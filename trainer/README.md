@@ -19,6 +19,12 @@ has no examples, and no teacher call is made when the gold examples already fill
 the requested total. One dataset is capped at 20,000 rows and 64 MiB of canonical
 JSON to bound the completed in-memory tuple and cache footprint.
 
+A teacher case whose label violates an active constraint is a teacher mistake,
+not data: the constraints are the authority on those inputs. The generator drops
+it and requests the shortfall again, at most `MAXIMUM_REPLACEMENT_ROUNDS` (3)
+times, logging the count; if the shortfall remains it raises
+`TeacherResponseError`. A malformed case (schema, a mutated IR) stays fatal.
+
 The persisted format is this closed JSON v1 envelope (fixed-shape objects reject
 undeclared fields; `inputs` and `output` remain governed by the function IR):
 
@@ -163,6 +169,13 @@ Load compiler IR with `semantscript_trainer.loads_strict_json`, not the standard
 library's default `json.loads`. The strict loader applies SemantScript's direct
 binary64 numeric interpretation, rejects duplicate keys and non-finite values, and
 preserves signed negative zero for literal/type validation before dataset assembly.
+
+An anchor whose counterfactual the teacher cannot produce within
+`maximum_attempts` (typically an input with no single-field edit that changes
+the label) does not fail the build: the generator logs it and takes the next
+synthetic case in the deterministic ranking as a spare, up to as many skips as
+pairs wanted, and the cached sidecar records the anchors actually used, which
+the loader checks against that ranking.
 
 ## Model input serialization boundary
 

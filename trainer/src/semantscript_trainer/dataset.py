@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import math
 import os
 import re
@@ -46,6 +47,8 @@ DATASET_KIND = "semantscript.training-dataset"
 DATASET_VERSION = 1
 MAXIMUM_DATASET_CASE_COUNT = 20_000
 MAXIMUM_DATASET_CACHE_BYTES = 64 * 1024 * 1024
+MAXIMUM_REPLACEMENT_ROUNDS = 3
+_log = logging.getLogger(__name__)
 MAXIMUM_DATASET_CACHE_DEPTH = 128
 MAXIMUM_DATASET_CACHE_NODES = 2_000_000
 
@@ -221,22 +224,7 @@ class SyntheticDatasetGenerator:
                 return _load_dataset(path, request)
 
             synthetic_count = request.total_cases - len(request.gold_cases)
-            teacher_ir = deepcopy(request.ir)
-            generated = self._case_generator.generate(teacher_ir, synthetic_count)
-            try:
-                teacher_ir_bytes = _canonical_json_bytes(teacher_ir)
-            except (
-                TypeError,
-                ValueError,
-                OverflowError,
-                UnicodeEncodeError,
-                RecursionError,
-            ) as error:
-                raise TeacherResponseError(
-                    f"teacher mutated the IR generation request into invalid JSON: {error}"
-                ) from error
-            if teacher_ir_bytes != _canonical_json_bytes(request.ir):
-                raise TeacherResponseError("teacher mutated the IR generation request")
+            generated = self._generate_valid(request, synthetic_count)
             cases = _assemble_cases(request, generated)
             document, payload_sha256 = _build_document(request, cases)
             encoded = _canonical_document_bytes(document)
@@ -249,6 +237,61 @@ class SyntheticDatasetGenerator:
             if not hmac.compare_digest(loaded.payload_sha256, payload_sha256):
                 raise DatasetCacheError("published dataset payload digest changed unexpectedly")
             return loaded
+
+    def _generate_valid(
+        self, request: _DatasetRequest, synthetic_count: int
+    ) -> tuple[GeneratedCase, ...]:
+        """Teacher cases that satisfy the constraints, replacing violators in bounded rounds.
+
+        A case whose label breaks an active constraint is a teacher mistake, not
+        data: the constraints are the authority on those inputs. It is dropped and
+        the shortfall is requested again, at most ``MAXIMUM_REPLACEMENT_ROUNDS``
+        times; a malformed case (schema, mutation of the IR) stays fatal.
+        """
+
+        kept: list[GeneratedCase] = []
+        rejected = 0
+        last_error: Exception | None = None
+        for round_index in range(MAXIMUM_REPLACEMENT_ROUNDS + 1):
+            wanted = synthetic_count - len(kept)
+            if wanted <= 0:
+                break
+            teacher_ir = deepcopy(request.ir)
+            generated = self._case_generator.generate(teacher_ir, wanted)
+            _assert_request_unchanged(request, teacher_ir)
+            for index, case in enumerate(generated):
+                try:
+                    request.constraints.validate_case(case, budget=request.constraint_budget)
+                except ConstraintViolationError as error:
+                    rejected += 1
+                    last_error = error
+                    continue
+                except (ConstraintConfigurationError, ConstraintEvaluationError) as error:
+                    raise TeacherResponseError(
+                        f"synthetic dataset case {index} is invalid for the snapshotted IR: {error}"
+                    ) from error
+                kept.append(case)
+            if rejected and len(kept) < synthetic_count:
+                _log.warning(
+                    "teacher %s: %d case(s) violated a constraint; requesting %d more (round %d)",
+                    request.descriptor.provider,
+                    rejected,
+                    synthetic_count - len(kept),
+                    round_index + 1,
+                )
+        if len(kept) < synthetic_count:
+            raise TeacherResponseError(
+                f"{rejected} teacher case(s) violated an active constraint and "
+                f"{MAXIMUM_REPLACEMENT_ROUNDS} replacement round(s) did not fill the shortfall: "
+                f"{last_error}"
+            )
+        if rejected:
+            _log.info(
+                "teacher %s: %d constraint-violating case(s) replaced",
+                request.descriptor.provider,
+                rejected,
+            )
+        return tuple(kept)
 
     def _prepare_request(self, ir: NeuralFunctionIr, total_cases: int) -> _DatasetRequest:
         try:
@@ -406,16 +449,30 @@ def _parse_gold_case(
     )
 
 
+def _assert_request_unchanged(request: _DatasetRequest, teacher_ir: NeuralFunctionIr) -> None:
+    try:
+        teacher_ir_bytes = _canonical_json_bytes(teacher_ir)
+    except (TypeError, ValueError, OverflowError, UnicodeEncodeError, RecursionError) as error:
+        raise TeacherResponseError(
+            f"teacher mutated the IR generation request into invalid JSON: {error}"
+        ) from error
+    if teacher_ir_bytes != _canonical_json_bytes(request.ir):
+        raise TeacherResponseError("teacher mutated the IR generation request")
+
+
 def _assemble_cases(
     request: _DatasetRequest,
     generated: tuple[GeneratedCase, ...],
 ) -> tuple[DatasetCase, ...]:
     cases = list(request.gold_cases)
     approximate_bytes = sum(len(_canonical_json_bytes(_case_document(case))) for case in cases)
+    # Schema and constraint validity were established as the cases were generated
+    # (``_generate_valid``); the schema check is repeated here because it is cheap
+    # and this function also serves cached documents, while the constraint check is
+    # not, so the aggregate evaluation budget is spent once per case.
     for index, case in enumerate(generated):
         try:
             validate_case(request.ir, case)
-            request.constraints.validate_case(case, budget=request.constraint_budget)
         except (
             TeacherConfigurationError,
             TeacherResponseError,

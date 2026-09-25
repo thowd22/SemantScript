@@ -526,3 +526,67 @@ def ir(*, constraints: list[dict[str, Any]] | None = None) -> dict[str, Any]:
             },
         },
     }
+
+
+class SkippingTeacher(RatioTeacher):
+    """Cannot produce a single-field twin for one anchor; every other anchor works."""
+
+    def generate_counterfactual(
+        self,
+        ir: dict[str, Any],
+        anchor: GeneratedCase,
+        /,
+    ) -> CounterfactualProposal:
+        if anchor.inputs["score"] == 1:
+            self.counterfactual_calls.append(anchor)
+            return CounterfactualProposal(
+                twin=GeneratedCase(inputs={"score": 2, "note": "two-fields"}, output=True),
+                reason="Two fields changed.",
+            )
+        return super().generate_counterfactual(ir, anchor)
+
+
+def test_anchor_without_a_valid_twin_is_skipped_for_the_next_ranked_spare(tmp_path: Path) -> None:
+    contract = ir()
+    cases = tuple(
+        GeneratedCase(inputs={"score": index, "note": f"case-{index}"}, output=False)
+        for index in range(4)
+    )
+    base = base_dataset(contract, tmp_path / "base", cases=cases, total=4)
+    teacher = SkippingTeacher()
+    generator = AdversarialDatasetGenerator(
+        teacher,
+        tmp_path / "cache",
+        config=AdversarialGenerationConfig(counterfactual_ratio=0.5, maximum_attempts=1),
+    )
+
+    dataset = generator.generate(contract, base)
+
+    assert len(dataset.pairs) == 2
+    sources = [pair.source_case_index for pair in dataset.pairs]
+    assert len(set(sources)) == 2
+    bad_index = next(index for index, case in enumerate(base.cases) if case.inputs["score"] == 1)
+    assert bad_index not in sources
+    # The cache entry with the substituted anchor reloads without the teacher.
+    again = AdversarialDatasetGenerator(
+        FakeAdversarialTeacher(),
+        tmp_path / "cache",
+        config=AdversarialGenerationConfig(counterfactual_ratio=0.5, maximum_attempts=1),
+    ).generate(contract, base)
+    assert again.dataset_sha256 == dataset.dataset_sha256
+
+
+def test_skips_are_bounded_by_the_pairs_wanted(tmp_path: Path) -> None:
+    contract = ir()
+    cases = tuple(
+        GeneratedCase(inputs={"score": 1, "note": f"case-{index}"}, output=False)
+        for index in range(3)
+    )
+    base = base_dataset(contract, tmp_path / "base", cases=cases, total=3)
+    generator = AdversarialDatasetGenerator(
+        SkippingTeacher(),
+        tmp_path / "cache",
+        config=AdversarialGenerationConfig(counterfactual_ratio=1.0, maximum_attempts=1),
+    )
+    with pytest.raises(AdversarialGenerationError, match="exactly one JSON path"):
+        generator.generate(contract, base)

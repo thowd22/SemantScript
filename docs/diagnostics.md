@@ -72,7 +72,9 @@ backend, `TeacherTransportError` for a network or API failure,
 `TeacherBatchError`/`TeacherBatchTimeout` for a Message Batch that did not
 complete) abort generation rather than producing a partial dataset; a
 malformed response is retried up to the adversarial `maximum_attempts` for
-boundary and counterfactual proposals. `UnsynthesizableConstraintError` means
+boundary and counterfactual proposals, and a synthetic case whose label
+violates an active constraint is replaced (three rounds at most) before
+`TeacherResponseError` names the constraint. `UnsynthesizableConstraintError` means
 a constraint has no reachable two-sided boundary pair (its predicate is
 constant, or no single-field edit crosses it): rewrite the predicate over the
 inputs so both sides are reachable.

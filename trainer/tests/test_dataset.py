@@ -486,3 +486,60 @@ def ir(*, examples: list[dict[str, Any]] | None = None) -> dict[str, Any]:
             },
         },
     }
+
+
+class QueuedTeacher:
+    """Answers each generate call with the next queued tuple of cases."""
+
+    def __init__(self, *responses: tuple[GeneratedCase, ...]) -> None:
+        self._responses = list(responses)
+        self.calls: list[int] = []
+        self.descriptor = TeacherDescriptor(
+            provider="fake", model="queued", configuration_sha256="a" * 64
+        )
+
+    def generate(self, ir: dict[str, Any], n: int, /) -> tuple[GeneratedCase, ...]:
+        self.calls.append(n)
+        if not self._responses:
+            raise AssertionError("no queued response")
+        return self._responses.pop(0)
+
+
+def constrained_ir() -> dict[str, Any]:
+    # A message equal to "spam" must be labeled true.
+    contract = ir()
+    contract["definition"]["constraints"] = [
+        {
+            "kind": "always",
+            "source": 'message === "spam"',
+            "predicate": {
+                "node": "binary",
+                "operator": "===",
+                "left": {"node": "input", "name": "message"},
+                "right": {"node": "literal", "value": "spam"},
+            },
+            "output": True,
+        }
+    ]
+    return contract
+
+
+def test_constraint_violating_teacher_cases_are_replaced(tmp_path: Path) -> None:
+    good = GeneratedCase(inputs={"message": "hello"}, output=False)
+    violating = GeneratedCase(inputs={"message": "spam"}, output=False)
+    replacement = GeneratedCase(inputs={"message": "spam"}, output=True)
+    teacher = QueuedTeacher((good, violating), (replacement,))
+
+    dataset = SyntheticDatasetGenerator(teacher, tmp_path).generate(constrained_ir(), 2)
+
+    assert teacher.calls == [2, 1]
+    assert [case.output for case in dataset.cases] == [False, True]
+
+
+def test_replacement_rounds_are_bounded(tmp_path: Path) -> None:
+    violating = GeneratedCase(inputs={"message": "spam"}, output=False)
+    teacher = QueuedTeacher(*([(violating,)] * 4))
+
+    with pytest.raises(TeacherResponseError, match="replacement round"):
+        SyntheticDatasetGenerator(teacher, tmp_path).generate(constrained_ir(), 1)
+    assert teacher.calls == [1, 1, 1, 1]

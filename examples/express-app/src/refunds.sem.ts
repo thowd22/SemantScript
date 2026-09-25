@@ -1,4 +1,4 @@
-import { sema } from "@semantscript/core";
+import { always, never, sema } from "@semantscript/core";
 
 export interface Customer {
   tier: "standard" | "enterprise";
@@ -42,6 +42,40 @@ export function decideRefund(customer: Customer, order: Order): RefundDecision {
         },
         output: "review",
       },
+    ],
+    // The policy's rules as constraints: the trainer labels and checks cases
+    // against them, and the release gate refuses a model that breaks one.
+    constraints: [
+      always(() => order.ageDays > 90, "deny"),
+      never(() => order.status === "fraudulent", "approve"),
+      always(
+        () => order.ageDays <= 90 && order.status === "fraudulent",
+        "review",
+      ),
+      always(
+        () =>
+          order.ageDays <= 90 &&
+          order.status === "paid" &&
+          ((customer.tier === "enterprise" && order.ageDays > 60) ||
+            (customer.tier === "standard" && order.ageDays > 30)),
+        "deny",
+      ),
+      always(
+        () =>
+          order.status === "paid" &&
+          ((customer.tier === "enterprise" && order.ageDays <= 60) ||
+            (customer.tier === "standard" && order.ageDays <= 30)) &&
+          customer.priorRefunds > 2,
+        "review",
+      ),
+      always(
+        () =>
+          order.status === "paid" &&
+          ((customer.tier === "enterprise" && order.ageDays <= 60) ||
+            (customer.tier === "standard" && order.ageDays <= 30)) &&
+          customer.priorRefunds <= 2,
+        "approve",
+      ),
     ],
   })`
     Decide a refund request. Deny orders older than 90 days. Never approve a

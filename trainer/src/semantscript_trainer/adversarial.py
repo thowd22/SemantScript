@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import math
 import os
 import re
@@ -54,6 +55,7 @@ ADVERSARIAL_DATASET_KIND = "semantscript.adversarial-dataset"
 ADVERSARIAL_DATASET_VERSION = 1
 MAXIMUM_ADVERSARIAL_CASE_COUNT = 50_000
 MAXIMUM_COMBINED_CASE_COUNT = 50_000
+_log = logging.getLogger(__name__)
 MAXIMUM_GENERATION_ATTEMPTS = 10
 
 _REQUEST_DIGEST_DOMAIN = b"semantscript.adversarial-request/v1\0"
@@ -340,6 +342,10 @@ class _AdversarialRequest:
     constraints: CompiledConstraints
     constraint_budget: ConstraintEvaluationBudget
     selected_indices: tuple[int, ...]
+    # Every synthetic index in deterministic ranking order; the first
+    # ``len(selected_indices)`` are the preferred anchors and the rest are spares
+    # taken, in order, for anchors whose counterfactual the teacher cannot produce.
+    candidate_indices: tuple[int, ...]
     expected_case_count: int
     cache_key_sha256: str
 
@@ -453,7 +459,8 @@ class AdversarialDatasetGenerator:
             len(synthetic_indices),
             float(self._config.counterfactual_ratio),
         )
-        selected_indices = _select_indices(base, synthetic_indices, selected_count)
+        candidate_indices = _rank_indices(base, synthetic_indices)
+        selected_indices = candidate_indices[:selected_count]
         expected_case_count = len(constraints) * 2 + len(selected_indices) * 2
         if (
             expected_case_count > MAXIMUM_ADVERSARIAL_CASE_COUNT
@@ -497,6 +504,7 @@ class AdversarialDatasetGenerator:
             constraints=constraints,
             constraint_budget=constraint_budget,
             selected_indices=selected_indices,
+            candidate_indices=candidate_indices,
             expected_case_count=expected_case_count,
             cache_key_sha256=cache_key,
         )
@@ -563,15 +571,36 @@ class AdversarialDatasetGenerator:
                     )
                 )
 
-        for pair_ordinal, source_index in enumerate(request.selected_indices):
+        wanted = len(request.selected_indices)
+        skipped = 0
+        last_skip: AdversarialGenerationError | None = None
+        for source_index in request.candidate_indices:
+            pair_ordinal = len(pairs)
+            if pair_ordinal >= wanted:
+                break
             source = request.base.cases[source_index]
             anchor = GeneratedCase(inputs=source.inputs, output=source.output)
-            proposal, changed_path = self._counterfactual_proposal(
-                request,
-                source_index,
-                anchor,
-                known_labels,
-            )
+            try:
+                proposal, changed_path = self._counterfactual_proposal(
+                    request,
+                    source_index,
+                    anchor,
+                    known_labels,
+                )
+            except AdversarialGenerationError as error:
+                # An anchor with no single-field twin the teacher can find (or that
+                # it keeps getting wrong) is not worth the build: take the next
+                # ranked spare instead, up to as many skips as pairs wanted.
+                skipped += 1
+                last_skip = error
+                _log.warning(
+                    "counterfactual anchor %d skipped after %d attempt(s); trying the next candidate",
+                    source_index,
+                    request.config.maximum_attempts,
+                )
+                if skipped > wanted:
+                    raise
+                continue
             pair_id = _pair_id(request.cache_key_sha256, pair_ordinal, source_index)
             anchor_ordinal = len(cases)
             anchor_document = {
@@ -634,6 +663,10 @@ class AdversarialDatasetGenerator:
                 )
             )
             pairs.append(pair)
+        if len(pairs) < wanted:
+            raise AdversarialGenerationError(
+                f"only {len(pairs)} of {wanted} counterfactual pairs could be generated: {last_skip}"
+            ) from last_skip
         return tuple(cases), tuple(pairs)
 
     def _boundary_proposal(
@@ -942,11 +975,9 @@ def _ratio_count(total: int, ratio: float) -> int:
     return min(total, math.floor(total * ratio + 0.5))
 
 
-def _select_indices(
-    base: TrainingDataset,
-    candidates: tuple[int, ...],
-    count: int,
-) -> tuple[int, ...]:
+def _rank_indices(base: TrainingDataset, candidates: tuple[int, ...]) -> tuple[int, ...]:
+    """Every candidate index in the deterministic order anchors are taken from."""
+
     ranked: list[tuple[str, int]] = []
     for index in candidates:
         case = base.cases[index]
@@ -955,7 +986,7 @@ def _select_indices(
         )
         ranked.append((hashlib.sha256(encoded).hexdigest(), index))
     ranked.sort()
-    return tuple(index for _, index in ranked[:count])
+    return tuple(index for _, index in ranked)
 
 
 def _bounded_growth(current: int, *documents: Mapping[str, object]) -> int:
@@ -1393,8 +1424,15 @@ def _validate_cached_semantics(
                 raise AdversarialCacheError(str(error)) from error
 
     by_id = {case.case_id: case for case in cases}
-    if tuple(pair.source_case_index for pair in pairs) != request.selected_indices:
-        _bad_cache("counterfactual source selection does not match the configured ratio")
+    sources = tuple(pair.source_case_index for pair in pairs)
+    rank = {index: position for position, index in enumerate(request.candidate_indices)}
+    if (
+        len(sources) != len(request.selected_indices)
+        or len(set(sources)) != len(sources)
+        or any(index not in rank for index in sources)
+        or list(sources) != sorted(sources, key=lambda index: rank[index])
+    ):
+        _bad_cache("counterfactual source selection does not follow the ranked candidates")
     for pair_ordinal, pair in enumerate(pairs):
         anchor = by_id.get(pair.anchor_case_id)
         twin = by_id.get(pair.twin_case_id)

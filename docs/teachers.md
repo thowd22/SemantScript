@@ -129,7 +129,8 @@ provider, model, configuration digest, no secrets) and `generate(ir, n)`
 returning `n` `GeneratedCase` values; one that also implements
 `generate_boundary_pair(ir, index)` and `generate_counterfactual(ir, anchor)`
 serves expressions with constraints. The trainer validates every case
-against the IR, rejects a label that violates an active constraint, refuses
+against the IR, drops a case whose label violates an active constraint and
+asks for a replacement (three rounds at most, then it fails), refuses
 conflicting labels for one input, and caches datasets by the teacher's
 identity, so two teachers never share a cache entry. The rule teacher in
 `examples/refund-service/train.py` is a complete, dependency-free example.

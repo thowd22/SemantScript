@@ -798,6 +798,56 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   assert.match(testRun.stderr(), /elsewhere\/artifact/u);
 });
 
+test("--teacher constraints reaches train, its preflight and doctor as the built-in keyword", async (t) => {
+  const root = await scratch(t, "semantscript-cli-constraints-");
+  await mkdir(join(root, "dist"));
+  await writeFile(join(root, "dist", "semantscript.ir.v1.json"), "{}");
+  const argvPath = join(root, "argv.json");
+  const doctorArgvPath = join(root, "doctor-argv.json");
+  const env = {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_ARGV_PATH: argvPath,
+    FAKE_DOCTOR_ARGV_PATH: doctorArgvPath,
+    FAKE_TRAINER_EXIT: "0",
+    FAKE_TRAINER_SKIP_REPORT: "",
+    ANTHROPIC_API_KEY: "",
+  };
+  const python = process.platform === "win32" ? "python" : "python3";
+  const base = ["--python", python, "--trainer-module", "fake_trainer"];
+  const teacherOf = async (path) => {
+    const argv = JSON.parse(await readFile(path, "utf8")).argv;
+    return argv[argv.indexOf("--teacher") + 1];
+  };
+
+  const train = capture(root, env);
+  assert.equal(
+    await runCli(["train", ...base, "--teacher", "constraints"], train.io),
+    0,
+    train.stderr(),
+  );
+  assert.equal(await teacherOf(argvPath), "constraints");
+  assert.equal(await teacherOf(doctorArgvPath), "constraints");
+  assert.ok(!existsSync(join(root, ".semantscript", "teacher.toml")));
+
+  const doctor = capture(root, env);
+  assert.equal(
+    await runCli(["doctor", ...base, "--teacher", "constraints"], doctor.io),
+    0,
+    doctor.stderr(),
+  );
+  assert.equal(await teacherOf(doctorArgvPath), "constraints");
+
+  // A file of that name is a teacher file like any other.
+  await writeFile(join(root, "constraints"), "[teacher]\n");
+  const file = capture(root, env);
+  assert.equal(
+    await runCli(["train", ...base, "--teacher", "constraints"], file.io),
+    0,
+    file.stderr(),
+  );
+  assert.equal(await teacherOf(argvPath), join(root, "constraints"));
+});
+
 test("dev builds and trains, reruns on a saved source change with the cache, and stops on abort", async (t) => {
   const root = await scratch(t, "semantscript-cli-dev-");
   const configPath = await createProject(root, { "app.sem.ts": program });

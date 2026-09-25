@@ -80,12 +80,92 @@ rather than per-token dollars; it is a training-only teacher with its own
 provenance identity (`anthropic-claude-cli-training-only`) and is documented
 in `benchmarks/refund/program/CLAUDE_CLI_TRAINING.md`.
 
-**No teacher: constraint labels.** When an expression's constraints are
-complete (for every input exactly one output satisfies them), the constraints
-label sampled inputs directly and the boundary pairs and counterfactuals come
-from single-field edits. The reference application trains all nine of its
-expressions this way (`examples/refund-service/train.py`), and the refund
-benchmark's release corpus labels its real inputs the same way (decision-7).
+**Constraints** (built in, no language model and no key, decision-12):
+
+```sh
+semantscript train --teacher constraints
+```
+
+or, to set its options, a table:
+
+```toml
+[teacher]
+backend = "constraints"
+seed = 1                  # the sampling seed
+twin_filter = true        # keep only inputs one field edit can move to another output
+near_threshold_share = 0.3
+
+[teacher.ranges]          # optional; by dotted input path or field name
+total = { low = 0, high = 8000, distribution = "log", decimals = 1 }
+"order.ageDays" = { low = 0, high = 120 }   # distribution uniform | log | count
+```
+
+When an expression's constraints are complete (for every input exactly one
+output violates no active `always` or `never`), they are a labelling
+function. This backend samples inputs from the IR's input types (objects,
+optional fields, unions, enums, literals, booleans, strings, numbers,
+tuples, arrays), labels each with the one output the constraints admit, and
+builds the adversarial cases the same way: a boundary pair is two labelled
+inputs one field apart with the predicate false on one side and true on the
+other, and a counterfactual twin is a single-field edit that changes the
+label. Sampling is threshold-aware: every comparison between an input path
+and a literal (`order.total > 1000`, `ticket.category === "outage"`)
+records a threshold or a string for that path, three draws in ten land on
+or one step beside a threshold, and a string mostly takes the values the
+predicates compare it with. A numeric range is inferred from the thresholds
+and the gold examples (up to twice the largest threshold; `count`, zero half
+the time, when every threshold is a small integer; `log` when the range
+reaches 1,000; decimals when a threshold or an example has them), and
+`[teacher.ranges]` overrides it. The reference application trains all nine
+of its expressions this way (`examples/refund-service`, `npm run train`),
+and the refund benchmark's release corpus labels its real inputs the same
+way (decision-7).
+
+The teacher's identity in provenance is provider `constraints`, model
+`compiled-constraints-v1` and, as the configuration digest, the SHA-256 of
+the sampling configuration (seed, twin filter, near-threshold share, ranges
+and the algorithm version), so changing any of them regenerates the cached
+datasets.
+
+An expression whose constraints do not decide some input stops the build
+with that input and what the constraints admit:
+
+```text
+error: src/refund.sem.ts:17 (nf_7d1c02a6): the constraints do not decide every input, so the
+constraints teacher cannot label it alone. For the input {"customer":{"priorRefunds":0,
+"tier":"standard"},"order":{"ageDays":12,"status":"paid","total":88}} the constraints admit
+"approve", "deny", "review". Add constraints until exactly one output is admissible for every
+input, or add a [teacher.fallback] table with a language-model teacher to label the inputs the
+constraints leave open (docs/teachers.md)
+```
+
+**Mixed: constraints plus a language-model fallback.** Add a fallback table
+and the constraints label the inputs they decide while the language model
+labels the rest:
+
+```toml
+[teacher]
+backend = "constraints"
+
+[teacher.fallback]
+backend = "anthropic"
+model = "claude-sonnet-5"
+```
+
+The fallback takes any key of the Anthropic or Ollama tables above. The
+constraints label the share of inputs they decide (estimated from a seeded
+pilot sample of 512 inputs); the fallback generates the rest; any fallback
+case whose input the constraints decide takes the constraints' label; and a
+boundary pair or twin the constraints cannot build on both sides comes from
+the fallback, its decided side relabelled. An expression the constraints
+decide completely sends the fallback no request, and one with no constraints
+goes to the fallback entirely. The provenance provider is
+`constraints+<fallback backend>`, the model is the fallback's, and the digest
+covers the sampling configuration and the fallback's identity.
+
+Whatever the teacher, verification reproduces every gold example exactly and
+refuses an expression with none, so `train` stops before generating anything
+when an expression has no `examples` entry and names it.
 
 ## Checking a teacher before a run
 
@@ -100,6 +180,10 @@ key check fails with the fix `export ANTHROPIC_API_KEY="$OPENROUTER_API_KEY"`
 (on Windows, `$env:ANTHROPIC_API_KEY = $env:OPENROUTER_API_KEY` in PowerShell
 and `set "ANTHROPIC_API_KEY=%OPENROUTER_API_KEY%"` in cmd), because the
 backend reads only `ANTHROPIC_API_KEY`.
+
+For the constraints backend the key check passes with no key and the probe
+is skipped (it sends no request); with a `[teacher.fallback]` table both
+checks are the fallback's.
 
 `train` runs the same checks first without the billed request (for Ollama it
 only asks the server for its model list and fails with `ollama pull <model>`
@@ -131,7 +215,7 @@ with them (0.98).
 | Claude Code CLI (Sonnet 5)        | subscription quota, about two cents list-equivalent | 4 to 6 s (2.3 s at concurrency 4) | refund pilot corpus, 2026-09-23                                 |
 | Qwen3-14B via Ollama, local       | none                                                | 0.17 s p50 on the GPU             | 1,800 labels                                                    |
 | Jev (typed-decision model)        | USD 0.00004 (not a teacher; see decision-11)        | 0.15 s                            | 160 cases, `results-jev-2026-09-25`                             |
-| Constraint labels                 | none                                                | microseconds                      | refund service, nine expressions                                |
+| Constraints (built in)            | none                                                | microseconds                      | refund service, nine expressions                                |
 
 A first build of one expression with 200 cases through Sonnet costs about
 USD 0.60 in labels and a minute of GPU time; every later build reuses the
@@ -171,5 +255,7 @@ serves expressions with constraints. The trainer validates every case
 against the IR, drops a case whose label violates an active constraint and
 asks for a replacement (three rounds at most, then it fails), refuses
 conflicting labels for one input, and caches datasets by the teacher's
-identity, so two teachers never share a cache entry. The rule teacher in
-`examples/refund-service/train.py` is a complete, dependency-free example.
+identity, so two teachers never share a cache entry. The built-in
+constraints teacher (`semantscript_trainer/teachers/constraints.py`) is a
+complete, dependency-free example, and `create_teacher` and
+`ConstraintsTeacher(fallback=...)` compose it with any other teacher.

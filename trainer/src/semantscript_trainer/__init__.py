@@ -129,6 +129,8 @@ from semantscript_trainer.teacher import (
     TeacherTransportError,
 )
 from semantscript_trainer.teacher_config import (
+    ConstraintsTeacherConfig,
+    NumberRange,
     TeacherConfig,
     create_teacher,
     load_teacher_config,
@@ -269,6 +271,7 @@ __all__ = [
     "ConstraintError",
     "ConstraintEvaluationError",
     "ConstraintViolationError",
+    "ConstraintsTeacherConfig",
     "CounterfactualPair",
     "CounterfactualProposal",
     "DatasetCacheError",
@@ -288,6 +291,7 @@ __all__ = [
     "InputErrorReason",
     "InputPath",
     "LossName",
+    "NumberRange",
     "OutputHead",
     "PairRole",
     "QuantizationConfig",

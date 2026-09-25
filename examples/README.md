@@ -20,7 +20,8 @@ it after `npm run build` at the root is enough to build it.
 - [`refund-service`](refund-service/README.md): the reference application. A
   refunds, tickets and orders API over Postgres (PGlite) whose business policy
   is nine sema expressions in three routed, depth-6 domains; trained from its
-  own constraints by `train.py` with no language-model teacher, with a
+  own constraints by `semantscript train --teacher constraints` with no
+  language-model teacher, with a
   walkthrough of the source, the compiled output, the artifact, the line tally
   and per-expression accuracy and latency.
 

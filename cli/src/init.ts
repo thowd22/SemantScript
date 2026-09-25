@@ -633,7 +633,7 @@ function render(
     "next steps:",
     "  1. npm install",
     `  2. ${buildInstructions(tool)}   (writes the IR bundle next to the build output)`,
-    "  3. semantscript train   (uses ANTHROPIC_API_KEY with the default teacher, or --teacher <toml>)",
+    "  3. semantscript train   (uses ANTHROPIC_API_KEY with the default teacher, --teacher <toml>, or --teacher constraints when the constraints decide every input)",
     `  4. call loadSemaArtifact() once at startup; it reads ${DEFAULT_ARTIFACT_PATH} unless ${ARTIFACT_ENVIRONMENT_VARIABLE} is set`,
     "  editor: after npm install, hover a sema expression for its verified accuracy (VS Code loads the plugin from node_modules; no extension needed)",
     "",

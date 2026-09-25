@@ -17,7 +17,7 @@ src/orders.ts        POST /orders/:orderId/screen    runs the fraud chain, holds
 src/db.ts            PGlite (Postgres 17 in process), schema and seed rows
 src/app.ts           createApp(): Express + controllers; re-exports the sema functions
 src/server.ts        loadSemaArtifact(); listen
-train.py             trains the artifact from the constraints, no LLM teacher
+scripts/heldout.py   the held-out set measure scores, labelled by the constraints
 scripts/measure.mjs  held-out accuracy and latency per expression through the runtime
 scripts/tally.mjs    lines of logic per category (the table below)
 test/app.test.mjs    the bundle's domains and plan; handlers over PGlite
@@ -36,7 +36,7 @@ cd examples/refund-service
 npm install                   # links ../../compiler, ../../runtime, ../../framework
 npm run build                 # tspc: dist/*.js and dist/semantscript.ir.v1.json
 npm test                      # bundle shape and fixture-artifact handlers, no training needed
-npm run train                 # GPU and the Python training extra in the active python3 (activate .venv first), ~4 min: .semantscript/artifact, train-report.json, heldout.json
+npm run train                 # semantscript train --teacher constraints on the GPU (the Python training extra in the active python3; activate .venv first), ~11 min: .semantscript/artifact, train-report.json, then heldout.json
 npm test                      # again: now the trained-artifact handlers run too
 npm run measure               # held-out accuracy, ECE and latency per expression
 npm start                     # http://localhost:3000
@@ -151,7 +151,8 @@ Three parts, and each has a job in the build:
   call: the runtime returns the calibrated prediction. In this service every expression's
   constraints are _complete_: for any input exactly one output satisfies them
   all. That is a design choice, not a language requirement, and it is what
-  lets the trainer label the corpus without a teacher.
+  lets the built-in constraints teacher label the corpus with no language
+  model.
 - **The gold examples** are attested cases the verifier must reproduce
   exactly. They are also the seed rows in `src/db.ts`, so the HTTP examples
   above are verified behavior.
@@ -231,28 +232,42 @@ plan. The plan is where the domains and the chain show up:
 
 ## Training without a language model
 
-`train.py` is the ordinary `train_bundle` path (synthetic corpus, adversarial
-cases, joint training over the shared encoder, calibration, verification,
-build cache, artifact export) with one substitution: the teacher. Because
-every expression's constraints are complete, the teacher samples structured
-inputs from the IR's input types (numbers biased toward the thresholds the
-predicates mention, counts that are often zero, amounts on a log scale) and
-labels each input with the one output that violates no constraint. Boundary
-pairs are two labeled inputs one field apart on either side of a predicate;
-counterfactual twins are single-field edits that change the label. The corpus
-keeps only inputs that one edit can move across the policy, since any training
-row may be chosen as a counterfactual anchor.
+`npm run train` is plain `semantscript train --teacher constraints` with
+this service's recipe (800 cases per expression, 12 epochs keeping the best
+held-out epoch, counterfactual ratio 0.5, the 0.5% violation tolerance, on
+`cuda`), then `npm run heldout`. The built-in constraints teacher is the
+ordinary `train_bundle` path (synthetic corpus, adversarial cases, joint
+training over the shared encoder, calibration, verification, build cache,
+artifact export) with labels from the constraints instead of a language
+model. Because every expression's constraints are complete, it samples
+structured inputs from the IR's input types (numbers over ranges inferred
+from the thresholds the predicates mention and the gold examples, with three
+draws in ten on or beside a threshold; counts that are often zero; amounts on
+a log scale) and labels each input with the one output that violates no
+constraint. Boundary pairs are two labelled inputs one field apart on either
+side of a predicate; counterfactual twins are single-field edits that change
+the label. The corpus keeps only inputs that one edit can move across the
+policy, since any training row may be chosen as a counterfactual anchor. No
+range is configured here: the inferred ones train every expression (a
+`semantscript.teacher.toml` with `backend = "constraints"` and
+`[teacher.ranges]` would override them; see
+[teachers](../../docs/teachers.md)).
 
-The teacher's identity (`constraint-rule`, its sampling configuration digest)
-is recorded in every function's training provenance like any other teacher,
-so the artifact says where its labels came from. Gold examples are the
-attested cases; teacher labels are never recorded as human-authored.
+The teacher's identity (provider `constraints`, model
+`compiled-constraints-v1`, and its sampling configuration digest
+`c58c02b8…`) is recorded in every function's training provenance like any
+other teacher, so the artifact says where its labels came from. Gold examples
+are the attested cases; teacher labels are never recorded as human-authored.
+`scripts/heldout.py` draws 200 inputs per expression from the teacher's
+separate `heldout` stream and drops any input found in a cached training or
+adversarial dataset, so the held-out set is disjoint from what was trained.
 
 This is the real-input path decision-7 describes: when the policy is fully
 stated as constraints, no API key and no language model are needed to train
 it. A policy with judgment in it (the text says more than the constraints do)
 needs a teacher that can read; `semantscript train` with an Anthropic or
-Ollama teacher takes the same bundle.
+Ollama teacher takes the same bundle, or the constraints teacher with that
+teacher as its `[teacher.fallback]` for the inputs the constraints leave open.
 
 ## The artifact
 
@@ -262,7 +277,7 @@ immutable release with a manifest, and the routed layout is visible in its
 resources:
 
 ```text
-.semantscript/artifact/  (release 55efd40c3dca…, 279 MB)
+.semantscript/artifact/  (release 2f9eb3e890d1…, 278 MB)
   tokenizer/tokenizer.json                                   tokenizer     1.6 MB   ref tokenizer.main
   models/encoder/depth-006.onnx                              encoder     275.3 MB   ref encoder.refund-service.depth-006
   models/adapters/adapter-refund-service-orders.onnx         adapter       0.4 MB   ref adapter.refund-service.orders
@@ -327,31 +342,33 @@ constraint.
 
 Measured on the development machine (AMD Ryzen 9 9900X, WSL2, Node
 v22.22.0, CPU inference through ONNX Runtime) with `npm run measure`:
-200 held-out inputs per expression sampled with a different seed than the
-training corpus and labeled by the constraints, scored through the Node
-runtime; the ECE is the verifier's 15-bin calibration error from
-`.semantscript/train-report.json`. Latency is per call, after a 20-call
-warm-up, one expression at a time.
+200 held-out inputs per expression drawn by `scripts/heldout.py` from the
+constraints teacher's `heldout` stream (a different stream than the training
+corpus, with every cached training input excluded) and labeled by the
+constraints, scored through the Node runtime; the ECE is the verifier's
+15-bin calibration error from `.semantscript/train-report.json`. Latency is
+per call, after a 20-call warm-up, one expression at a time.
 
 | Expression               | Domain  | Held-out accuracy | Verification ECE | p50 ms | p95 ms |
 | ------------------------ | ------- | ----------------- | ---------------- | ------ | ------ |
-| `src/orders.sem.ts:36`   | orders  | 100.0% (200/200)  | 0.0000           | 4.67   | 8.21   |
-| `src/orders.sem.ts:103`  | orders  | 99.5% (199/200)   | 0.0000           | 3.38   | 4.38   |
-| `src/orders.sem.ts:122`  | orders  | 100.0% (200/200)  | 0.0000           | 3.85   | 5.40   |
-| `src/refunds.sem.ts:28`  | refunds | 100.0% (200/200)  | 0.0000           | 4.44   | 8.02   |
-| `src/refunds.sem.ts:97`  | refunds | 100.0% (200/200)  | 0.0000           | 4.43   | 5.68   |
-| `src/refunds.sem.ts:143` | refunds | 100.0% (200/200)  | 0.0000           | 4.63   | 6.74   |
-| `src/tickets.sem.ts:15`  | tickets | 100.0% (200/200)  | 0.0000           | 3.98   | 5.09   |
-| `src/tickets.sem.ts:74`  | tickets | 100.0% (200/200)  | 0.0000           | 4.20   | 6.82   |
-| `src/tickets.sem.ts:123` | tickets | 100.0% (200/200)  | 0.0000           | 4.15   | 5.50   |
+| `src/orders.sem.ts:36`   | orders  | 100.0% (200/200)  | 0.0000           | 5.46   | 8.99   |
+| `src/orders.sem.ts:103`  | orders  | 99.5% (199/200)   | 0.0000           | 4.33   | 5.61   |
+| `src/orders.sem.ts:122`  | orders  | 99.5% (199/200)   | 0.0000           | 5.21   | 7.67   |
+| `src/refunds.sem.ts:28`  | refunds | 100.0% (200/200)  | 0.0000           | 5.47   | 9.04   |
+| `src/refunds.sem.ts:97`  | refunds | 100.0% (200/200)  | 0.0000           | 5.11   | 8.09   |
+| `src/refunds.sem.ts:143` | refunds | 100.0% (200/200)  | 0.0000           | 5.48   | 7.82   |
+| `src/tickets.sem.ts:15`  | tickets | 100.0% (200/200)  | 0.0000           | 4.89   | 6.67   |
+| `src/tickets.sem.ts:74`  | tickets | 100.0% (200/200)  | 0.0000           | 4.62   | 5.95   |
+| `src/tickets.sem.ts:123` | tickets | 100.0% (200/200)  | 0.0000           | 5.19   | 7.52   |
 
 Held-out misses:
 
-- `src/orders.sem.ts:103`: 1 of 200, for example inputs `{"order":{"total":1905.2},"flag":"watch"}` expected `false` and got `true`.
+- `src/orders.sem.ts:103`: 1 of 200, inputs `{"order":{"total":2011},"flag":"watch"}` expected `true` and got `false` (a 2,000 rule).
+- `src/orders.sem.ts:122`: 1 of 200, inputs `{"order":{"total":7554},"flag":"flag","account":{"priorRefunds":0}}` expected `"legal"` and got `"analyst"` (a 5,000 rule).
 
-The p50 across expressions spans 3.38 to 4.67 ms per call on the CPU; the two-stage `screenOrder` chain costs three calls in a request. The verifier's ECE is on the calibration split; accuracy here is on fresh inputs the trainer never saw.
+The p50 across expressions spans 4.33 to 5.48 ms per call on the CPU; the two-stage `screenOrder` chain costs three calls in a request. The verifier's ECE is on the calibration split; accuracy here is on fresh inputs the trainer never saw.
 
-Training: 2026-09-25, 9 expressions jointly over one ModernBERT-base encoder cut to 6 layers and three adapters, 14456 rows in all (800 sampled cases plus boundary pairs and counterfactual twins per expression, three gold examples each), 12 epochs with the best held-out epoch kept (selected epochs 8), on an AMD Radeon RX 9070 XT. Every expression passed verification; the configured raw-violation tolerance was 0.5% and the published release recorded 0 raw violations across 14,456 verification records. The report is `.semantscript/train-report.json`; the build cache under `.semantscript/cache` makes an unchanged rebuild a no-op.
+Training: 2026-09-25, `npm run train` (the built-in constraints teacher, `semantscript train --teacher constraints`), 9 expressions jointly over one ModernBERT-base encoder cut to 6 layers and three adapters, 14456 rows in all (800 sampled cases plus boundary pairs and counterfactual twins per expression, three gold examples each), 12 epochs with the best held-out epoch kept (selected epoch 3), on an AMD Radeon RX 9070 XT, 11 minutes wall clock including generation, export and the held-out draw. Every expression passed verification with accuracy 1.0000 and ECE 0.0000; the configured raw-violation tolerance was 0.5% and the published release (`2f9eb3e890d1…`) recorded 0 constraint violations across 14,456 verification records. The earlier release from the example's custom driver (`55efd40c3dca…`) scored 200/200 on eight expressions and 199/200 on one on its own held-out draw. The report is `.semantscript/train-report.json`; the build cache under `.semantscript/cache` makes an unchanged rebuild a no-op.
 
 ## Tests
 

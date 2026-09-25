@@ -33,7 +33,12 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from semantscript_trainer.teacher import TeacherConfigurationError
-from semantscript_trainer.teacher_config import TeacherConfig, create_teacher, load_teacher_config
+from semantscript_trainer.teacher_config import (
+    ConstraintsTeacherConfig,
+    TeacherConfig,
+    create_teacher,
+    load_teacher_config,
+)
 
 REPORT_KIND = "semantscript.doctor-report"
 REPORT_VERSION = 1
@@ -660,7 +665,13 @@ def _teacher_checks(
                 ),
                 *skipped,
             ]
-        where = str(teacher_path)
+        where = (
+            "built-in"
+            if isinstance(config, ConstraintsTeacherConfig) and not Path(teacher_path).exists()
+            else str(teacher_path)
+        )
+        if isinstance(config, ConstraintsTeacherConfig):
+            return _constraints_checks(config, where, probe, env, prober)
     elif default_teacher_model is not None:
         config = TeacherConfig(backend="anthropic", model=default_teacher_model)
         where = "no teacher file; train writes .semantscript/teacher.toml for"
@@ -699,6 +710,68 @@ def _teacher_checks(
     checks.append(
         Check("teacher-probe", "pass" if result.ok else "fail", result.summary, result.fix)
     )
+    return checks
+
+
+def _constraints_checks(
+    config: ConstraintsTeacherConfig,
+    where: str,
+    probe: ProbeMode,
+    env: Mapping[str, str],
+    prober: TeacherProber,
+) -> list[Check]:
+    """The constraints teacher needs no key and sends no request; its fallback may."""
+
+    ranges = len(config.ranges)
+    described = (
+        f"{where} constraints teacher (seed {config.seed}, "
+        f"{ranges} range override{'' if ranges == 1 else 's'}"
+    )
+    if config.fallback is None:
+        return [
+            Check(
+                "teacher-config",
+                "pass",
+                described + "; an expression whose constraints do not decide an input fails)",
+            ),
+            Check("teacher-key", "pass", "the constraints teacher needs no key"),
+            Check("teacher-probe", "skip", "the constraints teacher sends no request"),
+        ]
+    fallback = config.fallback
+    checks = [
+        Check(
+            "teacher-config",
+            "pass",
+            described + f"; fallback {_describe(fallback)[1:-1]} for the inputs they leave open)",
+        )
+    ]
+    key_check = _key_check(fallback, env)
+    checks.append(
+        Check("teacher-key", key_check.status, f"fallback: {key_check.summary}", key_check.fix)
+    )
+    if key_check.status == "fail":
+        checks.append(Check("teacher-probe", "skip", "not probed: the fallback key is missing"))
+    elif probe == "none":
+        checks.append(Check("teacher-probe", "skip", "not probed (--probe none)"))
+    elif probe == "free" and fallback.backend != "ollama":
+        checks.append(
+            Check(
+                "teacher-probe",
+                "skip",
+                "not probed: a request to the fallback backend is billed; run semantscript "
+                "doctor to send one",
+            )
+        )
+    else:
+        result = prober(_with_key(fallback, env), probe)
+        checks.append(
+            Check(
+                "teacher-probe",
+                "pass" if result.ok else "fail",
+                f"fallback: {result.summary}",
+                result.fix,
+            )
+        )
     return checks
 
 
@@ -900,7 +973,9 @@ def _probe_fix(config: TeacherConfig, error: Exception) -> str:
 def add_arguments(parser: Any) -> None:
     """The ``doctor`` subcommand's options (shared by ``semantscript_trainer.cli``)."""
 
-    parser.add_argument("--teacher", type=Path, help="teacher TOML to check")
+    parser.add_argument(
+        "--teacher", type=Path, help="teacher TOML to check, or the keyword constraints"
+    )
     parser.add_argument(
         "--default-teacher-model",
         help="check the default Anthropic teacher with this model when no file exists",

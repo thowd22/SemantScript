@@ -163,6 +163,7 @@ def train_bundle(
 
     say = log if log is not None else (lambda _message: None)
     functions = _bundle_functions(bundle)
+    _require_gold_examples(functions)
     if isinstance(cases, bool) or not isinstance(cases, int) or cases < 0:
         raise TrainBundleError("cases must be a non-negative integer")
     resolved_training = training_config if training_config is not None else TrainingConfig()
@@ -708,6 +709,30 @@ def _bundle_functions(bundle: Mapping[str, Any]) -> list[NeuralFunctionIr]:
     return resolved
 
 
+def _require_gold_examples(functions: Sequence[NeuralFunctionIr]) -> None:
+    """Fail before any generation when an expression has nothing to verify against.
+
+    Verification reproduces every gold example exactly and refuses a function with
+    none, whatever the teacher, so a bundle with such an expression cannot publish.
+    """
+
+    missing = [
+        ir
+        for ir in functions
+        if not cast(list[Any], cast(dict[str, Any], ir["definition"]).get("examples") or [])
+    ]
+    if not missing:
+        return
+    from semantscript_trainer.teachers.constraints import describe_expression
+
+    names = ", ".join(describe_expression(ir) for ir in missing)
+    raise TrainBundleError(
+        f"{names} {'has' if len(missing) == 1 else 'have'} no gold examples: verification "
+        "needs at least one attested example per expression, whatever the teacher. Add an "
+        "examples: [{ inputs, output }] entry to the sema call"
+    )
+
+
 def _application_id(ir: NeuralFunctionIr) -> str:
     encoder_ref = cast(str, cast(dict[str, Any], ir["model"])["encoder"])
     prefix = "encoder."
@@ -845,7 +870,13 @@ def _build_parser() -> argparse.ArgumentParser:
     train = commands.add_parser("train", help="produce an artifact from an IR bundle")
     train.add_argument("--bundle", required=True, type=Path, help="compiler IR bundle")
     train.add_argument("--artifact", required=True, type=Path, help="artifact root to publish")
-    train.add_argument("--teacher", required=True, type=Path, help="TOML with a [teacher] table")
+    train.add_argument(
+        "--teacher",
+        required=True,
+        type=Path,
+        help="TOML with a [teacher] table, or the keyword constraints for the built-in "
+        "constraints teacher",
+    )
     train.add_argument("--cache-dir", type=Path, default=Path(".semantscript/cache"))
     train.add_argument("--report", type=Path, help="where to write the JSON report")
     train.add_argument("--cases", type=int, default=DEFAULT_CASES)

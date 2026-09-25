@@ -8,12 +8,12 @@ the behavior in prose.
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
                    [--python <exe>] [--trainer-module <module>]
-semantscript doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none]
+semantscript doctor [--python <exe>] [--teacher <teacher.toml>|constraints] [--probe request|free|none]
                     [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher]
                     [--runtime] [--json]
 semantscript build [--project tsconfig.json] [--application <id>] [--bundle <path>]
                    [--route-domains] [--domain-depth <name>=<layers>]...
-semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>] [options]
+semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints] [options]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
@@ -35,14 +35,14 @@ column, code and site text.
 
 Every command runs without flags in an initialised project:
 
-| Setting            | Resolution                                                                                                                                                                                                                                                   |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Project            | `--project`, else `tsconfig.json` in the working directory.                                                                                                                                                                                                  |
-| Bundle             | `--bundle`, else `semantscript.ir.v1.json` under the tsconfig `outDir`, then `.`, `dist`, `out`, `build`.                                                                                                                                                    |
-| Artifact root      | `--artifact`, else `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact`. The runtime's `loadSemaArtifact()` with no path resolves the same way, searching upward from the compiled entry script and then from the working directory.                       |
-| Teacher            | `--teacher`, else the first of `semantscript.teacher.toml`, `teacher.toml`, `.semantscript/teacher.toml`; else, when `ANTHROPIC_API_KEY` is set, `train` writes `.semantscript/teacher.toml` for `claude-sonnet-5` and uses it. The key never enters a file. |
-| Python interpreter | `--python`, else `SEMANTSCRIPT_PYTHON`, else `python3` (`python` on Windows). Inside this repository the trainer and model sources (and `.python-packages` when present) are prepended to `PYTHONPATH`.                                                      |
-| Cache directory    | `--cache-dir`, else `.semantscript/cache`.                                                                                                                                                                                                                   |
+| Setting            | Resolution                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project            | `--project`, else `tsconfig.json` in the working directory.                                                                                                                                                                                                                                                                                                               |
+| Bundle             | `--bundle`, else `semantscript.ir.v1.json` under the tsconfig `outDir`, then `.`, `dist`, `out`, `build`.                                                                                                                                                                                                                                                                 |
+| Artifact root      | `--artifact`, else `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact`. The runtime's `loadSemaArtifact()` with no path resolves the same way, searching upward from the compiled entry script and then from the working directory.                                                                                                                                    |
+| Teacher            | `--teacher` (a file, or the keyword `constraints` for the built-in constraints teacher when no file of that name exists), else the first of `semantscript.teacher.toml`, `teacher.toml`, `.semantscript/teacher.toml`; else, when `ANTHROPIC_API_KEY` is set, `train` writes `.semantscript/teacher.toml` for `claude-sonnet-5` and uses it. The key never enters a file. |
+| Python interpreter | `--python`, else `SEMANTSCRIPT_PYTHON`, else `python3` (`python` on Windows). Inside this repository the trainer and model sources (and `.python-packages` when present) are prepended to `PYTHONPATH`.                                                                                                                                                                   |
+| Cache directory    | `--cache-dir`, else `.semantscript/cache`.                                                                                                                                                                                                                                                                                                                                |
 
 ## `init`
 
@@ -84,25 +84,25 @@ the status (`pass`, `fail`, `warn` or `skip`), the check id and what it found,
 with a `fix:` line under every check that did not pass, then the totals. The
 [environment guide](environment.md) explains every check and records runs.
 
-| Check              | What it checks                                                                                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `node`             | The running Node release is 22.13 or later (package.json `engines`).                                                                                                            |
-| `runtime-bindings` | `onnxruntime-node` and `tokenizers`, resolved from `@semantscript/core` like the runtime does, load their native binaries on this platform and architecture.                    |
-| `python`           | The interpreter the CLI will use (default above) starts and is Python 3.12 or later.                                                                                            |
-| `trainer`          | `semantscript_trainer` imports, with its version and location, and its teacher clients `anthropic` and `openai`.                                                                |
-| `model`            | `semantscript_model` imports, with its version and location.                                                                                                                    |
-| `torch`            | PyTorch and Transformers import; the build (CUDA, ROCm or CPU-only).                                                                                                            |
-| `device`           | The device training runs on: the CUDA or ROCm GPU with its total and free memory, or the CPU with the machine's RAM (a warning). Apple MPS is reported, not used.               |
-| `onnxruntime`      | ONNX Runtime and ONNX import (the export and its parity check need both).                                                                                                       |
-| `platform-env`     | Environment variables the run needs: `PYTHONNOUSERSITE=1` when user-site packages break the imports, `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the GPU only with it. |
-| `teacher-config`   | The teacher file `train` would use (default above) exists and is a valid `[teacher]` table.                                                                                     |
-| `teacher-key`      | The key is in the environment (`ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`, also for OpenRouter's Anthropic route); Ollama needs none.                                        |
-| `teacher-probe`    | One minimal request to the teacher succeeded, with its latency and tokens.                                                                                                      |
+| Check              | What it checks                                                                                                                                                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node`             | The running Node release is 22.13 or later (package.json `engines`).                                                                                                                                                             |
+| `runtime-bindings` | `onnxruntime-node` and `tokenizers`, resolved from `@semantscript/core` like the runtime does, load their native binaries on this platform and architecture.                                                                     |
+| `python`           | The interpreter the CLI will use (default above) starts and is Python 3.12 or later.                                                                                                                                             |
+| `trainer`          | `semantscript_trainer` imports, with its version and location, and its teacher clients `anthropic` and `openai`.                                                                                                                 |
+| `model`            | `semantscript_model` imports, with its version and location.                                                                                                                                                                     |
+| `torch`            | PyTorch and Transformers import; the build (CUDA, ROCm or CPU-only).                                                                                                                                                             |
+| `device`           | The device training runs on: the CUDA or ROCm GPU with its total and free memory, or the CPU with the machine's RAM (a warning). Apple MPS is reported, not used.                                                                |
+| `onnxruntime`      | ONNX Runtime and ONNX import (the export and its parity check need both).                                                                                                                                                        |
+| `platform-env`     | Environment variables the run needs: `PYTHONNOUSERSITE=1` when user-site packages break the imports, `HSA_ENABLE_DXG_DETECTION=1` when ROCm on WSL2 finds the GPU only with it.                                                  |
+| `teacher-config`   | The teacher file `train` would use (default above) exists and is a valid `[teacher]` table.                                                                                                                                      |
+| `teacher-key`      | The key is in the environment (`ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`, also for OpenRouter's Anthropic route); Ollama and the constraints teacher need none (with a `[teacher.fallback]`, the fallback's key is checked). |
+| `teacher-probe`    | One minimal request to the teacher succeeded, with its latency and tokens; skipped for the constraints teacher, which sends none (its fallback is probed).                                                                       |
 
 | Flag               | Value                     | Effect                                                                                                                                                                                            |
 | ------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--python`         | exe                       | The interpreter to check (default above).                                                                                                                                                         |
-| `--teacher`        | path                      | The teacher file to check (default above; with no file and `ANTHROPIC_API_KEY` set, the default Anthropic teacher).                                                                               |
+| `--teacher`        | path or `constraints`     | The teacher file to check, or `constraints` for the built-in constraints teacher (default above; with no file and `ANTHROPIC_API_KEY` set, the default Anthropic teacher).                        |
 | `--probe`          | `request`, `free`, `none` | `request` (default) sends one request: 8 output tokens with thinking off, well under USD 0.001 on Sonnet. `free` sends nothing billed (for Ollama it lists the server's models). `none` skips it. |
 | `--device`         | `auto`, `cpu`, `cuda`     | The device `train` will be asked for; `cuda` with no GPU fails, `cpu` passes.                                                                                                                     |
 | `--no-teacher`     |                           | Skip the three teacher checks.                                                                                                                                                                    |
@@ -154,16 +154,23 @@ prints them to stderr and, when any fails, exits 1 without starting the
 trainer, so a missing interpreter, package, key or model shows in seconds
 instead of minutes into a run.
 
-| Flag               | Value  | Effect                                                                                               |
-| ------------------ | ------ | ---------------------------------------------------------------------------------------------------- |
-| `--bundle`         | path   | The IR bundle (default above).                                                                       |
-| `--artifact`       | path   | The artifact root to publish into (default above).                                                   |
-| `--teacher`        | path   | A TOML file with a `[teacher]` table (`backend = "anthropic"` or `"ollama"`); see the trainer guide. |
-| `--cache-dir`      | path   | The build cache (default `.semantscript/cache`); see the [build cache](build-cache.md) page.         |
-| `--report`         | path   | Also write the JSON report here.                                                                     |
-| `--python`         | exe    | The interpreter to run the trainer with.                                                             |
-| `--trainer-module` | module | The Python module to invoke (default `semantscript_trainer.cli`); for tests and forks.               |
-| `--no-preflight`   |        | Skip the environment preflight.                                                                      |
+The driver then stops, before generating anything, when an expression has no
+gold example (verification needs at least one attested example per
+expression) and names it by source line; with `--teacher constraints` it also
+stops on the first sampled input the expression's constraints do not decide,
+printing that input and the outputs the constraints admit (see
+[teachers](teachers.md)).
+
+| Flag               | Value  | Effect                                                                                                                                                                                                                                                           |
+| ------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bundle`         | path   | The IR bundle (default above).                                                                                                                                                                                                                                   |
+| `--artifact`       | path   | The artifact root to publish into (default above).                                                                                                                                                                                                               |
+| `--teacher`        | path   | A TOML file with a `[teacher]` table (`backend = "anthropic"`, `"ollama"` or `"constraints"`), or the keyword `constraints` for the built-in constraints teacher (labels from the expressions' own constraints, no language model); see [teachers](teachers.md). |
+| `--cache-dir`      | path   | The build cache (default `.semantscript/cache`); see the [build cache](build-cache.md) page.                                                                                                                                                                     |
+| `--report`         | path   | Also write the JSON report here.                                                                                                                                                                                                                                 |
+| `--python`         | exe    | The interpreter to run the trainer with.                                                                                                                                                                                                                         |
+| `--trainer-module` | module | The Python module to invoke (default `semantscript_trainer.cli`); for tests and forks.                                                                                                                                                                           |
+| `--no-preflight`   |        | Skip the environment preflight.                                                                                                                                                                                                                                  |
 
 Options handed to the trainer unchanged:
 

@@ -16,6 +16,7 @@ from semantscript_trainer import (
     AdversarialTeacher,
     BoundaryPairProposal,
     CaseGenerator,
+    ConstraintsTeacherConfig,
     DatasetCacheError,
     DatasetCase,
     DatasetConfigurationError,
@@ -76,8 +77,11 @@ from semantscript_trainer.teacher import (
 from semantscript_trainer.teacher import (
     Teacher as DefinedTeacher,
 )
+from semantscript_trainer.teacher_config import (
+    ConstraintsTeacherConfig as DefinedConstraintsTeacherConfig,
+)
 from semantscript_trainer.teacher_config import TeacherConfig as DefinedTeacherConfig
-from semantscript_trainer.teachers import AnthropicTeacher, OllamaTeacher
+from semantscript_trainer.teachers import AnthropicTeacher, ConstraintsTeacher, OllamaTeacher
 
 
 def test_top_level_package_exports_teacher_public_api() -> None:
@@ -85,6 +89,8 @@ def test_top_level_package_exports_teacher_public_api() -> None:
     assert GeneratedCase is DefinedGeneratedCase
     assert Teacher is DefinedTeacher
     assert TeacherConfig is DefinedTeacherConfig
+    assert ConstraintsTeacherConfig is DefinedConstraintsTeacherConfig
+    assert isinstance(create_teacher({"backend": "constraints"}), ConstraintsTeacher)
     assert semantscript_trainer.create_teacher is create_teacher
     assert semantscript_trainer.load_teacher_config is load_teacher_config
     assert issubclass(TeacherConfigurationError, RuntimeError)

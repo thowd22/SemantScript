@@ -28,8 +28,11 @@ from semantscript_trainer.teacher import (  # noqa: E402
     BoundaryPairProposal,
     CounterfactualProposal,
     GeneratedCase,
+    TeacherConfigurationError,
     TeacherDescriptor,
 )
+from semantscript_trainer.teacher_config import ConstraintsTeacherConfig  # noqa: E402
+from semantscript_trainer.teachers import ConstraintsTeacher  # noqa: E402
 from semantscript_trainer.training import TrainingConfig  # noqa: E402
 from semantscript_trainer.verification import VerificationConfig  # noqa: E402
 
@@ -64,6 +67,57 @@ export function refundRisk(customer: Customer, order: Order): "high" | "low" {
       },
     ],
   })`Rate the refund risk. Customer: ${customer} Order: ${order}`;
+}
+"""
+
+# The refund example's policy stated completely: every input has exactly one
+# admissible decision, so the constraints alone label the corpus.
+COMPLETE_SOURCE = """import { always, sema } from "@semantscript/core";
+
+type RefundDecision = "approve" | "deny" | "review";
+
+interface Customer {
+  priorRefunds: number;
+  tier: "enterprise" | "standard";
+}
+
+interface Order {
+  ageDays: number;
+  status: "fraudulent" | "paid";
+  total: number;
+}
+
+export function decideRefund(customer: Customer, order: Order): RefundDecision {
+  return sema<RefundDecision>({
+    examples: [
+      {
+        inputs: {
+          customer: { priorRefunds: 0, tier: "enterprise" },
+          order: { ageDays: 45, status: "paid", total: 129 },
+        },
+        output: "approve",
+      },
+    ],
+    constraints: [
+      always(() => order.ageDays > 90, "deny"),
+      always(() => order.ageDays <= 90 && order.status === "fraudulent", "review"),
+      always(
+        () =>
+          order.ageDays <= 90 &&
+          order.status === "paid" &&
+          ((customer.tier === "enterprise" && order.ageDays > 60) ||
+            (customer.tier === "standard" && order.ageDays > 30)),
+        "review",
+      ),
+      always(
+        () =>
+          order.status === "paid" &&
+          ((customer.tier === "enterprise" && order.ageDays <= 60) ||
+            (customer.tier === "standard" && order.ageDays <= 30)),
+        "approve",
+      ),
+    ],
+  })`Apply our refund policy. Customer: ${customer} Order: ${order}`;
 }
 """
 
@@ -501,6 +555,154 @@ def test_rejects_malformed_bundles_and_teachers_without_adversarial_support(
         )
     with pytest.raises(TrainBundleError, match="cases must be"):
         train_bundle(bundle, tmp_path / "e", cases=-1, **common)
+
+
+def test_trains_complete_constraints_with_the_built_in_teacher_and_no_language_model(
+    tmp_path: Path,
+) -> None:
+    bundle = compile_project(
+        tmp_path / "project", {"refund.sem.ts": COMPLETE_SOURCE}, "refund-complete"
+    )
+    teacher = ConstraintsTeacher()
+
+    result = train_bundle(
+        bundle,
+        tmp_path / "artifact",
+        teacher=teacher,
+        cache_directory=tmp_path / "cache",
+        cases=64,
+        training_config=training_config(),
+        tokenizer=RuleTokenizer(),
+        encoder=RuleEncoder(),
+        base_model_weights_sha256="4" * 64,
+        trainer_commit="abcdef0",
+    )
+
+    report = result.report
+    assert report["status"] == "passed"
+    digest = ConstraintsTeacherConfig().sampling_sha256
+    assert report["teacher"] == {
+        "provider": "constraints",
+        "model": "compiled-constraints-v1",
+        "configurationSha256": digest,
+    }
+    (entry,) = report["functions"]
+    assert entry["verification"]["status"] == "passed"
+    assert entry["verification"]["metrics"]["constraintViolations"] == 0
+    assert entry["adversarial"]["cases"] >= 2 * 4
+    (function,) = result.exported.manifest["functions"]
+    assert function["trainingProvenance"]["teacher"] == (
+        f"constraints/compiled-constraints-v1@sha256:{digest}"
+    )
+    (trained,) = result.functions
+    assert trained.base.teacher.provider == "constraints"
+    assert all(case.origin in ("gold", "synthetic") for case in trained.base.cases)
+
+
+def test_incomplete_constraints_name_an_input_or_train_with_a_fallback_teacher(
+    tmp_path: Path,
+) -> None:
+    bundle = compile_project(
+        tmp_path / "project", {"refund.sem.ts": REFUND_SOURCE.read_text()}, "refund-example"
+    )
+    common: dict[str, Any] = {
+        "cases": 48,
+        "training_config": training_config(),
+        "tokenizer": RuleTokenizer(),
+        "encoder": RuleEncoder(),
+        "base_model_weights_sha256": "4" * 64,
+        "trainer_commit": "abcdef0",
+    }
+
+    with pytest.raises(TeacherConfigurationError) as raised:
+        train_bundle(
+            bundle,
+            tmp_path / "pure",
+            teacher=ConstraintsTeacher(),
+            cache_directory=tmp_path / "cache-pure",
+            **common,
+        )
+    message = str(raised.value)
+    assert message.startswith("src/refund.sem.ts:17 (nf_")
+    assert "the constraints do not decide every input" in message
+    assert "For the input {" in message and "[teacher.fallback]" in message
+    assert not (tmp_path / "pure").exists()
+
+    fallback = RuleTeacher()
+    mixed = ConstraintsTeacher(fallback=fallback)
+    result = train_bundle(
+        bundle,
+        tmp_path / "mixed",
+        teacher=mixed,
+        cache_directory=tmp_path / "cache-mixed",
+        **common,
+    )
+    assert result.report["status"] == "passed"
+    assert result.report["teacher"]["provider"] == "constraints+rule-fixture"
+    assert result.report["teacher"]["model"] == "grid-v1"
+    (trained,) = result.functions
+    synthetic = [case for case in trained.base.cases if case.origin == "synthetic"]
+    decided = [case for case in synthetic if case.inputs["order"]["ageDays"] > 90]
+    assert decided and all(case.output == "deny" for case in decided)
+    assert 0 < mixed.decided_share(bundle["functions"][0]) < 1
+
+
+def test_an_expression_without_gold_examples_fails_before_generation(tmp_path: Path) -> None:
+    source = COMPLETE_SOURCE.replace(
+        COMPLETE_SOURCE[
+            COMPLETE_SOURCE.index("    examples: [") : COMPLETE_SOURCE.index("    constraints: [")
+        ],
+        "",
+    )
+    bundle = compile_project(tmp_path / "project", {"refund.sem.ts": source}, "refund-no-gold")
+
+    class NeverCalled(RuleTeacher):
+        def generate(self, ir: dict[str, Any], n: int, /) -> tuple[GeneratedCase, ...]:
+            raise AssertionError("no case generation for a bundle that cannot verify")
+
+    with pytest.raises(TrainBundleError) as raised:
+        train_bundle(
+            bundle,
+            tmp_path / "artifact",
+            teacher=NeverCalled(),
+            cache_directory=tmp_path / "cache",
+            tokenizer=RuleTokenizer(),
+            encoder=RuleEncoder(),
+        )
+    message = str(raised.value)
+    assert message.startswith("src/refund.sem.ts:")
+    assert "has no gold examples: verification needs at least one attested example" in message
+
+
+def test_main_accepts_the_constraints_keyword(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps({"kind": "semantscript.ir-bundle", "bundleVersion": 1}))
+    captured: dict[str, Any] = {}
+
+    def fake_train_bundle(bundle: Any, artifact_root: Any, **kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return SimpleNamespace(report={"kind": "semantscript.train-report", "status": "passed"})
+
+    monkeypatch.setattr(cli_module, "train_bundle", fake_train_bundle)
+    monkeypatch.chdir(tmp_path)
+    code = cli_module.main(
+        [
+            "train",
+            "--bundle",
+            str(bundle_path),
+            "--artifact",
+            str(tmp_path / "artifact"),
+            "--teacher",
+            "constraints",
+            "--report",
+            str(tmp_path / "report.json"),
+        ]
+    )
+    assert code == 0
+    assert isinstance(captured["teacher"], ConstraintsTeacher)
+    assert captured["teacher"].descriptor.provider == "constraints"
 
 
 def test_main_maps_flags_into_configs_and_writes_the_report(

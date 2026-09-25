@@ -7,7 +7,8 @@
     "build": "tspc -p tsconfig.json",
     "start": "node --enable-source-maps dist/server.js",
     "test": "node --test test/*.test.mjs",
-    "train": "PYTHONNOUSERSITE=1 HSA_ENABLE_DXG_DETECTION=1 PYTHONPATH=../..:../../trainer/src:../../model/src:../../.python-packages python3 train.py",
+    "train": "PYTHONNOUSERSITE=1 HSA_ENABLE_DXG_DETECTION=1 semantscript train --teacher constraints --cases 800 --epochs 12 --batch-size 16 --learning-rate 5e-5 --max-sequence-length 128 --evaluation-ratio 0.1 --select-best-epoch --local-files-only --device cuda --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.005 --application-id refund-service --report .semantscript/train-report.json && npm run heldout",
+    "heldout": "PYTHONNOUSERSITE=1 PYTHONPATH=../../trainer/src:../../model/src:../../.python-packages python3 scripts/heldout.py",
     "measure": "node scripts/measure.mjs",
     "tally": "node scripts/tally.mjs"
   },
@@ -21,6 +22,7 @@
     "@semantscript/compiler": "file:../../compiler",
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.4",
+    "semantscript": "file:../../cli",
     "ts-patch": "^4.0.1",
     "typescript": "^6.0.3"
   }

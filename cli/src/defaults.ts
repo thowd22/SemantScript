@@ -27,6 +27,12 @@ export const TEACHER_CONFIG_CANDIDATES = [
   "teacher.toml",
   ".semantscript/teacher.toml",
 ] as const;
+/**
+ * Teacher keywords `--teacher` accepts in place of a TOML path when no file of that
+ * name exists: `constraints` is the built-in teacher that labels inputs with the
+ * expression's own constraints (no language model, no key).
+ */
+export const BUILT_IN_TEACHERS = ["constraints"] as const;
 export const DEFAULT_TEACHER_MODEL = "claude-sonnet-5";
 export const DEFAULT_TEACHER_TOML = `[teacher]
 backend = "anthropic"
@@ -50,19 +56,29 @@ function nonEmpty(value: string | undefined): string | undefined {
 
 /**
  * The teacher file `train` would use, without writing anything: `--teacher`, else the
- * first existing file of `TEACHER_CONFIG_CANDIDATES`, else undefined.
+ * first existing file of `TEACHER_CONFIG_CANDIDATES`, else undefined. A built-in
+ * teacher keyword (`--teacher constraints`) passes through unchanged unless a file
+ * of that name exists.
  */
 export function findTeacherConfig(
   values: OptionValues,
   io: CliIo,
 ): string | undefined {
   const requested = stringOption(values, "teacher");
-  if (requested !== undefined) return resolve(io.cwd, requested);
+  if (requested !== undefined) {
+    const path = resolve(io.cwd, requested);
+    if (isBuiltInTeacher(requested) && !existsSync(path)) return requested;
+    return path;
+  }
   for (const candidate of TEACHER_CONFIG_CANDIDATES) {
     const path = resolve(io.cwd, candidate);
     if (existsSync(path)) return path;
   }
   return undefined;
+}
+
+export function isBuiltInTeacher(value: string): boolean {
+  return (BUILT_IN_TEACHERS as readonly string[]).includes(value);
 }
 
 /** `--artifact`, else `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact`, resolved against cwd. */
@@ -135,7 +151,7 @@ export function resolveTeacherConfig(values: OptionValues, io: CliIo): string {
     return generated;
   }
   throw new CliUsageError(
-    `--teacher is required: no ${TEACHER_CONFIG_CANDIDATES.join(", ")} found and ANTHROPIC_API_KEY is not set (set it to use the default Anthropic teacher, or write a [teacher] TOML)`,
+    `--teacher is required: no ${TEACHER_CONFIG_CANDIDATES.join(", ")} found and ANTHROPIC_API_KEY is not set (set it to use the default Anthropic teacher, write a [teacher] TOML, or pass --teacher constraints when the constraints decide every input)`,
   );
 }
 

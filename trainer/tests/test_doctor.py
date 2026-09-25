@@ -324,6 +324,48 @@ def test_probe_modes_and_the_key_handoff(tmp_path: Path) -> None:
     assert seen[-1][1] == "free"
 
 
+def test_constraints_teacher_needs_no_key_and_hands_its_checks_to_a_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[tuple[TeacherConfig, str]] = []
+
+    def prober(config: TeacherConfig, mode: str) -> ProbeResult:
+        seen.append((config, mode))
+        return ProbeResult(True, "answered")
+
+    monkeypatch.chdir(tmp_path)
+    keyword = teacher_checks(tmp_path, None, path="constraints", teacher_prober=prober)
+    assert keyword["teacher-config"]["status"] == "pass"
+    assert keyword["teacher-config"]["summary"].startswith("built-in constraints teacher (seed 1")
+    assert keyword["teacher-key"] == {
+        "id": "teacher-key",
+        "status": "pass",
+        "summary": "the constraints teacher needs no key",
+        "fix": None,
+    }
+    assert keyword["teacher-probe"]["status"] == "skip"
+    assert "sends no request" in keyword["teacher-probe"]["summary"]
+    assert seen == []
+
+    body = 'backend = "constraints"\n[teacher.fallback]\nbackend = "anthropic"\n'
+    body += 'model = "claude-sonnet-5"\n'
+    missing = teacher_checks(tmp_path, body, teacher_prober=prober)
+    assert "fallback anthropic claude-sonnet-5" in missing["teacher-config"]["summary"]
+    assert missing["teacher-key"]["status"] == "fail"
+    assert missing["teacher-key"]["summary"] == "fallback: ANTHROPIC_API_KEY is not set"
+    assert missing["teacher-probe"]["summary"] == "not probed: the fallback key is missing"
+
+    free = teacher_checks(tmp_path, body, env={"ANTHROPIC_API_KEY": "k"}, probe="free")
+    assert free["teacher-key"]["status"] == "pass"
+    assert "billed" in free["teacher-probe"]["summary"]
+    probed = teacher_checks(
+        tmp_path, body, env={"ANTHROPIC_API_KEY": "secret"}, teacher_prober=prober
+    )
+    assert probed["teacher-probe"]["summary"] == "fallback: answered"
+    assert seen[-1][0].model == "claude-sonnet-5" and seen[-1][0].api_key == "secret"
+    assert "secret" not in json.dumps(probed)
+
+
 class FakeAnthropic:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error

@@ -18,7 +18,7 @@ export const USAGE = `usage: semantscript <command> [options]
          [--python <exe>] [--trainer-module <module>]
          wire the compiler into the project's build tool and add a starter expression,
          then check the environment
-  doctor [--python <exe>] [--teacher <teacher.toml>] [--probe request|free|none]
+  doctor [--python <exe>] [--teacher <teacher.toml>|constraints] [--probe request|free|none]
          [--device auto|cpu|cuda] [--trainer-module <module>] [--no-teacher]
          [--runtime] [--json]
          check Node, the native bindings, Python, the trainer, PyTorch and its
@@ -26,7 +26,7 @@ export const USAGE = `usage: semantscript <command> [options]
   build  [--project tsconfig.json] [--application <id>] [--bundle <path>]
          [--route-domains] [--domain-depth <name>=<layers>]...
          compile .sem.ts sites to runtime calls and one IR bundle
-  train  [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>]
+  train  [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints]
          [--cache-dir <dir>] [--report <path>] [--python <exe>] [--cases <n>]
          [--epochs <n>] [--batch-size <n>] [--learning-rate <x>] [--seed <n>]
          [--device <name>] [--select-best-epoch] [--ece-threshold <x>]
@@ -42,7 +42,8 @@ export const USAGE = `usage: semantscript <command> [options]
 
   defaults: the bundle is the build's semantscript.ir.v1.json, the artifact is
   .semantscript/artifact (or SEMANTSCRIPT_ARTIFACT), the teacher is teacher.toml
-  or the Anthropic backend when ANTHROPIC_API_KEY is set, and the Python
+  or the Anthropic backend when ANTHROPIC_API_KEY is set (--teacher constraints
+  labels with the expressions' own constraints, no key), and the Python
   interpreter is --python, else SEMANTSCRIPT_PYTHON, else python3 (python on
   Windows).
 `;

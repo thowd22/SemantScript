@@ -430,7 +430,10 @@ python -m semantscript_trainer.cli train \
   --cases 64 --epochs 3 --device cuda --local-files-only
 ```
 
-`teacher.toml` holds the `[teacher]` table of the section below. Training,
+`teacher.toml` holds the `[teacher]` table of the section below (or pass
+`--teacher constraints` for the built-in constraints teacher). An expression
+with no gold examples stops the driver before any generation, because
+verification needs at least one attested example per expression. Training,
 verification and adversarial settings map to `TrainingConfig`,
 `VerificationConfig` and `AdversarialGenerationConfig` fields; unspecified
 flags keep the library defaults. The Node CLI (`cli/`) spawns this module and
@@ -518,6 +521,34 @@ Record both the Ollama model tag and its resolved digest from `/api/tags` in
 training provenance; a tag can be updated to point at different model content.
 The OpenAI client requires a nonempty API-key value, but a local Ollama server
 ignores it; the backend supplies a local placeholder unless one is configured.
+
+The built-in constraints backend (`semantscript_trainer.teachers.constraints`)
+needs no model: when an expression's constraints admit exactly one output for
+every input, `ConstraintsTeacher` samples inputs from the IR types with
+threshold-aware numeric ranges, labels them with that output and builds
+boundary pairs and counterfactual twins by single-field edits. Select it with
+`--teacher constraints` or a table (optional `[teacher.ranges]` overrides and an
+optional `[teacher.fallback]` language-model table for the inputs the
+constraints leave open):
+
+```toml
+[teacher]
+backend = "constraints"
+seed = 1
+
+[teacher.fallback]
+backend = "ollama"
+model = "qwen3:14b-q4_K_M"
+```
+
+`load_teacher_config` returns a `ConstraintsTeacherConfig` for it and
+`create_teacher` a `ConstraintsTeacher`; its descriptor is provider
+`constraints` (`constraints+<fallback backend>` in mixed mode) with the
+sampling configuration digest. Without a fallback, an input the constraints do
+not decide fails generation with that input and the outputs it admits.
+`ConstraintsTeacher.sample_decided(ir, n, stream=..., exclude=...)` draws a
+labelled held-out set from a stream the training corpus never uses. See
+`docs/teachers.md` for the sampling rules and mixed mode.
 
 ### WSL-native Ollama with an AMD GPU
 

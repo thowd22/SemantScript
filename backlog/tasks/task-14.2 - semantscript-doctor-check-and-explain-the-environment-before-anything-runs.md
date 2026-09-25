@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 17:53'
+updated_date: '2026-09-25 18:22'
 labels:
   - dx
   - install
@@ -70,4 +70,11 @@ FIX round 2 (blocking: non-ASCII output on Windows code-page pipes).
 - Real rerun: doctor --probe free with an Ollama qwen3:14b teacher in <scratch>/项目 and <scratch>/café under PYTHONIOENCODING=cp1252: 12 passed, 0 failed, exit 0, with the paths printed intact.
 - Advisory items also fixed: a silent-failing interpreter now says 'no error output'; the Windows default interpreter (python) is given in the usage text, cli-reference, diagnostics, environment guide and cli/README; ANTHROPIC_AUTH_TOKEN appears in the cli-reference, diagnostics and cli/README teacher-key text; the tutorial's lowercase sentence start is fixed, and the tutorial now says PYTHONNOUSERSITE matters only for the .python-packages route, not the .venv.
 - Checks: build, lint:node, lint:python, test:node (cli 17/17) and test:python (544 passed, 4 skipped) are clean; prettier passes.
+
+FIX round 3 (commits d4cca44, 0a44d41; CI runs 36172123828 and 36172601064 green on all six jobs):
+- Blocking (Windows fix lines in PowerShell): confirmed first through WSL interop: in powershell.exe, 'set PYTHONNOUSERSITE=1' left $env:PYTHONNOUSERSITE empty, and the two-variable '&' form is a parse error. doctor.py now prints, on win32, 'in PowerShell: $env:NAME = "1"; ... (in cmd: set "NAME=1" && ...)' plus 'add it for new terminals with setx NAME 1' instead of the shell-profile advice. teacher-key prints the PowerShell and cmd forms for <key> and for copying OPENROUTER_API_KEY. POSIX output unchanged apart from '; add it to the shell profile ...'.
+- The cmd form quotes the assignment: unquoted 'set NAME=1 && ...' stores '1 ' (verified in cmd.exe).
+- Tests: test_windows_fix_lines_use_powershell_and_cmd_syntax (text), and two tests that run each fix in real powershell.exe and cmd.exe and check the variables afterwards (run here via WSL interop, and in a new pwsh step on the windows-latest runner: 3 passed). That step also runs doctor in PowerShell with the venv activated.
+- Advisory fixed: pip fix uses double quotes (works in bash, PowerShell, cmd); the venv hint says 'set the SEMANTSCRIPT_PYTHON environment variable to <venv>' (shell-neutral); the CI default-interpreter step now asserts exit 1 and the venv hint instead of '|| echo'; environment.md: Windows fix-line section, 'Not yet observed' now says the teacher checks never ran on Windows/macOS and which shells were used, re-recorded user-site WSL run and the Windows/macOS CI runs, 'quarter of a second' wording, note that the first WSL run predates the reworded platform-env note; diagnostics, teachers, CONTRIBUTING updated.
+- Checks: build 0; lint:node 0; lint:python clean; test:node all suites 0 fail (cli 17/17); test:python 547 passed 4 skipped; prettier clean.
 <!-- SECTION:NOTES:END -->

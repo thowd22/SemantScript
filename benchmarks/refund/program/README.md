@@ -110,6 +110,19 @@ sealed prediction set records the route in its execution backend endpoint
 (`https://openrouter.ai/api`), which the contracts and schema accept beside
 `https://api.anthropic.com`. Neither key is written to any record.
 
+## Local teacher against the reference
+
+`run_local_teacher_experiment.py` samples real inputs from the UCI pool with
+every held-out digest excluded, labels them with `claude-sonnet-5` (through
+OpenRouter's Anthropic-format route, `OPENROUTER_API_KEY`, budget-capped and
+cached) and with `qwen3:14b` (Ollama's native chat API, thinking off), reports
+agreement between the two and against the compiled constraints per rubric
+step, freezes a Sonnet-labeled evaluation set, and trains and scores one
+student per label set with the committed compact recipe. Stages run
+separately (`--stage sample|label-qwen|label-sonnet|train`);
+`data/results-local-teacher-2026-09-25/README.md` reads its run and
+`test_local_teacher_experiment.py` covers it offline.
+
 ## Jev diagnostic comparator
 
 `run_jev_comparator.py` sends every case of the frozen final set to TypeSafe's

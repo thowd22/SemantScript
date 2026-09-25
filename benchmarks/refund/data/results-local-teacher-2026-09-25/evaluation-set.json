@@ -1,0 +1,4508 @@
+{
+ "kind": "semantscript.local-teacher-experiment-evaluation-set",
+ "labeler": "claude-sonnet-5 via OpenRouter (Anthropic-format route, json_schema)",
+ "note": "model-labeled evaluation target for TASK-5.13; not human-authored, not judge-adjudicated, never trained on",
+ "cases": [
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 1244.7
+    }
+   },
+   "label": "approve",
+   "inputSha256": "9099b742e7761789470a8d617caa4448c63866c79bdd033aa98e357cf45b10a1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 288.5
+    }
+   },
+   "label": "approve",
+   "inputSha256": "84240996106e6eb132647ea07d3965c06717c4090ae59452661ca10bfb504cba"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 23,
+     "status": "paid",
+     "total": 164.96
+    }
+   },
+   "label": "approve",
+   "inputSha256": "af0b80fb6d2b054f7a067d111f18445227ef46355a8a1be879863ba14fe000af"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 720.03
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b69fb9b28e6e4afb2a7192261db2af254d315c46fdddbf2962760debd331463a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 231.51
+    }
+   },
+   "label": "approve",
+   "inputSha256": "81cf8e6aaa121856773d84c48f87f7a21affa76ffdd500397cd15af99bccbc8f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 17,
+     "status": "paid",
+     "total": 150.31
+    }
+   },
+   "label": "approve",
+   "inputSha256": "8312e1a7832c24a4963cb85cc3e639884fe7b80a56feebc87264ad152eab7e4d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 753.26
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5be6814d55a9adda6b375890f56970d7975d322e1dffb006b9c2924bb0ec4daf"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 690.9
+    }
+   },
+   "label": "approve",
+   "inputSha256": "30c31657ade69b23b978f9d789a567e9679b6ac772fcc6a6f77c08b1c3528089"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 305.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "d60c9297cbe01107367010ee0aecaffd38c42d783ea3547e6884f51d9885a2a6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 482.15
+    }
+   },
+   "label": "approve",
+   "inputSha256": "3e6f1cfd58f778ba86a40d89120576154a0009edc27531fd87d6e7db7c59459c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 1410.46
+    }
+   },
+   "label": "review",
+   "inputSha256": "56cb9e6ac47910a4b7ed74b2cbca1324adc028d357e7dd756e4d79a27b55809a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 19,
+     "status": "paid",
+     "total": 516.42
+    }
+   },
+   "label": "approve",
+   "inputSha256": "d3670ea3d42e29adf7e74a3478ce92f382d785960465123d3dc6bb0d2119e29b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 44,
+     "status": "paid",
+     "total": 617.06
+    }
+   },
+   "label": "approve",
+   "inputSha256": "be99eba1446d85a90707b0e36c671d818ee04e305fa507d022a1a1ae8d006c43"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 140.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "de6ed978e4f19d158933a5f479a607add2e7f83bd5d46be3516adff61aeef918"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 133.48
+    }
+   },
+   "label": "approve",
+   "inputSha256": "d90a5b70937a9444501120433bb9903de2e5999afcd220f973062758fc662f48"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 365.5
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b22f5fe610290bb0f91a1535f6d72c0e7552d277544655839c7a774f6f5f89ae"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 334.14
+    }
+   },
+   "label": "approve",
+   "inputSha256": "dc25903f3edb4a3d64c11d7c8b5266f6d146ace5a3b35bd49fe90f03317d41b1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 16.65
+    }
+   },
+   "label": "review",
+   "inputSha256": "0cba26cec7b681493e5d7f1b373b78b3e25f50740078a585d074f0bd635d17f2"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 31,
+     "status": "paid",
+     "total": 4314.02
+    }
+   },
+   "label": "approve",
+   "inputSha256": "226f8c9c1432035cf68d5c9e680bf9a3255fa415ba5ff88330c1f7497e635a1f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 301.39
+    }
+   },
+   "label": "review",
+   "inputSha256": "a2c593ebedbab045e4c83cc1dfc2182c36ee522c7bcc00f1ce4a7d83ea646142"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 121.45
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6c0790726fc7e12ac2680f99308466632af8e38b24f1e8063ac20b545f0d5a9d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 433.37
+    }
+   },
+   "label": "approve",
+   "inputSha256": "7a216ced750de9679b0b59656b33389eb839e83833b49ec95cb060c00c10f9a6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 801.66
+    }
+   },
+   "label": "approve",
+   "inputSha256": "53efe91c4da6206a7e74a0ac5fde4f21a17de20ea3c4184497239c1f90696301"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 52,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 267.32
+    }
+   },
+   "label": "review",
+   "inputSha256": "86b7a97cad9d1484ef1a77d9fcac4f6657f7f5e94c74b02478648e1e753b863c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 286.55
+    }
+   },
+   "label": "review",
+   "inputSha256": "f5aaecbce351ef9e2d9061a354aa12f1ddadff96be5f304fc3e9f3b638c53d44"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 16,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 377.48
+    }
+   },
+   "label": "review",
+   "inputSha256": "8ef5c0ff7e3519493140b9691431c2922d3c557631fc668ddd7c3b57031bc60d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 83.9
+    }
+   },
+   "label": "approve",
+   "inputSha256": "ff55838ff9b0b3a20932445b506e416ec3baaddd6f05829c6c6967044b90e4ae"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 20,
+     "status": "paid",
+     "total": 379.4
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b0c174abb6d04a9f8eaf171fda340eec402cb237e51e3ffa49d3528cf6bd3dad"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 379.74
+    }
+   },
+   "label": "approve",
+   "inputSha256": "f837dcfab67d6a24bcf0c7aefc58ab2a2af01c881271ecda7c794435130a1f00"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 155.21
+    }
+   },
+   "label": "approve",
+   "inputSha256": "e4958144537e588eb57e475ebb25ef62409189842c6eea0e4e536f6584b95a5d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 757.1
+    }
+   },
+   "label": "approve",
+   "inputSha256": "fbc5fd3c2fa6f263fadad552d6b5d60a47ec8439499d79fda72b4320435f47c3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 47,
+     "status": "paid",
+     "total": 362.78
+    }
+   },
+   "label": "approve",
+   "inputSha256": "71de4d4691887f63d4e751de7bd868b695b10186518189544a176ac1189427b9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 377.4
+    }
+   },
+   "label": "review",
+   "inputSha256": "a4249fb09c86dbbce147347140b26ab393a4d62f37cc86a398b67a3dde8388ef"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 16.44
+    }
+   },
+   "label": "approve",
+   "inputSha256": "4483c237aadd0274185bc97d97b57be8e98e3f96f1157cf28c69362998834e96"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 220.9
+    }
+   },
+   "label": "approve",
+   "inputSha256": "e6e8268a9a9267c829f1728d9b99291a3f349498f00a5c2fbf2a39ed572aad0d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 555.71
+    }
+   },
+   "label": "approve",
+   "inputSha256": "3dc77d53ae41e9936087e40f82082b3b5d53afef2ac3f6282869675f13d2be76"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 379.13
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6cbd2c3091f42bb4c2123a5c58517f54dbe59b3e58cc19ba23d29002eeb48c09"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 522.08
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5b83163f41e7bcb6a5b1ef94c941b853af72577ebbc61984d37b9b5a880412b8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 121.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "23020647e5786361805b35744570f428a138982b5ca6695f7f0e5b2d92b47a04"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 29,
+     "status": "paid",
+     "total": 549.09
+    }
+   },
+   "label": "approve",
+   "inputSha256": "37ca991b16b50639cc7cf9747f5f3469da58a47b55bd67442783fdedcc9796c2"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 25,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 261.6
+    }
+   },
+   "label": "review",
+   "inputSha256": "069259daa8d5ea35e1b03eadc5bde0d7e66a0c790334258045ddc81cd283f18d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 31,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 307.95
+    }
+   },
+   "label": "review",
+   "inputSha256": "4afa41ab0a7703274d4abad769eaa65e2c08f4e5629a54a3cd2b0b089524e9d9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 977.21
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b96ede9bb35f33f9c4446acf4d8b81b166bff58330ccf4a0957614d09c97a8c0"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 311.52
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5714eb4a3c5296a07bbd20c7d05c9aac130a54d3ec842d04f31464eda24a0dce"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 11,
+     "status": "paid",
+     "total": 370.98
+    }
+   },
+   "label": "approve",
+   "inputSha256": "3ad210f04038aa0f2ca6bcda9f2a460d872e452d01aeca9a533b8316cde5313f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 29,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 1374.46
+    }
+   },
+   "label": "review",
+   "inputSha256": "c0fd295d8afa1b85a8eda4fecdcb4100223aaf61c6acea205438342f839a8e0c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 329.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "cdf76ba7e6017da0ec7c6e9195e63c52b388d16fed16f485d4aaae6469b6cee9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 2.95
+    }
+   },
+   "label": "review",
+   "inputSha256": "bc684bcd4947d817c53d29ebc6470d6658c3837cc11c5fc5d83a6c7d0ff93cdd"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 552.67
+    }
+   },
+   "label": "review",
+   "inputSha256": "5abadc13441cb2cdaea7baed50022c0e77e2db71dd62cab79d97792e413f8b4f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 574.64
+    }
+   },
+   "label": "approve",
+   "inputSha256": "23dae230fc2eca60e9dbbcbf45e35865ab52f8aefc2252479d9ca418229eabf3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 20,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 740.41
+    }
+   },
+   "label": "review",
+   "inputSha256": "0f9eda2f5a3083745a304d75d88cf65415aa632f1e089a0736368099735f70bc"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 728.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5deadc6473b47b8404b13f20cb43c128597b8d27c90cb262e1825d81ba0157e5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 60.48
+    }
+   },
+   "label": "review",
+   "inputSha256": "e1573ba313b3d5c445a37b4e92604cdaf16babe3f6cc38b41706d078c5af82e6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 547.56
+    }
+   },
+   "label": "approve",
+   "inputSha256": "01a220f8f0fe03482a164114f04204478753c05147fb1e1898b6f1da62cc60e1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 241.26
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a43674038810ee54b0cbd2201888aa66b904af3e72fb50414d8d2ed8bd2da45f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 1184.61
+    }
+   },
+   "label": "approve",
+   "inputSha256": "47ed5df8ef90917dcf79a1952aeb8e869a672fe76357496a22d343e54e721abe"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 45.65
+    }
+   },
+   "label": "approve",
+   "inputSha256": "f18bbe0a87e19518688b629215ad9f15e282856b96e09fef14d53a977900771f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 48.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a689b8c0a6d6cf8b6b1863939e81d82ca31629279298c7442b52ad37767011c9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 629.39
+    }
+   },
+   "label": "approve",
+   "inputSha256": "d924b6226cbd2878e8ab46f8ac08e6fb527a0bfb93be0dc36c8ff393da92f698"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 155.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a2d8ae222326b7c02852fdcb2affab3618570caeec982d53fc5faab673617435"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 25,
+     "status": "paid",
+     "total": 377.36
+    }
+   },
+   "label": "review",
+   "inputSha256": "8753d9b1c611313df309e6735f8778e47cf7ed655bab7838fbab60a45a3b5911"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 48,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 725.72
+    }
+   },
+   "label": "review",
+   "inputSha256": "47095619d95f99feb4fcd95415acfa19faa9dfe4b0837645a5987bd433cde92e"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 112.32
+    }
+   },
+   "label": "approve",
+   "inputSha256": "e177b372b47a2ce870fd5fb575ff4cbeb3873474287d00b2f0d43b0a5ec61831"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 579.4
+    }
+   },
+   "label": "approve",
+   "inputSha256": "27886d2f55b93a46b6fe278fc873b1c4c75ff56972e9db92ea2bd80f33b5bcb2"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 819.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "376962113044f5a93b4d5a16030d1dd58a119ef15f0b6262050b7db5896777fb"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 14,
+     "status": "paid",
+     "total": 239.99
+    }
+   },
+   "label": "approve",
+   "inputSha256": "062a7a870499426cc47f51b6e10f832801f1a50c204540660c11dcca88e8605d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 177.43
+    }
+   },
+   "label": "approve",
+   "inputSha256": "58e2897c735c93203aa713e54a7cfe1bea240d9d1c1bf31957ea216dffde6163"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 162.72
+    }
+   },
+   "label": "approve",
+   "inputSha256": "fa4a89c34fbedf152ae3379a3e4b331da8c61bb6dbb99d77eaae1893096542e4"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 329.1
+    }
+   },
+   "label": "approve",
+   "inputSha256": "234aafe1d43da20bd4165dbb7de038fb1c4714d8a8e0056d319301e3f8d0bcc5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 20,
+     "status": "paid",
+     "total": 110.45
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a37e1aa481ca3802b88791129d6ee4dbd8b7b5c830a53f93ccf3e7b5ec6b4326"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 41,
+     "status": "paid",
+     "total": 258.64
+    }
+   },
+   "label": "approve",
+   "inputSha256": "949ce98b636ea759582a161ac7c3a9100505b1ebb430d697fac0c5d9ab6cfc6d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 70.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "0c4f95ec6afef797276803b99d2cbe81c00cc71946c32521f70117f4a7f23f09"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 509.46
+    }
+   },
+   "label": "approve",
+   "inputSha256": "dad83e77bcf480b67ba171e8e453a7893a1400e2b6c95e69afe3c491829d10a3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 468.58
+    }
+   },
+   "label": "approve",
+   "inputSha256": "f6b484977a618cbd9b18818eee1eb89d1a68e1c7ddcd7a0770e456fd8550931b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 319.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "ab17ae3d5aa813c0cad259c1ef9251ec161aa7f6a846f304f423cc5628bb53ab"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 107,
+     "status": "paid",
+     "total": 45.0
+    }
+   },
+   "label": "deny",
+   "inputSha256": "b5d8d574af07cc00fa91cc31da6603bd40077084491abb5c883fdfaec98e3a18"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 2328.84
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6550281efe1ec550edc745add76cf10f66196bc96002b75e4bba11eb1885c171"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 713.95
+    }
+   },
+   "label": "approve",
+   "inputSha256": "0c9b8eaada4c0cdf27b05d74cc989b566be74065f9b18e10dbf2c75ffee343b9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 1563.65
+    }
+   },
+   "label": "review",
+   "inputSha256": "8a45c2bc02f4eef1480eb24a6475796dd8193b4708738ac7a997d7748cc654a4"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 86,
+     "status": "paid",
+     "total": 371.56
+    }
+   },
+   "label": "deny",
+   "inputSha256": "a98e2bb01a7f1f835ce829b8c953af71169ff88fd5f04a4d5bc45b001881660c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 8985.6
+    }
+   },
+   "label": "review",
+   "inputSha256": "5cf3ebfa4ef8422f55176c8862a38306c54ebfa77d4673885789e12bfe4a91e0"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 11,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 238.41
+    }
+   },
+   "label": "review",
+   "inputSha256": "2dfac294cab6c3e4788829c76bb83458a403336431192a07deb8bd0bc9824554"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 53,
+     "status": "paid",
+     "total": 321.1
+    }
+   },
+   "label": "review",
+   "inputSha256": "337dca34177d3704c602de3015be80e75da19f73abb5500f5ab15e7950b494d7"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 445.05
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a7b2fdf90f083c065364af563d23dedeaa03667c95900869fed781db238ef94b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 5206.5
+    }
+   },
+   "label": "review",
+   "inputSha256": "1ab15888e7cffc2524ee7cecac21a3511b5b272a794177ad46357dafceaaa88d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 14,
+     "status": "paid",
+     "total": 85.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "d0d2df9a8cc01b531aaab16f5083abdf76982a5a982239955e657ae567348882"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 1136.32
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c8d4a709950afb842acdb2d2751b5715ee638e9da0474ed4b09acebcffcf0388"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 210.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "7f3a88ef18d51f1a4cead8665c91b1fd3868c55eee0c12fc6fa5462e16e9d139"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 105.08
+    }
+   },
+   "label": "approve",
+   "inputSha256": "cf809fc11e2c4ca4f4300d07153886faeb05d41cdd6567bc80ea2e846c5b2198"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 80,
+     "status": "paid",
+     "total": 158.28
+    }
+   },
+   "label": "deny",
+   "inputSha256": "7252e19bab41fb5d27f998c788e8946c8f8e2019134016814ae11c8c418ee958"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 130.5
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a0e06b53001c9609a1b14f32b84299c695f56207e2caa509edeca4843645d7da"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 50.4
+    }
+   },
+   "label": "review",
+   "inputSha256": "9c11e4c3c7705f66b3bf200fe28a6f2d8ff0bee8464109b9548c9a9ced6b3336"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 337.92
+    }
+   },
+   "label": "approve",
+   "inputSha256": "70c85bc9ef8837204826f105eb097e9e6462617b352deeee92bd0a81141ec102"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 1226.79
+    }
+   },
+   "label": "approve",
+   "inputSha256": "fddaf87ca72b5204f2ab912881a693e3db455ef6f7dd162e32a9b9d7bd425a12"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 62,
+     "status": "paid",
+     "total": 230.1
+    }
+   },
+   "label": "deny",
+   "inputSha256": "418484af5a9cd6eb2047b3e5ff1e17fda4921880e89c788d24a71c72a7bbb295"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 341.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c535ab36e1a9ad54023c256df9b82f4b580526fc0d2b2befa77205a361bbdb2c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 214.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "76fb2c171d57a890c5a2dc07e40592d19c3e94b23faee3860bcba737b788ccf8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 482.16
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b11b34e3527c27ce895246475ead4e51ef7f2de35780a7eee25280be731a39ec"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 151.95
+    }
+   },
+   "label": "approve",
+   "inputSha256": "8e6ba01c238e32c652a3645900dfce394279786cb8550ee635924d46880c684f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 359.98
+    }
+   },
+   "label": "approve",
+   "inputSha256": "ab764743ef5b2f51cd0cd55854d5a6ddaf1efad0a125771f6af540b9f743bdf5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 11,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 379.68
+    }
+   },
+   "label": "review",
+   "inputSha256": "b979e4e19860e1e6873b26169ff82071e431fe0ee6d2e15710c30f83e7c9c323"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 38,
+     "status": "paid",
+     "total": 59.0
+    }
+   },
+   "label": "deny",
+   "inputSha256": "70dd667a092351dc785f60cfa580e99bbc6456a9c680c04d3fad94059907563c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 1036.64
+    }
+   },
+   "label": "review",
+   "inputSha256": "6490f6d00953e67aa14e88917e0fa4d15c68cae72e3332d52c9048a72fb3f48c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 367.9
+    }
+   },
+   "label": "approve",
+   "inputSha256": "3bad53834aa03c072053f96544a5329f00d4309106aac90427c03e673d43e6d6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 300.84
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6304f7d95854c97cc6d8f1dce42ae5ae107712ee7a8cf5c786723f64e73e1acd"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 427.4
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5a71476446c5771bed16ef31e93bab9100ae61f37f168e1d894f870a36f9e317"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 280.51
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5c401c944a26ef404ce54197343940e57b0f95c47aa2548eb029adc7157afaa3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 92,
+     "status": "paid",
+     "total": 1257.87
+    }
+   },
+   "label": "deny",
+   "inputSha256": "5940a402a1e4020f13c13edeb841683f22789ecab80f51becfab841fbaa126cb"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 70.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "bbf3c9ac12761e6de036e735a6259af564b6a6529fc2da2599e13fe1c861bb85"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 464.45
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b632d8fc250e3484cedb33cd6512f4c17b2cbc98e8ecb3c0fb3d808c87001265"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 116.5
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b6ca763ba73ca3feb5501615030938d87e1d0de65ffed0d2f11a19e4da39127b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 430.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a5058b6704a4555ecb069d36e8f1cd67b8e4a3032c55e256cf72002ec9ba3c94"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 143.56
+    }
+   },
+   "label": "approve",
+   "inputSha256": "3c8a448b9aaaf063f7bc7a7da3e4e845b4f0f440ec6530567a56cb285196cb74"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 232.39
+    }
+   },
+   "label": "approve",
+   "inputSha256": "3e7fcb52eaf6b4c3d9fe5a7c224c7c192ea1b16ff4cf1c830df47555e823d3bb"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 907.1
+    }
+   },
+   "label": "approve",
+   "inputSha256": "54ff9d0599b6ee81e598fafca8aded72e1b0c781982f4fa187078c6e3d991f59"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 23,
+     "status": "paid",
+     "total": 594.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5f1f4bd80636e0ac859ad925b82268c03e326b658f7c82771f6827464b418454"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 195.15
+    }
+   },
+   "label": "review",
+   "inputSha256": "c781a5800ba754da365733a94dba9ad28a0574b9aacbd30bbc762bdf078cdd36"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 648.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "789bb1a5144b26bdf7da2a8da8d914aceffe2153f9de1809e4b54f069ac0ecc8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 3380.86
+    }
+   },
+   "label": "review",
+   "inputSha256": "ac402df5c96be377dc5c290e64a36d48bdbf27d5a7e2de99aa2154f06e6ac568"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 16,
+     "status": "paid",
+     "total": 448.34
+    }
+   },
+   "label": "approve",
+   "inputSha256": "57e1efc704101f1538641dfdcdc45b9179bfdd0befa673945197f9b02d2e7e3f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 404.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6999a98e336bf32103f0dd0e2784c903f28c2879dcd677e818997651239f496f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 16,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 895.13
+    }
+   },
+   "label": "review",
+   "inputSha256": "79fd663a4e50983e6198434d5cad533275a2adc01d55cc702c05abbb6537d22a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 1632.93
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b58665f2203801542dc0315ecb9d1c53cbe319a39b53a29a4744ee934eb1da2f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 49,
+     "status": "paid",
+     "total": 453.04
+    }
+   },
+   "label": "approve",
+   "inputSha256": "876333ed821e4ae7395e781149aa0f25731bd216d5f0c2422a246b56da510087"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 377.57
+    }
+   },
+   "label": "approve",
+   "inputSha256": "428e058edd3ab72b8a6e5d91bd512be4773a0741a3fd3a8d3aca4d321800e5f3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 11,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 580.57
+    }
+   },
+   "label": "review",
+   "inputSha256": "06ce941e654a688ed4a46346e028f8bda612cfb55c4b5e7ebed2374d68fb77c8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 168.54
+    }
+   },
+   "label": "approve",
+   "inputSha256": "e35ca5499991129020e51cdbd6e2ca624c57c27f935d427cf7044a035d5af0f7"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 180.83
+    }
+   },
+   "label": "approve",
+   "inputSha256": "17c0f815b21b5de7f1b030aa11120afab28e7cd80b13085d55c776b277fc0801"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 299.14
+    }
+   },
+   "label": "approve",
+   "inputSha256": "52e5a4d6fedd5b796a1b402bec1c11956ad34a6c0522607db9454f9429d9a1b0"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 295.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "23226893f64f3cbf3258aa8664abf14fadb007b4924a8dbda7842177f6514f91"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 22.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "56ac24d4fe80a88b4b4e8095b855265e84f72961e2cd33ece916a84a1958b8a0"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 13,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 501.69
+    }
+   },
+   "label": "review",
+   "inputSha256": "7c2908b6254c87e235a8041ca622c018ac51e691db6f456bba43ae18e47eb031"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 16,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 2209.04
+    }
+   },
+   "label": "review",
+   "inputSha256": "3e25049d28be3239e0b4ae53fd4f07afc9777972ec455a269926c815079c80ab"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 281.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "652b56b972133fee2c7fbcb39523136301a1f8ddd5d2ecce49cc6494c46d7398"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 10953.5
+    }
+   },
+   "label": "review",
+   "inputSha256": "f18bc7a671d1f74e650af03978274353d4aaf3aa539f0eb1c9ed4e66fac56eb3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 9,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 372.29
+    }
+   },
+   "label": "review",
+   "inputSha256": "b05083d358c2a04cffdb3b67d5c2f9c7a17c5641854ec4eaf52994b50d52c1e4"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 67,
+     "status": "paid",
+     "total": 47.25
+    }
+   },
+   "label": "deny",
+   "inputSha256": "529ada297c8e1424f0b0d9976b6dcb6d6226f05c1187a89aecb2ea7a6e10ff1e"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 219.46
+    }
+   },
+   "label": "review",
+   "inputSha256": "ba0d92c4251bfca56808154fdf8c56f8adc1fbfc346cdabd921671593d1902f5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 11,
+     "status": "paid",
+     "total": 360.38
+    }
+   },
+   "label": "approve",
+   "inputSha256": "ee36ebb6824039b9a25b57b68b037439d75458e71a5b40580e01a1319bba847c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 432.48
+    }
+   },
+   "label": "approve",
+   "inputSha256": "f329450ea19d25ac9d7fbbcaa69385686f55c000a3f31dd94eac3d806a71be8b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 4257.06
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6204e180b6abe7f102daf55ad238c1574bdd09f8fc43bd87a44189a9dc7bc128"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 37,
+     "status": "paid",
+     "total": 136.3
+    }
+   },
+   "label": "deny",
+   "inputSha256": "f5cd7a6afc5d8108114954955b7a31a7174397bbf4e302ec63ec7b861d7c59fa"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 219.18
+    }
+   },
+   "label": "approve",
+   "inputSha256": "7228e9fe0fae70ac9bd6caba36f66c6fa3f5f7fed2d5bea5dd1661ac8ed7e5b6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 52,
+     "status": "paid",
+     "total": 280.16
+    }
+   },
+   "label": "deny",
+   "inputSha256": "084cce604c8383d02f1b79a69acffea9ceaa10df0420387e488784490903b492"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 28,
+     "status": "paid",
+     "total": 458.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c109dd89b14c2b1ed6d0ee43b3073afc55599f2b7ce4979da900cd5bb1ef1b9e"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 1915.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "722b6e82e8c87815ac8945e178fef9460fba5fe8f6c2c2bdb85543f93fe1802b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 237,
+     "status": "paid",
+     "total": 1075.3
+    }
+   },
+   "label": "deny",
+   "inputSha256": "c002df55190c65c1131ac452859d0177903884916850999635212d66d1bf09a2"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 11,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 44,
+     "status": "paid",
+     "total": 641.85
+    }
+   },
+   "label": "review",
+   "inputSha256": "5092cf8b4f82d68845380bc55d17734fb027657aae9781c735ae18ef10419d22"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 11,
+     "status": "paid",
+     "total": 130.26
+    }
+   },
+   "label": "approve",
+   "inputSha256": "fcd57d08c55c6ad789198d306c997d2f9b29d2de5fa0cf6b7b2f03c58c80aeef"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 104.05
+    }
+   },
+   "label": "approve",
+   "inputSha256": "0c664ab190c887e1d1447b4cd222063138b75182afab4a2e53925ec52bfb3f55"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 364.02
+    }
+   },
+   "label": "approve",
+   "inputSha256": "123ad7a74f39b9cbcf5ff39a07578fe7ed429a23a31917e05324eb7ef8d3a2f3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 9,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 208.8
+    }
+   },
+   "label": "review",
+   "inputSha256": "257d398f78b568ad5896a1892cc727b89f94c3c74ea57f557bb7ec7467d6f924"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 141.9
+    }
+   },
+   "label": "approve",
+   "inputSha256": "229c231eb661498bc221fb93192aee09002855d2c6826ae26d9a223c96e66865"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 386.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "680bc0d7ef8647b437f4582a0c59d6042e87a838620711da8adf401529fca859"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 33,
+     "status": "paid",
+     "total": 17.0
+    }
+   },
+   "label": "deny",
+   "inputSha256": "feffebc10dde1b22386b5ceb04e0500b2e2683eeb9e5cfa30bd4d7504d7c86b3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 6.5
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6e4b67eec7dc6bca35cecd29c3e6b15626b0545a7907973eb6599e5231810377"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 107.06
+    }
+   },
+   "label": "review",
+   "inputSha256": "e0d7070240585c98253b9d58facb3bb446d61575452ed07463b03164dd1c8daf"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 16,
+     "status": "paid",
+     "total": 579.35
+    }
+   },
+   "label": "approve",
+   "inputSha256": "13c56db6cd5905c0833f39eb72726511b5581bdb3801060737b1611c4c20bdbf"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 12,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 4961.2
+    }
+   },
+   "label": "review",
+   "inputSha256": "722434e4fb08a0e89b54aed44449df66393ac39822dd45b20444d6c81824d542"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 31,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 467.52
+    }
+   },
+   "label": "review",
+   "inputSha256": "207e6d38951661678e342640774272906de32a509461117dc758d32a093169ea"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 170.42
+    }
+   },
+   "label": "approve",
+   "inputSha256": "2468182e4dd6de0a27e2527040017d6181737f3e1ef8c33923292e510e18d59a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 1184.08
+    }
+   },
+   "label": "approve",
+   "inputSha256": "33745dc14fa1c52a0a34cfa8cb5effaffe57aa7ac8f86c606f06690dae2270d7"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 111.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "027199d1cf8a060969268b19e441978441ec2c875dd22fe1fe4e2ec5f7dc6af2"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 34,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 1074.76
+    }
+   },
+   "label": "review",
+   "inputSha256": "4b9cb853e0754e856693305cea5450854742001605fa2df7828d2aeda7e14cd2"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 42,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 1390.06
+    }
+   },
+   "label": "review",
+   "inputSha256": "dc9ef85b15c4550effd9d640d04ce7f17d95a342c7fd94ad317b2d8ab2131668"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 9,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 278.55
+    }
+   },
+   "label": "review",
+   "inputSha256": "e1642cd3d58415cfe0d469eaf7cf66285ca1b804d09246717f24bc0eaf4c8de5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 17,
+     "status": "paid",
+     "total": 462.53
+    }
+   },
+   "label": "approve",
+   "inputSha256": "f4687d96d1461542bdc784f8094497637b27f1caee5df69158916c18c326a2a8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 27,
+     "status": "paid",
+     "total": 327.6
+    }
+   },
+   "label": "review",
+   "inputSha256": "dc552d91e202fa6d596efd744e14b4bd822bcad69cebdf15341b7e87a2f50b4b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 635.85
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c9bc0317ec263757993b856f8327207ebfa786fbc886e1f9f22957001c5a24ae"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 122.46
+    }
+   },
+   "label": "approve",
+   "inputSha256": "7aadd2ee6a634e0067e3b21d6087164df692a8307054454f8f6ab91f5a3260c8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 121.74
+    }
+   },
+   "label": "approve",
+   "inputSha256": "23f14be492e1d24ea51b120738e527efd9cfacd7597ba131e18ccea0da380f06"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 5106.73
+    }
+   },
+   "label": "review",
+   "inputSha256": "86853ad1d6411248c1818392b7cf84497ae843eb5ed73734056dac2a4cd4b4a6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 234.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "086b158f77bb9aa381ec2c02753de15285099e62fa303bc4b9eab907463a7984"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 16,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 8935.98
+    }
+   },
+   "label": "review",
+   "inputSha256": "1cc0c75ed3b065734d9a11e2bff4b0b57bd297e2603fb525702a54819cc69b17"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 20,
+     "status": "paid",
+     "total": 291.34
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a8b79560111482ddf06be18323e36c3e023f1d7f221fef1bf1c1d79e45aa50a2"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 41,
+     "status": "paid",
+     "total": 277.48
+    }
+   },
+   "label": "deny",
+   "inputSha256": "f47078c9279c2c68d1e4819848ebec90c6bf01b26f782632b32208c616be6875"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 299.94
+    }
+   },
+   "label": "review",
+   "inputSha256": "90a238fa980649770d5b03676fdb00c62a436358e3dbfa8e8531a84a490cfd5a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 10.5
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c52960c88ba78f3cf06dac2485f051675d0b77e8d85ed61df6e9a5d2a151260c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 12,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 325.26
+    }
+   },
+   "label": "review",
+   "inputSha256": "435e24bbbd5b4652cea957ceb4068f52f20ec0f8479e02457a465a92918dfe15"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 2769.9
+    }
+   },
+   "label": "review",
+   "inputSha256": "4102633570c63be3ed59ea4d83ae091e1b3ebc7f74cea36dd3036a7973844aea"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 116.89
+    }
+   },
+   "label": "approve",
+   "inputSha256": "eb246c2513f1b93d13eee1a0eda65370a33d615bf07cd6f25e42b620347e937f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 20,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 1620.66
+    }
+   },
+   "label": "review",
+   "inputSha256": "21943e49f09d1e1305422f5397806675e8e2ebf439e4908b794fd580844bb327"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 26,
+     "status": "paid",
+     "total": 314.57
+    }
+   },
+   "label": "approve",
+   "inputSha256": "ea03ddf63bd03f839477613d6704e89542878bc04a3286106ab508eccaf0a458"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 672.19
+    }
+   },
+   "label": "approve",
+   "inputSha256": "407e3e02894fe28f20303fae80a018c191123668be12ea12044086063a7c442a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 48,
+     "status": "paid",
+     "total": 1033.55
+    }
+   },
+   "label": "review",
+   "inputSha256": "3aedb9bf76a9fde317f710a3a3f473cbed076194cb5a444dc6a6f128cb42ef81"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 20,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 1419.58
+    }
+   },
+   "label": "review",
+   "inputSha256": "bb3d19e02d8ec95d3f0089704fa7f53821a0d764050cdbafcc16a1061e55049b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 42.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "0c65468bc6d5c0f89f8a2a43ee96bcf6f9504f3d4188e386cdd303eb1b05a91d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 51,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 1966.66
+    }
+   },
+   "label": "review",
+   "inputSha256": "75feaef5b3da2f2219c7a667802250594dfc231fe3aee9aa39ea1577b90abbb4"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 310.12
+    }
+   },
+   "label": "approve",
+   "inputSha256": "9dcda922059023e948eba2bf37cc4aecd9991cb5189f46146761e83179cc1a64"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 949.5
+    }
+   },
+   "label": "review",
+   "inputSha256": "05651b8cbf7340e7ad879eee8c1a9e4af5c9a333c98b9b7f675d1e2d6da6e65a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 94.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "78284adf99e782d38d38909e3d25b42d24cd982cdbd8cc7e009f2fe690d12bb8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 170.64
+    }
+   },
+   "label": "approve",
+   "inputSha256": "11639eb296cb98c7fce6bec01f74462b1dcbd1c8f9dacafc65dd49d77a00585a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 47,
+     "status": "paid",
+     "total": 387.45
+    }
+   },
+   "label": "deny",
+   "inputSha256": "a2a3962132b58cc5ba10626b5e67efb9265f57726fe4727e8eee00271221e0f1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 642.57
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5d5a4fdbf9549764f8011914f15ad957493c6aa97a5a8ab18bc8075778cfa69e"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 365.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b6ac196be407c10f2d38ed1c5e71e646bd046d828cca2e005bd749862ef40149"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 434.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "de0c7a29434681895f5092f97c444aedd412bb5de7eac30a5beb1ebe6e721a2d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 306.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "ebf3bbf9b2bd9eaada270a14cae15506345335a1b601e15cfeac24cd42919e79"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 358.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a2987ac6b61b3f28fc1f69ecc5fa4628ca536223e6de922bb6e7f5a115fb1aea"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 415.13
+    }
+   },
+   "label": "approve",
+   "inputSha256": "dc3267a85e9820bbd8cfc3bac21b76c7bdab9bada2ca90da7b32db1d14fab269"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 328.2
+    }
+   },
+   "label": "approve",
+   "inputSha256": "0cf09ebdaa87971270a4a8ed32ae8b7fef192ac8f9498bde3d33221cfd0284df"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 20,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 30,
+     "status": "paid",
+     "total": 17.7
+    }
+   },
+   "label": "review",
+   "inputSha256": "84ca5cd7539f168780411a35be805e5e96afbd6bcaee7ecfed264cf27a145026"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 296.8
+    }
+   },
+   "label": "approve",
+   "inputSha256": "0a7cd9b0805dd70d2577871b3b22efa7ba4b98907c1b15d3718c13d50fb2bbb1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 582.9
+    }
+   },
+   "label": "approve",
+   "inputSha256": "4901c2e7cf32795f5dfe41b9d3d15b33b326c3bfceeec371238f3080d5edff65"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 32.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "0585b7a9615fd79c37fa55f33297c1f2d1a4997d3d907584bce739f515b28bba"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 760.74
+    }
+   },
+   "label": "approve",
+   "inputSha256": "318e98b15275c9280ed9bb669f8408e468d32689a3e57537df9132c07e001eea"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 311.78
+    }
+   },
+   "label": "review",
+   "inputSha256": "2696e54d8c4256b4536c7b5971f8629bc855ac51ed78e44a344fa522b363dd96"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 317.44
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6d2368adb8fb581a99ad4993b8c58c9531b8e14ddfded0155fb6a886ea9d6509"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 313.4
+    }
+   },
+   "label": "approve",
+   "inputSha256": "46dcbd21cad5fe644d0ca1160160faf4ba08d06e18e186214755ea27298234e1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 12,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 617.98
+    }
+   },
+   "label": "review",
+   "inputSha256": "5f20e7417489040e5d5ca5f7ccff074d33724364afb332cf154d4cefa308abdf"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 735.7
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c129e773825ba73641a42c5146c76164d223aeb363f52fd601d4f3dade1e7b77"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 113.54
+    }
+   },
+   "label": "approve",
+   "inputSha256": "026d6e033a0b0385b02fcd6f9066a3fffbabd234c7a41c68c2eb0b34e86faca9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 324.57
+    }
+   },
+   "label": "approve",
+   "inputSha256": "2c4e58c83d7618ff9e4a37211911946ff64e81fdefb00829541a9c76f41302a7"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 438.05
+    }
+   },
+   "label": "approve",
+   "inputSha256": "fdac478d1fb8272dd62dc3342b1469c7513bc81ef6df48e8ddae9d90c8eaec42"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 14,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 529.57
+    }
+   },
+   "label": "review",
+   "inputSha256": "8d68e4c856853f5a0d3bc869b6820dd48a53dccea292ec00804261d2721fdf42"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 23,
+     "status": "paid",
+     "total": 583.65
+    }
+   },
+   "label": "approve",
+   "inputSha256": "fc8c83a58fae9709fdecb517d32cda83a2e81a3645830174f272c4110ed9028b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 334.7
+    }
+   },
+   "label": "approve",
+   "inputSha256": "9f56afd701b3872d7922acd3c998dbd4668a059ee9eb4794966fd3049f230098"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 401.82
+    }
+   },
+   "label": "review",
+   "inputSha256": "d792aa94dca4c127a5cdcf81c69795f66c532d7ccb5fc398e305b0acefac98ed"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 46,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 2145.38
+    }
+   },
+   "label": "review",
+   "inputSha256": "cb5783ba6a01d8099f99ebab21e878326e1816713cae3b73c77c14473b9d580a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 219.3
+    }
+   },
+   "label": "review",
+   "inputSha256": "cfbd7dfca8275ef6f0e24392cdf4cf6c6cfbfa3b908b4e38f1dfd1964f7b90f0"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 394.75
+    }
+   },
+   "label": "review",
+   "inputSha256": "0ee813a53e0b3841c983cd92377ddd0fed5404fc2fb813d6293136a8c45b0477"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 307.18
+    }
+   },
+   "label": "approve",
+   "inputSha256": "15dc0bc7a20d9ac1361a74f4b17ea2ab8adb3d1f86b8d4b60cfdb0f0b2b32316"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 924.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6147e703b6754da4f6cca7efab32ddf0479d9183651d3632219ba57c45e2cc12"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 726.85
+    }
+   },
+   "label": "approve",
+   "inputSha256": "1f3efe4ec7a85a816b7c0b50904e65877072095f72c114c031b140b1a58a09e8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 94.17
+    }
+   },
+   "label": "approve",
+   "inputSha256": "41b326f6ab117e0f5998e34c7904c8038379b76b93234a4da457f9263de18df7"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 28,
+     "status": "paid",
+     "total": 415.92
+    }
+   },
+   "label": "approve",
+   "inputSha256": "9261e53a40f1245298caba71598220231d58f4925fd4908c3a6254bef379ddb4"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 1460.7
+    }
+   },
+   "label": "approve",
+   "inputSha256": "cb00d922917ee0d86c144d2f547ad805053e18ade176da8d87411fb89f91ebaa"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 355.42
+    }
+   },
+   "label": "approve",
+   "inputSha256": "18db50822a55c82033eb92e6d4c6c8d16854deb957e256997636cd2480becbce"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 179,
+     "status": "paid",
+     "total": 584.4
+    }
+   },
+   "label": "deny",
+   "inputSha256": "d9a7c86cec9fb0ab5e3c803e1d2d9006ab8b341f47622cd24c9f15ba9540db3b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 736.95
+    }
+   },
+   "label": "review",
+   "inputSha256": "c9e6de5a051e5e6e3a2cf22301c0aff8167d62efdb48a796bc8c9ba60d971f4c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 67,
+     "status": "paid",
+     "total": 836.56
+    }
+   },
+   "label": "deny",
+   "inputSha256": "d273e02d95a6a7af1322a50f6b2ce67b1acb64b29aeeb035082aa33105051291"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 14,
+     "status": "paid",
+     "total": 399.55
+    }
+   },
+   "label": "approve",
+   "inputSha256": "2248f143da9178b4c8b0ebd7338d198a1b08838b24e8e46e5c3084d3f0ee2f1d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 12,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 102.0
+    }
+   },
+   "label": "review",
+   "inputSha256": "4c743fb581d5c1d9935cff02adb15b6b098b003c30d9de2aa23c264ddc6ea5d1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 2318.4
+    }
+   },
+   "label": "review",
+   "inputSha256": "367eab49e6d0af117450df343ded2286a9851a8c5289fa9ee5aa62c00a4077dd"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 49,
+     "status": "paid",
+     "total": 405.64
+    }
+   },
+   "label": "approve",
+   "inputSha256": "1db04009a19255d50ce1edc157f6be234f0de367363b5fb6efc8eb64924f74cf"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 444.52
+    }
+   },
+   "label": "approve",
+   "inputSha256": "56e53d4a00b9d9e6a4c3b145dd19b8d1757199c788d17c2807162b4c04a43902"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 1534.3
+    }
+   },
+   "label": "review",
+   "inputSha256": "59c9f52728c01bd4339dcc0ccccc3fc3842967f81802448b9c705b8273da68a1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 13,
+     "status": "paid",
+     "total": 30.6
+    }
+   },
+   "label": "approve",
+   "inputSha256": "74ef7c43c42c2528dc752b635312630e4d45a6e422799dac41cbee741a32e748"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 53.4
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6238420dc336ab8cef04f3140b85e647d3b71c062860c6ddbeb35110ce4918c9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 228.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "dc1848a4ae6b7c21dde1f29cd9fa3d2ed0dbf510f1c33d83ee1f8cf7bb73bee6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 14,
+     "status": "paid",
+     "total": 345.75
+    }
+   },
+   "label": "approve",
+   "inputSha256": "d6d6f824cb924ee7c10765a6a98854e663fed8ee614fce8d3dff053a1b968fb4"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 29.58
+    }
+   },
+   "label": "approve",
+   "inputSha256": "053f9782097943e3ac5a4a6c41a9b087bfc7e1eef1643b4e4e0c41b746d290f7"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 1080.65
+    }
+   },
+   "label": "review",
+   "inputSha256": "3beac2398024dbfe4d31f2d1b14c4c2dbdf887fc71f403121ca5552bda127d78"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 331.14
+    }
+   },
+   "label": "approve",
+   "inputSha256": "1c461912e263dc883e714521072fea7967d4ac25d29f8dbf83790053603a080b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 84,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 768.97
+    }
+   },
+   "label": "review",
+   "inputSha256": "eac46b54f355212a9d106a3dac02444d643e6e7bba0d03dd58541bf0d8cafdb7"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 856.78
+    }
+   },
+   "label": "approve",
+   "inputSha256": "07424f246c2cebaef0a7db411b542a7a0d045b89406f7e9bc9de10f0a60a90ff"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 35,
+     "status": "paid",
+     "total": 953.5
+    }
+   },
+   "label": "deny",
+   "inputSha256": "ca971502a0c606590590c538614cc924df95be4aed76e8d3ead5bba1a39c0171"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 307.65
+    }
+   },
+   "label": "approve",
+   "inputSha256": "fb2a4936b61f0171ea8896434630764bc79c8f3da0ba7eb3023cfba70e770af1"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 55,
+     "status": "paid",
+     "total": 168.42
+    }
+   },
+   "label": "deny",
+   "inputSha256": "d4528107303c1951a1726b86015ed85d667cea340dae775a19d6f6b8c93b8135"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 15,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 308.18
+    }
+   },
+   "label": "review",
+   "inputSha256": "3424a9b760511cf3d3bbb1f17e37a76f9032de8df2c8d8366a33b3fc109781b4"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 305.34
+    }
+   },
+   "label": "approve",
+   "inputSha256": "f9dce4415ea0d514cd740e8cf76d6b143aaf23472ae871a3fcc1be8e21a343f5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 740.76
+    }
+   },
+   "label": "approve",
+   "inputSha256": "80ae3bee652e716b0337420415b3017aca5f4f22ee56b95c552c6a50a2e7ffb9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 467.43
+    }
+   },
+   "label": "approve",
+   "inputSha256": "9c409c490d50a8f34a9b537bf59e0f0ebdee7713eeb66532817263c47b75936f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 78.6
+    }
+   },
+   "label": "review",
+   "inputSha256": "e29c628983ecbe62ec3c5b1fd2193a1079616eba03675f32dbd8bbd1bba8a137"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 18,
+     "status": "paid",
+     "total": 70.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "8ed147153e4ba5b71ecd22d4fa97f06f6f7774b2d384ea2819cbd17f8172252d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 504.51
+    }
+   },
+   "label": "review",
+   "inputSha256": "cd2c1a5c79d933da553b9c4078baa7150e1186e6595c8c150d262c81d6e864fc"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 132.65
+    }
+   },
+   "label": "approve",
+   "inputSha256": "4848b96b6f854886c16663594f05506fbbeff45df86c121e0779c935d745d457"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 473.38
+    }
+   },
+   "label": "approve",
+   "inputSha256": "6c119bf3bc01fb6f860c6d22b2604a862f0356cd71f0bfb47c22a6331b0e8d1a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 90.0
+    }
+   },
+   "label": "review",
+   "inputSha256": "50376a9a673fd42ed0bd3e0570ea3ee15c868629b6ddc5d5b6f6e33e65cce765"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 10,
+     "status": "paid",
+     "total": 2640.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "91fee98cf092aac9296752b9a9d68cbc8002c6e2e72af2ab57da22e4fc1db8bf"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 285.7
+    }
+   },
+   "label": "approve",
+   "inputSha256": "a243db1290d3ca2612f111ff7f7f2b6d93edc99d3fa8dc55ecef64f2f7290f5a"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 293.1
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c9008a3d231bd8401bedd6953a3b13fc506efd303c6bea26c9032709d70f103c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 43,
+     "status": "paid",
+     "total": 870.84
+    }
+   },
+   "label": "approve",
+   "inputSha256": "58ed223132767fe834ad5693505a45ed8b020b93f8cdf86b01128d0c5e7b3b48"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 299.76
+    }
+   },
+   "label": "approve",
+   "inputSha256": "ba67b432bb1465e45955ad79c9538802cd1675b6d72c2c3d59ed04fb6feeaff8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 362.24
+    }
+   },
+   "label": "approve",
+   "inputSha256": "e03fcc570d3fada74bf399faaffb83f9f5938c683084c8c04447f26febf52a38"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 4,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 9,
+     "status": "paid",
+     "total": 694.57
+    }
+   },
+   "label": "approve",
+   "inputSha256": "d7bba106945877bc23f969041cd351ed7c7c1b68d9668968a9c6db6610b0beb5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 33,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 3,
+     "status": "paid",
+     "total": 177.1
+    }
+   },
+   "label": "review",
+   "inputSha256": "9979aa54075673047d89298a4137a0ec2a18c1abc3830a84cd9267636c81fc5e"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 601.04
+    }
+   },
+   "label": "approve",
+   "inputSha256": "610c2e215875a32ef79fd4a97fbe6ea1f022e637f611ac0d302a99bf2a5ddbba"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 31,
+     "status": "paid",
+     "total": 182.65
+    }
+   },
+   "label": "deny",
+   "inputSha256": "a64fa235e12c807bff1cc2f36eb558359aea530d0b2e619dac7fbf59b46d6319"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 9,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 164.42
+    }
+   },
+   "label": "review",
+   "inputSha256": "823b62ee137d17a7931355a24db4ada4c6e9c857c9143b15310936b601e98ca3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 1233.44
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c71b3a56e518cc21846317d515a3e6fd32ed7e91a4ed85506834a4460d526f9d"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 22,
+     "status": "paid",
+     "total": 267.95
+    }
+   },
+   "label": "approve",
+   "inputSha256": "55b41b933c019985ed2d587456e91c12e683b17f5c9a4cdee711df379d7fb2f8"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 32,
+     "status": "paid",
+     "total": 296.28
+    }
+   },
+   "label": "deny",
+   "inputSha256": "6a8b2032e8b3a6f642b76959107d88c96913fb00995f55ea5148dd38b07fd20f"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 43,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 2420.95
+    }
+   },
+   "label": "review",
+   "inputSha256": "71f292e053f39246b019a14b4dd4e8822ba60d0138218ce774d6259b5424a207"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 78,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 5.8
+    }
+   },
+   "label": "review",
+   "inputSha256": "60835652d1cc285f4a1744e9e64a68feff1fcc253cb8342575792728e607b151"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 8,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 24,
+     "status": "paid",
+     "total": 382.48
+    }
+   },
+   "label": "review",
+   "inputSha256": "bfdb85cbea96de4b0e8fd7c2e6e809acbb888db3ea7de75d7685327998aa87f6"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 116,
+     "status": "paid",
+     "total": 749.45
+    }
+   },
+   "label": "deny",
+   "inputSha256": "aa822b2432a5bb5997af6f44b7277387d9b88b626b4cc53d47ed521bba69cc01"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 659.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "53560614497376458250a3a966f38aa059b98e381fbec1cd27a5bd5c56036325"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 9,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 317.4
+    }
+   },
+   "label": "review",
+   "inputSha256": "ac4f0ae0fa82b85ec0940233fa3d94c99a39ffa34e88bcda735ed100768d07d9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 11,
+     "status": "paid",
+     "total": 476.3
+    }
+   },
+   "label": "approve",
+   "inputSha256": "8a6c99266c1163170af35fa3bd12b88e0098b1bf438740e6af5664d4503f7df5"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 2,
+     "status": "paid",
+     "total": 304.4
+    }
+   },
+   "label": "approve",
+   "inputSha256": "e1e924166853a4f05dcace6650f2da0270eda934b12dacd8508842881fa81229"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 34,
+     "status": "paid",
+     "total": 505.0
+    }
+   },
+   "label": "approve",
+   "inputSha256": "648da5be6ef11421997cf3ed1bfd5a62dd20649450fcf6849025e98e676beacf"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 306.61
+    }
+   },
+   "label": "approve",
+   "inputSha256": "c5ff9061143a149f081f785b50d82071d4ebb2d15950d5ad171e92e1803ef5dd"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 29,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 426.1
+    }
+   },
+   "label": "review",
+   "inputSha256": "b79efd9552e7f785830a801296c5e46ef396104221a2af86089abdb35502f6ed"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 7,
+     "status": "paid",
+     "total": 305.1
+    }
+   },
+   "label": "approve",
+   "inputSha256": "314a663ec4bc560d2b101abf261efb9f0930f0c2328ae5a62a32c1fa24d6f1b3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 21,
+     "status": "paid",
+     "total": 336.55
+    }
+   },
+   "label": "review",
+   "inputSha256": "9397cd38c424969a353b04380ddc6ac6e3dd36c1d2b5e560f860418f9a1ae4fc"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 570.88
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5fad1ae74e6acfb64cce27b846492cd1813eacca9cbdfb23bc03122d4c9c8c26"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 14,
+     "status": "paid",
+     "total": 541.19
+    }
+   },
+   "label": "approve",
+   "inputSha256": "b3d951699fd54669eed44838dc8b1dd7d3c8d0941244fe7cd003f63c37b160c3"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 6,
+     "status": "paid",
+     "total": 332.85
+    }
+   },
+   "label": "approve",
+   "inputSha256": "e95f3f317c3f1f6e7a881c24b77182dbb7c97b87781d86860f2af74e6f644d9c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 0,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 305.18
+    }
+   },
+   "label": "approve",
+   "inputSha256": "cc2b7dcd953064c16f4e5b917b1aec45c57d307b291293762351e7a68eacebbd"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 7,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 4,
+     "status": "paid",
+     "total": 246.1
+    }
+   },
+   "label": "review",
+   "inputSha256": "f9167e49ab819ee06355613d63ce9dbb963d8c8c1e8994942fa2430a85420419"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 2,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 0,
+     "status": "paid",
+     "total": 423.4
+    }
+   },
+   "label": "approve",
+   "inputSha256": "900899805affa08c28f71db29b193e8783ad7d1224bb9b8ecbcc151c7c346ff9"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 1,
+     "status": "paid",
+     "total": 1356.0
+    }
+   },
+   "label": "review",
+   "inputSha256": "e9fde5d8b3d7a76aa1620682549483cdd4e589e67f16a46cb50103f53205be51"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 5,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 15,
+     "status": "paid",
+     "total": 110.95
+    }
+   },
+   "label": "review",
+   "inputSha256": "21d8e08172d504a2c680a9a3e7c8ec9f1987d2a21a988198be22222e8374f68c"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "standard"
+    },
+    "order": {
+     "ageDays": 5,
+     "status": "paid",
+     "total": 302.54
+    }
+   },
+   "label": "approve",
+   "inputSha256": "8f1d94d5e03ef7443badbad9b59a55e3b678a1ccbb30b0886d9ca80f10d1ec70"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 25,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 12,
+     "status": "paid",
+     "total": 615.3
+    }
+   },
+   "label": "review",
+   "inputSha256": "ce74022775e72c0ff13e8ccb137dbcaa03d3570a7957d57580f27c603dd96632"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 11,
+     "status": "paid",
+     "total": 345.85
+    }
+   },
+   "label": "approve",
+   "inputSha256": "affbeef59bf43823e9c32a54504324c3d3ee3aa006cea840b8053bb6cf73765b"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 1,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 23,
+     "status": "paid",
+     "total": 743.35
+    }
+   },
+   "label": "approve",
+   "inputSha256": "5076ff71934aa9c6a8aa9b81f3107cd127b67a3ae458bb853250f2ff9f473e23"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 6,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 8,
+     "status": "paid",
+     "total": 780.0
+    }
+   },
+   "label": "review",
+   "inputSha256": "f8a9882145c34fb18b847ff7a95ff52eb7c737be66f74d13a843dddf50d5b362"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 3,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 76,
+     "status": "paid",
+     "total": 389.9
+    }
+   },
+   "label": "deny",
+   "inputSha256": "1ac6c77e3de4c477f86216bdd4ba99621e0df677e5a49e9484a364fe15796549"
+  },
+  {
+   "inputs": {
+    "customer": {
+     "priorRefunds": 10,
+     "tier": "enterprise"
+    },
+    "order": {
+     "ageDays": 34,
+     "status": "paid",
+     "total": 305.0
+    }
+   },
+   "label": "review",
+   "inputSha256": "0ae5802e659daa387b1de83701026a319010782465f6b91d824358b94182b4b8"
+  }
+ ],
+ "payloadSha256": "b794919eda5c12a8508ce713b39a79058eb705e1aae766026bd7294b7f2006f4"
+}

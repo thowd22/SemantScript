@@ -81,7 +81,9 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   training, the release gate's violation tolerance, compile-time reduction
   (fine-tune the application encoder, not a universal frozen one), routed
   domain adapters as the default layout for depth routing and isolation, and
-  Jev as a diagnostic comparator and constraint-filtered corpus source only.
+  Jev as a diagnostic comparator and constraint-filtered corpus source only,
+  and local iteration through constraint labels rather than a local LLM
+  teacher.
 - [Laya analysis](research/laya-analysis.md): what was adopted from the Laya
   typed-decision models and what was not.
 - [Universal encoder investigation](universal-encoder.md): whether a frozen
@@ -135,7 +137,8 @@ run`, the zero-config defaults, the dev loop and the build cache rules.
   (`results-depth-sweep-2026-09-24`) and the depth-routed final-set re-run
   that meets the latency criterion (`results-depth-006-2026-09-25`, release
   `release-depth-006-2026-09-25`), the Jev diagnostic comparator run
-  (`results-jev-2026-09-25`, decision-11) and the complete five-system result
+  (`results-jev-2026-09-25`, decision-11), the local-teacher experiment
+  (`results-local-teacher-2026-09-25`, decision-12) and the complete five-system result
   with the structured-output API baseline and a mechanical `go`
   (`results-final-2026-09-25`); each directory has a README that reads on
   its own.

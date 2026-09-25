@@ -1,0 +1,1323 @@
+{
+ "kind": "semantscript.local-teacher-experiment",
+ "startedAt": "2026-09-25T05:43:38Z",
+ "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+ "functionId": "nf_65e347f7dd8736c55d82e539be7ad005cedb3ca396dfa2ab89de619f77adfc9c",
+ "semanticSha256": "f7efe891ae5e62b2f0dcec517e118482c995468aaafd813f263c4179a99e545f",
+ "inputs": {
+  "poolRows": 7597,
+  "excludedHeldOut": 194,
+  "duplicateInputs": 22,
+  "usable": 7381,
+  "evaluation": 300,
+  "training": 1500,
+  "seed": 1
+ },
+ "labelers": {
+  "claude-sonnet-5": {
+   "route": "https://openrouter.ai/api/v1/messages",
+   "model": "anthropic/claude-sonnet-5",
+   "structuredOutput": "json_schema",
+   "resolved": [
+    "anthropic/claude-sonnet-5"
+   ],
+   "providers": [
+    "Claude Platform on AWS"
+   ],
+   "costUsd": 4.95798,
+   "inputTokens": 1727083,
+   "latencyMsP50": 3979.5739650000996
+  },
+  "qwen3:14b": {
+   "route": "http://127.0.0.1:11434/api/chat",
+   "options": {
+    "think": false,
+    "temperature": 0,
+    "seed": 1
+   },
+   "resolved": [
+    "qwen3:14b"
+   ],
+   "latencyMsP50": 167.01556900079595
+  }
+ },
+ "agreement": {
+  "trainingInputs": {
+   "totals": {
+    "rows": 1500,
+    "sonnetQwen": 1119,
+    "sonnetRule": 1500,
+    "qwenRule": 1119,
+    "ruleAmbiguous": 0,
+    "sonnetQwenRate": 0.746,
+    "sonnetRuleRate": 1.0,
+    "qwenRuleRate": 0.746
+   },
+   "bySteps": {
+    "1": {
+     "rule": "stale order (ageDays > 90): deny",
+     "rows": 33,
+     "sonnetQwen": 33,
+     "sonnetRule": 33,
+     "qwenRule": 33,
+     "sonnetQwenRate": 1.0,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 1.0
+    },
+    "3": {
+     "rule": "paid, outside the tier window: deny",
+     "rows": 68,
+     "sonnetQwen": 42,
+     "sonnetRule": 68,
+     "qwenRule": 42,
+     "sonnetQwenRate": 0.6176,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 0.6176
+    },
+    "4": {
+     "rule": "paid, inside the window, suspicious history: review",
+     "rows": 440,
+     "sonnetQwen": 123,
+     "sonnetRule": 440,
+     "qwenRule": 123,
+     "sonnetQwenRate": 0.2795,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 0.2795
+    },
+    "5": {
+     "rule": "paid, inside the window, otherwise: approve",
+     "rows": 959,
+     "sonnetQwen": 921,
+     "sonnetRule": 959,
+     "qwenRule": 921,
+     "sonnetQwenRate": 0.9604,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 0.9604
+    }
+   },
+   "disagreements": {
+    "sonnet review / qwen approve": 283,
+    "sonnet approve / qwen review": 13,
+    "sonnet review / qwen deny": 34,
+    "sonnet approve / qwen deny": 25,
+    "sonnet deny / qwen approve": 26
+   }
+  },
+  "evaluationInputs": {
+   "totals": {
+    "rows": 300,
+    "sonnetQwen": 238,
+    "sonnetRule": 300,
+    "qwenRule": 238,
+    "ruleAmbiguous": 0,
+    "sonnetQwenRate": 0.7933,
+    "sonnetRuleRate": 1.0,
+    "qwenRuleRate": 0.7933
+   },
+   "bySteps": {
+    "1": {
+     "rule": "stale order (ageDays > 90): deny",
+     "rows": 5,
+     "sonnetQwen": 5,
+     "sonnetRule": 5,
+     "qwenRule": 5,
+     "sonnetQwenRate": 1.0,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 1.0
+    },
+    "3": {
+     "rule": "paid, outside the tier window: deny",
+     "rows": 16,
+     "sonnetQwen": 12,
+     "sonnetRule": 16,
+     "qwenRule": 12,
+     "sonnetQwenRate": 0.75,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 0.75
+    },
+    "4": {
+     "rule": "paid, inside the window, suspicious history: review",
+     "rows": 84,
+     "sonnetQwen": 32,
+     "sonnetRule": 84,
+     "qwenRule": 32,
+     "sonnetQwenRate": 0.381,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 0.381
+    },
+    "5": {
+     "rule": "paid, inside the window, otherwise: approve",
+     "rows": 195,
+     "sonnetQwen": 189,
+     "sonnetRule": 195,
+     "qwenRule": 189,
+     "sonnetQwenRate": 0.9692,
+     "sonnetRuleRate": 1.0,
+     "qwenRuleRate": 0.9692
+    }
+   },
+   "disagreements": {
+    "sonnet review / qwen approve": 47,
+    "sonnet approve / qwen deny": 4,
+    "sonnet review / qwen deny": 5,
+    "sonnet deny / qwen approve": 4,
+    "sonnet approve / qwen review": 2
+   }
+  }
+ },
+ "evaluationSetSha256": "b794919eda5c12a8508ce713b39a79058eb705e1aae766026bd7294b7f2006f4",
+ "finalSetSha256": "5d71fc08a357a253a540c44fac35cc85742200f2000e17a3676d548c6a6125ae",
+ "students": [
+  {
+   "student": "claude-sonnet-5",
+   "teacher": "replay-labels/claude-sonnet-5",
+   "trainedOnIr": {
+    "semanticSha256": "40a2d787093b1421efdf95ae3857395e7e4b04096612d3f96b191fff06000693",
+    "constraintsStripped": true
+   },
+   "trainingRows": 1350,
+   "heldOutRows": 150,
+   "selectedEpoch": 4,
+   "heldOutCurve": [
+    0.8867,
+    0.9733,
+    0.9867,
+    0.9933,
+    0.98,
+    0.9867,
+    0.9933,
+    0.9933
+   ],
+   "trainSeconds": 67.6,
+   "temperature": 0.4955,
+   "calibrationSplit": {
+    "rows": 150,
+    "accuracy": 0.9933
+   },
+   "evaluationSet": {
+    "cases": 300,
+    "correct": 294,
+    "accuracy": 0.98,
+    "ece": 0.0188,
+    "brier": 0.04,
+    "misses": [
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 5206.5
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9995
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 1,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 10953.5
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9796
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 4,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 67,
+        "status": "paid",
+        "total": 47.25
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 0.9797
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 1915.6
+       }
+      },
+      "label": "approve",
+      "predicted": "review",
+      "confidence": 0.9206
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 4,
+        "tier": "standard"
+       },
+       "order": {
+        "ageDays": 55,
+        "status": "paid",
+        "total": 168.42
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 0.9999
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 3,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 76,
+        "status": "paid",
+        "total": 389.9
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 0.9616
+     }
+    ],
+    "missCount": 6
+   },
+   "finalSet": {
+    "cases": 160,
+    "correct": 127,
+    "accuracy": 0.7937,
+    "ece": 0.2026,
+    "brier": 0.4047,
+    "misses": [
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 19,
+        "status": "fraudulent",
+        "total": 403.2
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9993
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 1,
+        "status": "fraudulent",
+        "total": 233.39
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9984
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 1,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "fraudulent",
+        "total": 686.22
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 1.0
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 3,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 3,
+        "status": "fraudulent",
+        "total": 122.46
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9479
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 1,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 3,
+        "status": "fraudulent",
+        "total": 342.09
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 1.0
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 6,
+        "status": "fraudulent",
+        "total": 541.71
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.7361
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "fraudulent",
+        "total": 251.68
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 1.0
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 6,
+        "status": "fraudulent",
+        "total": 185.4
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9998
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 23,
+        "status": "fraudulent",
+        "total": 292.75
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9997
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 4,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 8,
+        "status": "fraudulent",
+        "total": 381.4
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9956
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "standard"
+       },
+       "order": {
+        "ageDays": 6,
+        "status": "fraudulent",
+        "total": 304.3
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 1.0
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "standard"
+       },
+       "order": {
+        "ageDays": 8,
+        "status": "fraudulent",
+        "total": 416.69
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 1.0
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 4,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 40,
+        "status": "fraudulent",
+        "total": 600.0
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9854
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 3,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 48,
+        "status": "fraudulent",
+        "total": 394.88
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9067
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 3,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 69,
+        "status": "paid",
+        "total": 88.8
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 0.9509
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 1,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 34,
+        "status": "fraudulent",
+        "total": 108.0
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9999
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 69,
+        "status": "paid",
+        "total": 656.85
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 0.9999
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "standard"
+       },
+       "order": {
+        "ageDays": 50,
+        "status": "fraudulent",
+        "total": 612.4
+       }
+      },
+      "label": "review",
+      "predicted": "deny",
+      "confidence": 1.0
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 80,
+        "status": "paid",
+        "total": 393.65
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 1.0
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 61,
+        "status": "paid",
+        "total": 465.84
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 0.9997
+     }
+    ],
+    "missCount": 33
+   }
+  },
+  {
+   "student": "qwen3-14b",
+   "teacher": "replay-labels/qwen3-14b",
+   "trainedOnIr": {
+    "semanticSha256": "40a2d787093b1421efdf95ae3857395e7e4b04096612d3f96b191fff06000693",
+    "constraintsStripped": true
+   },
+   "trainingRows": 1350,
+   "heldOutRows": 150,
+   "selectedEpoch": 4,
+   "heldOutCurve": [
+    0.8,
+    0.8533,
+    0.84,
+    0.9,
+    0.8933,
+    0.8667,
+    0.9,
+    0.8667
+   ],
+   "trainSeconds": 64.1,
+   "temperature": 0.7934,
+   "calibrationSplit": {
+    "rows": 150,
+    "accuracy": 0.9
+   },
+   "evaluationSet": {
+    "cases": 300,
+    "correct": 240,
+    "accuracy": 0.8,
+    "ece": 0.1434,
+    "brier": 0.3162,
+    "misses": [
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 6,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 16.65
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8746
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 1,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 31,
+        "status": "paid",
+        "total": 4314.02
+       }
+      },
+      "label": "approve",
+      "predicted": "deny",
+      "confidence": 0.9918
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 5,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 5,
+        "status": "paid",
+        "total": 301.39
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8375
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 52,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 267.32
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.6776
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 5,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 286.55
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.508
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 16,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 2,
+        "status": "paid",
+        "total": 377.48
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8325
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 5,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 5,
+        "status": "paid",
+        "total": 377.4
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9763
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 31,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 3,
+        "status": "paid",
+        "total": 307.95
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8505
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 7,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 2.95
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9891
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 7,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 25,
+        "status": "paid",
+        "total": 377.36
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8987
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 48,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 5,
+        "status": "paid",
+        "total": 725.72
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.7662
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 3,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 41,
+        "status": "paid",
+        "total": 258.64
+       }
+      },
+      "label": "approve",
+      "predicted": "deny",
+      "confidence": 0.984
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 8,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 4,
+        "status": "paid",
+        "total": 1563.65
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.5142
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 6,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 53,
+        "status": "paid",
+        "total": 321.1
+       }
+      },
+      "label": "review",
+      "predicted": "deny",
+      "confidence": 0.8954
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 5206.5
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9968
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 5,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 8,
+        "status": "paid",
+        "total": 50.4
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9056
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 33,
+        "status": "paid",
+        "total": 359.98
+       }
+      },
+      "label": "approve",
+      "predicted": "deny",
+      "confidence": 0.9892
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 11,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 379.68
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.7746
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "standard"
+       },
+       "order": {
+        "ageDays": 38,
+        "status": "paid",
+        "total": 59.0
+       }
+      },
+      "label": "deny",
+      "predicted": "approve",
+      "confidence": 0.9273
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 8,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 5,
+        "status": "paid",
+        "total": 195.15
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9964
+     }
+    ],
+    "missCount": 60
+   },
+   "finalSet": {
+    "cases": 160,
+    "correct": 111,
+    "accuracy": 0.6937,
+    "ece": 0.2418,
+    "brier": 0.5181,
+    "misses": [
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 18,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "paid",
+        "total": 127.7
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9127
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 19,
+        "status": "fraudulent",
+        "total": 403.2
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9964
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 14,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 5,
+        "status": "paid",
+        "total": 262.55
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.7306
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 1,
+        "status": "fraudulent",
+        "total": 233.39
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9484
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 1,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "fraudulent",
+        "total": 686.22
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8795
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 3,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 3,
+        "status": "fraudulent",
+        "total": 122.46
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.628
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 1,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 3,
+        "status": "fraudulent",
+        "total": 342.09
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8795
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 5,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 8,
+        "status": "paid",
+        "total": 472.5
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.5837
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 6,
+        "status": "fraudulent",
+        "total": 541.71
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.8336
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 0,
+        "status": "fraudulent",
+        "total": 251.68
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.7974
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 5,
+        "status": "fraudulent",
+        "total": 734.24
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9838
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 6,
+        "status": "fraudulent",
+        "total": 185.4
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9738
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 23,
+        "status": "fraudulent",
+        "total": 292.75
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9682
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 4,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 8,
+        "status": "fraudulent",
+        "total": 381.4
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9011
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "standard"
+       },
+       "order": {
+        "ageDays": 6,
+        "status": "fraudulent",
+        "total": 304.3
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9984
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 2,
+        "tier": "standard"
+       },
+       "order": {
+        "ageDays": 8,
+        "status": "fraudulent",
+        "total": 416.69
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.9968
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 12,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 39,
+        "status": "fraudulent",
+        "total": 381.95
+       }
+      },
+      "label": "review",
+      "predicted": "deny",
+      "confidence": 0.6944
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 18,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 37,
+        "status": "paid",
+        "total": 513.64
+       }
+      },
+      "label": "review",
+      "predicted": "deny",
+      "confidence": 0.9499
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 7,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 44,
+        "status": "paid",
+        "total": 59.8
+       }
+      },
+      "label": "review",
+      "predicted": "approve",
+      "confidence": 0.6093
+     },
+     {
+      "inputs": {
+       "customer": {
+        "priorRefunds": 0,
+        "tier": "enterprise"
+       },
+       "order": {
+        "ageDays": 34,
+        "status": "paid",
+        "total": 252.2
+       }
+      },
+      "label": "approve",
+      "predicted": "deny",
+      "confidence": 0.9677
+     }
+    ],
+    "missCount": 49
+   }
+  }
+ ],
+ "finishedAt": "2026-09-25T05:46:06Z"
+}

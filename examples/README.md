@@ -17,7 +17,13 @@ it after `npm run build` at the root is enough to build it.
   `tsconfig.json` and one `.sem.ts` file.
 - [`next-app`](next-app/README.md): a Next.js 16 App Router project; sema is
   adopted through the loader rule in `next.config.ts` and one `.sem.ts` file.
+- [`refund-service`](refund-service/README.md): the reference application. A
+  refunds, tickets and orders API over Postgres (PGlite) whose business policy
+  is nine sema expressions in three routed, depth-6 domains; trained from its
+  own constraints by `train.py` with no language-model teacher, with a
+  walkthrough of the source, the compiled output, the artifact, the line tally
+  and per-expression accuracy and latency.
 
-Both need a trained artifact to answer requests: build, then
-`semantscript train` on the emitted IR bundle, then start the app with the
-artifact root.
+All three need a trained artifact to answer requests: build, then
+`semantscript train` on the emitted IR bundle (or `npm run train` in the
+refund service), then start the app with the artifact root.

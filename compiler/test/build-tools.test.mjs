@@ -180,6 +180,48 @@ test("esbuild plugin compiles .sem.ts modules with one line of build config", as
   await assertStackTracePointsAtSource(join(outdir, "main.sem.js"));
 });
 
+test("esbuild plugin passes domain depths and routing through to the plan", async (t) => {
+  const fixture = await createFixture({ "src/main.sem.ts": mainSource });
+  t.after(fixture.dispose);
+  const outdir = join(fixture.root, "out");
+
+  const result = await esbuildBuild({
+    absWorkingDir: fixture.root,
+    entryPoints: ["src/main.sem.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outdir,
+    packages: "external",
+    logLevel: "silent",
+    plugins: [
+      esbuildPlugin({ application: "routed", domainDepths: { main: 4 } }),
+    ],
+  });
+  assert.deepEqual(result.errors, []);
+
+  const bundle = JSON.parse(
+    await readFile(join(outdir, "semantscript.ir.v1.json"), "utf8"),
+  );
+  assert.deepEqual(
+    bundle.executionPlan.domains.map((domain) => ({
+      name: domain.name,
+      adapterRef: domain.adapterRef,
+      encoderRef: domain.encoderRef,
+      encoderDepth: domain.encoderDepth,
+    })),
+    [
+      {
+        name: "main",
+        adapterRef: "adapter.routed.main",
+        encoderRef: "encoder.routed.depth-004",
+        encoderDepth: 4,
+      },
+    ],
+  );
+  assert.equal(bundle.functions[0].model.encoderDepth, 4);
+});
+
 test("esbuild plugin fails the build with the site's location on a malformed site", async (t) => {
   const fixture = await createFixture({ "src/broken.sem.ts": malformedSource });
   t.after(fixture.dispose);

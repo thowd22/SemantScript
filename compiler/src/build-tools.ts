@@ -29,6 +29,10 @@ export interface SemaBuildOptions {
   readonly application?: string;
   /** Where the IR bundle is written; see each adapter for its default. */
   readonly bundlePath?: string;
+  /** Depth routing per domain (see the compiler README on routed domains). */
+  readonly domainDepths?: Readonly<Record<string, number>>;
+  /** Route domains (one adapter each) even without depths or `@domain` headers. */
+  readonly routeDomains?: boolean;
 }
 
 export interface SemaProjectBuildDefaults {
@@ -159,6 +163,10 @@ export function planSemaProgramBuild(
     projectRoot,
     encoderRef: `encoder.${application}`,
     adapterRef: `adapter.${application}`,
+    ...(options.domainDepths === undefined
+      ? {}
+      : { domainDepths: options.domainDepths }),
+    ...(options.routeDomains === true ? { routeDomains: true } : {}),
   });
 
   if (!planned.ok) {

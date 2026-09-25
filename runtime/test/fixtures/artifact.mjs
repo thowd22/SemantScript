@@ -39,7 +39,7 @@ function semanticNode(value) {
   return ["object", entries];
 }
 
-function semanticSha(value) {
+export function semanticSha(value) {
   return sha256(
     Buffer.from(
       JSON.stringify(["semantscript-semantic-json", 1, semanticNode(value)]),

@@ -73,7 +73,10 @@ run`, the zero-config defaults, the dev loop and the build cache rules.
 - [Examples](../examples/README.md), including the
   [Express](../examples/express-app/README.md) and
   [Next.js](../examples/next-app/README.md) applications that adopt sema
-  through a build-tool adapter.
+  through a build-tool adapter, and the
+  [refund service](../examples/refund-service/README.md) reference
+  application: three routed domains, nine decisions, trained from its own
+  constraints, with a walkthrough of source, compiled output and artifact.
 
 ## Benchmarks and results
 

@@ -126,7 +126,9 @@ Each plans the whole project (one TypeScript program from the nearest
 `tsconfig.json`, or the `tsconfig` option), writes the IR bundle, then rewrites
 `.sem.ts` files one at a time. Every adapter takes the same options:
 `tsconfig`, `application` (names the artifact's encoder and adapter refs,
-default `application`) and `bundlePath`.
+default `application`), `bundlePath`, and the routing options `domainDepths`
+(domain name to encoder depth) and `routeDomains`, which the adapters pass to
+`planSemaCompilation` unchanged.
 
 | Adapter                              | One-line adoption                                                                                           | Bundle default                                 |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -160,7 +162,9 @@ both `import` and `require` (ts-patch and webpack load them with `require`, whic
 Node 22.12+ supports for ESM without top-level await).
 
 Runnable adoption examples: [`examples/express-app`](../examples/express-app)
-(tsc transformer) and [`examples/next-app`](../examples/next-app) (loader).
+(tsc transformer), [`examples/next-app`](../examples/next-app) (loader) and
+[`examples/refund-service`](../examples/refund-service) (transformer with
+routed, depth-6 domains).
 
 ## Editor plugin
 

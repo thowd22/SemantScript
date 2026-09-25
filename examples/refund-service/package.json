@@ -1,0 +1,27 @@
+{
+  "name": "semantscript-example-refund-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tspc -p tsconfig.json",
+    "start": "node --enable-source-maps dist/server.js",
+    "test": "node --test test/*.test.mjs",
+    "train": "PYTHONNOUSERSITE=1 HSA_ENABLE_DXG_DETECTION=1 PYTHONPATH=../..:../../trainer/src:../../model/src:../../.python-packages python3 train.py",
+    "measure": "node scripts/measure.mjs",
+    "tally": "node scripts/tally.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@semantscript/core": "file:../../runtime",
+    "@semantscript/framework": "file:../../framework",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@semantscript/compiler": "file:../../compiler",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.4",
+    "ts-patch": "^4.0.1",
+    "typescript": "^6.0.3"
+  }
+}

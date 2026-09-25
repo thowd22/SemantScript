@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "strict": true,
+    "sourceMap": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "plugins": [
+      { "name": "@semantscript/compiler/ts-plugin" },
+      {
+        "transform": "@semantscript/compiler/transformer",
+        "application": "refund-service",
+        "domainDepths": { "refunds": 6, "tickets": 6, "orders": 6 }
+      }
+    ]
+  },
+  "include": ["src"]
+}

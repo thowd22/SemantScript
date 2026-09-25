@@ -8,6 +8,7 @@ import {
 } from "./policy.js";
 
 import {
+  ANTHROPIC_API_ENDPOINTS,
   HUMAN_ATTESTATION_DECLARATION,
   JUDGE_ATTESTATION_DECLARATION,
   REFUND_SUPPORT,
@@ -62,7 +63,9 @@ export class BenchmarkContractError extends TypeError {
   }
 }
 
-export function sealRefundDataset(value: UnsignedDataset): RefundBenchmarkDatasetV1 {
+export function sealRefundDataset(
+  value: UnsignedDataset,
+): RefundBenchmarkDatasetV1 {
   exactObject(value, "$", [
     "kind",
     "datasetVersion",
@@ -75,11 +78,19 @@ export function sealRefundDataset(value: UnsignedDataset): RefundBenchmarkDatase
     "humanAttestation",
     "judgeAttestation",
   ]);
-  validateRefundDatasetRecord({ ...value, payloadSha256: PLACEHOLDER_SHA256 }, false);
-  return validateRefundDataset({ ...value, payloadSha256: semanticJsonSha256(value) });
+  validateRefundDatasetRecord(
+    { ...value, payloadSha256: PLACEHOLDER_SHA256 },
+    false,
+  );
+  return validateRefundDataset({
+    ...value,
+    payloadSha256: semanticJsonSha256(value),
+  });
 }
 
-export function sealTrainingLedger(value: UnsignedTrainingLedger): RefundTrainingLedgerV1 {
+export function sealTrainingLedger(
+  value: UnsignedTrainingLedger,
+): RefundTrainingLedgerV1 {
   exactObject(value, "$", [
     "kind",
     "ledgerVersion",
@@ -89,11 +100,19 @@ export function sealTrainingLedger(value: UnsignedTrainingLedger): RefundTrainin
     "sources",
     "partitions",
   ]);
-  validateTrainingLedgerRecord({ ...value, payloadSha256: PLACEHOLDER_SHA256 }, false);
-  return validateTrainingLedger({ ...value, payloadSha256: semanticJsonSha256(value) });
+  validateTrainingLedgerRecord(
+    { ...value, payloadSha256: PLACEHOLDER_SHA256 },
+    false,
+  );
+  return validateTrainingLedger({
+    ...value,
+    payloadSha256: semanticJsonSha256(value),
+  });
 }
 
-export function sealPredictionSet(value: UnsignedPredictionSet): RefundPredictionSetV1 {
+export function sealPredictionSet(
+  value: UnsignedPredictionSet,
+): RefundPredictionSetV1 {
   exactObject(value, "$", [
     "kind",
     "predictionVersion",
@@ -105,11 +124,19 @@ export function sealPredictionSet(value: UnsignedPredictionSet): RefundPredictio
     "protocol",
     "predictions",
   ]);
-  validatePredictionSetRecord({ ...value, payloadSha256: PLACEHOLDER_SHA256 }, false);
-  return validatePredictionSet({ ...value, payloadSha256: semanticJsonSha256(value) });
+  validatePredictionSetRecord(
+    { ...value, payloadSha256: PLACEHOLDER_SHA256 },
+    false,
+  );
+  return validatePredictionSet({
+    ...value,
+    payloadSha256: semanticJsonSha256(value),
+  });
 }
 
-export function validateRefundDataset(value: unknown): RefundBenchmarkDatasetV1 {
+export function validateRefundDataset(
+  value: unknown,
+): RefundBenchmarkDatasetV1 {
   return validateRefundDatasetRecord(value, true);
 }
 
@@ -139,11 +166,7 @@ function validateRefundDatasetRecord(
   validateFunctionBinding(root.function, "$.function");
   validateSupport(root.support, "$.support");
 
-  const cases = denseArray(
-    root.cases,
-    "$.cases",
-    MAXIMUM_BENCHMARK_CASE_COUNT,
-  );
+  const cases = denseArray(root.cases, "$.cases", MAXIMUM_BENCHMARK_CASE_COUNT);
   if (cases.length === 0) {
     fail("$.cases", "must contain at least one held-out case");
   }
@@ -159,17 +182,24 @@ function validateRefundDatasetRecord(
     const parsed = validateCase(entry, `$.cases[${String(index)}]`);
     caseIds.push(parsed.id);
     if (caseInputDigests.has(parsed.inputSha256)) {
-      fail(`$.cases[${String(index)}].inputSha256`, "duplicates another held-out input");
+      fail(
+        `$.cases[${String(index)}].inputSha256`,
+        "duplicates another held-out input",
+      );
     }
     caseInputDigests.add(parsed.inputSha256);
     caseIdsByOrigin[parsed.origin].push(parsed.id);
   }
   sortedUnique(caseIds, "$.cases", "case ids");
   if (
-    caseIdsByOrigin["human-authored"].length + caseIdsByOrigin["independent-judge"].length ===
+    caseIdsByOrigin["human-authored"].length +
+      caseIdsByOrigin["independent-judge"].length ===
     0
   ) {
-    fail("$.cases", "must contain at least one attested case (human-authored or independent-judge)");
+    fail(
+      "$.cases",
+      "must contain at least one attested case (human-authored or independent-judge)",
+    );
   }
   validateHumanAttestation(
     root.humanAttestation,
@@ -220,7 +250,10 @@ function validateTrainingLedgerRecord(
   ]);
   sha256(sources.baseDatasetSha256, "$.sources.baseDatasetSha256");
   if (sources.adversarialDatasetSha256 !== null) {
-    sha256(sources.adversarialDatasetSha256, "$.sources.adversarialDatasetSha256");
+    sha256(
+      sources.adversarialDatasetSha256,
+      "$.sources.adversarialDatasetSha256",
+    );
   }
   sha256(
     sources.releaseVerificationPayloadSha256,
@@ -231,9 +264,16 @@ function validateTrainingLedgerRecord(
     "$.sources.releaseVerificationAttestationSha256",
   );
 
-  const partitions = denseArray(root.partitions, "$.partitions", TRAINING_PARTITIONS.length);
+  const partitions = denseArray(
+    root.partitions,
+    "$.partitions",
+    TRAINING_PARTITIONS.length,
+  );
   if (partitions.length !== TRAINING_PARTITIONS.length) {
-    fail("$.partitions", "must contain every training lifecycle partition exactly once");
+    fail(
+      "$.partitions",
+      "must contain every training lifecycle partition exactly once",
+    );
   }
   for (const [index, valueAtIndex] of partitions.entries()) {
     const path = `$.partitions[${String(index)}]`;
@@ -296,10 +336,16 @@ function validatePredictionSetRecord(
   const caseIds: string[] = [];
   const inputDigests = new Set<string>();
   for (const [index, prediction] of predictions.entries()) {
-    const parsed = validatePrediction(prediction, `$.predictions[${String(index)}]`);
+    const parsed = validatePrediction(
+      prediction,
+      `$.predictions[${String(index)}]`,
+    );
     caseIds.push(parsed.caseId);
     if (inputDigests.has(parsed.inputSha256)) {
-      fail(`$.predictions[${String(index)}].inputSha256`, "duplicates another prediction input");
+      fail(
+        `$.predictions[${String(index)}].inputSha256`,
+        "duplicates another prediction input",
+      );
     }
     inputDigests.add(parsed.inputSha256);
   }
@@ -374,7 +420,10 @@ function validateHumanAttestation(
   boundedString(attestation.attestor, "$.humanAttestation.attestor");
   rfc3339(attestation.attestedAt, "$.humanAttestation.attestedAt");
   if (Date.parse(attestation.attestedAt as string) > Date.parse(createdAt)) {
-    fail("$.humanAttestation.attestedAt", "must not be later than dataset creation");
+    fail(
+      "$.humanAttestation.attestedAt",
+      "must not be later than dataset creation",
+    );
   }
   literal(
     attestation.declaration,
@@ -382,7 +431,10 @@ function validateHumanAttestation(
     "$.humanAttestation.declaration",
   );
   sha256(attestation.evidenceSha256, "$.humanAttestation.evidenceSha256");
-  const attestedCaseIds = attestedCaseIdList(attestation.caseIds, "$.humanAttestation.caseIds");
+  const attestedCaseIds = attestedCaseIdList(
+    attestation.caseIds,
+    "$.humanAttestation.caseIds",
+  );
   if (!sameStrings(attestedCaseIds, humanCaseIds)) {
     fail(
       "$.humanAttestation.caseIds",
@@ -419,11 +471,17 @@ function validateJudgeAttestation(
   boundedString(judge.provider, "$.judgeAttestation.judge.provider");
   boundedString(judge.model, "$.judgeAttestation.judge.model");
   boundedString(judge.interface, "$.judgeAttestation.judge.interface");
-  boundedString(judge.sessionReference, "$.judgeAttestation.judge.sessionReference");
+  boundedString(
+    judge.sessionReference,
+    "$.judgeAttestation.judge.sessionReference",
+  );
   sha256(attestation.rubricSha256, "$.judgeAttestation.rubricSha256");
   rfc3339(attestation.attestedAt, "$.judgeAttestation.attestedAt");
   if (Date.parse(attestation.attestedAt as string) > Date.parse(createdAt)) {
-    fail("$.judgeAttestation.attestedAt", "must not be later than dataset creation");
+    fail(
+      "$.judgeAttestation.attestedAt",
+      "must not be later than dataset creation",
+    );
   }
   literal(
     attestation.declaration,
@@ -431,7 +489,10 @@ function validateJudgeAttestation(
     "$.judgeAttestation.declaration",
   );
   sha256(attestation.evidenceSha256, "$.judgeAttestation.evidenceSha256");
-  const attestedCaseIds = attestedCaseIdList(attestation.caseIds, "$.judgeAttestation.caseIds");
+  const attestedCaseIds = attestedCaseIdList(
+    attestation.caseIds,
+    "$.judgeAttestation.caseIds",
+  );
   if (!sameStrings(attestedCaseIds, judgeCaseIds)) {
     fail(
       "$.judgeAttestation.caseIds",
@@ -441,8 +502,8 @@ function validateJudgeAttestation(
 }
 
 function attestedCaseIdList(value: unknown, path: string): string[] {
-  const caseIds = denseArray(value, path, MAXIMUM_BENCHMARK_CASE_COUNT).map((caseId, index) =>
-    recordId(caseId, `${path}[${String(index)}]`),
+  const caseIds = denseArray(value, path, MAXIMUM_BENCHMARK_CASE_COUNT).map(
+    (caseId, index) => recordId(caseId, `${path}[${String(index)}]`),
   );
   sortedUnique(caseIds, path, "case ids");
   return caseIds;
@@ -451,8 +512,18 @@ function attestedCaseIdList(value: unknown, path: string): string[] {
 function validateCase(
   value: unknown,
   path: string,
-): { readonly id: string; readonly inputSha256: string; readonly origin: RefundCaseOrigin } {
-  const entry = exactObject(value, path, ["id", "inputs", "inputSha256", "expected", "origin"]);
+): {
+  readonly id: string;
+  readonly inputSha256: string;
+  readonly origin: RefundCaseOrigin;
+} {
+  const entry = exactObject(value, path, [
+    "id",
+    "inputs",
+    "inputSha256",
+    "expected",
+    "origin",
+  ]);
   const id = recordId(entry.id, `${path}.id`);
   validateRefundInputs(entry.inputs, `${path}.inputs`);
   const inputSha256 = sha256(entry.inputSha256, `${path}.inputSha256`);
@@ -466,19 +537,32 @@ function validateCase(
     entry.origin !== "independent-judge" &&
     entry.origin !== "other-held-out"
   ) {
-    fail(`${path}.origin`, 'must be "human-authored", "independent-judge" or "other-held-out"');
+    fail(
+      `${path}.origin`,
+      'must be "human-authored", "independent-judge" or "other-held-out"',
+    );
   }
   return { id, inputSha256, origin: entry.origin };
 }
 
 function validateRefundInputs(value: unknown, path: string): RefundInputs {
   const inputs = exactObject(value, path, ["customer", "order"]);
-  const customer = exactObject(inputs.customer, `${path}.customer`, ["priorRefunds", "tier"]);
-  nonNegativeRefundSafeInteger(customer.priorRefunds, `${path}.customer.priorRefunds`);
+  const customer = exactObject(inputs.customer, `${path}.customer`, [
+    "priorRefunds",
+    "tier",
+  ]);
+  nonNegativeRefundSafeInteger(
+    customer.priorRefunds,
+    `${path}.customer.priorRefunds`,
+  );
   if (customer.tier !== "enterprise" && customer.tier !== "standard") {
     fail(`${path}.customer.tier`, 'must be "enterprise" or "standard"');
   }
-  const order = exactObject(inputs.order, `${path}.order`, ["ageDays", "status", "total"]);
+  const order = exactObject(inputs.order, `${path}.order`, [
+    "ageDays",
+    "status",
+    "total",
+  ]);
   nonNegativeRefundFinite(order.ageDays, `${path}.order.ageDays`);
   if (order.status !== "fraudulent" && order.status !== "paid") {
     fail(`${path}.order.status`, 'must be "fraudulent" or "paid"');
@@ -504,7 +588,10 @@ function validatePrediction(value: unknown, path: string): RefundPrediction {
     REFUND_SUPPORT.length,
   );
   if (distribution.length !== REFUND_SUPPORT.length) {
-    fail(`${path}.distribution`, "must contain one entry for every support value");
+    fail(
+      `${path}.distribution`,
+      "must contain one entry for every support value",
+    );
   }
 
   let total = 0;
@@ -514,7 +601,10 @@ function validatePrediction(value: unknown, path: string): RefundPrediction {
     const entryPath = `${path}.distribution[${String(index)}]`;
     const entry = exactObject(entryValue, entryPath, ["value", "probability"]);
     literal(entry.value, REFUND_SUPPORT[index], `${entryPath}.value`);
-    const probability = boundedProbability(entry.probability, `${entryPath}.probability`);
+    const probability = boundedProbability(
+      entry.probability,
+      `${entryPath}.probability`,
+    );
     total += probability;
     if (probability > bestProbability) {
       bestProbability = probability;
@@ -525,13 +615,19 @@ function validatePrediction(value: unknown, path: string): RefundPrediction {
     fail(`${path}.distribution`, "probabilities must sum to 1 within 1e-12");
   }
   if (selected !== REFUND_SUPPORT[bestIndex]) {
-    fail(`${path}.value`, "must be the stable support-order argmax of distribution");
+    fail(
+      `${path}.value`,
+      "must be the stable support-order argmax of distribution",
+    );
   }
   nonNegativeFinite(prediction.latencyMs, `${path}.latencyMs`);
   return prediction as unknown as RefundPrediction;
 }
 
-function validateSystemProvenance(value: unknown, path: string): SystemProvenance {
+function validateSystemProvenance(
+  value: unknown,
+  path: string,
+): SystemProvenance {
   const system = exactObject(value, path, [
     "role",
     "taskSpecSha256",
@@ -540,11 +636,18 @@ function validateSystemProvenance(value: unknown, path: string): SystemProvenanc
     "trainingEvidence",
     "executionBackend",
   ]);
-  if (typeof system.role !== "string" || !SYSTEM_ROLES.has(system.role as BenchmarkSystemRole)) {
+  if (
+    typeof system.role !== "string" ||
+    !SYSTEM_ROLES.has(system.role as BenchmarkSystemRole)
+  ) {
     fail(`${path}.role`, "is not a supported benchmark system role");
   }
   const role = system.role as BenchmarkSystemRole;
-  literal(system.taskSpecSha256, REFUND_TASK_SPEC_SHA256, `${path}.taskSpecSha256`);
+  literal(
+    system.taskSpecSha256,
+    REFUND_TASK_SPEC_SHA256,
+    `${path}.taskSpecSha256`,
+  );
   const model = validateModelProvenance(system.model, `${path}.model`);
   const adapter = validateAdapterProvenance(system.adapter, `${path}.adapter`);
   validatePinnedSystemIdentity(role, model, adapter, path);
@@ -562,7 +665,11 @@ function validateSystemProvenance(value: unknown, path: string): SystemProvenanc
       "must equal the SemantScript model revision",
     );
   }
-  validateExecutionBackend(system.executionBackend, role, `${path}.executionBackend`);
+  validateExecutionBackend(
+    system.executionBackend,
+    role,
+    `${path}.executionBackend`,
+  );
   return system as unknown as SystemProvenance;
 }
 
@@ -587,7 +694,16 @@ function validateExecutionBackend(
     ]);
     literal(backend.kind, "anthropic-api", `${path}.kind`);
     literal(backend.apiVersion, "2023-06-01", `${path}.apiVersion`);
-    literal(backend.endpoint, "https://api.anthropic.com", `${path}.endpoint`);
+    if (
+      !(ANTHROPIC_API_ENDPOINTS as readonly unknown[]).includes(
+        backend.endpoint,
+      )
+    ) {
+      fail(
+        `${path}.endpoint`,
+        `must be one of ${ANTHROPIC_API_ENDPOINTS.join(", ")}`,
+      );
+    }
     literal(backend.placement, "provider-managed", `${path}.placement`);
     return;
   }
@@ -611,9 +727,18 @@ function validateExecutionBackend(
   ]);
   literal(backend.kind, "ollama", `${path}.kind`);
   boundedString(backend.serverVersion, `${path}.serverVersion`);
-  const total = nonNegativeSafeInteger(backend.modelTotalBytes, `${path}.modelTotalBytes`);
-  const cpu = nonNegativeSafeInteger(backend.modelCpuBytes, `${path}.modelCpuBytes`);
-  const gpu = nonNegativeSafeInteger(backend.modelGpuBytes, `${path}.modelGpuBytes`);
+  const total = nonNegativeSafeInteger(
+    backend.modelTotalBytes,
+    `${path}.modelTotalBytes`,
+  );
+  const cpu = nonNegativeSafeInteger(
+    backend.modelCpuBytes,
+    `${path}.modelCpuBytes`,
+  );
+  const gpu = nonNegativeSafeInteger(
+    backend.modelGpuBytes,
+    `${path}.modelGpuBytes`,
+  );
   if (total === 0) {
     fail(`${path}.modelTotalBytes`, "must be greater than zero");
   }
@@ -671,7 +796,10 @@ function validateTrainingEvidence(
     evidence.artifactTrainingDatasetSha256,
     `${path}.artifactTrainingDatasetSha256`,
   );
-  sha256(evidence.artifactTrainingKeySha256, `${path}.artifactTrainingKeySha256`);
+  sha256(
+    evidence.artifactTrainingKeySha256,
+    `${path}.artifactTrainingKeySha256`,
+  );
   sha256(
     evidence.releaseVerificationPayloadSha256,
     `${path}.releaseVerificationPayloadSha256`,
@@ -683,7 +811,10 @@ function validateTrainingEvidence(
   return evidence as unknown as SemantScriptTrainingEvidence;
 }
 
-function validateModelProvenance(value: unknown, path: string): ModelProvenance {
+function validateModelProvenance(
+  value: unknown,
+  path: string,
+): ModelProvenance {
   const model = exactObject(value, path, [
     "provider",
     "name",
@@ -699,15 +830,25 @@ function validateModelProvenance(value: unknown, path: string): ModelProvenance 
   return model as unknown as ModelProvenance;
 }
 
-function validateAdapterProvenance(value: unknown, path: string): AdapterProvenance {
-  const adapter = exactObject(value, path, ["name", "version", "configurationSha256"]);
+function validateAdapterProvenance(
+  value: unknown,
+  path: string,
+): AdapterProvenance {
+  const adapter = exactObject(value, path, [
+    "name",
+    "version",
+    "configurationSha256",
+  ]);
   boundedString(adapter.name, `${path}.name`);
   boundedString(adapter.version, `${path}.version`);
   sha256(adapter.configurationSha256, `${path}.configurationSha256`);
   return adapter as unknown as AdapterProvenance;
 }
 
-function validateEnvironment(value: unknown, path: string): EnvironmentProvenance {
+function validateEnvironment(
+  value: unknown,
+  path: string,
+): EnvironmentProvenance {
   const environment = exactObject(value, path, [
     "capturedAt",
     "operatingSystem",
@@ -735,7 +876,10 @@ function validateEnvironment(value: unknown, path: string): EnvironmentProvenanc
     MAXIMUM_RUNTIME_VERSION_COUNT,
   );
   if (runtimeVersions.length === 0) {
-    fail(`${path}.runtimeVersions`, "must contain at least one runtime version");
+    fail(
+      `${path}.runtimeVersions`,
+      "must contain at least one runtime version",
+    );
   }
   const names: string[] = [];
   for (const [index, runtimeValue] of runtimeVersions.entries()) {
@@ -771,7 +915,10 @@ function validateProtocol(value: unknown, path: string): MeasurementProtocol {
   }
   sha256(protocol.warmupInputOrderSha256, `${path}.warmupInputOrderSha256`);
   positiveFinite(protocol.measuredDurationMs, `${path}.measuredDurationMs`);
-  if (protocol.memoryScope !== "client-only" && protocol.memoryScope !== "process-tree") {
+  if (
+    protocol.memoryScope !== "client-only" &&
+    protocol.memoryScope !== "process-tree"
+  ) {
     fail(`${path}.memoryScope`, 'must be "client-only" or "process-tree"');
   }
   nonNegativeSafeInteger(protocol.peakMemoryBytes, `${path}.peakMemoryBytes`);
@@ -813,7 +960,10 @@ function validatePayloadDigest(
   );
   const expected = semanticJsonSha256(payload);
   if (digest !== expected) {
-    fail(`${path}.${digestKey}`, "does not match the semantic JSON payload digest");
+    fail(
+      `${path}.${digestKey}`,
+      "does not match the semantic JSON payload digest",
+    );
   }
 }
 
@@ -833,7 +983,10 @@ function exactObject<const Keys extends readonly string[]>(
     fail(path, "must not contain symbol properties");
   }
   const names = Object.getOwnPropertyNames(value);
-  if (names.length !== keys.length || keys.some((key) => !names.includes(key))) {
+  if (
+    names.length !== keys.length ||
+    keys.some((key) => !names.includes(key))
+  ) {
     fail(path, `must contain exactly: ${keys.join(", ")}`);
   }
   for (const key of keys) {
@@ -859,7 +1012,9 @@ function denseArray(
   if (Object.getOwnPropertySymbols(value).length > 0) {
     fail(path, "must not contain symbol properties");
   }
-  const names = Object.getOwnPropertyNames(value).filter((name) => name !== "length");
+  const names = Object.getOwnPropertyNames(value).filter(
+    (name) => name !== "length",
+  );
   if (
     names.length !== value.length ||
     names.some((name, index) => name !== String(index))
@@ -932,7 +1087,10 @@ function rfc3339(value: unknown, path: string): string {
   return value;
 }
 
-function refundDecision(value: unknown, path: string): "approve" | "deny" | "review" {
+function refundDecision(
+  value: unknown,
+  path: string,
+): "approve" | "deny" | "review" {
   if (value !== "approve" && value !== "deny" && value !== "review") {
     fail(path, "must be a canonical refund decision");
   }
@@ -980,13 +1138,22 @@ function positiveFinite(value: unknown, path: string): number {
 }
 
 function boundedProbability(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > 1
+  ) {
     fail(path, "must be a finite probability from 0 through 1");
   }
   return value;
 }
 
-function sortedUnique(values: readonly string[], path: string, description: string): void {
+function sortedUnique(
+  values: readonly string[],
+  path: string,
+  description: string,
+): void {
   for (let index = 1; index < values.length; index += 1) {
     if (
       compareBytes(
@@ -999,8 +1166,14 @@ function sortedUnique(values: readonly string[], path: string, description: stri
   }
 }
 
-function sameStrings(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+function sameStrings(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 function literal(value: unknown, expected: unknown, path: string): void {

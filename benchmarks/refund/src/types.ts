@@ -35,12 +35,11 @@ export interface RefundInputs {
   };
 }
 
-export type RefundCaseOrigin = "human-authored" | "independent-judge" | "other-held-out";
+export type RefundCaseOrigin =
+  "human-authored" | "independent-judge" | "other-held-out";
 
-export const ATTESTED_CASE_ORIGINS: ReadonlySet<RefundCaseOrigin> = new Set<RefundCaseOrigin>([
-  "human-authored",
-  "independent-judge",
-]);
+export const ATTESTED_CASE_ORIGINS: ReadonlySet<RefundCaseOrigin> =
+  new Set<RefundCaseOrigin>(["human-authored", "independent-judge"]);
 
 export interface RefundBenchmarkCase {
   readonly id: string;
@@ -158,10 +157,21 @@ export interface OllamaExecutionBackend {
   readonly modelGpuBytes: number;
 }
 
+/**
+ * The structured-output API baseline runs the pinned Anthropic model either on
+ * the canonical Anthropic API or on OpenRouter's Anthropic-format route; the
+ * endpoint records which, since only the origin (and the key sent to it) differs.
+ */
+export const ANTHROPIC_API_ENDPOINTS = Object.freeze([
+  "https://api.anthropic.com",
+  "https://openrouter.ai/api",
+] as const);
+export type AnthropicApiEndpoint = (typeof ANTHROPIC_API_ENDPOINTS)[number];
+
 export interface AnthropicExecutionBackend {
   readonly kind: "anthropic-api";
   readonly apiVersion: "2023-06-01";
-  readonly endpoint: "https://api.anthropic.com";
+  readonly endpoint: AnthropicApiEndpoint;
   readonly placement: "provider-managed";
 }
 

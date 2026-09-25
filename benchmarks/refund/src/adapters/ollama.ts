@@ -84,7 +84,9 @@ export function createOllamaQwenAdapter<Role extends OllamaBaselineRole>(
   options: OllamaAdapterOptions<Role>,
 ): RefundBaselineAdapter<Role> {
   const requestedModel = OLLAMA_QWEN_MODELS[options.role];
-  const timeoutMs = validateTimeout(options.timeoutMs ?? DEFAULT_BASELINE_TIMEOUT_MS);
+  const timeoutMs = validateTimeout(
+    options.timeoutMs ?? DEFAULT_BASELINE_TIMEOUT_MS,
+  );
   const model = pinnedModelProvenance(options.model, {
     provider: "ollama",
     name: requestedModel,
@@ -107,7 +109,10 @@ export function createOllamaQwenAdapter<Role extends OllamaBaselineRole>(
     structuredOutputSchema: REFUND_OUTPUT_SCHEMA,
     decoding: Object.freeze({ temperature: 0, seed: 0, numPredict: 256 }),
   });
-  const provenance = adapterProvenance("refund-ollama-json-schema", configuration);
+  const provenance = adapterProvenance(
+    "refund-ollama-json-schema",
+    configuration,
+  );
 
   return Object.freeze({
     role: options.role,
@@ -123,10 +128,16 @@ export function createOllamaQwenAdapter<Role extends OllamaBaselineRole>(
         timeoutMs,
         signal,
         async (transportSignal) =>
-          options.transport.resolveExecutionBackend(requestedModel, transportSignal),
+          options.transport.resolveExecutionBackend(
+            requestedModel,
+            transportSignal,
+          ),
       );
     },
-    async predict(inputs: RefundInputs, signal?: AbortSignal): Promise<BaselinePrediction> {
+    async predict(
+      inputs: RefundInputs,
+      signal?: AbortSignal,
+    ): Promise<BaselinePrediction> {
       const prompt = buildRefundPrompt(inputs);
       const request: OllamaGenerateRequest = Object.freeze({
         model: requestedModel,
@@ -141,7 +152,8 @@ export function createOllamaQwenAdapter<Role extends OllamaBaselineRole>(
         `Ollama ${requestedModel}`,
         timeoutMs,
         signal,
-        async (transportSignal) => options.transport.generate(request, transportSignal),
+        async (transportSignal) =>
+          options.transport.generate(request, transportSignal),
       );
       const responseRecord = responseObject(response, [
         "model",

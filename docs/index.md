@@ -134,6 +134,8 @@ run`, the zero-config defaults, the dev loop and the build cache rules.
   (`results-encoder-sweep-2026-09-24`), the depth-routing sweep
   (`results-depth-sweep-2026-09-24`) and the depth-routed final-set re-run
   that meets the latency criterion (`results-depth-006-2026-09-25`, release
-  `release-depth-006-2026-09-25`) and the Jev diagnostic comparator run
-  (`results-jev-2026-09-25`, decision-11); each directory has a README that
-  reads on its own.
+  `release-depth-006-2026-09-25`), the Jev diagnostic comparator run
+  (`results-jev-2026-09-25`, decision-11) and the complete five-system result
+  with the structured-output API baseline and a mechanical `go`
+  (`results-final-2026-09-25`); each directory has a README that reads on
+  its own.

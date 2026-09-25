@@ -19,13 +19,20 @@ export const DEFAULT_LAYA_INITIALIZATION_TIMEOUT_MS = 180_000 as const;
 // Every regular file in Hub snapshot dd079950600224fb459af2a0cb1d74e1e57ee9cf; the
 // worker requires the on-disk file set to match this manifest exactly.
 export const LAYA_CHECKPOINT_FILES_SHA256 = Object.freeze({
-  ".gitattributes": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361",
-  "README.md": "096751822e1e868c4015c8cc8dee39949737d979c17f866505bd4b45f730f407",
-  "encoder/config.json": "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d",
-  "model.safetensors": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e",
-  "rl_agent_config.json": "ebf0cd524d92342a6be5e48e9fca3d7c2babfb5a56ccd79d2171ef5d8c7f7be8",
-  "tokenizer/tokenizer.json": "6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30",
-  "tokenizer/tokenizer_config.json": "08d4cf3ac4dca381759441b85b91a6d40e688471dcd33d15d6649eb0a9a854d1",
+  ".gitattributes":
+    "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361",
+  "README.md":
+    "096751822e1e868c4015c8cc8dee39949737d979c17f866505bd4b45f730f407",
+  "encoder/config.json":
+    "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d",
+  "model.safetensors":
+    "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e",
+  "rl_agent_config.json":
+    "ebf0cd524d92342a6be5e48e9fca3d7c2babfb5a56ccd79d2171ef5d8c7f7be8",
+  "tokenizer/tokenizer.json":
+    "6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30",
+  "tokenizer/tokenizer_config.json":
+    "08d4cf3ac4dca381759441b85b91a6d40e688471dcd33d15d6649eb0a9a854d1",
 } as const);
 
 export type LayaSpawnImplementation = typeof spawn;
@@ -82,13 +89,19 @@ export class LiveLayaRunner implements LayaRunner {
     });
     child.once("error", () => {
       this.#fail(
-        new LiveTransportError("process-failure", "Laya subprocess could not be started"),
+        new LiveTransportError(
+          "process-failure",
+          "Laya subprocess could not be started",
+        ),
       );
     });
     child.once("exit", () => {
       if (!this.#closed) {
         this.#fail(
-          new LiveTransportError("process-failure", "Laya subprocess exited unexpectedly"),
+          new LiveTransportError(
+            "process-failure",
+            "Laya subprocess exited unexpectedly",
+          ),
         );
       }
     });
@@ -97,7 +110,9 @@ export class LiveLayaRunner implements LayaRunner {
   static async create(options: LiveLayaRunnerOptions): Promise<LiveLayaRunner> {
     validateAbsolutePath(options.sourcePath, "sourcePath");
     validateAbsolutePath(options.checkpointPath, "checkpointPath");
-    const checkpointFilesSha256 = validateHashManifest(LAYA_CHECKPOINT_FILES_SHA256);
+    const checkpointFilesSha256 = validateHashManifest(
+      LAYA_CHECKPOINT_FILES_SHA256,
+    );
     const initializationTimeoutMs = validateInitializationTimeout(
       options.initializationTimeoutMs ?? DEFAULT_LAYA_INITIALIZATION_TIMEOUT_MS,
     );
@@ -111,7 +126,10 @@ export class LiveLayaRunner implements LayaRunner {
       pythonExecutable.length > 1_024 ||
       pythonExecutable.includes("\0")
     ) {
-      throw new LiveTransportError("configuration", "pythonExecutable is invalid");
+      throw new LiveTransportError(
+        "configuration",
+        "pythonExecutable is invalid",
+      );
     }
     const spawnImplementation = options.spawnImplementation ?? spawn;
     const child = spawnImplementation(pythonExecutable, [workerScriptPath], {
@@ -152,7 +170,10 @@ export class LiveLayaRunner implements LayaRunner {
       runner.#fail(
         error instanceof LiveTransportError
           ? error
-          : new LiveTransportError("process-failure", "Laya subprocess initialization failed"),
+          : new LiveTransportError(
+              "process-failure",
+              "Laya subprocess initialization failed",
+            ),
       );
       throw error;
     }
@@ -162,7 +183,9 @@ export class LiveLayaRunner implements LayaRunner {
     request: LayaChoiceRequest,
     signal: AbortSignal,
   ): Promise<LayaChoiceResponse> {
-    const operation = this.#queue.then(async () => this.#chooseNow(request, signal));
+    const operation = this.#queue.then(async () =>
+      this.#chooseNow(request, signal),
+    );
     this.#queue = operation.then(
       () => undefined,
       () => undefined,
@@ -174,7 +197,9 @@ export class LiveLayaRunner implements LayaRunner {
     if (this.#closed) {
       return;
     }
-    this.#fail(new LiveTransportError("process-failure", "Laya subprocess was closed"));
+    this.#fail(
+      new LiveTransportError("process-failure", "Laya subprocess was closed"),
+    );
   }
 
   async #chooseNow(
@@ -182,11 +207,17 @@ export class LiveLayaRunner implements LayaRunner {
     signal: AbortSignal,
   ): Promise<LayaChoiceResponse> {
     if (signal.aborted) {
-      throw new LiveTransportError("process-failure", "Laya subprocess request was aborted");
+      throw new LiveTransportError(
+        "process-failure",
+        "Laya subprocess request was aborted",
+      );
     }
     const onAbort = (): void => {
       this.#fail(
-        new LiveTransportError("process-failure", "Laya subprocess request was aborted"),
+        new LiveTransportError(
+          "process-failure",
+          "Laya subprocess request was aborted",
+        ),
       );
     };
     signal.addEventListener("abort", onAbort, { once: true });
@@ -194,7 +225,10 @@ export class LiveLayaRunner implements LayaRunner {
       const response = await this.#send({ action: "choose", request });
       const checkpointRevision = response["checkpointRevision"];
       const selectedIndex = response["selectedIndex"];
-      const logitsValue = denseArray(response["logits"], "Laya subprocess logits");
+      const logitsValue = denseArray(
+        response["logits"],
+        "Laya subprocess logits",
+      );
       const logits = logitsValue.map((value) => {
         if (typeof value !== "number" || !Number.isFinite(value)) {
           throw new LiveTransportError(
@@ -210,27 +244,42 @@ export class LiveLayaRunner implements LayaRunner {
           "Laya subprocess checkpoint revision must be a string",
         );
       }
-      if (!Number.isSafeInteger(selectedIndex) || (selectedIndex as number) < 0) {
+      if (
+        !Number.isSafeInteger(selectedIndex) ||
+        (selectedIndex as number) < 0
+      ) {
         throw new LiveTransportError(
           "invalid-response",
           "Laya subprocess selected index must be a non-negative safe integer",
         );
       }
-      return { checkpointRevision, selectedIndex: selectedIndex as number, logits };
+      return {
+        checkpointRevision,
+        selectedIndex: selectedIndex as number,
+        logits,
+      };
     } finally {
       signal.removeEventListener("abort", onAbort);
     }
   }
 
-  #send(payload: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
+  #send(
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<Readonly<Record<string, unknown>>> {
     if (this.#closed) {
       return Promise.reject(
-        new LiveTransportError("process-failure", "Laya subprocess is not running"),
+        new LiveTransportError(
+          "process-failure",
+          "Laya subprocess is not running",
+        ),
       );
     }
     const id = this.#nextId;
     this.#nextId += 1;
-    const encoded = Buffer.from(`${JSON.stringify({ id, ...payload })}\n`, "utf8");
+    const encoded = Buffer.from(
+      `${JSON.stringify({ id, ...payload })}\n`,
+      "utf8",
+    );
     if (encoded.byteLength > MAXIMUM_LAYA_PROTOCOL_LINE_BYTES) {
       return Promise.reject(
         new LiveTransportError(
@@ -284,10 +333,15 @@ export class LiveLayaRunner implements LayaRunner {
     }
     let decoded: unknown;
     try {
-      decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(line)) as unknown;
+      decoded = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(line),
+      ) as unknown;
     } catch {
       this.#fail(
-        new LiveTransportError("invalid-response", "Laya subprocess emitted invalid JSON"),
+        new LiveTransportError(
+          "invalid-response",
+          "Laya subprocess emitted invalid JSON",
+        ),
       );
       return;
     }
@@ -298,14 +352,20 @@ export class LiveLayaRunner implements LayaRunner {
       this.#fail(
         error instanceof LiveTransportError
           ? error
-          : new LiveTransportError("invalid-response", "Laya subprocess response is invalid"),
+          : new LiveTransportError(
+              "invalid-response",
+              "Laya subprocess response is invalid",
+            ),
       );
       return;
     }
     const id = response["id"];
     if (!Number.isSafeInteger(id)) {
       this.#fail(
-        new LiveTransportError("invalid-response", "Laya subprocess response id is invalid"),
+        new LiveTransportError(
+          "invalid-response",
+          "Laya subprocess response id is invalid",
+        ),
       );
       return;
     }
@@ -322,14 +382,20 @@ export class LiveLayaRunner implements LayaRunner {
     this.#pending.delete(id as number);
     if (response["ok"] !== true) {
       pending.reject(
-        new LiveTransportError("process-failure", "Laya subprocess rejected the request"),
+        new LiveTransportError(
+          "process-failure",
+          "Laya subprocess rejected the request",
+        ),
       );
       return;
     }
     pending.resolve(response);
   }
 
-  async #withInitializationTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  async #withInitializationTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+  ): Promise<T> {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
@@ -397,7 +463,9 @@ function validateHashManifest(
       "checkpointFilesSha256 must be a plain object",
     );
   }
-  const entries = Object.entries(value).sort(([left], [right]) => left.localeCompare(right));
+  const entries = Object.entries(value).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
   if (entries.length === 0 || entries.length > 256) {
     throw new LiveTransportError(
       "configuration",
@@ -411,7 +479,9 @@ function validateHashManifest(
       relativePath.length > 1_024 ||
       relativePath.startsWith("/") ||
       relativePath.includes("\\") ||
-      relativePath.split("/").some((part) => part === "" || part === "." || part === "..")
+      relativePath
+        .split("/")
+        .some((part) => part === "" || part === "." || part === "..")
     ) {
       throw new LiveTransportError(
         "configuration",
@@ -465,7 +535,11 @@ function buildWorkerEnvironment(
   }
   if (additions !== undefined) {
     for (const [name, value] of Object.entries(additions)) {
-      if (/TOKEN|KEY|SECRET|PASSWORD/i.test(name) || name.includes("\0") || value.includes("\0")) {
+      if (
+        /TOKEN|KEY|SECRET|PASSWORD/i.test(name) ||
+        name.includes("\0") ||
+        value.includes("\0")
+      ) {
         throw new LiveTransportError(
           "configuration",
           "Laya subprocess environment contains a forbidden entry",
@@ -482,7 +556,10 @@ function buildWorkerEnvironment(
 
 function validateAbsolutePath(value: string, name: string): void {
   if (!value.startsWith("/") || value.length > 4_096 || value.includes("\0")) {
-    throw new LiveTransportError("configuration", `${name} must be an absolute local path`);
+    throw new LiveTransportError(
+      "configuration",
+      `${name} must be an absolute local path`,
+    );
   }
 }
 

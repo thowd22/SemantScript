@@ -45,7 +45,12 @@ const inputs = [
 
 export function makeDataset() {
   const expected = ["approve", "deny", "review", "approve"];
-  const origin = ["human-authored", "other-held-out", "human-authored", "other-held-out"];
+  const origin = [
+    "human-authored",
+    "other-held-out",
+    "human-authored",
+    "other-held-out",
+  ];
   return sealRefundDataset({
     kind: "semantscript.refund-benchmark-dataset",
     datasetVersion: 1,
@@ -132,7 +137,11 @@ export function makeLedger(partitionOverrides = {}) {
   });
 }
 
-export function makePredictionSet(dataset, role = "semantscript", options = {}) {
+export function makePredictionSet(
+  dataset,
+  role = "semantscript",
+  options = {},
+) {
   const pin = REFUND_SYSTEM_PINS[role];
   const ledger = options.ledger ?? makeLedger();
   const artifactTrainingKeySha256 = deriveRefundArtifactTrainingKeySha256(

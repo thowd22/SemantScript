@@ -12,10 +12,7 @@ import {
   type RefundInputs,
   type SemantScriptTrainingEvidence,
 } from "../types.js";
-import {
-  REFUND_BASELINE_POLICY,
-  REFUND_TASK_SPEC_SHA256,
-} from "../policy.js";
+import { REFUND_BASELINE_POLICY, REFUND_TASK_SPEC_SHA256 } from "../policy.js";
 
 export const BASELINE_ADAPTER_VERSION = "2" as const;
 export const REFUND_PROMPT_VERSION = "refund-decision.v2" as const;
@@ -52,7 +49,8 @@ export const REFUND_OUTPUT_SCHEMA = Object.freeze({
 
 const SHA256 = /^[a-f0-9]{64}$/;
 
-export type GenerativeBaselineRole = "ollama-1b" | "ollama-7b" | "structured-api";
+export type GenerativeBaselineRole =
+  "ollama-1b" | "ollama-7b" | "structured-api";
 export type BaselineRole = GenerativeBaselineRole | "laya";
 
 export interface BaselinePrediction {
@@ -60,14 +58,21 @@ export interface BaselinePrediction {
   readonly distribution: readonly DistributionEntry[];
 }
 
-export interface RefundBaselineAdapter<Role extends BaselineRole = BaselineRole> {
+export interface RefundBaselineAdapter<
+  Role extends BaselineRole = BaselineRole,
+> {
   readonly role: Role;
   readonly model: ModelProvenance;
   readonly adapter: AdapterProvenance;
   readonly taskSpecSha256: string;
   readonly trainingEvidence: SemantScriptTrainingEvidence | null;
-  resolveExecutionBackend(signal: AbortSignal): Promise<ExecutionBackendProvenance>;
-  predict(inputs: RefundInputs, signal?: AbortSignal): Promise<BaselinePrediction>;
+  resolveExecutionBackend(
+    signal: AbortSignal,
+  ): Promise<ExecutionBackendProvenance>;
+  predict(
+    inputs: RefundInputs,
+    signal?: AbortSignal,
+  ): Promise<BaselinePrediction>;
 }
 
 export type BaselineAdapterErrorCode =
@@ -81,7 +86,11 @@ export type BaselineAdapterErrorCode =
 export class BaselineAdapterError extends Error {
   readonly code: BaselineAdapterErrorCode;
 
-  constructor(code: BaselineAdapterErrorCode, message: string, options?: ErrorOptions) {
+  constructor(
+    code: BaselineAdapterErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
     super(message, options);
     this.name = "BaselineAdapterError";
     this.code = code;
@@ -134,11 +143,17 @@ export function parseStructuredPrediction(value: unknown): BaselinePrediction {
     REFUND_SUPPORT,
   );
   const weights = REFUND_SUPPORT.map((supportValue) =>
-    probability(probabilities[supportValue], `response.probabilities.${supportValue}`),
+    probability(
+      probabilities[supportValue],
+      `response.probabilities.${supportValue}`,
+    ),
   );
   const sum = weights.reduce((total, weight) => total + weight, 0);
   if (sum === 0) {
-    invalid("response.probabilities", "must assign positive mass to at least one value");
+    invalid(
+      "response.probabilities",
+      "must assign positive mass to at least one value",
+    );
   }
   if (Math.abs(sum - 1) > PROBABILITY_SUM_TOLERANCE) {
     invalid(
@@ -149,11 +164,16 @@ export function parseStructuredPrediction(value: unknown): BaselinePrediction {
   return predictionFromWeights(decision, weights);
 }
 
-export function parseStructuredPredictionJson(value: unknown): BaselinePrediction {
+export function parseStructuredPredictionJson(
+  value: unknown,
+): BaselinePrediction {
   if (typeof value !== "string" || value.length === 0) {
     invalid("response", "must be a nonempty JSON string");
   }
-  if (new TextEncoder().encode(value).byteLength > MAXIMUM_STRUCTURED_RESPONSE_BYTES) {
+  if (
+    new TextEncoder().encode(value).byteLength >
+    MAXIMUM_STRUCTURED_RESPONSE_BYTES
+  ) {
     invalid(
       "response",
       `must not exceed ${String(MAXIMUM_STRUCTURED_RESPONSE_BYTES)} UTF-8 bytes`,
@@ -163,9 +183,13 @@ export function parseStructuredPredictionJson(value: unknown): BaselinePredictio
   try {
     decoded = JSON.parse(value) as unknown;
   } catch (error) {
-    throw new BaselineAdapterError("invalid-response", "response is not valid JSON", {
-      cause: error,
-    });
+    throw new BaselineAdapterError(
+      "invalid-response",
+      "response is not valid JSON",
+      {
+        cause: error,
+      },
+    );
   }
   return parseStructuredPrediction(decoded);
 }
@@ -229,17 +253,27 @@ export function pinnedModelProvenance(
   try {
     contractInternals.validateModelProvenance(value, "model");
   } catch (error) {
-    throw new BaselineAdapterError("invalid-configuration", errorMessage(error), {
-      cause: error,
-    });
+    throw new BaselineAdapterError(
+      "invalid-configuration",
+      errorMessage(error),
+      {
+        cause: error,
+      },
+    );
   }
   for (const key of ["provider", "name", "version"] as const) {
     if (value[key] !== expected[key]) {
-      configurationError(`model.${key}`, `must be ${JSON.stringify(expected[key])}`);
+      configurationError(
+        `model.${key}`,
+        `must be ${JSON.stringify(expected[key])}`,
+      );
     }
   }
   if (expected.revision !== undefined && value.revision !== expected.revision) {
-    configurationError("model.revision", `must be ${JSON.stringify(expected.revision)}`);
+    configurationError(
+      "model.revision",
+      `must be ${JSON.stringify(expected.revision)}`,
+    );
   }
   if (value.revision === "latest" || value.revision.endsWith(":latest")) {
     configurationError("model.revision", "must be immutable, not latest");
@@ -249,7 +283,10 @@ export function pinnedModelProvenance(
 
 export function validateTimeout(value: number): number {
   if (!Number.isSafeInteger(value) || value <= 0 || value > 600_000) {
-    configurationError("timeoutMs", "must be a positive safe integer no greater than 600000");
+    configurationError(
+      "timeoutMs",
+      "must be a positive safe integer no greater than 600000",
+    );
   }
   return value;
 }
@@ -261,7 +298,10 @@ export async function invokeWithTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   if (callerSignal?.aborted === true) {
-    throw new BaselineAdapterError("aborted", `${label} was aborted before dispatch`);
+    throw new BaselineAdapterError(
+      "aborted",
+      `${label} was aborted before dispatch`,
+    );
   }
 
   const controller = new AbortController();
@@ -296,7 +336,10 @@ export async function invokeWithTimeout<T>(
     if (error instanceof BaselineAdapterError) {
       throw error;
     }
-    if (controller.signal.aborted && controller.signal.reason === timeoutReason) {
+    if (
+      controller.signal.aborted &&
+      controller.signal.reason === timeoutReason
+    ) {
       throw new BaselineAdapterError(
         "timeout",
         `${label} exceeded its ${String(timeoutMs)}ms timeout`,
@@ -304,9 +347,13 @@ export async function invokeWithTimeout<T>(
       );
     }
     if (controller.signal.aborted) {
-      throw new BaselineAdapterError("aborted", `${label} was aborted`, { cause: error });
+      throw new BaselineAdapterError("aborted", `${label} was aborted`, {
+        cause: error,
+      });
     }
-    throw new BaselineAdapterError("transport-error", `${label} failed`, { cause: error });
+    throw new BaselineAdapterError("transport-error", `${label} failed`, {
+      cause: error,
+    });
   } finally {
     clearTimeout(timer);
     callerSignal?.removeEventListener("abort", onCallerAbort);
@@ -316,7 +363,10 @@ export async function invokeWithTimeout<T>(
 
 export function assertResponseModel(actual: unknown, expected: string): void {
   if (actual !== expected) {
-    invalid("response.model", `must exactly match requested model ${JSON.stringify(expected)}`);
+    invalid(
+      "response.model",
+      `must exactly match requested model ${JSON.stringify(expected)}`,
+    );
   }
 }
 
@@ -370,7 +420,10 @@ export function refused(provider: string): never {
   );
 }
 
-export function validateRole(role: BenchmarkSystemRole, expected: BaselineRole): void {
+export function validateRole(
+  role: BenchmarkSystemRole,
+  expected: BaselineRole,
+): void {
   if (role !== expected) {
     configurationError("role", `must be ${JSON.stringify(expected)}`);
   }
@@ -387,18 +440,26 @@ function predictionFromWeights(
   const probabilities = weights.map((weight) => weight / total);
   const bestIndex = stableArgmax(probabilities);
   if (claimedDecision !== REFUND_SUPPORT[bestIndex]) {
-    invalid("response.decision", "must be the stable support-order argmax of probabilities");
+    invalid(
+      "response.decision",
+      "must be the stable support-order argmax of probabilities",
+    );
   }
-  const distribution: DistributionEntry[] = REFUND_SUPPORT.map((value, index) => {
-    const probabilityAtIndex = probabilities[index];
-    if (probabilityAtIndex === undefined) {
-      invalid("response", "distribution cardinality does not match refund support");
-    }
-    return {
-      value,
-      probability: probabilityAtIndex,
-    };
-  });
+  const distribution: DistributionEntry[] = REFUND_SUPPORT.map(
+    (value, index) => {
+      const probabilityAtIndex = probabilities[index];
+      if (probabilityAtIndex === undefined) {
+        invalid(
+          "response",
+          "distribution cardinality does not match refund support",
+        );
+      }
+      return {
+        value,
+        probability: probabilityAtIndex,
+      };
+    },
+  );
   return contractInternals.frozenClone({
     value: claimedDecision,
     distribution,
@@ -419,18 +480,31 @@ function stableArgmax(values: readonly number[]): number {
 
 function validateRefundInputs(value: unknown): asserts value is RefundInputs {
   const inputs = exactObject(value, "inputs", ["customer", "order"]);
-  const customer = exactObject(inputs.customer, "inputs.customer", ["priorRefunds", "tier"]);
+  const customer = exactObject(inputs.customer, "inputs.customer", [
+    "priorRefunds",
+    "tier",
+  ]);
   if (
     !Number.isSafeInteger(customer.priorRefunds) ||
     (customer.priorRefunds as number) < 0 ||
     Object.is(customer.priorRefunds, -0)
   ) {
-    configurationError("inputs.customer.priorRefunds", "must be a non-negative safe integer");
+    configurationError(
+      "inputs.customer.priorRefunds",
+      "must be a non-negative safe integer",
+    );
   }
   if (customer.tier !== "enterprise" && customer.tier !== "standard") {
-    configurationError("inputs.customer.tier", 'must be "enterprise" or "standard"');
+    configurationError(
+      "inputs.customer.tier",
+      'must be "enterprise" or "standard"',
+    );
   }
-  const order = exactObject(inputs.order, "inputs.order", ["ageDays", "status", "total"]);
+  const order = exactObject(inputs.order, "inputs.order", [
+    "ageDays",
+    "status",
+    "total",
+  ]);
   for (const key of ["ageDays", "total"] as const) {
     if (
       typeof order[key] !== "number" ||
@@ -438,7 +512,10 @@ function validateRefundInputs(value: unknown): asserts value is RefundInputs {
       order[key] < 0 ||
       Object.is(order[key], -0)
     ) {
-      configurationError(`inputs.order.${key}`, "must be a non-negative finite number");
+      configurationError(
+        `inputs.order.${key}`,
+        "must be a non-negative finite number",
+      );
     }
   }
   if (order.status !== "fraudulent" && order.status !== "paid") {
@@ -447,13 +524,22 @@ function validateRefundInputs(value: unknown): asserts value is RefundInputs {
 }
 
 function probability(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > 1
+  ) {
     invalid(path, "must be a finite probability from 0 through 1");
   }
   return value;
 }
 
-function denseNumbers(value: unknown, path: string, probabilities: boolean): readonly number[] {
+function denseNumbers(
+  value: unknown,
+  path: string,
+  probabilities: boolean,
+): readonly number[] {
   const names = Array.isArray(value)
     ? Object.getOwnPropertyNames(value).filter((name) => name !== "length")
     : [];
@@ -469,7 +555,10 @@ function denseNumbers(value: unknown, path: string, probabilities: boolean): rea
   return value.map((entry, index) => {
     const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
     if (!descriptor?.enumerable || !("value" in descriptor)) {
-      invalid(`${path}[${String(index)}]`, "must be an enumerable data property");
+      invalid(
+        `${path}[${String(index)}]`,
+        "must be an enumerable data property",
+      );
     }
     if (typeof entry !== "number" || !Number.isFinite(entry)) {
       invalid(`${path}[${String(index)}]`, "must be a finite number");
@@ -497,7 +586,10 @@ function exactObject<const Keys extends readonly string[]>(
     invalid(path, "must not contain symbol properties");
   }
   const names = Object.getOwnPropertyNames(value);
-  if (names.length !== keys.length || keys.some((key) => !names.includes(key))) {
+  if (
+    names.length !== keys.length ||
+    keys.some((key) => !names.includes(key))
+  ) {
     invalid(path, `must contain exactly: ${keys.join(", ")}`);
   }
   for (const key of keys) {
@@ -510,7 +602,10 @@ function exactObject<const Keys extends readonly string[]>(
 }
 
 function configurationError(path: string, message: string): never {
-  throw new BaselineAdapterError("invalid-configuration", `${path}: ${message}`);
+  throw new BaselineAdapterError(
+    "invalid-configuration",
+    `${path}: ${message}`,
+  );
 }
 
 function refundDecision(value: unknown, path: string): RefundDecision {

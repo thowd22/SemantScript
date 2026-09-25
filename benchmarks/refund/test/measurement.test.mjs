@@ -33,7 +33,10 @@ test("RSS sampler polls the Node process from an independent worker", async () =
 });
 
 test("RSS sampler rejects invalid lifecycle, configuration, and pre-start abort", async () => {
-  assert.throws(() => createProcessRssSampler({ intervalMs: 0 }), /intervalMs/u);
+  assert.throws(
+    () => createProcessRssSampler({ intervalMs: 0 }),
+    /intervalMs/u,
+  );
   const aborted = new globalThis.AbortController();
   aborted.abort();
   const abortSampler = createProcessRssSampler();

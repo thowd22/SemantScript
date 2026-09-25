@@ -111,7 +111,13 @@
     "humanAttestation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["attestor", "attestedAt", "caseIds", "declaration", "evidenceSha256"],
+      "required": [
+        "attestor",
+        "attestedAt",
+        "caseIds",
+        "declaration",
+        "evidenceSha256"
+      ],
       "properties": {
         "attestor": { "$ref": "#/$defs/nonEmptyString" },
         "attestedAt": { "$ref": "#/$defs/timestamp" },
@@ -142,7 +148,14 @@
     "judgeAttestation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["judge", "rubricSha256", "attestedAt", "caseIds", "declaration", "evidenceSha256"],
+      "required": [
+        "judge",
+        "rubricSha256",
+        "attestedAt",
+        "caseIds",
+        "declaration",
+        "evidenceSha256"
+      ],
       "properties": {
         "judge": { "$ref": "#/$defs/judgeIdentity" },
         "rubricSha256": { "$ref": "#/$defs/sha256" },
@@ -225,9 +238,21 @@
         "kind": { "const": "ollama" },
         "serverVersion": { "$ref": "#/$defs/nonEmptyString" },
         "placement": { "enum": ["cpu", "gpu", "hybrid"] },
-        "modelTotalBytes": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
-        "modelCpuBytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-        "modelGpuBytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        "modelTotalBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "modelCpuBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "modelGpuBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
       },
       "$comment": "Runtime validation requires CPU plus GPU bytes to equal total bytes and derives placement from that split."
     },
@@ -238,7 +263,9 @@
       "properties": {
         "kind": { "const": "anthropic-api" },
         "apiVersion": { "const": "2023-06-01" },
-        "endpoint": { "const": "https://api.anthropic.com" },
+        "endpoint": {
+          "enum": ["https://api.anthropic.com", "https://openrouter.ai/api"]
+        },
         "placement": { "const": "provider-managed" }
       }
     },
@@ -261,12 +288,25 @@
       ]
     },
     "systemRole": {
-      "enum": ["semantscript", "ollama-1b", "ollama-7b", "structured-api", "laya"]
+      "enum": [
+        "semantscript",
+        "ollama-1b",
+        "ollama-7b",
+        "structured-api",
+        "laya"
+      ]
     },
     "systemProvenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["role", "taskSpecSha256", "model", "adapter", "trainingEvidence", "executionBackend"],
+      "required": [
+        "role",
+        "taskSpecSha256",
+        "model",
+        "adapter",
+        "trainingEvidence",
+        "executionBackend"
+      ],
       "properties": {
         "role": { "$ref": "#/$defs/systemRole" },
         "taskSpecSha256": {
@@ -284,7 +324,11 @@
       },
       "allOf": [
         {
-          "if": { "type": "object", "properties": { "role": { "const": "semantscript" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "semantscript" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -304,13 +348,21 @@
                   "version": { "const": "1" }
                 }
               },
-              "trainingEvidence": { "$ref": "#/$defs/semantscriptTrainingEvidence" },
-              "executionBackend": { "$ref": "#/$defs/semantscriptExecutionBackend" }
+              "trainingEvidence": {
+                "$ref": "#/$defs/semantscriptTrainingEvidence"
+              },
+              "executionBackend": {
+                "$ref": "#/$defs/semantscriptExecutionBackend"
+              }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "enum": ["ollama-1b", "ollama-7b"] } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "enum": ["ollama-1b", "ollama-7b"] } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -327,7 +379,11 @@
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "ollama-1b" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "ollama-1b" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -337,15 +393,23 @@
                   "provider": { "const": "ollama" },
                   "name": { "const": "qwen2.5:1.5b-instruct-q4_K_M" },
                   "version": { "const": "qwen2.5" },
-                  "revision": { "const": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b" },
-                  "artifactSha256": { "const": "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4" }
+                  "revision": {
+                    "const": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b"
+                  },
+                  "artifactSha256": {
+                    "const": "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4"
+                  }
                 }
               }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "ollama-7b" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "ollama-7b" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -355,15 +419,23 @@
                   "provider": { "const": "ollama" },
                   "name": { "const": "qwen2.5:7b-instruct-q4_K_M" },
                   "version": { "const": "qwen2.5" },
-                  "revision": { "const": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e" },
-                  "artifactSha256": { "const": "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730" }
+                  "revision": {
+                    "const": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e"
+                  },
+                  "artifactSha256": {
+                    "const": "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730"
+                  }
                 }
               }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "structured-api" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "structured-api" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -384,12 +456,18 @@
                 }
               },
               "trainingEvidence": { "type": "null" },
-              "executionBackend": { "$ref": "#/$defs/anthropicExecutionBackend" }
+              "executionBackend": {
+                "$ref": "#/$defs/anthropicExecutionBackend"
+              }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "laya" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "laya" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -399,8 +477,12 @@
                   "provider": { "const": "huggingface" },
                   "name": { "const": "convaiinnovations/laya-typed-decisions" },
                   "version": { "const": "laya-typed-decisions" },
-                  "revision": { "const": "dd079950600224fb459af2a0cb1d74e1e57ee9cf" },
-                  "artifactSha256": { "const": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e" }
+                  "revision": {
+                    "const": "dd079950600224fb459af2a0cb1d74e1e57ee9cf"
+                  },
+                  "artifactSha256": {
+                    "const": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e"
+                  }
                 }
               },
               "adapter": {
@@ -445,10 +527,7 @@
         "architecture": { "$ref": "#/$defs/nonEmptyString" },
         "cpu": { "$ref": "#/$defs/nonEmptyString" },
         "accelerator": {
-          "oneOf": [
-            { "$ref": "#/$defs/nonEmptyString" },
-            { "type": "null" }
-          ]
+          "oneOf": [{ "$ref": "#/$defs/nonEmptyString" }, { "type": "null" }]
         },
         "memoryBytes": {
           "type": "integer",
@@ -514,7 +593,13 @@
     "prediction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["caseId", "inputSha256", "value", "distribution", "latencyMs"],
+      "required": [
+        "caseId",
+        "inputSha256",
+        "value",
+        "distribution",
+        "latencyMs"
+      ],
       "properties": {
         "caseId": { "$ref": "#/$defs/recordId" },
         "inputSha256": { "$ref": "#/$defs/sha256" },
@@ -555,7 +640,13 @@
     "systemMetrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["accuracy", "calibration", "latency", "throughput", "memory"],
+      "required": [
+        "accuracy",
+        "calibration",
+        "latency",
+        "throughput",
+        "memory"
+      ],
       "properties": {
         "accuracy": { "$ref": "#/$defs/accuracyMetrics" },
         "calibration": {
@@ -564,7 +655,11 @@
           "required": ["binCount", "expectedCalibrationError"],
           "properties": {
             "binCount": { "const": 15 },
-            "expectedCalibrationError": { "type": "number", "minimum": 0, "maximum": 1 }
+            "expectedCalibrationError": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
           }
         },
         "latency": {
@@ -579,7 +674,11 @@
         "throughput": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["concurrency", "measuredDurationMs", "requestsPerSecond"],
+          "required": [
+            "concurrency",
+            "measuredDurationMs",
+            "requestsPerSecond"
+          ],
           "properties": {
             "concurrency": { "const": 1 },
             "measuredDurationMs": { "type": "number", "exclusiveMinimum": 0 },
@@ -592,7 +691,11 @@
           "required": ["scope", "peakBytes"],
           "properties": {
             "scope": { "enum": ["client-only", "process-tree"] },
-            "peakBytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+            "peakBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
           }
         }
       }
@@ -640,7 +743,11 @@
     "systemResultRoleIdentity": {
       "allOf": [
         {
-          "if": { "type": "object", "properties": { "role": { "const": "semantscript" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "semantscript" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -661,13 +768,21 @@
                   "version": { "const": "1" }
                 }
               },
-              "trainingEvidence": { "$ref": "#/$defs/semantscriptTrainingEvidence" },
-              "executionBackend": { "$ref": "#/$defs/semantscriptExecutionBackend" }
+              "trainingEvidence": {
+                "$ref": "#/$defs/semantscriptTrainingEvidence"
+              },
+              "executionBackend": {
+                "$ref": "#/$defs/semantscriptExecutionBackend"
+              }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "enum": ["ollama-1b", "ollama-7b"] } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "enum": ["ollama-1b", "ollama-7b"] } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -684,7 +799,11 @@
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "ollama-1b" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "ollama-1b" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -694,15 +813,23 @@
                   "provider": { "const": "ollama" },
                   "name": { "const": "qwen2.5:1.5b-instruct-q4_K_M" },
                   "version": { "const": "qwen2.5" },
-                  "revision": { "const": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b" },
-                  "artifactSha256": { "const": "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4" }
+                  "revision": {
+                    "const": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b"
+                  },
+                  "artifactSha256": {
+                    "const": "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4"
+                  }
                 }
               }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "ollama-7b" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "ollama-7b" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -712,15 +839,23 @@
                   "provider": { "const": "ollama" },
                   "name": { "const": "qwen2.5:7b-instruct-q4_K_M" },
                   "version": { "const": "qwen2.5" },
-                  "revision": { "const": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e" },
-                  "artifactSha256": { "const": "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730" }
+                  "revision": {
+                    "const": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e"
+                  },
+                  "artifactSha256": {
+                    "const": "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730"
+                  }
                 }
               }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "structured-api" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "structured-api" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -742,12 +877,18 @@
                 }
               },
               "trainingEvidence": { "type": "null" },
-              "executionBackend": { "$ref": "#/$defs/anthropicExecutionBackend" }
+              "executionBackend": {
+                "$ref": "#/$defs/anthropicExecutionBackend"
+              }
             }
           }
         },
         {
-          "if": { "type": "object", "properties": { "role": { "const": "laya" } }, "required": ["role"] },
+          "if": {
+            "type": "object",
+            "properties": { "role": { "const": "laya" } },
+            "required": ["role"]
+          },
           "then": {
             "type": "object",
             "properties": {
@@ -757,8 +898,12 @@
                   "provider": { "const": "huggingface" },
                   "name": { "const": "convaiinnovations/laya-typed-decisions" },
                   "version": { "const": "laya-typed-decisions" },
-                  "revision": { "const": "dd079950600224fb459af2a0cb1d74e1e57ee9cf" },
-                  "artifactSha256": { "const": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e" }
+                  "revision": {
+                    "const": "dd079950600224fb459af2a0cb1d74e1e57ee9cf"
+                  },
+                  "artifactSha256": {
+                    "const": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e"
+                  }
                 }
               },
               "adapter": {
@@ -811,7 +956,10 @@
         "criterion": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["semantscriptP50MsExclusiveMaximum", "accuracyComparator"],
+          "required": [
+            "semantscriptP50MsExclusiveMaximum",
+            "accuracyComparator"
+          ],
           "properties": {
             "semantscriptP50MsExclusiveMaximum": { "const": 10 },
             "accuracyComparator": { "const": "ollama-7b" }

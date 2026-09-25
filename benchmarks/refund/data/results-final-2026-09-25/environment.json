@@ -1,0 +1,55 @@
+{
+ "environment": {
+  "capturedAt": "2026-09-25T04:22:12Z",
+  "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+  "architecture": "x64",
+  "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+  "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+  "memoryBytes": 16265179136,
+  "runtimeVersions": [
+   {
+    "name": "node",
+    "version": "22.22.0"
+   },
+   {
+    "name": "ollama",
+    "version": "0.34.3"
+   },
+   {
+    "name": "onnxruntime-node",
+    "version": "1.30.0"
+   }
+  ],
+  "evidenceSha256": "56601ec83a0c1ab147f2cd8fb63bc186d36eb1f03dc892c1fd1d03063945273e"
+ },
+ "evidence": {
+  "capturedAt": "2026-09-25T04:22:12Z",
+  "os": {
+   "type": "Linux",
+   "release": "6.18.33.2-microsoft-standard-WSL2",
+   "version": "#1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026",
+   "platform": "linux"
+  },
+  "architecture": "x64",
+  "cpu": {
+   "model": "AMD Ryzen 9 9900X 12-Core Processor",
+   "count": 24
+  },
+  "totalMemoryBytes": 16265179136,
+  "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+  "runtimeVersions": [
+   {
+    "name": "node",
+    "version": "22.22.0"
+   },
+   {
+    "name": "ollama",
+    "version": "0.34.3"
+   },
+   {
+    "name": "onnxruntime-node",
+    "version": "1.30.0"
+   }
+  ]
+ }
+}

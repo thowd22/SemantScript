@@ -57,8 +57,13 @@ export interface RefundPredictionAdapter<
   readonly adapter: AdapterProvenance;
   readonly taskSpecSha256: string;
   readonly trainingEvidence: SemantScriptTrainingEvidence | null;
-  resolveExecutionBackend(signal: AbortSignal): Promise<ExecutionBackendProvenance>;
-  predict(inputs: RefundInputs, signal?: AbortSignal): Promise<BaselinePrediction>;
+  resolveExecutionBackend(
+    signal: AbortSignal,
+  ): Promise<ExecutionBackendProvenance>;
+  predict(
+    inputs: RefundInputs,
+    signal?: AbortSignal,
+  ): Promise<BaselinePrediction>;
 }
 
 export interface MonotonicClock {
@@ -131,9 +136,8 @@ export async function runRefundBenchmark(
 
     for (let index = 0; index < configuration.warmupIterations; index += 1) {
       throwIfAborted(controller.signal, "benchmark was aborted during warmup");
-      const warmupInput = configuration.warmupInputs[
-        index % configuration.warmupInputs.length
-      ];
+      const warmupInput =
+        configuration.warmupInputs[index % configuration.warmupInputs.length];
       if (warmupInput === undefined) {
         configurationError("warmupInputs", "must contain a warmup input");
       }
@@ -143,10 +147,16 @@ export async function runRefundBenchmark(
       throwIfAborted(controller.signal, "benchmark was aborted during warmup");
     }
 
-    throwIfAborted(controller.signal, "benchmark was aborted before measurement");
+    throwIfAborted(
+      controller.signal,
+      "benchmark was aborted before measurement",
+    );
     samplerStarted = true;
     await configuration.memorySampler.start(controller.signal);
-    throwIfAborted(controller.signal, "benchmark was aborted before measurement");
+    throwIfAborted(
+      controller.signal,
+      "benchmark was aborted before measurement",
+    );
 
     let lastClockReading: number | undefined;
     const readClock = (): number => {
@@ -170,13 +180,19 @@ export async function runRefundBenchmark(
     const measuredStartedAt = readClock();
     const predictions: RefundPrediction[] = [];
     for (const benchmarkCase of configuration.dataset.cases) {
-      throwIfAborted(controller.signal, "benchmark was aborted during measurement");
+      throwIfAborted(
+        controller.signal,
+        "benchmark was aborted during measurement",
+      );
       const startedAt = readClock();
       const rawPrediction = await configuration.adapter.predict(
         benchmarkCase.inputs,
         controller.signal,
       );
-      throwIfAborted(controller.signal, "benchmark was aborted during measurement");
+      throwIfAborted(
+        controller.signal,
+        "benchmark was aborted during measurement",
+      );
       const prediction = validateAdapterPrediction(rawPrediction);
       const completedAt = readClock();
       predictions.push({
@@ -200,9 +216,8 @@ export async function runRefundBenchmark(
     const peakMemoryBytes = validatePeakMemory(
       await configuration.memorySampler.stop(),
     );
-    const executionBackend = await configuration.adapter.resolveExecutionBackend(
-      controller.signal,
-    );
+    const executionBackend =
+      await configuration.adapter.resolveExecutionBackend(controller.signal);
 
     return sealPredictionSet({
       kind: "semantscript.refund-benchmark-predictions",
@@ -281,11 +296,20 @@ function validateConfiguration(
   }
   const adapterRecord = adapterValue as Record<string, unknown>;
   const role = adapterRecord["role"];
-  if (typeof role !== "string" || !supportedRoles.has(role as BenchmarkSystemRole)) {
-    configurationError("adapter.role", "must be a supported benchmark system role");
+  if (
+    typeof role !== "string" ||
+    !supportedRoles.has(role as BenchmarkSystemRole)
+  ) {
+    configurationError(
+      "adapter.role",
+      "must be a supported benchmark system role",
+    );
   }
   const predictionAdapter = adapterValue as RefundPredictionAdapter;
-  const system = validateAndFreezeSystem(role as BenchmarkSystemRole, adapterRecord);
+  const system = validateAndFreezeSystem(
+    role as BenchmarkSystemRole,
+    adapterRecord,
+  );
   const environment = validateAndFreezeEnvironment(raw["environment"]);
 
   const warmupInputs = validateWarmupInputs(
@@ -304,7 +328,10 @@ function validateConfiguration(
     !("stop" in memorySamplerValue) ||
     typeof memorySamplerValue.stop !== "function"
   ) {
-    configurationError("memorySampler", "must provide start and stop functions");
+    configurationError(
+      "memorySampler",
+      "must provide start and stop functions",
+    );
   }
   const memorySamplerRecord = memorySamplerValue as Record<string, unknown>;
   if (
@@ -318,7 +345,8 @@ function validateConfiguration(
   }
   const memorySampler = memorySamplerValue as PeakMemorySampler;
   const configuredClock = raw["clock"];
-  const clockValue = configuredClock === undefined ? defaultClock : configuredClock;
+  const clockValue =
+    configuredClock === undefined ? defaultClock : configuredClock;
   if (
     clockValue === null ||
     typeof clockValue !== "object" ||
@@ -376,7 +404,11 @@ function placeholderExecutionBackend(
 ): ExecutionBackendProvenance {
   switch (role) {
     case "semantscript":
-      return { kind: "semantscript-node", runtime: "onnxruntime-node", device: "cpu" };
+      return {
+        kind: "semantscript-node",
+        runtime: "onnxruntime-node",
+        device: "cpu",
+      };
     case "ollama-1b":
     case "ollama-7b":
       return {
@@ -416,7 +448,9 @@ function validateWarmupInputs(
       "must be empty exactly when warmupIterations is zero",
     );
   }
-  const finalDigests = new Set(dataset.cases.map(({ inputSha256 }) => inputSha256));
+  const finalDigests = new Set(
+    dataset.cases.map(({ inputSha256 }) => inputSha256),
+  );
   const seenDigests = new Set<string>();
   const inputs = values.map((input, index) => {
     const path = `warmupInputs[${String(index)}]`;
@@ -427,7 +461,10 @@ function validateWarmupInputs(
     }
     const digest = semanticJsonSha256(input);
     if (finalDigests.has(digest)) {
-      configurationError(path, "must not duplicate an exact final evaluation input");
+      configurationError(
+        path,
+        "must not duplicate an exact final evaluation input",
+      );
     }
     if (seenDigests.has(digest)) {
       configurationError(path, "duplicates another warmup input");
@@ -438,9 +475,7 @@ function validateWarmupInputs(
   return contractInternals.frozenClone(inputs);
 }
 
-function validateAndFreezeEnvironment(
-  value: unknown,
-): EnvironmentProvenance {
+function validateAndFreezeEnvironment(value: unknown): EnvironmentProvenance {
   try {
     contractInternals.validateEnvironment(value, "environment");
     return contractInternals.frozenClone(value) as EnvironmentProvenance;
@@ -451,11 +486,17 @@ function validateAndFreezeEnvironment(
 
 function validateAdapterPrediction(value: unknown): BaselinePrediction {
   try {
-    const prediction = exactObject(value, "prediction", ["value", "distribution"]);
+    const prediction = exactObject(value, "prediction", [
+      "value",
+      "distribution",
+    ]);
     if (!isRefundDecision(prediction.value)) {
       outputError("prediction.value", "must be a canonical refund decision");
     }
-    const distribution = denseArray(prediction.distribution, "prediction.distribution");
+    const distribution = denseArray(
+      prediction.distribution,
+      "prediction.distribution",
+    );
     if (distribution.length !== REFUND_SUPPORT.length) {
       outputError(
         "prediction.distribution",
@@ -466,10 +507,11 @@ function validateAdapterPrediction(value: unknown): BaselinePrediction {
     let bestIndex = 0;
     let bestProbability = Number.NEGATIVE_INFINITY;
     const validatedDistribution = REFUND_SUPPORT.map((supportValue, index) => {
-      const entry = exactObject(distribution[index], `prediction.distribution[${String(index)}]`, [
-        "value",
-        "probability",
-      ]);
+      const entry = exactObject(
+        distribution[index],
+        `prediction.distribution[${String(index)}]`,
+        ["value", "probability"],
+      );
       if (entry.value !== supportValue) {
         outputError(
           `prediction.distribution[${String(index)}].value`,
@@ -492,10 +534,16 @@ function validateAdapterPrediction(value: unknown): BaselinePrediction {
         bestProbability = entry.probability;
         bestIndex = index;
       }
-      return Object.freeze({ value: supportValue, probability: entry.probability });
+      return Object.freeze({
+        value: supportValue,
+        probability: entry.probability,
+      });
     });
     if (Math.abs(total - 1) > 1e-12) {
-      outputError("prediction.distribution", "probabilities must sum to 1 within 1e-12");
+      outputError(
+        "prediction.distribution",
+        "probabilities must sum to 1 within 1e-12",
+      );
     }
     if (prediction.value !== REFUND_SUPPORT[bestIndex]) {
       outputError(
@@ -535,7 +583,10 @@ function exactObject<const Keys extends readonly string[]>(
     outputError(path, "must not contain symbol properties");
   }
   const names = Object.getOwnPropertyNames(value);
-  if (names.length !== keys.length || keys.some((key) => !names.includes(key))) {
+  if (
+    names.length !== keys.length ||
+    keys.some((key) => !names.includes(key))
+  ) {
     outputError(path, `must contain exactly: ${keys.join(", ")}`);
   }
   for (const key of keys) {
@@ -551,7 +602,9 @@ function denseArray(value: unknown, path: string): readonly unknown[] {
   if (!Array.isArray(value)) {
     outputError(path, "must be an array");
   }
-  const names = Object.getOwnPropertyNames(value).filter((name) => name !== "length");
+  const names = Object.getOwnPropertyNames(value).filter(
+    (name) => name !== "length",
+  );
   if (
     Object.getOwnPropertySymbols(value).length > 0 ||
     names.length !== value.length ||
@@ -562,7 +615,10 @@ function denseArray(value: unknown, path: string): readonly unknown[] {
   for (let index = 0; index < value.length; index += 1) {
     const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
     if (!descriptor?.enumerable || !("value" in descriptor)) {
-      outputError(`${path}[${String(index)}]`, "must be an enumerable data property");
+      outputError(
+        `${path}[${String(index)}]`,
+        "must be an enumerable data property",
+      );
     }
   }
   return value;
@@ -578,7 +634,10 @@ function validatePeakMemory(value: unknown): number {
   return value as number;
 }
 
-function throwIfAborted(signal: AbortSignal | undefined, message: string): void {
+function throwIfAborted(
+  signal: AbortSignal | undefined,
+  message: string,
+): void {
   if (signal?.aborted === true) {
     throw new BenchmarkRunnerError("aborted", message, {
       cause: signal.reason,
@@ -597,7 +656,9 @@ function isAbortSignal(value: unknown): value is AbortSignal {
   );
 }
 
-function isRefundDecision(value: unknown): value is (typeof REFUND_SUPPORT)[number] {
+function isRefundDecision(
+  value: unknown,
+): value is (typeof REFUND_SUPPORT)[number] {
   return value === "approve" || value === "deny" || value === "review";
 }
 
@@ -605,7 +666,11 @@ function outputError(path: string, message: string): never {
   throw new BenchmarkRunnerError("invalid-output", `${path}: ${message}`);
 }
 
-function configurationError(path: string, message: string, cause?: unknown): never {
+function configurationError(
+  path: string,
+  message: string,
+  cause?: unknown,
+): never {
   throw new BenchmarkRunnerError(
     "invalid-configuration",
     `${path}: ${message}`,

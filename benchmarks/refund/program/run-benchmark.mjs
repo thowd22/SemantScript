@@ -30,6 +30,7 @@ import {
   createLiveAnthropicTransport,
   createLiveLayaRunner,
   createLiveOllamaTransport,
+  createLiveOpenRouterAnthropicTransport,
 } from "../dist/live/index.js";
 import { createProcessRssSampler } from "../dist/measurement.js";
 import { createBenchmarkResult } from "../dist/metrics.js";
@@ -37,7 +38,10 @@ import { REFUND_SYSTEM_PINS, REFUND_TASK_SPEC_SHA256 } from "../dist/policy.js";
 import { runRefundBenchmark } from "../dist/runner.js";
 import { createSemantScriptRefundAdapter } from "../dist/semantscript-adapter.js";
 
-const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const REPOSITORY_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
 const DEFAULT_WARMUP_ITERATIONS = 10;
 const DEFAULT_WARMUP_INPUT_COUNT = 8;
 
@@ -61,7 +65,9 @@ async function warmupInputsFrom(source, count) {
   const document = await readJson(source);
   const cases = document.payload?.cases ?? document.cases;
   if (!Array.isArray(cases) || cases.length < count) {
-    throw new Error("warmup source must contain at least the requested number of cases");
+    throw new Error(
+      "warmup source must contain at least the requested number of cases",
+    );
   }
   return cases.slice(0, count).map((entry) => structuredClone(entry.inputs));
 }
@@ -76,7 +82,9 @@ async function loadOrCaptureEnvironment(outputDir, accelerator) {
   }
   const runtimeVersions = [{ name: "node", version: process.versions.node }];
   try {
-    const onnx = await readJson(join(REPOSITORY_ROOT, "node_modules/onnxruntime-node/package.json"));
+    const onnx = await readJson(
+      join(REPOSITORY_ROOT, "node_modules/onnxruntime-node/package.json"),
+    );
     runtimeVersions.push({ name: "onnxruntime-node", version: onnx.version });
   } catch {
     // runtime package absent: recorded by omission
@@ -88,12 +96,19 @@ async function loadOrCaptureEnvironment(outputDir, accelerator) {
   } catch {
     // Ollama not running: recorded by omission
   }
-  runtimeVersions.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+  runtimeVersions.sort((left, right) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+  );
   const cpus = os.cpus();
   const capturedAt = utcNow();
   const evidence = {
     capturedAt,
-    os: { type: os.type(), release: os.release(), version: os.version(), platform: os.platform() },
+    os: {
+      type: os.type(),
+      release: os.release(),
+      version: os.version(),
+      platform: os.platform(),
+    },
     architecture: os.arch(),
     cpu: { model: cpus[0]?.model ?? "unknown", count: cpus.length },
     totalMemoryBytes: os.totalmem(),
@@ -116,7 +131,9 @@ async function loadOrCaptureEnvironment(outputDir, accelerator) {
 
 async function semantscriptAdapter(pipelineManifestPath) {
   const manifest = await readJson(pipelineManifestPath);
-  const releaseManifest = await readJson(join(manifest.artifact.releaseDirectory, "manifest.json"));
+  const releaseManifest = await readJson(
+    join(manifest.artifact.releaseDirectory, "manifest.json"),
+  );
   const fn = releaseManifest.functions[0];
   const trainingKeySha256 = manifest.ledger.trainingKeySha256;
   return createSemantScriptRefundAdapter({
@@ -142,9 +159,11 @@ async function semantscriptAdapter(pipelineManifestPath) {
       },
       trainingEvidence: {
         trainingLedgerSha256: manifest.ledger.payloadSha256,
-        artifactTrainingDatasetSha256: manifest.ledger.sources.baseDatasetSha256,
+        artifactTrainingDatasetSha256:
+          manifest.ledger.sources.baseDatasetSha256,
         artifactTrainingKeySha256: trainingKeySha256,
-        releaseVerificationPayloadSha256: manifest.ledger.sources.releaseVerificationPayloadSha256,
+        releaseVerificationPayloadSha256:
+          manifest.ledger.sources.releaseVerificationPayloadSha256,
         releaseVerificationAttestationSha256:
           manifest.ledger.sources.releaseVerificationAttestationSha256,
       },
@@ -154,7 +173,8 @@ async function semantscriptAdapter(pipelineManifestPath) {
 
 async function buildAdapter(role, options) {
   if (role === "semantscript") {
-    if (!options["pipeline-manifest"]) throw new Error("semantscript needs --pipeline-manifest");
+    if (!options["pipeline-manifest"])
+      throw new Error("semantscript needs --pipeline-manifest");
     return semantscriptAdapter(resolve(options["pipeline-manifest"]));
   }
   if (role === "ollama-1b" || role === "ollama-7b") {
@@ -175,16 +195,39 @@ async function buildAdapter(role, options) {
       device: "cuda",
       // The user site-packages carries a NumPy-2 SciPy that breaks the project's
       // NumPy 1.26 through transformers' optional imports; isolate the worker from it.
-      environment: { PYTHONPATH: join(REPOSITORY_ROOT, ".python-packages"), PYTHONNOUSERSITE: "1" },
+      environment: {
+        PYTHONPATH: join(REPOSITORY_ROOT, ".python-packages"),
+        PYTHONNOUSERSITE: "1",
+      },
     });
-    const adapter = createLayaAdapter({ model: REFUND_SYSTEM_PINS.laya.model, runner });
+    const adapter = createLayaAdapter({
+      model: REFUND_SYSTEM_PINS.laya.model,
+      runner,
+    });
     return { ...adapter, close: async () => runner.close() };
   }
   if (role === "structured-api") {
-    if (!process.env.ANTHROPIC_API_KEY) throw new Error("structured-api needs ANTHROPIC_API_KEY");
+    // The canonical Anthropic API when its key is present; else the same pinned
+    // model through OpenRouter's Anthropic-format route, recorded as such in the
+    // execution backend. Neither key is ever written to a record.
+    let transport;
+    if (process.env.ANTHROPIC_API_KEY)
+      transport = createLiveAnthropicTransport();
+    else if (process.env.OPENROUTER_API_KEY)
+      transport = createLiveOpenRouterAnthropicTransport();
+    else
+      throw new Error(
+        "structured-api needs ANTHROPIC_API_KEY or OPENROUTER_API_KEY",
+      );
+    process.stdout.write(
+      `${utcNow()} structured-api: route ${transport.executionBackend.endpoint}\n`,
+    );
     return createAnthropicSonnetAdapter({
-      model: { ...REFUND_SYSTEM_PINS["structured-api"].model, artifactSha256: sha256("claude-sonnet-5") },
-      transport: createLiveAnthropicTransport(),
+      model: {
+        ...REFUND_SYSTEM_PINS["structured-api"].model,
+        artifactSha256: sha256("claude-sonnet-5"),
+      },
+      transport,
     });
   }
   throw new Error(`unknown system role ${role}`);
@@ -193,15 +236,24 @@ async function buildAdapter(role, options) {
 async function runSystems(options) {
   const outputDir = resolve(options["output-dir"]);
   await mkdir(outputDir, { recursive: true });
-  const dataset = validateRefundDataset(await readJson(resolve(options.dataset)));
+  const dataset = validateRefundDataset(
+    await readJson(resolve(options.dataset)),
+  );
   const warmupInputs = await warmupInputsFrom(
     resolve(options["warmup-source"]),
     DEFAULT_WARMUP_INPUT_COUNT,
   );
-  const environment = await loadOrCaptureEnvironment(outputDir, options.accelerator ?? null);
-  const systems = options.systems.split(",").map((value) => value.trim()).filter(Boolean);
+  const environment = await loadOrCaptureEnvironment(
+    outputDir,
+    options.accelerator ?? null,
+  );
+  const systems = options.systems
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
   for (const role of systems) {
-    if (!REQUIRED_SYSTEM_ROLES.includes(role)) throw new Error(`unknown system role ${role}`);
+    if (!REQUIRED_SYSTEM_ROLES.includes(role))
+      throw new Error(`unknown system role ${role}`);
   }
   const failures = {};
   for (const role of systems) {
@@ -211,7 +263,9 @@ async function runSystems(options) {
       adapter = await buildAdapter(role, options);
     } catch (error) {
       failures[role] = error instanceof Error ? error.message : String(error);
-      process.stdout.write(`${utcNow()} ${role}: adapter unavailable: ${failures[role]}\n`);
+      process.stdout.write(
+        `${utcNow()} ${role}: adapter unavailable: ${failures[role]}\n`,
+      );
       continue;
     }
     const startedAt = Date.now();
@@ -224,7 +278,10 @@ async function runSystems(options) {
         warmupInputs,
         memorySampler: createProcessRssSampler(),
       });
-      await writeFile(join(outputDir, `predictions-${role}.json`), dump(predictionSet));
+      await writeFile(
+        join(outputDir, `predictions-${role}.json`),
+        dump(predictionSet),
+      );
       const seconds = ((Date.now() - startedAt) / 1000).toFixed(0);
       process.stdout.write(
         `${utcNow()} ${role}: ${predictionSet.predictions.length} predictions in ${seconds}s, ` +
@@ -247,9 +304,12 @@ async function assemble(options) {
   const outputDir = resolve(options["output-dir"]);
   const dataset = await readJson(resolve(options.dataset));
   const ledger = await readJson(resolve(options.ledger));
-  const files = (await readdir(outputDir)).filter((name) => /^predictions-.*\.json$/u.test(name));
+  const files = (await readdir(outputDir)).filter((name) =>
+    /^predictions-.*\.json$/u.test(name),
+  );
   const predictions = [];
-  for (const name of files.sort()) predictions.push(await readJson(join(outputDir, name)));
+  for (const name of files.sort())
+    predictions.push(await readJson(join(outputDir, name)));
   const result = createBenchmarkResult(dataset, ledger, predictions, utcNow());
   await writeFile(join(outputDir, "result.json"), dump(result));
   const rows = result.systems.map((system) => ({
@@ -262,7 +322,9 @@ async function assemble(options) {
     rps: system.metrics.throughput.requestsPerSecond.toFixed(2),
     peakMB: (system.metrics.memory.peakBytes / 1048576).toFixed(0),
   }));
-  process.stdout.write(`${JSON.stringify({ goNoGo: result.goNoGo, systems: rows }, null, 1)}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ goNoGo: result.goNoGo, systems: rows }, null, 1)}\n`,
+  );
 }
 
 async function main() {
@@ -300,6 +362,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`benchmark failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  process.stderr.write(
+    `benchmark failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+  );
   process.exit(1);
 });

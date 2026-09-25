@@ -8,10 +8,7 @@ import {
   MAXIMUM_WARMUP_ITERATIONS,
   runRefundBenchmark,
 } from "../dist/runner.js";
-import {
-  REFUND_SYSTEM_PINS,
-  REFUND_TASK_SPEC_SHA256,
-} from "../dist/policy.js";
+import { REFUND_SYSTEM_PINS, REFUND_TASK_SPEC_SHA256 } from "../dist/policy.js";
 import { makeDataset } from "./fixtures.mjs";
 
 const environment = Object.freeze({
@@ -46,7 +43,8 @@ const trainingEvidence = Object.freeze({
   artifactTrainingDatasetSha256: semanticJsonSha256("runner-training-dataset"),
   artifactTrainingKeySha256: model.revision,
   releaseVerificationPayloadSha256: semanticJsonSha256("runner-release"),
-  releaseVerificationAttestationSha256: semanticJsonSha256("runner-attestation"),
+  releaseVerificationAttestationSha256:
+    semanticJsonSha256("runner-attestation"),
 });
 
 const executionBackend = Object.freeze({
@@ -80,7 +78,11 @@ function clock(readings) {
   return {
     now() {
       const reading = readings[index];
-      assert.notEqual(reading, undefined, "test clock was read more often than expected");
+      assert.notEqual(
+        reading,
+        undefined,
+        "test clock was read more often than expected",
+      );
       index += 1;
       return reading;
     },
@@ -173,7 +175,10 @@ test("warms deterministically then measures every frozen input once in dataset o
     ],
   );
   assert.equal(new Set(calls.map(({ signal }) => signal)).size, 1);
-  assert.equal(calls.every(({ signal }) => signal.aborted === false), true);
+  assert.equal(
+    calls.every(({ signal }) => signal.aborted === false),
+    true,
+  );
   assert.equal(memorySampler.events.length, 2);
   assert.equal(memorySampler.events[0].event, "start");
   assert.equal(memorySampler.events[0].signal, calls[0].signal);
@@ -269,7 +274,11 @@ test("invalid output fails fast instead of being normalized, repaired, or skippe
   });
   await assert.rejects(
     runRefundBenchmark(
-      options({ adapter: predictionAdapter, memorySampler, clock: clock([0, 0]) }),
+      options({
+        adapter: predictionAdapter,
+        memorySampler,
+        clock: clock([0, 0]),
+      }),
     ),
     runnerError("invalid-output"),
   );
@@ -387,7 +396,15 @@ test("configuration validation rejects invalid bounds and protocol dependencies 
     { warmupIterations: MAXIMUM_WARMUP_ITERATIONS + 1 },
     { warmupIterations: 1, warmupInputs: [] },
     { warmupIterations: 0, warmupInputs },
-    { memorySampler: { scope: "host", start() {}, stop() { return 1; } } },
+    {
+      memorySampler: {
+        scope: "host",
+        start() {},
+        stop() {
+          return 1;
+        },
+      },
+    },
     { memorySampler: { scope: "client-only", start() {} } },
     { clock: { now: 1 } },
     { adapter: { ...predictionAdapter, role: "unknown" } },
@@ -426,7 +443,9 @@ test("warmup corpus is validated, unique, and disjoint from final evaluation inp
 test("non-monotonic clock and invalid peak samples reject without a partial result", async () => {
   const clockSampler = sampler();
   await assert.rejects(
-    runRefundBenchmark(options({ memorySampler: clockSampler, clock: clock([5, 4]) })),
+    runRefundBenchmark(
+      options({ memorySampler: clockSampler, clock: clock([5, 4]) }),
+    ),
     runnerError("non-monotonic-clock"),
   );
   assert.equal(clockSampler.events.at(-1).event, "stop");

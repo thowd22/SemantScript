@@ -30,7 +30,9 @@ test("computes exact overall/human accuracy, 15-bin ECE, nearest-rank latency, a
     attestedAccuracy: 1,
   });
   assert.equal(metrics.calibration.binCount, 15);
-  assert.ok(Math.abs(metrics.calibration.expectedCalibrationError - 0.35) < 1e-12);
+  assert.ok(
+    Math.abs(metrics.calibration.expectedCalibrationError - 0.35) < 1e-12,
+  );
   assert.deepEqual(metrics.latency, { p50Ms: 4, p95Ms: 20 });
   assert.deepEqual(metrics.throughput, {
     concurrency: 1,
@@ -45,12 +47,18 @@ test("coverage is exact and binds every prediction to dataset input identity", (
   const missing = clone(makePredictionSet(dataset));
   missing.predictions.pop();
   missing.payloadSha256 = semanticJsonSha256(withoutDigest(missing));
-  assert.throws(() => evaluatePredictionSet(dataset, missing), /exactly one prediction/);
+  assert.throws(
+    () => evaluatePredictionSet(dataset, missing),
+    /exactly one prediction/,
+  );
 
   const wrongInput = clone(makePredictionSet(dataset));
   wrongInput.predictions[0].inputSha256 = "f".repeat(64);
   wrongInput.payloadSha256 = semanticJsonSha256(withoutDigest(wrongInput));
-  assert.throws(() => evaluatePredictionSet(dataset, wrongInput), /input digest in dataset order/);
+  assert.throws(
+    () => evaluatePredictionSet(dataset, wrongInput),
+    /input digest in dataset order/,
+  );
 });
 
 test("go/no-go remains incomplete until every required role is present", () => {
@@ -112,29 +120,58 @@ test("result is role-ordered, provenance-complete, closed, and digest-bound", ()
     result.systems.map((system) => system.role),
     ["semantscript", "ollama-1b", "ollama-7b", "structured-api", "laya"],
   );
-  assert.ok(result.systems.every((system) => system.model.artifactSha256.length === 64));
-  assert.ok(result.systems.every((system) => system.environment.evidenceSha256.length === 64));
-  assert.ok(result.systems.every((system) => system.protocol.warmupInputOrderSha256.length === 64));
+  assert.ok(
+    result.systems.every((system) => system.model.artifactSha256.length === 64),
+  );
+  assert.ok(
+    result.systems.every(
+      (system) => system.environment.evidenceSha256.length === 64,
+    ),
+  );
+  assert.ok(
+    result.systems.every(
+      (system) => system.protocol.warmupInputOrderSha256.length === 64,
+    ),
+  );
   assert.equal(result.systems[0].executionBackend.kind, "semantscript-node");
   assert.equal(result.systems[1].executionBackend.kind, "ollama");
   assert.equal(result.systems[3].executionBackend.kind, "anthropic-api");
   assert.equal(result.systems[4].executionBackend.kind, "laya");
-  assert.equal(result.systems[0].trainingEvidence.trainingLedgerSha256, result.trainingLedgerSha256);
-  assert.equal(result.systems.slice(1).every(({ trainingEvidence }) => trainingEvidence === null), true);
-  assert.equal(validateBenchmarkResult(result).payloadSha256, result.payloadSha256);
+  assert.equal(
+    result.systems[0].trainingEvidence.trainingLedgerSha256,
+    result.trainingLedgerSha256,
+  );
+  assert.equal(
+    result.systems
+      .slice(1)
+      .every(({ trainingEvidence }) => trainingEvidence === null),
+    true,
+  );
+  assert.equal(
+    validateBenchmarkResult(result).payloadSha256,
+    result.payloadSha256,
+  );
 
   const tampered = clone(result);
   tampered.systems[0].metrics.accuracy.correctCount = 4;
-  assert.throws(() => validateBenchmarkResult(tampered), /accuracy.*must equal/);
+  assert.throws(
+    () => validateBenchmarkResult(tampered),
+    /accuracy.*must equal/,
+  );
 
   const rewritten = clone(result);
   rewritten.goNoGo.status = "no-go";
   rewritten.payloadSha256 = semanticJsonSha256(withoutDigest(rewritten));
-  assert.throws(() => validateBenchmarkResult(rewritten), /mechanical exit criterion/);
+  assert.throws(
+    () => validateBenchmarkResult(rewritten),
+    /mechanical exit criterion/,
+  );
 
   const backendMutation = clone(result);
   delete backendMutation.systems[1].executionBackend.serverVersion;
-  backendMutation.payloadSha256 = semanticJsonSha256(withoutDigest(backendMutation));
+  backendMutation.payloadSha256 = semanticJsonSha256(
+    withoutDigest(backendMutation),
+  );
   assert.throws(
     () => validateBenchmarkResult(backendMutation),
     /executionBackend.*must contain exactly/,
@@ -148,7 +185,13 @@ test("publication requires identical hardware and comparable warmup/memory proto
     laya: { environment: { cpu: "different-cpu" } },
   });
   assert.throws(
-    () => createBenchmarkResult(dataset, ledger, wrongHardware, "2026-09-23T13:00:00Z"),
+    () =>
+      createBenchmarkResult(
+        dataset,
+        ledger,
+        wrongHardware,
+        "2026-09-23T13:00:00Z",
+      ),
     /hardware identity must match/,
   );
 
@@ -156,7 +199,13 @@ test("publication requires identical hardware and comparable warmup/memory proto
     laya: { warmupInputOrderSha256: "f".repeat(64) },
   });
   assert.throws(
-    () => createBenchmarkResult(dataset, ledger, wrongWarmup, "2026-09-23T13:00:00Z"),
+    () =>
+      createBenchmarkResult(
+        dataset,
+        ledger,
+        wrongWarmup,
+        "2026-09-23T13:00:00Z",
+      ),
     /warmup iterations\/input digest/,
   );
 
@@ -172,7 +221,12 @@ test("publication requires identical hardware and comparable warmup/memory proto
     },
   });
   assert.doesNotThrow(() =>
-    createBenchmarkResult(dataset, ledger, allowedDifferences, "2026-09-23T13:00:00Z"),
+    createBenchmarkResult(
+      dataset,
+      ledger,
+      allowedDifferences,
+      "2026-09-23T13:00:00Z",
+    ),
   );
 });
 
@@ -196,8 +250,12 @@ test("SemantScript publication evidence must exactly bind the supplied ledger", 
 test("SemantScript publication binds the artifact training dataset to the ledger base dataset", () => {
   const dataset = makeDataset();
   const ledger = makeLedger();
-  const prediction = clone(makePredictionSet(dataset, "semantscript", { ledger }));
-  prediction.system.trainingEvidence.artifactTrainingDatasetSha256 = "f".repeat(64);
+  const prediction = clone(
+    makePredictionSet(dataset, "semantscript", { ledger }),
+  );
+  prediction.system.trainingEvidence.artifactTrainingDatasetSha256 = "f".repeat(
+    64,
+  );
   prediction.payloadSha256 = semanticJsonSha256(withoutDigest(prediction));
 
   assert.throws(
@@ -262,7 +320,8 @@ test("bundle validation recomputes the result from exact prediction files", () =
     latencies: [9, 1, 20, 5],
   });
   assert.throws(
-    () => validateBenchmarkBundle(dataset, ledger, differentPredictions, result),
+    () =>
+      validateBenchmarkBundle(dataset, ledger, differentPredictions, result),
     /recomputed from the supplied benchmark bundle/,
   );
 });
@@ -284,7 +343,13 @@ test("result builder rejects duplicate roles and training leakage", () => {
     adversarial: { inputSha256s: [dataset.cases[2].inputSha256] },
   });
   assert.throws(
-    () => createBenchmarkResult(dataset, leaking, [prediction], "2026-09-23T13:00:00Z"),
+    () =>
+      createBenchmarkResult(
+        dataset,
+        leaking,
+        [prediction],
+        "2026-09-23T13:00:00Z",
+      ),
     /overlap the training lifecycle ledger/,
   );
 });

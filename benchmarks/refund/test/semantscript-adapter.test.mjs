@@ -118,8 +118,14 @@ test("loads one artifact and reuses one persistent runtime for every prediction"
   const second = await adapter.predict(INPUTS);
   assert.deepEqual(state.loads, ["/test/refund-artifact"]);
   assert.equal(state.calls.length, 2);
-  assert.equal(state.calls.every(({ functionId }) => functionId === FUNCTION_ID), true);
-  assert.equal(state.calls.every(({ inputs }) => inputs === INPUTS), true);
+  assert.equal(
+    state.calls.every(({ functionId }) => functionId === FUNCTION_ID),
+    true,
+  );
+  assert.equal(
+    state.calls.every(({ inputs }) => inputs === INPUTS),
+    true,
+  );
   assert.deepEqual(first, {
     value: "review",
     distribution: DIAGNOSTIC.distribution,
@@ -260,19 +266,30 @@ test("returns exact runtime probabilities and rejects malformed diagnostics", as
     },
   ];
   for (const response of responses) {
-    const fixture = fixtureLoader({ call() { return response; } });
+    const fixture = fixtureLoader({
+      call() {
+        return response;
+      },
+    });
     const adapter = await createSemantScriptRefundAdapter({
       artifactRoot: "/test/refund-artifact",
       expected: expected(),
       loader: fixture.loader,
     });
-    await assert.rejects(adapter.predict(INPUTS), adapterError("invalid-output"));
+    await assert.rejects(
+      adapter.predict(INPUTS),
+      adapterError("invalid-output"),
+    );
     await adapter.close();
   }
 });
 
 test("close rejects new work and waits for an active runtime call", async () => {
-  const fixture = fixtureLoader({ async call() { return await pendingResponse; } });
+  const fixture = fixtureLoader({
+    async call() {
+      return await pendingResponse;
+    },
+  });
   let resolveCall;
   const pendingResponse = new Promise((resolve) => {
     resolveCall = resolve;
@@ -295,7 +312,12 @@ test("close rejects new work and waits for an active runtime call", async () => 
 
 test("an already-aborted prediction never calls the persistent runtime", async () => {
   let calls = 0;
-  const fixture = fixtureLoader({ call() { calls += 1; return DIAGNOSTIC; } });
+  const fixture = fixtureLoader({
+    call() {
+      calls += 1;
+      return DIAGNOSTIC;
+    },
+  });
   const controller = new globalThis.AbortController();
   controller.abort(new Error("cancelled"));
   const adapter = await createSemantScriptRefundAdapter({
@@ -303,7 +325,10 @@ test("an already-aborted prediction never calls the persistent runtime", async (
     expected: expected(),
     loader: fixture.loader,
   });
-  await assert.rejects(adapter.predict(INPUTS, controller.signal), adapterError("aborted"));
+  await assert.rejects(
+    adapter.predict(INPUTS, controller.signal),
+    adapterError("aborted"),
+  );
   assert.equal(calls, 0);
   await adapter.close();
 });

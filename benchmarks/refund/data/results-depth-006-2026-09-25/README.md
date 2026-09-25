@@ -39,6 +39,9 @@ because only the SemantScript system ran in this directory (the baselines
 were not re-measured and the structured-output API baseline still has no key
 on this machine), so the latency and accuracy criteria are read off the
 system row against the committed baseline numbers, as the compact run did.
+`results-final-2026-09-25` later joins this prediction set with the committed
+baselines and the structured-output API baseline (run through OpenRouter) into
+one record with mechanical status `go`.
 
 ## What the numbers say
 

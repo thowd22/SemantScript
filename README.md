@@ -41,10 +41,12 @@ never shipped.
    one encoder pass plus a head, a few milliseconds on a CPU; expressions
    over the same input in one request share the pass.
 
-Measured on the reference application: nine expressions in three domains at
-3 to 5 ms per call on a CPU, 100% on held-out inputs for eight of nine. See
-the [scaling results](docs/scaling-results.md) and the
-[benchmarks](benchmarks/README.md) for the numbers behind the design.
+Measured on the refund benchmark's 160 judge-attested cases: the compiled
+function answers 160 of 160 at 4.8 ms per call on a CPU, the same accuracy
+as Claude Sonnet 5 with structured output at 4.2 s per call over the network,
+against 54% for a 7B generative model reading the same policy. See the
+[benchmarks](benchmarks/README.md) and the
+[scaling results](docs/scaling-results.md) for the numbers behind the design.
 
 ## Start here
 

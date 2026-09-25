@@ -21,6 +21,12 @@ records under `data/`; the machine-checked result is `data/results-v2-2026-09-23
 > criteria**; the mechanical status stays `incomplete` only because the
 > structured-output API baseline has never run on this machine. The text
 > below is the original record and is left as written.
+>
+> **Amended again 2026-09-25 (TASK-5.11).** The structured-output API
+> baseline has now run (`claude-sonnet-5` through OpenRouter's
+> Anthropic-format route, 1.000 at p50 4.2 s), and
+> `results-final-2026-09-25` assembles all five systems into one
+> machine-checked record whose mechanical status is **`go`**.
 
 **Accuracy: met.** SemantScript answers 159 of 160 judge-attested final cases
 correctly (0.994) against 0.538 for the Qwen 2.5 7B comparator, 0.519 for the

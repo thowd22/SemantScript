@@ -67,7 +67,9 @@ export interface AnthropicAdapterOptions {
 export function createAnthropicSonnetAdapter(
   options: AnthropicAdapterOptions,
 ): RefundBaselineAdapter<"structured-api"> {
-  const timeoutMs = validateTimeout(options.timeoutMs ?? DEFAULT_BASELINE_TIMEOUT_MS);
+  const timeoutMs = validateTimeout(
+    options.timeoutMs ?? DEFAULT_BASELINE_TIMEOUT_MS,
+  );
   const model = pinnedModelProvenance(options.model, {
     provider: "anthropic",
     name: ANTHROPIC_SONNET_MODEL,
@@ -85,7 +87,10 @@ export function createAnthropicSonnetAdapter(
     structuredOutputSchema: REFUND_OUTPUT_SCHEMA,
     sampling: "provider-default",
   });
-  const provenance = adapterProvenance("refund-anthropic-structured-output", configuration);
+  const provenance = adapterProvenance(
+    "refund-anthropic-structured-output",
+    configuration,
+  );
 
   return Object.freeze({
     role: "structured-api",
@@ -96,7 +101,10 @@ export function createAnthropicSonnetAdapter(
     resolveExecutionBackend(): Promise<AnthropicExecutionBackend> {
       return Promise.resolve(options.transport.executionBackend);
     },
-    async predict(inputs: RefundInputs, signal?: AbortSignal): Promise<BaselinePrediction> {
+    async predict(
+      inputs: RefundInputs,
+      signal?: AbortSignal,
+    ): Promise<BaselinePrediction> {
       const prompt = buildRefundPrompt(inputs);
       const request: AnthropicStructuredRequest = Object.freeze({
         model: ANTHROPIC_SONNET_MODEL,
@@ -120,9 +128,14 @@ export function createAnthropicSonnetAdapter(
         `Anthropic ${ANTHROPIC_SONNET_MODEL}`,
         timeoutMs,
         signal,
-        async (transportSignal) => options.transport.generate(request, transportSignal),
+        async (transportSignal) =>
+          options.transport.generate(request, transportSignal),
       );
-      const responseRecord = responseObject(response, ["model", "stopReason", "output"]);
+      const responseRecord = responseObject(response, [
+        "model",
+        "stopReason",
+        "output",
+      ]);
       assertResponseModel(responseRecord["model"], ANTHROPIC_SONNET_MODEL);
       if (
         responseRecord["stopReason"] === "refusal" ||

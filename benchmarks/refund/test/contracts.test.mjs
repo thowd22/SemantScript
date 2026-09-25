@@ -32,14 +32,26 @@ test("seals closed dataset, ledger, and prediction contracts with semantic diges
   const ledger = makeLedger();
   const predictions = makePredictionSet(dataset);
 
-  assert.equal(validateRefundDataset(dataset).payloadSha256, dataset.payloadSha256);
-  assert.equal(validateTrainingLedger(ledger).payloadSha256, ledger.payloadSha256);
-  assert.equal(validatePredictionSet(predictions).payloadSha256, predictions.payloadSha256);
+  assert.equal(
+    validateRefundDataset(dataset).payloadSha256,
+    dataset.payloadSha256,
+  );
+  assert.equal(
+    validateTrainingLedger(ledger).payloadSha256,
+    ledger.payloadSha256,
+  );
+  assert.equal(
+    validatePredictionSet(predictions).payloadSha256,
+    predictions.payloadSha256,
+  );
   assert.ok(Object.isFrozen(dataset));
   assert.ok(Object.isFrozen(dataset.cases[0].inputs));
   assert.ok(Object.isFrozen(predictions.system.model));
   assert.equal(dataset.function.id, REFUND_FUNCTION_ID);
-  assert.equal(dataset.function.semanticSha256, REFUND_FUNCTION_SEMANTIC_SHA256);
+  assert.equal(
+    dataset.function.semanticSha256,
+    REFUND_FUNCTION_SEMANTIC_SHA256,
+  );
   assert.equal(predictions.system.taskSpecSha256, REFUND_TASK_SPEC_SHA256);
   assert.deepEqual(auditDatasetSeparation(dataset, ledger), {
     datasetSha256: dataset.payloadSha256,
@@ -92,15 +104,24 @@ test("dataset rejects unknown fields, stale digests, malformed dates, and unsort
 
   const stale = clone(dataset);
   stale.cases[0].inputs.order.total = 130;
-  assert.throws(() => validateRefundDataset(stale), /inputSha256.*does not match/);
+  assert.throws(
+    () => validateRefundDataset(stale),
+    /inputSha256.*does not match/,
+  );
 
   const invalidDate = clone(dataset);
   invalidDate.createdAt = "2026-02-30T12:00:00Z";
-  assert.throws(() => validateRefundDataset(invalidDate), /real calendar timestamp/);
+  assert.throws(
+    () => validateRefundDataset(invalidDate),
+    /real calendar timestamp/,
+  );
 
   const unsorted = clone(dataset);
   unsorted.cases.reverse();
-  assert.throws(() => validateRefundDataset(unsorted), /strictly ascending and unique/);
+  assert.throws(
+    () => validateRefundDataset(unsorted),
+    /strictly ascending and unique/,
+  );
 });
 
 test("dataset requires a complete explicit non-teacher human attestation", () => {
@@ -108,19 +129,30 @@ test("dataset requires a complete explicit non-teacher human attestation", () =>
   const incomplete = clone(dataset);
   incomplete.humanAttestation.caseIds = ["case-01"];
   incomplete.payloadSha256 = semanticJsonSha256(withoutDigest(incomplete));
-  assert.throws(() => validateRefundDataset(incomplete), /every and only human-authored/);
+  assert.throws(
+    () => validateRefundDataset(incomplete),
+    /every and only human-authored/,
+  );
 
   const alteredDeclaration = clone(dataset);
   alteredDeclaration.humanAttestation.declaration = "AI generated";
-  alteredDeclaration.payloadSha256 = semanticJsonSha256(withoutDigest(alteredDeclaration));
-  assert.throws(() => validateRefundDataset(alteredDeclaration), /must be.*listed cases/);
+  alteredDeclaration.payloadSha256 = semanticJsonSha256(
+    withoutDigest(alteredDeclaration),
+  );
+  assert.throws(
+    () => validateRefundDataset(alteredDeclaration),
+    /must be.*listed cases/,
+  );
 
   const noHuman = clone(dataset);
   for (const entry of noHuman.cases) entry.origin = "other-held-out";
   noHuman.humanAttestation.caseIds = [];
   noHuman.humanAttestation.declaration = HUMAN_ATTESTATION_DECLARATION;
   noHuman.payloadSha256 = semanticJsonSha256(withoutDigest(noHuman));
-  assert.throws(() => validateRefundDataset(noHuman), /at least one attested case/);
+  assert.throws(
+    () => validateRefundDataset(noHuman),
+    /at least one attested case/,
+  );
 });
 
 test("ledger partitions are fixed and sorted while allowing real lifecycle reuse", () => {
@@ -131,10 +163,17 @@ test("ledger partitions are fixed and sorted while allowing real lifecycle reuse
   assert.throws(() => validateTrainingLedger(reordered), /must be "examples"/);
 
   const crossDuplicate = clone(ledger);
-  crossDuplicate.partitions[3].inputSha256s = [crossDuplicate.partitions[1].inputSha256s[0]];
-  crossDuplicate.payloadSha256 = semanticJsonSha256(withoutDigest(crossDuplicate));
+  crossDuplicate.partitions[3].inputSha256s = [
+    crossDuplicate.partitions[1].inputSha256s[0],
+  ];
+  crossDuplicate.payloadSha256 = semanticJsonSha256(
+    withoutDigest(crossDuplicate),
+  );
   assert.doesNotThrow(() => validateTrainingLedger(crossDuplicate));
-  assert.equal(auditDatasetSeparation(makeDataset(), crossDuplicate).trainingInputCount, 4);
+  assert.equal(
+    auditDatasetSeparation(makeDataset(), crossDuplicate).trainingInputCount,
+    4,
+  );
 
   assert.throws(
     () =>
@@ -152,7 +191,13 @@ test("ledger partitions are fixed and sorted while allowing real lifecycle reuse
 
 test("leakage audit rejects overlap with every lifecycle partition", () => {
   const dataset = makeDataset();
-  for (const partition of ["examples", "synthetic", "adversarial", "calibration", "verification"]) {
+  for (const partition of [
+    "examples",
+    "synthetic",
+    "adversarial",
+    "calibration",
+    "verification",
+  ]) {
     const ledger = makeLedger({
       [partition]: { inputSha256s: [dataset.cases[0].inputSha256] },
     });
@@ -165,7 +210,9 @@ test("leakage audit rejects overlap with every lifecycle partition", () => {
 
   const wrongFunction = clone(makeLedger());
   wrongFunction.function.semanticSha256 = "9".repeat(64);
-  wrongFunction.payloadSha256 = semanticJsonSha256(withoutDigest(wrongFunction));
+  wrongFunction.payloadSha256 = semanticJsonSha256(
+    withoutDigest(wrongFunction),
+  );
   assert.throws(
     () => auditDatasetSeparation(dataset, wrongFunction),
     /semanticSha256.*must be/,
@@ -176,11 +223,13 @@ test("dataset and ledger reject every non-canonical compiled refund binding", ()
   for (const record of [clone(makeDataset()), clone(makeLedger())]) {
     record.function.id = `nf_${"f".repeat(64)}`;
     record.payloadSha256 = semanticJsonSha256(withoutDigest(record));
-    assert.throws(() =>
-      record.kind.endsWith("dataset")
-        ? validateRefundDataset(record)
-        : validateTrainingLedger(record),
-    /function\.id.*must be/);
+    assert.throws(
+      () =>
+        record.kind.endsWith("dataset")
+          ? validateRefundDataset(record)
+          : validateTrainingLedger(record),
+      /function\.id.*must be/,
+    );
   }
 });
 
@@ -195,13 +244,18 @@ test("prediction contract requires normalized support order and stable argmax", 
 
   const notNormalized = clone(prediction);
   notNormalized.predictions[0].distribution[0].probability = 0.7;
-  notNormalized.payloadSha256 = semanticJsonSha256(withoutDigest(notNormalized));
+  notNormalized.payloadSha256 = semanticJsonSha256(
+    withoutDigest(notNormalized),
+  );
   assert.throws(() => validatePredictionSet(notNormalized), /sum to 1/);
 
   const wrongArgmax = clone(prediction);
   wrongArgmax.predictions[3].value = "review";
   wrongArgmax.payloadSha256 = semanticJsonSha256(withoutDigest(wrongArgmax));
-  assert.throws(() => validatePredictionSet(wrongArgmax), /stable support-order argmax/);
+  assert.throws(
+    () => validatePredictionSet(wrongArgmax),
+    /stable support-order argmax/,
+  );
 
   const tieUsesFirst = sealPredictionSet({
     ...withoutDigest(prediction),
@@ -217,7 +271,10 @@ test("prediction publication boundary fixes task, model, adapter, and training i
   const semantscript = clone(makePredictionSet(dataset));
   semantscript.system.model.version = "unreviewed-model";
   semantscript.payloadSha256 = semanticJsonSha256(withoutDigest(semantscript));
-  assert.throws(() => validatePredictionSet(semantscript), /model\.version.*must be/);
+  assert.throws(
+    () => validatePredictionSet(semantscript),
+    /model\.version.*must be/,
+  );
 
   const baseline = clone(makePredictionSet(dataset, "ollama-1b"));
   baseline.system.trainingEvidence = {
@@ -228,12 +285,18 @@ test("prediction publication boundary fixes task, model, adapter, and training i
     releaseVerificationAttestationSha256: "c".repeat(64),
   };
   baseline.payloadSha256 = semanticJsonSha256(withoutDigest(baseline));
-  assert.throws(() => validatePredictionSet(baseline), /trainingEvidence.*must be null/);
+  assert.throws(
+    () => validatePredictionSet(baseline),
+    /trainingEvidence.*must be null/,
+  );
 
   const wrongTask = clone(makePredictionSet(dataset, "structured-api"));
   wrongTask.system.taskSpecSha256 = "f".repeat(64);
   wrongTask.payloadSha256 = semanticJsonSha256(withoutDigest(wrongTask));
-  assert.throws(() => validatePredictionSet(wrongTask), /taskSpecSha256.*must be/);
+  assert.throws(
+    () => validatePredictionSet(wrongTask),
+    /taskSpecSha256.*must be/,
+  );
 
   const laya = clone(makePredictionSet(dataset, "laya"));
   laya.system.model.artifactSha256 = "f".repeat(64);
@@ -256,7 +319,10 @@ test("prediction publication requires closed role-specific execution backend evi
     device: "cpu",
   };
   wrongRole.payloadSha256 = semanticJsonSha256(withoutDigest(wrongRole));
-  assert.throws(() => validatePredictionSet(wrongRole), /executionBackend\.kind.*must be "laya"/);
+  assert.throws(
+    () => validatePredictionSet(wrongRole),
+    /executionBackend\.kind.*must be "laya"/,
+  );
 
   const inconsistentOffload = clone(makePredictionSet(dataset, "ollama-7b"));
   inconsistentOffload.system.executionBackend.modelGpuBytes = 512;
@@ -270,7 +336,9 @@ test("prediction publication requires closed role-specific execution backend evi
 
   const falsePlacement = clone(makePredictionSet(dataset, "ollama-1b"));
   falsePlacement.system.executionBackend.placement = "cpu";
-  falsePlacement.payloadSha256 = semanticJsonSha256(withoutDigest(falsePlacement));
+  falsePlacement.payloadSha256 = semanticJsonSha256(
+    withoutDigest(falsePlacement),
+  );
   assert.throws(
     () => validatePredictionSet(falsePlacement),
     /executionBackend\.placement.*must be "gpu"/,
@@ -280,7 +348,9 @@ test("prediction publication requires closed role-specific execution backend evi
 test("refund numeric inputs reject negative zero before digest identity can collapse", () => {
   const positiveZero = clone(makeDataset());
   positiveZero.cases[0].inputs.order.total = 0;
-  positiveZero.cases[0].inputSha256 = semanticJsonSha256(positiveZero.cases[0].inputs);
+  positiveZero.cases[0].inputSha256 = semanticJsonSha256(
+    positiveZero.cases[0].inputs,
+  );
   positiveZero.payloadSha256 = semanticJsonSha256(withoutDigest(positiveZero));
   assert.doesNotThrow(() => validateRefundDataset(positiveZero));
 
@@ -294,7 +364,9 @@ test("refund numeric inputs reject negative zero before digest identity can coll
     negativeZero.cases[0].inputSha256 = semanticJsonSha256(
       negativeZero.cases[0].inputs,
     );
-    negativeZero.payloadSha256 = semanticJsonSha256(withoutDigest(negativeZero));
+    negativeZero.payloadSha256 = semanticJsonSha256(
+      withoutDigest(negativeZero),
+    );
     assert.throws(
       () => validateRefundDataset(negativeZero),
       new RegExp(`${field}.*negative zero`),
@@ -302,32 +374,46 @@ test("refund numeric inputs reject negative zero before digest identity can coll
   }
 });
 
-test("contract cardinality limits accept their boundary", { timeout: 30_000 }, () => {
-  const dataset = makeMaximumDataset();
-  assert.equal(dataset.cases.length, 20_000);
-  assert.equal(dataset.humanAttestation.caseIds.length, 20_000);
+test(
+  "contract cardinality limits accept their boundary",
+  { timeout: 30_000 },
+  () => {
+    const dataset = makeMaximumDataset();
+    assert.equal(dataset.cases.length, 20_000);
+    assert.equal(dataset.humanAttestation.caseIds.length, 20_000);
 
-  const ledger = makeLedger();
-  const ledgerPayload = withoutDigest(ledger);
-  ledgerPayload.partitions = ledgerPayload.partitions.map((partition, index) =>
-    index === 0
-      ? {
-          ...partition,
-          inputSha256s: Array.from({ length: 50_000 }, (_, digestIndex) =>
-            digestIndex.toString(16).padStart(64, "0"),
-          ),
-        }
-      : partition,
-  );
-  assert.equal(sealTrainingLedger(ledgerPayload).partitions[0].inputSha256s.length, 50_000);
+    const ledger = makeLedger();
+    const ledgerPayload = withoutDigest(ledger);
+    ledgerPayload.partitions = ledgerPayload.partitions.map(
+      (partition, index) =>
+        index === 0
+          ? {
+              ...partition,
+              inputSha256s: Array.from({ length: 50_000 }, (_, digestIndex) =>
+                digestIndex.toString(16).padStart(64, "0"),
+              ),
+            }
+          : partition,
+    );
+    assert.equal(
+      sealTrainingLedger(ledgerPayload).partitions[0].inputSha256s.length,
+      50_000,
+    );
 
-  const predictions = withoutDigest(clone(makePredictionSet(makeDataset())));
-  predictions.environment.runtimeVersions = Array.from({ length: 64 }, (_, index) => ({
-    name: `runtime-${String(index).padStart(2, "0")}`,
-    version: "test-only",
-  }));
-  assert.equal(sealPredictionSet(predictions).environment.runtimeVersions.length, 64);
-});
+    const predictions = withoutDigest(clone(makePredictionSet(makeDataset())));
+    predictions.environment.runtimeVersions = Array.from(
+      { length: 64 },
+      (_, index) => ({
+        name: `runtime-${String(index).padStart(2, "0")}`,
+        version: "test-only",
+      }),
+    );
+    assert.equal(
+      sealPredictionSet(predictions).environment.runtimeVersions.length,
+      64,
+    );
+  },
+);
 
 test("contract cardinality limits reject over-limit arrays before entries are read", () => {
   let invoked = false;
@@ -336,7 +422,10 @@ test("contract cardinality limits reject over-limit arrays before entries are re
   });
   const datasetPayload = withoutDigest(clone(makeDataset()));
   datasetPayload.cases = oversizedCases;
-  assert.throws(() => sealRefundDataset(datasetPayload), /cases.*at most 20000/);
+  assert.throws(
+    () => sealRefundDataset(datasetPayload),
+    /cases.*at most 20000/,
+  );
   assert.equal(invoked, false);
 
   const oversizedAttestation = withoutDigest(clone(makeDataset()));
@@ -353,15 +442,20 @@ test("contract cardinality limits reject over-limit arrays before entries are re
     /inputSha256s.*at most 50000/,
   );
 
-  const oversizedPredictions = withoutDigest(clone(makePredictionSet(makeDataset())));
+  const oversizedPredictions = withoutDigest(
+    clone(makePredictionSet(makeDataset())),
+  );
   oversizedPredictions.predictions = oversizedSparseArray(20_001);
   assert.throws(
     () => sealPredictionSet(oversizedPredictions),
     /predictions.*at most 20000/,
   );
 
-  const oversizedRuntimeVersions = withoutDigest(clone(makePredictionSet(makeDataset())));
-  oversizedRuntimeVersions.environment.runtimeVersions = oversizedSparseArray(65);
+  const oversizedRuntimeVersions = withoutDigest(
+    clone(makePredictionSet(makeDataset())),
+  );
+  oversizedRuntimeVersions.environment.runtimeVersions =
+    oversizedSparseArray(65);
   assert.throws(
     () => sealPredictionSet(oversizedRuntimeVersions),
     /runtimeVersions.*at most 64/,
@@ -380,9 +474,15 @@ test("nested string and safe-integer bounds accept boundary and reject excess", 
   assert.throws(() => sealRefundDataset(longAttestor), /at most 500/);
 
   const unsafeCount = clone(dataset);
-  unsafeCount.cases[0].inputs.customer.priorRefunds = Number.MAX_SAFE_INTEGER + 1;
-  unsafeCount.cases[0].inputSha256 = semanticJsonSha256(unsafeCount.cases[0].inputs);
-  assert.throws(() => sealRefundDataset(unsafeCount), /non-negative safe integer/);
+  unsafeCount.cases[0].inputs.customer.priorRefunds =
+    Number.MAX_SAFE_INTEGER + 1;
+  unsafeCount.cases[0].inputSha256 = semanticJsonSha256(
+    unsafeCount.cases[0].inputs,
+  );
+  assert.throws(
+    () => sealRefundDataset(unsafeCount),
+    /non-negative safe integer/,
+  );
 });
 
 test("sealers reject accessors rather than invoking them", () => {
@@ -441,12 +541,14 @@ function oversizedSparseArray(length, onRead = () => {}) {
   return values;
 }
 
-
 test("independent-judge cases require a matching judge attestation", () => {
   const dataset = makeJudgeDataset();
   assert.equal(dataset.humanAttestation, null);
   assert.equal(dataset.judgeAttestation.caseIds.length, 4);
-  assert.equal(dataset.cases.every((entry) => entry.origin === "independent-judge"), true);
+  assert.equal(
+    dataset.cases.every((entry) => entry.origin === "independent-judge"),
+    true,
+  );
 
   const missingAttestation = clone(dataset);
   missingAttestation.judgeAttestation = null;
@@ -464,19 +566,32 @@ test("independent-judge cases require a matching judge attestation", () => {
 
   const wrongDeclaration = clone(dataset);
   wrongDeclaration.judgeAttestation.declaration = HUMAN_ATTESTATION_DECLARATION;
-  assert.throws(() => validateRefundDataset(wrongDeclaration), /judgeAttestation\.declaration/);
+  assert.throws(
+    () => validateRefundDataset(wrongDeclaration),
+    /judgeAttestation\.declaration/,
+  );
 
   const lateAttestation = clone(dataset);
   lateAttestation.judgeAttestation.attestedAt = "2026-09-23T12:00:01Z";
-  assert.throws(() => validateRefundDataset(lateAttestation), /not be later than dataset creation/);
+  assert.throws(
+    () => validateRefundDataset(lateAttestation),
+    /not be later than dataset creation/,
+  );
 
   const emptyJudge = clone(dataset);
   emptyJudge.judgeAttestation.judge.model = "";
-  assert.throws(() => validateRefundDataset(emptyJudge), /judgeAttestation\.judge\.model/);
+  assert.throws(
+    () => validateRefundDataset(emptyJudge),
+    /judgeAttestation\.judge\.model/,
+  );
 
   const humanWithoutAttestation = clone(dataset);
   humanWithoutAttestation.cases[0].origin = "human-authored";
-  humanWithoutAttestation.judgeAttestation.caseIds = ["case-02", "case-03", "case-04"];
+  humanWithoutAttestation.judgeAttestation.caseIds = [
+    "case-02",
+    "case-03",
+    "case-04",
+  ];
   assert.throws(
     () => validateRefundDataset(humanWithoutAttestation),
     /humanAttestation.*must attest the human-authored cases/,
@@ -488,5 +603,8 @@ test("judge-attested datasets report the attested slice in metrics", () => {
   const metrics = evaluatePredictionSet(dataset, makePredictionSet(dataset));
   assert.equal(metrics.accuracy.attestedCaseCount, 4);
   assert.equal(metrics.accuracy.caseCount, 4);
-  assert.equal(metrics.accuracy.attestedCorrectCount, metrics.accuracy.correctCount);
+  assert.equal(
+    metrics.accuracy.attestedCorrectCount,
+    metrics.accuracy.correctCount,
+  );
 });

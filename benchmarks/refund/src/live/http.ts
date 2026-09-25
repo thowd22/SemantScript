@@ -40,12 +40,18 @@ export async function fetchBoundedJson(
 
   let bytes: Uint8Array;
   try {
-    bytes = await readBoundedBody(response, response.ok ? maximumBytes : MAXIMUM_ERROR_RESPONSE_BYTES);
+    bytes = await readBoundedBody(
+      response,
+      response.ok ? maximumBytes : MAXIMUM_ERROR_RESPONSE_BYTES,
+    );
   } catch (error) {
     if (error instanceof LiveTransportError) {
       throw error;
     }
-    throw new LiveTransportError("invalid-response", `${provider} response could not be read`);
+    throw new LiveTransportError(
+      "invalid-response",
+      `${provider} response could not be read`,
+    );
   }
 
   if (!response.ok) {
@@ -56,7 +62,9 @@ export async function fetchBoundedJson(
   }
 
   try {
-    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
+    return JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    ) as unknown;
   } catch {
     throw new LiveTransportError(
       "invalid-response",
@@ -74,7 +82,10 @@ export function configuredBaseUrl(
   try {
     url = new URL(value);
   } catch {
-    throw new LiveTransportError("configuration", `${provider} base URL is invalid`);
+    throw new LiveTransportError(
+      "configuration",
+      `${provider} base URL is invalid`,
+    );
   }
   if (!allowedProtocols.includes(url.protocol)) {
     throw new LiveTransportError(
@@ -102,7 +113,10 @@ export function plainRecord(
   provider: string,
 ): Readonly<Record<string, unknown>> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new LiveTransportError("invalid-response", `${provider} response must be an object`);
+    throw new LiveTransportError(
+      "invalid-response",
+      `${provider} response must be an object`,
+    );
   }
   const prototype = Object.getPrototypeOf(value) as unknown;
   if (prototype !== Object.prototype && prototype !== null) {
@@ -114,11 +128,19 @@ export function plainRecord(
   return value as Readonly<Record<string, unknown>>;
 }
 
-export function denseArray(value: unknown, provider: string): readonly unknown[] {
+export function denseArray(
+  value: unknown,
+  provider: string,
+): readonly unknown[] {
   if (!Array.isArray(value)) {
-    throw new LiveTransportError("invalid-response", `${provider} response must be an array`);
+    throw new LiveTransportError(
+      "invalid-response",
+      `${provider} response must be an array`,
+    );
   }
-  const names = Object.getOwnPropertyNames(value).filter((name) => name !== "length");
+  const names = Object.getOwnPropertyNames(value).filter(
+    (name) => name !== "length",
+  );
   if (
     Object.getPrototypeOf(value) !== Array.prototype ||
     Object.getOwnPropertySymbols(value).length > 0 ||

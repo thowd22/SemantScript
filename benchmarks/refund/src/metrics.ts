@@ -59,8 +59,13 @@ export function evaluatePredictionSet(
         attestedCorrectCount += 1;
       }
     }
-    const confidence = Math.max(...prediction.distribution.map((entry) => entry.probability));
-    const bin = Math.min(ECE_BIN_COUNT - 1, Math.floor(confidence * ECE_BIN_COUNT));
+    const confidence = Math.max(
+      ...prediction.distribution.map((entry) => entry.probability),
+    );
+    const bin = Math.min(
+      ECE_BIN_COUNT - 1,
+      Math.floor(confidence * ECE_BIN_COUNT),
+    );
     binCounts[bin] = (binCounts[bin] ?? 0) + 1;
     binCorrect[bin] = (binCorrect[bin] ?? 0) + (correct ? 1 : 0);
     binConfidence[bin] = (binConfidence[bin] ?? 0) + confidence;
@@ -75,7 +80,8 @@ export function evaluatePredictionSet(
     const accuracy = (binCorrect[bin] ?? 0) / count;
     const meanConfidence = (binConfidence[bin] ?? 0) / count;
     expectedCalibrationError +=
-      (count / predictionSet.predictions.length) * Math.abs(accuracy - meanConfidence);
+      (count / predictionSet.predictions.length) *
+      Math.abs(accuracy - meanConfidence);
   }
 
   const latencies = predictionSet.predictions
@@ -156,7 +162,8 @@ export function createBenchmarkResult(
   });
   systems.sort(
     (left, right) =>
-      REQUIRED_SYSTEM_ROLES.indexOf(left.role) - REQUIRED_SYSTEM_ROLES.indexOf(right.role),
+      REQUIRED_SYSTEM_ROLES.indexOf(left.role) -
+      REQUIRED_SYSTEM_ROLES.indexOf(right.role),
   );
   assertComparableSystems(systems);
 
@@ -212,7 +219,9 @@ export function validateBenchmarkBundle(
   return supplied;
 }
 
-export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1 {
+export function validateBenchmarkResult(
+  value: unknown,
+): RefundBenchmarkResultV1 {
   const {
     exactObject,
     denseArray,
@@ -268,14 +277,22 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
     "trainingInputCount",
     "overlapCount",
   ]);
-  if (sha256(audit.datasetSha256, "$.leakageAudit.datasetSha256") !== datasetSha256) {
+  if (
+    sha256(audit.datasetSha256, "$.leakageAudit.datasetSha256") !==
+    datasetSha256
+  ) {
     fail("$.leakageAudit.datasetSha256", "must match result datasetSha256");
   }
   if (
-    sha256(audit.trainingLedgerSha256, "$.leakageAudit.trainingLedgerSha256") !==
-    trainingLedgerSha256
+    sha256(
+      audit.trainingLedgerSha256,
+      "$.leakageAudit.trainingLedgerSha256",
+    ) !== trainingLedgerSha256
   ) {
-    fail("$.leakageAudit.trainingLedgerSha256", "must match result trainingLedgerSha256");
+    fail(
+      "$.leakageAudit.trainingLedgerSha256",
+      "must match result trainingLedgerSha256",
+    );
   }
   const evaluationCaseCount = nonNegativeSafeInteger(
     audit.evaluationCaseCount,
@@ -284,7 +301,10 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
   if (evaluationCaseCount === 0) {
     fail("$.leakageAudit.evaluationCaseCount", "must be greater than zero");
   }
-  nonNegativeSafeInteger(audit.trainingInputCount, "$.leakageAudit.trainingInputCount");
+  nonNegativeSafeInteger(
+    audit.trainingInputCount,
+    "$.leakageAudit.trainingInputCount",
+  );
   if (audit.overlapCount !== 0) {
     fail("$.leakageAudit.overlapCount", "must be zero");
   }
@@ -310,7 +330,9 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
       "protocol",
       "metrics",
     ]);
-    const roleIndex = REQUIRED_SYSTEM_ROLES.indexOf(system.role as BenchmarkSystemRole);
+    const roleIndex = REQUIRED_SYSTEM_ROLES.indexOf(
+      system.role as BenchmarkSystemRole,
+    );
     if (roleIndex <= previousRoleIndex) {
       fail(`${path}.role`, "systems must be unique and in required role order");
     }
@@ -352,7 +374,11 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
   validatePayloadDigest(root, "payloadSha256", "$", root.payloadSha256);
   return frozenClone(root) as unknown as RefundBenchmarkResultV1;
 
-  function validateMetrics(metricsValue: unknown, systemPath: string, caseCount: number): void {
+  function validateMetrics(
+    metricsValue: unknown,
+    systemPath: string,
+    caseCount: number,
+  ): void {
     const path = `${systemPath}.metrics`;
     const metrics = exactObject(metricsValue, path, [
       "accuracy",
@@ -370,7 +396,10 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
       "attestedAccuracy",
     ]);
     if (accuracy.caseCount !== caseCount) {
-      fail(`${path}.accuracy.caseCount`, "must match leakage audit evaluationCaseCount");
+      fail(
+        `${path}.accuracy.caseCount`,
+        "must match leakage audit evaluationCaseCount",
+      );
     }
     const correctCount = nonNegativeSafeInteger(
       accuracy.correctCount,
@@ -380,33 +409,46 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
       fail(`${path}.accuracy.correctCount`, "must not exceed caseCount");
     }
     if (accuracy.accuracy !== correctCount / caseCount) {
-      fail(`${path}.accuracy.accuracy`, "must equal correctCount divided by caseCount");
+      fail(
+        `${path}.accuracy.accuracy`,
+        "must equal correctCount divided by caseCount",
+      );
     }
     const attestedCaseCount = nonNegativeSafeInteger(
       accuracy.attestedCaseCount,
       `${path}.accuracy.attestedCaseCount`,
     );
     if (attestedCaseCount === 0 || attestedCaseCount > caseCount) {
-      fail(`${path}.accuracy.attestedCaseCount`, "must be from one through caseCount");
+      fail(
+        `${path}.accuracy.attestedCaseCount`,
+        "must be from one through caseCount",
+      );
     }
     const attestedCorrectCount = nonNegativeSafeInteger(
       accuracy.attestedCorrectCount,
       `${path}.accuracy.attestedCorrectCount`,
     );
     if (attestedCorrectCount > attestedCaseCount) {
-      fail(`${path}.accuracy.attestedCorrectCount`, "must not exceed attestedCaseCount");
+      fail(
+        `${path}.accuracy.attestedCorrectCount`,
+        "must not exceed attestedCaseCount",
+      );
     }
-    if (accuracy.attestedAccuracy !== attestedCorrectCount / attestedCaseCount) {
+    if (
+      accuracy.attestedAccuracy !==
+      attestedCorrectCount / attestedCaseCount
+    ) {
       fail(
         `${path}.accuracy.attestedAccuracy`,
         "must equal attestedCorrectCount divided by attestedCaseCount",
       );
     }
 
-    const calibration = exactObject(metrics.calibration, `${path}.calibration`, [
-      "binCount",
-      "expectedCalibrationError",
-    ]);
+    const calibration = exactObject(
+      metrics.calibration,
+      `${path}.calibration`,
+      ["binCount", "expectedCalibrationError"],
+    );
     if (calibration.binCount !== ECE_BIN_COUNT) {
       fail(`${path}.calibration.binCount`, `must be ${String(ECE_BIN_COUNT)}`);
     }
@@ -418,7 +460,10 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
       fail(`${path}.calibration.expectedCalibrationError`, "must not exceed 1");
     }
 
-    const latency = exactObject(metrics.latency, `${path}.latency`, ["p50Ms", "p95Ms"]);
+    const latency = exactObject(metrics.latency, `${path}.latency`, [
+      "p50Ms",
+      "p95Ms",
+    ]);
     const p50 = nonNegativeFinite(latency.p50Ms, `${path}.latency.p50Ms`);
     const p95 = nonNegativeFinite(latency.p95Ms, `${path}.latency.p95Ms`);
     if (p50 > p95) {
@@ -444,7 +489,10 @@ export function validateBenchmarkResult(value: unknown): RefundBenchmarkResultV1
       );
     }
 
-    const memory = exactObject(metrics.memory, `${path}.memory`, ["scope", "peakBytes"]);
+    const memory = exactObject(metrics.memory, `${path}.memory`, [
+      "scope",
+      "peakBytes",
+    ]);
     if (memory.scope !== "client-only" && memory.scope !== "process-tree") {
       fail(`${path}.memory.scope`, 'must be "client-only" or "process-tree"');
     }
@@ -465,7 +513,8 @@ function assertTrainingEvidenceMatchesLedger(
   );
   if (
     evidence?.trainingLedgerSha256 !== ledger.payloadSha256 ||
-    evidence.artifactTrainingDatasetSha256 !== ledger.sources.baseDatasetSha256 ||
+    evidence.artifactTrainingDatasetSha256 !==
+      ledger.sources.baseDatasetSha256 ||
     evidence.artifactTrainingKeySha256 !== expectedTrainingKeySha256 ||
     evidence.releaseVerificationPayloadSha256 !==
       ledger.sources.releaseVerificationPayloadSha256 ||
@@ -479,7 +528,9 @@ function assertTrainingEvidenceMatchesLedger(
   }
 }
 
-function assertComparableSystems(systems: readonly BenchmarkSystemResult[]): void {
+function assertComparableSystems(
+  systems: readonly BenchmarkSystemResult[],
+): void {
   const reference = systems[0];
   if (reference === undefined) return;
   const hardwareIdentity = (system: BenchmarkSystemResult): unknown => ({
@@ -543,18 +594,28 @@ function assertPredictionCoverage(
   }
 }
 
-function nearestRank(sortedValues: readonly number[], quantile: number): number {
+function nearestRank(
+  sortedValues: readonly number[],
+  quantile: number,
+): number {
   const index = Math.max(0, Math.ceil(quantile * sortedValues.length) - 1);
   const value = sortedValues[index];
   if (value === undefined) {
-    throw new BenchmarkContractError("$.predictions", "cannot rank an empty latency sample");
+    throw new BenchmarkContractError(
+      "$.predictions",
+      "cannot rank an empty latency sample",
+    );
   }
   return value;
 }
 
-function computeGoNoGo(systems: readonly BenchmarkSystemResult[]): GoNoGoDecision {
+function computeGoNoGo(
+  systems: readonly BenchmarkSystemResult[],
+): GoNoGoDecision {
   const byRole = new Map(systems.map((system) => [system.role, system]));
-  const missingSystems = REQUIRED_SYSTEM_ROLES.filter((role) => !byRole.has(role));
+  const missingSystems = REQUIRED_SYSTEM_ROLES.filter(
+    (role) => !byRole.has(role),
+  );
   const semantscript = byRole.get("semantscript");
   const comparator = byRole.get("ollama-7b");
   if (missingSystems.length > 0 || !semantscript || !comparator) {
@@ -625,6 +686,9 @@ function validateGoNoGo(
   }
   const expected = computeGoNoGo(systems);
   if (semanticJsonSha256(goNoGo) !== semanticJsonSha256(expected)) {
-    contractInternals.fail("$.goNoGo", "does not match the mechanical exit criterion");
+    contractInternals.fail(
+      "$.goNoGo",
+      "does not match the mechanical exit criterion",
+    );
   }
 }

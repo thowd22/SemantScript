@@ -1,0 +1,450 @@
+{
+ "kind": "semantscript.refund-benchmark-result",
+ "resultVersion": 1,
+ "benchmark": "refund-decision",
+ "generatedAt": "2026-09-25T04:34:51Z",
+ "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+ "datasetSha256": "5d71fc08a357a253a540c44fac35cc85742200f2000e17a3676d548c6a6125ae",
+ "trainingLedgerSha256": "065a4d233bb3c887d0a9abf92ecc6dcf82cd752ff880d5a680280a121294b60f",
+ "leakageAudit": {
+  "datasetSha256": "5d71fc08a357a253a540c44fac35cc85742200f2000e17a3676d548c6a6125ae",
+  "trainingLedgerSha256": "065a4d233bb3c887d0a9abf92ecc6dcf82cd752ff880d5a680280a121294b60f",
+  "evaluationCaseCount": 160,
+  "trainingInputCount": 9291,
+  "overlapCount": 0
+ },
+ "systems": [
+  {
+   "role": "semantscript",
+   "predictionSha256": "40e9c0096b77d6f3f585043f70d1e88835a2ef694a2e9d48d19617c66b9565f4",
+   "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+   "model": {
+    "provider": "semantscript",
+    "name": "refund-decision",
+    "version": "semantscript-artifact-v1",
+    "revision": "8bd1db20e4f8b7fce044aa17916f203efb14a9d5933c246bcaba0a7925a2088a",
+    "artifactSha256": "a3f4b0054fd2a332fb6639be9756598a3baa1759d74cc1e13b4cbb08c92ec4e3"
+   },
+   "adapter": {
+    "name": "semantscript-node-artifact-runtime",
+    "version": "1",
+    "configurationSha256": "f3206bbf7a8657b4ea62c2615f3b6be974eb318f2edfffb248519d1e949517a4"
+   },
+   "trainingEvidence": {
+    "trainingLedgerSha256": "065a4d233bb3c887d0a9abf92ecc6dcf82cd752ff880d5a680280a121294b60f",
+    "artifactTrainingDatasetSha256": "fdafc2490686650e015ee05ceee2bf3bb2a8f57fc56334923e96342e935b061a",
+    "artifactTrainingKeySha256": "8bd1db20e4f8b7fce044aa17916f203efb14a9d5933c246bcaba0a7925a2088a",
+    "releaseVerificationPayloadSha256": "d21ab8ccc6b653131a9a4bcb71d91743d8b19aff0824ef601e128e19febfaac2",
+    "releaseVerificationAttestationSha256": "1427262d6c360f58e35da74a7baac4a4a76da7d874d710c4658fc7667a2ca88d"
+   },
+   "executionBackend": {
+    "kind": "semantscript-node",
+    "runtime": "onnxruntime-node",
+    "device": "cpu"
+   },
+   "environment": {
+    "capturedAt": "2026-09-25T01:26:37Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "architecture": "x64",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+    "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+    "memoryBytes": 16265179136,
+    "runtimeVersions": [
+     {
+      "name": "node",
+      "version": "22.22.0"
+     },
+     {
+      "name": "ollama",
+      "version": "0.34.3"
+     },
+     {
+      "name": "onnxruntime-node",
+      "version": "1.30.0"
+     }
+    ],
+    "evidenceSha256": "b9a84969a30d7588daf49f984881aa5644f218be908a538fb75c253c08a1ab0b"
+   },
+   "protocol": {
+    "concurrency": 1,
+    "warmupIterations": 10,
+    "warmupInputOrderSha256": "30bc6f5888a06b90c4f9f01dfdbc938f3457e2ce09830b26f80e56e36b2affd4",
+    "measuredDurationMs": 823.740378,
+    "memoryScope": "client-only",
+    "peakMemoryBytes": 855584768
+   },
+   "metrics": {
+    "accuracy": {
+     "caseCount": 160,
+     "correctCount": 160,
+     "accuracy": 1,
+     "attestedCaseCount": 160,
+     "attestedCorrectCount": 160,
+     "attestedAccuracy": 1
+    },
+    "calibration": {
+     "binCount": 15,
+     "expectedCalibrationError": 0.0029442506706143083
+    },
+    "latency": {
+     "p50Ms": 4.823309000000336,
+     "p95Ms": 6.410910000000058
+    },
+    "throughput": {
+     "concurrency": 1,
+     "measuredDurationMs": 823.740378,
+     "requestsPerSecond": 194.2359562226049
+    },
+    "memory": {
+     "scope": "client-only",
+     "peakBytes": 855584768
+    }
+   }
+  },
+  {
+   "role": "ollama-1b",
+   "predictionSha256": "322bc92d9b6a9c1b365a37f780aedefc9cc6c79ac680d7e8f92f02efae9aecb7",
+   "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+   "model": {
+    "provider": "ollama",
+    "name": "qwen2.5:1.5b-instruct-q4_K_M",
+    "version": "qwen2.5",
+    "revision": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+    "artifactSha256": "183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4"
+   },
+   "adapter": {
+    "name": "refund-ollama-json-schema",
+    "version": "2",
+    "configurationSha256": "dc7e0d7eb926d60d5b3e64498d7cc7564749b8838ab269e9b6d6d9a3379c4098"
+   },
+   "trainingEvidence": null,
+   "executionBackend": {
+    "kind": "ollama",
+    "serverVersion": "0.34.3",
+    "placement": "gpu",
+    "modelTotalBytes": 1166236712,
+    "modelCpuBytes": 0,
+    "modelGpuBytes": 1166236712
+   },
+   "environment": {
+    "capturedAt": "2026-09-23T23:04:02Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "architecture": "x64",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+    "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+    "memoryBytes": 16265179136,
+    "runtimeVersions": [
+     {
+      "name": "node",
+      "version": "22.22.0"
+     },
+     {
+      "name": "ollama",
+      "version": "0.34.3"
+     },
+     {
+      "name": "onnxruntime-node",
+      "version": "1.30.0"
+     }
+    ],
+    "evidenceSha256": "ff68c979840129d1b3e4c7eebc481379734912613ff671f088fd54d4b7220172"
+   },
+   "protocol": {
+    "concurrency": 1,
+    "warmupIterations": 10,
+    "warmupInputOrderSha256": "30bc6f5888a06b90c4f9f01dfdbc938f3457e2ce09830b26f80e56e36b2affd4",
+    "measuredDurationMs": 51716.261432,
+    "memoryScope": "client-only",
+    "peakMemoryBytes": 161292288
+   },
+   "metrics": {
+    "accuracy": {
+     "caseCount": 160,
+     "correctCount": 83,
+     "accuracy": 0.51875,
+     "attestedCaseCount": 160,
+     "attestedCorrectCount": 83,
+     "attestedAccuracy": 0.51875
+    },
+    "calibration": {
+     "binCount": 15,
+     "expectedCalibrationError": 0.4428124999999997
+    },
+    "latency": {
+     "p50Ms": 319.44707500000004,
+     "p95Ms": 357.7685599999968
+    },
+    "throughput": {
+     "concurrency": 1,
+     "measuredDurationMs": 51716.261432,
+     "requestsPerSecond": 3.0938044547241432
+    },
+    "memory": {
+     "scope": "client-only",
+     "peakBytes": 161292288
+    }
+   }
+  },
+  {
+   "role": "ollama-7b",
+   "predictionSha256": "cdd1780328c3c02602b9bf827fb931c8df07f2fd0ca9fc7d26e563cd87f25455",
+   "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+   "model": {
+    "provider": "ollama",
+    "name": "qwen2.5:7b-instruct-q4_K_M",
+    "version": "qwen2.5",
+    "revision": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+    "artifactSha256": "2bada8a7450677000f678be90653b85d364de7db25eb5ea54136ada5f3933730"
+   },
+   "adapter": {
+    "name": "refund-ollama-json-schema",
+    "version": "2",
+    "configurationSha256": "417efcf2d0472e4c90949ff9b749452d582b116637f43d41760a90313054bc61"
+   },
+   "trainingEvidence": null,
+   "executionBackend": {
+    "kind": "ollama",
+    "serverVersion": "0.34.3",
+    "placement": "gpu",
+    "modelTotalBytes": 4748056984,
+    "modelCpuBytes": 0,
+    "modelGpuBytes": 4748056984
+   },
+   "environment": {
+    "capturedAt": "2026-09-23T23:04:02Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "architecture": "x64",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+    "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+    "memoryBytes": 16265179136,
+    "runtimeVersions": [
+     {
+      "name": "node",
+      "version": "22.22.0"
+     },
+     {
+      "name": "ollama",
+      "version": "0.34.3"
+     },
+     {
+      "name": "onnxruntime-node",
+      "version": "1.30.0"
+     }
+    ],
+    "evidenceSha256": "ff68c979840129d1b3e4c7eebc481379734912613ff671f088fd54d4b7220172"
+   },
+   "protocol": {
+    "concurrency": 1,
+    "warmupIterations": 10,
+    "warmupInputOrderSha256": "30bc6f5888a06b90c4f9f01dfdbc938f3457e2ce09830b26f80e56e36b2affd4",
+    "measuredDurationMs": 88598.71339499998,
+    "memoryScope": "client-only",
+    "peakMemoryBytes": 158019584
+   },
+   "metrics": {
+    "accuracy": {
+     "caseCount": 160,
+     "correctCount": 86,
+     "accuracy": 0.5375,
+     "attestedCaseCount": 160,
+     "attestedCorrectCount": 86,
+     "attestedAccuracy": 0.5375
+    },
+    "calibration": {
+     "binCount": 15,
+     "expectedCalibrationError": 0.4284375000000006
+    },
+    "latency": {
+     "p50Ms": 569.1720670000068,
+     "p95Ms": 608.1998009999952
+    },
+    "throughput": {
+     "concurrency": 1,
+     "measuredDurationMs": 88598.71339499998,
+     "requestsPerSecond": 1.8058952988027195
+    },
+    "memory": {
+     "scope": "client-only",
+     "peakBytes": 158019584
+    }
+   }
+  },
+  {
+   "role": "structured-api",
+   "predictionSha256": "059c2ebf81c95043311c9a590bd8297f53b191a0c3328b6c0ff3a2bb5ac34d69",
+   "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+   "model": {
+    "provider": "anthropic",
+    "name": "claude-sonnet-5",
+    "version": "claude-sonnet-5",
+    "revision": "claude-sonnet-5",
+    "artifactSha256": "4b07d9a517e35f5852d8385b4a192070b78ed4722b3b043b5737ddd7570283d7"
+   },
+   "adapter": {
+    "name": "refund-anthropic-structured-output",
+    "version": "2",
+    "configurationSha256": "aff9cd653542e9f19527cbac4ee68d971750e51a8555f9135f65f710addaf12e"
+   },
+   "trainingEvidence": null,
+   "executionBackend": {
+    "kind": "anthropic-api",
+    "apiVersion": "2023-06-01",
+    "endpoint": "https://openrouter.ai/api",
+    "placement": "provider-managed"
+   },
+   "environment": {
+    "capturedAt": "2026-09-25T04:22:12Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "architecture": "x64",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+    "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+    "memoryBytes": 16265179136,
+    "runtimeVersions": [
+     {
+      "name": "node",
+      "version": "22.22.0"
+     },
+     {
+      "name": "ollama",
+      "version": "0.34.3"
+     },
+     {
+      "name": "onnxruntime-node",
+      "version": "1.30.0"
+     }
+    ],
+    "evidenceSha256": "56601ec83a0c1ab147f2cd8fb63bc186d36eb1f03dc892c1fd1d03063945273e"
+   },
+   "protocol": {
+    "concurrency": 1,
+    "warmupIterations": 10,
+    "warmupInputOrderSha256": "30bc6f5888a06b90c4f9f01dfdbc938f3457e2ce09830b26f80e56e36b2affd4",
+    "measuredDurationMs": 698135.8296780001,
+    "memoryScope": "client-only",
+    "peakMemoryBytes": 156794880
+   },
+   "metrics": {
+    "accuracy": {
+     "caseCount": 160,
+     "correctCount": 160,
+     "accuracy": 1,
+     "attestedCaseCount": 160,
+     "attestedCorrectCount": 160,
+     "attestedAccuracy": 1
+    },
+    "calibration": {
+     "binCount": 15,
+     "expectedCalibrationError": 0
+    },
+    "latency": {
+     "p50Ms": 4200.365572999988,
+     "p95Ms": 5744.267561000015
+    },
+    "throughput": {
+     "concurrency": 1,
+     "measuredDurationMs": 698135.8296780001,
+     "requestsPerSecond": 0.2291817626289092
+    },
+    "memory": {
+     "scope": "client-only",
+     "peakBytes": 156794880
+    }
+   }
+  },
+  {
+   "role": "laya",
+   "predictionSha256": "78e879bd650d01772b7ea4ce1709d4cc278f98ce20497cb3a78bebe5afc6036d",
+   "taskSpecSha256": "ffc5c59463a4a9f0cf38e0f6d44d09b1df0e91f13bb9c87a73b049f20c35014c",
+   "model": {
+    "provider": "huggingface",
+    "name": "convaiinnovations/laya-typed-decisions",
+    "version": "laya-typed-decisions",
+    "revision": "dd079950600224fb459af2a0cb1d74e1e57ee9cf",
+    "artifactSha256": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e"
+   },
+   "adapter": {
+    "name": "refund-laya-typed-decisions",
+    "version": "2",
+    "configurationSha256": "f9ef68d9673a44ded93e3b939a491d293a4f9f10fdfe54543c851651cb20e852"
+   },
+   "trainingEvidence": null,
+   "executionBackend": {
+    "kind": "laya",
+    "runtime": "python",
+    "device": "cuda"
+   },
+   "environment": {
+    "capturedAt": "2026-09-23T23:04:02Z",
+    "operatingSystem": "Linux 6.18.33.2-microsoft-standard-WSL2",
+    "architecture": "x64",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor x24",
+    "accelerator": "AMD Radeon RX 9070 XT (gfx1201, ROCm via WSL2 DXG)",
+    "memoryBytes": 16265179136,
+    "runtimeVersions": [
+     {
+      "name": "node",
+      "version": "22.22.0"
+     },
+     {
+      "name": "ollama",
+      "version": "0.34.3"
+     },
+     {
+      "name": "onnxruntime-node",
+      "version": "1.30.0"
+     }
+    ],
+    "evidenceSha256": "ff68c979840129d1b3e4c7eebc481379734912613ff671f088fd54d4b7220172"
+   },
+   "protocol": {
+    "concurrency": 1,
+    "warmupIterations": 10,
+    "warmupInputOrderSha256": "30bc6f5888a06b90c4f9f01dfdbc938f3457e2ce09830b26f80e56e36b2affd4",
+    "measuredDurationMs": 4503.40682199999,
+    "memoryScope": "client-only",
+    "peakMemoryBytes": 160296960
+   },
+   "metrics": {
+    "accuracy": {
+     "caseCount": 160,
+     "correctCount": 36,
+     "accuracy": 0.225,
+     "attestedCaseCount": 160,
+     "attestedCorrectCount": 36,
+     "attestedAccuracy": 0.225
+    },
+    "calibration": {
+     "binCount": 15,
+     "expectedCalibrationError": 0.41104484783312356
+    },
+    "latency": {
+     "p50Ms": 28.150252999999793,
+     "p95Ms": 31.942375999991782
+    },
+    "throughput": {
+     "concurrency": 1,
+     "measuredDurationMs": 4503.40682199999,
+     "requestsPerSecond": 35.528657819313565
+    },
+    "memory": {
+     "scope": "client-only",
+     "peakBytes": 160296960
+    }
+   }
+  }
+ ],
+ "goNoGo": {
+  "status": "go",
+  "criterion": {
+   "semantscriptP50MsExclusiveMaximum": 10,
+   "accuracyComparator": "ollama-7b"
+  },
+  "semantscriptP50Ms": 4.823309000000336,
+  "semantscriptAccuracy": 1,
+  "comparatorAccuracy": 0.5375,
+  "latencyPassed": true,
+  "accuracyPassed": true,
+  "missingSystems": []
+ },
+ "payloadSha256": "4bf8d528f5e5e9e0a3d21e6129243c786b0cd32243580a289b241fac30762d03"
+}

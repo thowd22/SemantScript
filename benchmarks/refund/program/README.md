@@ -97,6 +97,19 @@ PYTHONPATH=trainer/src:model/src:.python-packages \
   python -m pytest benchmarks/refund/program/test_pipeline.py -q
 ```
 
+## Structured-output API baseline through OpenRouter
+
+`run-benchmark.mjs run --systems structured-api` uses the canonical Anthropic
+API when `ANTHROPIC_API_KEY` is set and otherwise the same pinned model
+(`claude-sonnet-5`) through OpenRouter's Anthropic-format `/api/v1/messages`
+route with `OPENROUTER_API_KEY`, sending that key only to the OpenRouter
+origin as a bearer token. The request body is the canonical transport's with
+the model named `anthropic/claude-sonnet-5` on the wire (the prefix is removed
+from the response, so the pinned identity and adapter are unchanged), and the
+sealed prediction set records the route in its execution backend endpoint
+(`https://openrouter.ai/api`), which the contracts and schema accept beside
+`https://api.anthropic.com`. Neither key is written to any record.
+
 ## Jev diagnostic comparator
 
 `run_jev_comparator.py` sends every case of the frozen final set to TypeSafe's

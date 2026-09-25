@@ -138,7 +138,11 @@ export function createLiveOllamaTransport(
         MAXIMUM_OLLAMA_TAGS_RESPONSE_BYTES,
         "Ollama model-list",
       );
-      verifyManifestDigest(tags, request.model, OLLAMA_QWEN_MANIFEST_SHA256[role]);
+      verifyManifestDigest(
+        tags,
+        request.model,
+        OLLAMA_QWEN_MANIFEST_SHA256[role],
+      );
 
       const response = await fetchBoundedJson(
         fetchImplementation,
@@ -218,7 +222,10 @@ function verifyManifestDigest(
   }
 }
 
-function stringField(record: Readonly<Record<string, unknown>>, key: string): string {
+function stringField(
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+): string {
   const value = record[key];
   if (typeof value !== "string") {
     throw new LiveTransportError(
@@ -229,7 +236,10 @@ function stringField(record: Readonly<Record<string, unknown>>, key: string): st
   return value;
 }
 
-function booleanField(record: Readonly<Record<string, unknown>>, key: string): boolean {
+function booleanField(
+  record: Readonly<Record<string, unknown>>,
+  key: string,
+): boolean {
   const value = record[key];
   if (typeof value !== "boolean") {
     throw new LiveTransportError(

@@ -38,7 +38,11 @@ export type SemantScriptAdapterErrorCode =
 export class SemantScriptAdapterError extends Error {
   readonly code: SemantScriptAdapterErrorCode;
 
-  constructor(code: SemantScriptAdapterErrorCode, message: string, options?: ErrorOptions) {
+  constructor(
+    code: SemantScriptAdapterErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
     super(message, options);
     this.name = "SemantScriptAdapterError";
     this.code = code;
@@ -81,46 +85,50 @@ export interface SemantScriptRefundAdapterOptions {
   readonly loader?: SemantScriptArtifactLoader;
 }
 
-export interface SemantScriptRefundAdapter
-  extends RefundPredictionAdapter<"semantscript"> {
+export interface SemantScriptRefundAdapter extends RefundPredictionAdapter<"semantscript"> {
   readonly taskSpecSha256: string;
   close(): Promise<void>;
 }
 
-export const nodeSemantScriptArtifactLoader: SemantScriptArtifactLoader = Object.freeze({
-  async load(artifactRoot: string): Promise<LoadedSemantScriptArtifact> {
-    const handle = await loadSemaArtifact(artifactRoot);
-    try {
-      const functions = await readLoadedFunctionProvenance(
-        artifactRoot,
-        handle.manifestSha256,
-      );
-      for (const entry of functions) {
-        if (!handle.functionIds.has(entry.id)) {
-          mismatch(`loaded manifest function ${JSON.stringify(entry.id)} is absent from runtime`);
+export const nodeSemantScriptArtifactLoader: SemantScriptArtifactLoader =
+  Object.freeze({
+    async load(artifactRoot: string): Promise<LoadedSemantScriptArtifact> {
+      const handle = await loadSemaArtifact(artifactRoot);
+      try {
+        const functions = await readLoadedFunctionProvenance(
+          artifactRoot,
+          handle.manifestSha256,
+        );
+        for (const entry of functions) {
+          if (!handle.functionIds.has(entry.id)) {
+            mismatch(
+              `loaded manifest function ${JSON.stringify(entry.id)} is absent from runtime`,
+            );
+          }
         }
-      }
-      if (handle.functionIds.size !== functions.length) {
-        mismatch("runtime and loaded manifest expose different function sets");
-      }
-      return Object.freeze({
-        manifestSha256: handle.manifestSha256,
-        functionIds: new Set(handle.functionIds),
-        functions,
-        call(functionId: string, inputs: RefundInputs): unknown {
-          return handle.call(
-            functionId,
-            inputs as unknown as Readonly<Record<string, unknown>>,
+        if (handle.functionIds.size !== functions.length) {
+          mismatch(
+            "runtime and loaded manifest expose different function sets",
           );
-        },
-        close: async (): Promise<void> => handle.close(),
-      });
-    } catch (error) {
-      await handle.close().catch(() => undefined);
-      throw error;
-    }
-  },
-});
+        }
+        return Object.freeze({
+          manifestSha256: handle.manifestSha256,
+          functionIds: new Set(handle.functionIds),
+          functions,
+          call(functionId: string, inputs: RefundInputs): unknown {
+            return handle.call(
+              functionId,
+              inputs as unknown as Readonly<Record<string, unknown>>,
+            );
+          },
+          close: async (): Promise<void> => handle.close(),
+        });
+      } catch (error) {
+        await handle.close().catch(() => undefined);
+        throw error;
+      }
+    },
+  });
 
 export async function createSemantScriptRefundAdapter(
   options: SemantScriptRefundAdapterOptions,
@@ -164,18 +172,23 @@ export async function createSemantScriptRefundAdapter(
     taskSpecSha256: configuration.expected.taskSpecSha256,
     trainingEvidence: configuration.expected.trainingEvidence,
     resolveExecutionBackend() {
-      return Promise.resolve(Object.freeze({
-        kind: "semantscript-node" as const,
-        runtime: "onnxruntime-node" as const,
-        device: "cpu" as const,
-      }));
+      return Promise.resolve(
+        Object.freeze({
+          kind: "semantscript-node" as const,
+          runtime: "onnxruntime-node" as const,
+          device: "cpu" as const,
+        }),
+      );
     },
     async predict(
       inputs: RefundInputs,
       signal?: AbortSignal,
     ): Promise<BaselinePrediction> {
       if (closing) {
-        throw new SemantScriptAdapterError("closed", "SemantScript adapter is closed");
+        throw new SemantScriptAdapterError(
+          "closed",
+          "SemantScript adapter is closed",
+        );
       }
       throwIfAborted(signal);
       activeCalls += 1;
@@ -217,7 +230,11 @@ interface ValidatedConfiguration {
 }
 
 function validateConfiguration(options: unknown): ValidatedConfiguration {
-  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+  if (
+    options === null ||
+    typeof options !== "object" ||
+    Array.isArray(options)
+  ) {
     configurationError("options must be an object");
   }
   const raw = options as Record<string, unknown>;
@@ -231,7 +248,9 @@ function validateConfiguration(options: unknown): ValidatedConfiguration {
     "expected.taskSpecSha256",
   );
   if (taskSpecSha256 !== REFUND_TASK_SPEC_SHA256) {
-    mismatch("expected task specification does not match the canonical refund task");
+    mismatch(
+      "expected task specification does not match the canonical refund task",
+    );
   }
   const expectedFunction = validateFunctionProvenance(
     expected["function"],
@@ -242,10 +261,14 @@ function validateConfiguration(options: unknown): ValidatedConfiguration {
     expectedFunction.semanticSha256 !== REFUND_FUNCTION_SEMANTIC_SHA256 ||
     expectedFunction.resultMode !== "diagnostic"
   ) {
-    mismatch("expected function does not match the canonical diagnostic refund function");
+    mismatch(
+      "expected function does not match the canonical diagnostic refund function",
+    );
   }
   const model = validateModelProvenance(expected["model"], expectedFunction);
-  const trainingEvidence = validateTrainingEvidence(expected["trainingEvidence"]);
+  const trainingEvidence = validateTrainingEvidence(
+    expected["trainingEvidence"],
+  );
   if (
     trainingEvidence.artifactTrainingDatasetSha256 !==
     expectedFunction.trainingProvenance.datasetSha256
@@ -262,7 +285,9 @@ function validateConfiguration(options: unknown): ValidatedConfiguration {
       "expected training evidence key must equal the expected function training key",
     );
   }
-  const loader = validateLoader(raw["loader"] ?? nodeSemantScriptArtifactLoader);
+  const loader = validateLoader(
+    raw["loader"] ?? nodeSemantScriptArtifactLoader,
+  );
   return Object.freeze({
     artifactRoot,
     expected: Object.freeze({
@@ -285,9 +310,13 @@ function validateLoadedArtifact(
   if (!loaded.functionIds.has(expected.function.id)) {
     mismatch("loaded artifact does not expose the expected refund function ID");
   }
-  const matches = loaded.functions.filter(({ id }) => id === expected.function.id);
+  const matches = loaded.functions.filter(
+    ({ id }) => id === expected.function.id,
+  );
   if (matches.length !== 1) {
-    mismatch("loaded artifact must contain exactly one expected refund function");
+    mismatch(
+      "loaded artifact must contain exactly one expected refund function",
+    );
   }
   const actual = matches[0];
   if (actual === undefined) {
@@ -297,16 +326,22 @@ function validateLoadedArtifact(
     actual.trainingProvenance.datasetSha256 !==
     expected.trainingEvidence.artifactTrainingDatasetSha256
   ) {
-    mismatch("loaded refund function training dataset differs from training evidence");
+    mismatch(
+      "loaded refund function training dataset differs from training evidence",
+    );
   }
   if (
     actual.trainingProvenance.trainingKeySha256 !==
     expected.trainingEvidence.artifactTrainingKeySha256
   ) {
-    mismatch("loaded refund function training key differs from training evidence");
+    mismatch(
+      "loaded refund function training key differs from training evidence",
+    );
   }
   if (!sameFunctionProvenance(actual, expected.function)) {
-    mismatch("loaded refund function provenance differs from the expected export");
+    mismatch(
+      "loaded refund function provenance differs from the expected export",
+    );
   }
   if (actual.resultMode !== "diagnostic") {
     mismatch("loaded refund function must use diagnostic result mode");
@@ -325,7 +360,8 @@ function sameFunctionProvenance(
       expected.trainingProvenance.datasetSha256 &&
     actual.trainingProvenance.trainingKeySha256 ===
       expected.trainingProvenance.trainingKeySha256 &&
-    actual.trainingProvenance.baseModel === expected.trainingProvenance.baseModel
+    actual.trainingProvenance.baseModel ===
+      expected.trainingProvenance.baseModel
   );
 }
 
@@ -338,12 +374,18 @@ function validateFunctionProvenance(
   if (typeof id !== "string" || !FUNCTION_ID.test(id)) {
     configurationError(`${path}.id must be a neural-function ID`);
   }
-  const semanticSha256 = requireSha256(record["semanticSha256"], `${path}.semanticSha256`);
+  const semanticSha256 = requireSha256(
+    record["semanticSha256"],
+    `${path}.semanticSha256`,
+  );
   const resultMode = record["resultMode"];
   if (resultMode !== "value" && resultMode !== "diagnostic") {
     configurationError(`${path}.resultMode must be value or diagnostic`);
   }
-  const training = requireRecord(record["trainingProvenance"], `${path}.trainingProvenance`);
+  const training = requireRecord(
+    record["trainingProvenance"],
+    `${path}.trainingProvenance`,
+  );
   const datasetSha256 = requireSha256(
     training["datasetSha256"],
     `${path}.trainingProvenance.datasetSha256`,
@@ -360,7 +402,11 @@ function validateFunctionProvenance(
     id,
     semanticSha256,
     resultMode,
-    trainingProvenance: Object.freeze({ datasetSha256, trainingKeySha256, baseModel }),
+    trainingProvenance: Object.freeze({
+      datasetSha256,
+      trainingKeySha256,
+      baseModel,
+    }),
   });
 }
 
@@ -396,7 +442,9 @@ function validateModelProvenance(
   return Object.freeze({ ...strings, revision, artifactSha256 });
 }
 
-function validateTrainingEvidence(value: unknown): SemantScriptTrainingEvidence {
+function validateTrainingEvidence(
+  value: unknown,
+): SemantScriptTrainingEvidence {
   const record = requireRecord(value, "expected.trainingEvidence");
   const keys = [
     "trainingLedgerSha256",
@@ -406,8 +454,13 @@ function validateTrainingEvidence(value: unknown): SemantScriptTrainingEvidence 
     "releaseVerificationAttestationSha256",
   ] as const;
   const names = Object.keys(record);
-  if (names.length !== keys.length || keys.some((key) => !names.includes(key))) {
-    configurationError(`expected.trainingEvidence must contain exactly ${keys.join(", ")}`);
+  if (
+    names.length !== keys.length ||
+    keys.some((key) => !names.includes(key))
+  ) {
+    configurationError(
+      `expected.trainingEvidence must contain exactly ${keys.join(", ")}`,
+    );
   }
   return Object.freeze({
     trainingLedgerSha256: requireSha256(
@@ -437,7 +490,8 @@ function validateLoader(value: unknown): SemantScriptArtifactLoader {
   if (value === null || typeof value !== "object" || !("load" in value)) {
     configurationError("loader must provide load()");
   }
-  if (typeof value.load !== "function") configurationError("loader.load must be a function");
+  if (typeof value.load !== "function")
+    configurationError("loader.load must be a function");
   return value as SemantScriptArtifactLoader;
 }
 
@@ -450,21 +504,28 @@ function validateDiagnostic(value: unknown): BaselinePrediction {
     "expectedValue",
   ]);
   const decision = diagnostic["value"];
-  if (!isRefundDecision(decision)) outputError("diagnostic.value is outside refund support");
-  const confidence = probability(diagnostic["confidence"], "diagnostic.confidence");
+  if (!isRefundDecision(decision))
+    outputError("diagnostic.value is outside refund support");
+  const confidence = probability(
+    diagnostic["confidence"],
+    "diagnostic.confidence",
+  );
   probability(diagnostic["uncertainty"], "diagnostic.uncertainty");
   if (diagnostic["expectedValue"] !== null) {
-    outputError("diagnostic.expectedValue must be null for nominal refund output");
+    outputError(
+      "diagnostic.expectedValue must be null for nominal refund output",
+    );
   }
   const entries = diagnostic["distribution"];
   if (!Array.isArray(entries) || entries.length !== REFUND_SUPPORT.length) {
     outputError("diagnostic.distribution must contain complete refund support");
   }
   const distribution = REFUND_SUPPORT.map((supportValue, index) => {
-    const entry = requireExactRecord(entries[index], `diagnostic.distribution[${String(index)}]`, [
-      "value",
-      "probability",
-    ]);
+    const entry = requireExactRecord(
+      entries[index],
+      `diagnostic.distribution[${String(index)}]`,
+      ["value", "probability"],
+    );
     if (entry["value"] !== supportValue) {
       outputError("diagnostic.distribution must be in declared support order");
     }
@@ -476,11 +537,18 @@ function validateDiagnostic(value: unknown): BaselinePrediction {
       ),
     });
   });
-  const sum = distribution.reduce((total, entry) => total + entry.probability, 0);
-  if (Math.abs(sum - 1) > 1e-12) outputError("diagnostic probabilities must sum to one");
+  const sum = distribution.reduce(
+    (total, entry) => total + entry.probability,
+    0,
+  );
+  if (Math.abs(sum - 1) > 1e-12)
+    outputError("diagnostic probabilities must sum to one");
   let bestIndex = 0;
   for (let index = 1; index < distribution.length; index += 1) {
-    if ((distribution[index]?.probability ?? -1) > (distribution[bestIndex]?.probability ?? -1)) {
+    if (
+      (distribution[index]?.probability ?? -1) >
+      (distribution[bestIndex]?.probability ?? -1)
+    ) {
       bestIndex = index;
     }
   }
@@ -491,14 +559,18 @@ function validateDiagnostic(value: unknown): BaselinePrediction {
   if (Math.abs(confidence - best.probability) > Number.EPSILON * 8) {
     outputError("diagnostic.confidence must equal the top probability");
   }
-  return Object.freeze({ value: decision, distribution: Object.freeze(distribution) });
+  return Object.freeze({
+    value: decision,
+    distribution: Object.freeze(distribution),
+  });
 }
 
 async function readLoadedFunctionProvenance(
   artifactRoot: string,
   manifestSha256: string,
 ): Promise<readonly RuntimeFunctionProvenance[]> {
-  if (!SHA256.test(manifestSha256)) mismatch("runtime returned an invalid manifest digest");
+  if (!SHA256.test(manifestSha256))
+    mismatch("runtime returned an invalid manifest digest");
   const absoluteRoot = resolve(artifactRoot);
   const releaseName = `sha256-${manifestSha256}`;
   const releaseDirectory =
@@ -510,7 +582,11 @@ async function readLoadedFunctionProvenance(
   let bytes: Buffer;
   try {
     const stats = await handle.stat();
-    if (!stats.isFile() || stats.size < 1 || stats.size > MAXIMUM_BENCHMARK_MANIFEST_BYTES) {
+    if (
+      !stats.isFile() ||
+      stats.size < 1 ||
+      stats.size > MAXIMUM_BENCHMARK_MANIFEST_BYTES
+    ) {
       mismatch("loaded artifact manifest has an invalid size");
     }
     bytes = await handle.readFile();
@@ -518,15 +594,20 @@ async function readLoadedFunctionProvenance(
     await handle.close();
   }
   const digest = createHash("sha256").update(bytes).digest("hex");
-  if (digest !== manifestSha256) mismatch("loaded artifact manifest changed after runtime load");
+  if (digest !== manifestSha256)
+    mismatch("loaded artifact manifest changed after runtime load");
   const parsed = JSON.parse(bytes.toString("utf8")) as unknown;
   const manifest = requireRecord(parsed, "manifest");
   const functions = manifest["functions"];
-  if (!Array.isArray(functions)) mismatch("loaded artifact manifest has no function list");
+  if (!Array.isArray(functions))
+    mismatch("loaded artifact manifest has no function list");
   return Object.freeze(
     functions.map((entry, index) => {
       const fn = requireRecord(entry, `manifest.functions[${String(index)}]`);
-      const runtime = requireRecord(fn["runtime"], `manifest.functions[${String(index)}].runtime`);
+      const runtime = requireRecord(
+        fn["runtime"],
+        `manifest.functions[${String(index)}].runtime`,
+      );
       const training = requireRecord(
         fn["trainingProvenance"],
         `manifest.functions[${String(index)}].trainingProvenance`,
@@ -565,7 +646,10 @@ function requireExactRecord(
   }
   const record = value as Record<string, unknown>;
   const actualKeys = Object.keys(record);
-  if (actualKeys.length !== keys.length || keys.some((key) => !actualKeys.includes(key))) {
+  if (
+    actualKeys.length !== keys.length ||
+    keys.some((key) => !actualKeys.includes(key))
+  ) {
     outputError(`${path} must contain exactly ${keys.join(", ")}`);
   }
   return record;
@@ -579,7 +663,12 @@ function requireSha256(value: unknown, path: string): string {
 }
 
 function probability(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > 1
+  ) {
     outputError(`${path} must be a finite probability`);
   }
   return value;
@@ -591,7 +680,10 @@ function isRefundDecision(value: unknown): value is RefundDecision {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) {
-    throw new SemantScriptAdapterError("aborted", "SemantScript inference was aborted");
+    throw new SemantScriptAdapterError(
+      "aborted",
+      "SemantScript inference was aborted",
+    );
   }
 }
 

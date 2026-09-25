@@ -33,6 +33,7 @@ import {
   createLiveAnthropicTransport,
   createLiveLayaRunner,
   createLiveOllamaTransport,
+  createLiveOpenRouterAnthropicTransport,
 } from "../dist/live/index.js";
 
 const OLLAMA_REQUEST = Object.freeze({
@@ -235,7 +236,11 @@ test("Anthropic maps the current Messages structured-output wire format exactly"
     system: "fixed system",
     messages: [{ role: "user", content: "fixed input" }],
     outputConfig: {
-      format: { type: "json_schema", name: "refund_decision", schema: REFUND_OUTPUT_SCHEMA },
+      format: {
+        type: "json_schema",
+        name: "refund_decision",
+        schema: REFUND_OUTPUT_SCHEMA,
+      },
     },
   };
   const result = await transport.generate(
@@ -245,7 +250,10 @@ test("Anthropic maps the current Messages structured-output wire format exactly"
 
   assert.equal(new globalThis.URL(captured.url).pathname, "/v1/messages");
   assert.equal(captured.init.headers["x-api-key"], apiKey);
-  assert.equal(captured.init.headers["anthropic-version"], ANTHROPIC_API_VERSION);
+  assert.equal(
+    captured.init.headers["anthropic-version"],
+    ANTHROPIC_API_VERSION,
+  );
   const body = JSON.parse(captured.init.body);
   assert.deepEqual(Object.keys(body).sort(), [
     "max_tokens",
@@ -282,7 +290,11 @@ test("Anthropic bounds errors and never copies API keys or provider bodies into 
     system: "system",
     messages: [{ role: "user", content: "input" }],
     outputConfig: {
-      format: { type: "json_schema", name: "refund_decision", schema: REFUND_OUTPUT_SCHEMA },
+      format: {
+        type: "json_schema",
+        name: "refund_decision",
+        schema: REFUND_OUTPUT_SCHEMA,
+      },
     },
   };
   await assert.rejects(
@@ -352,8 +364,14 @@ test("persistent Laya runner sends fixed pins and reuses one warmed process", as
   assert.equal(fake.messages.length, 3);
   assert.equal(fake.messages[0].sourceRevision, LAYA_CODE_REVISION);
   assert.equal(fake.messages[0].checkpointRevision, LAYA_CHECKPOINT_REVISION);
-  assert.deepEqual(fake.messages[0].checkpointFilesSha256, LAYA_CHECKPOINT_FILES_SHA256);
-  assert.equal(fake.messages[0].probabilityTransform, LAYA_PUBLIC_PROBABILITY_TRANSFORM);
+  assert.deepEqual(
+    fake.messages[0].checkpointFilesSha256,
+    LAYA_CHECKPOINT_FILES_SHA256,
+  );
+  assert.equal(
+    fake.messages[0].probabilityTransform,
+    LAYA_PUBLIC_PROBABILITY_TRANSFORM,
+  );
   assert.equal(fake.calls[0].options.env.HF_HUB_OFFLINE, "1");
   assert.equal(fake.calls[0].options.env.TRANSFORMERS_OFFLINE, "1");
   assert.equal(fake.calls[0].options.env.PYTHONDONTWRITEBYTECODE, "1");
@@ -387,7 +405,9 @@ test("Laya runner kills an aborted request and bounds subprocess stderr", async 
   });
   const controller = new globalThis.AbortController();
   const pending = runner.choose(LAYA_REQUEST, controller.signal);
-  await new Promise((resolvePromise) => globalThis.setImmediate(resolvePromise));
+  await new Promise((resolvePromise) =>
+    globalThis.setImmediate(resolvePromise),
+  );
   controller.abort();
   await assert.rejects(pending, assertLiveError("process-failure"));
   assert.equal(hanging.killed, true);
@@ -415,7 +435,9 @@ test("Laya runner kills an aborted request and bounds subprocess stderr", async 
 });
 
 test("Laya Python verifier accepts only an exact checkpoint file set and hashes", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "semantscript-laya-worker-test-"));
+  const temporary = mkdtempSync(
+    join(tmpdir(), "semantscript-laya-worker-test-"),
+  );
   try {
     const snapshot = join(temporary, LAYA_CHECKPOINT_REVISION);
     mkdirSync(join(snapshot, "encoder"), { recursive: true });
@@ -429,7 +451,9 @@ test("Laya Python verifier accepts only an exact checkpoint file set and hashes"
     const manifest = {};
     for (const [relativePath, content] of Object.entries(contents)) {
       writeFileSync(join(snapshot, relativePath), content);
-      manifest[relativePath] = createHash("sha256").update(content).digest("hex");
+      manifest[relativePath] = createHash("sha256")
+        .update(content)
+        .digest("hex");
     }
     const worker = LAYA_WORKER_PATH;
     const script = [
@@ -466,7 +490,10 @@ test("Laya Python verifier accepts only an exact checkpoint file set and hashes"
 
 test("Laya worker pins the inspected public API and documents probability conversion", () => {
   const source = readFileSync(LAYA_WORKER_PATH, "utf8");
-  assert.match(source, /laya\.load\(str\(checkpoint_path\), device=device, fast=False\)/);
+  assert.match(
+    source,
+    /laya\.load\(str\(checkpoint_path\), device=device, fast=False\)/,
+  );
   assert.match(source, /agent\.predict\(question, questions\)/);
   assert.match(source, /not raw logits/);
   assert.match(source, /--untracked-files=all/);
@@ -518,3 +545,119 @@ function fakeSpawn(handler) {
     },
   };
 }
+
+test("OpenRouter route sends the pinned model with its route prefix as a bearer request and strips it from the response", async () => {
+  const apiKey = "sk-or-test-not-a-real-secret";
+  let captured;
+  const transport = createLiveOpenRouterAnthropicTransport({
+    apiKey,
+    fetchImplementation: async (url, init) => {
+      captured = { url: String(url), init };
+      return jsonResponse({
+        id: "gen-test",
+        type: "message",
+        role: "assistant",
+        model: "anthropic/claude-sonnet-5",
+        stop_reason: "end_turn",
+        content: [
+          {
+            type: "text",
+            text: '{"decision":"deny","probabilities":{"approve":0.1,"deny":0.8,"review":0.1}}',
+          },
+        ],
+        usage: { input_tokens: 1, output_tokens: 1, cost: 0.000001 },
+        provider: "Claude Platform on AWS",
+      });
+    },
+  });
+  assert.deepEqual(transport.executionBackend, {
+    kind: "anthropic-api",
+    apiVersion: ANTHROPIC_API_VERSION,
+    endpoint: "https://openrouter.ai/api",
+    placement: "provider-managed",
+  });
+  const result = await transport.generate(
+    {
+      model: "claude-sonnet-5",
+      maxTokens: 256,
+      system: "fixed system",
+      messages: [{ role: "user", content: "fixed input" }],
+      outputConfig: {
+        format: {
+          type: "json_schema",
+          name: "refund_decision",
+          schema: REFUND_OUTPUT_SCHEMA,
+        },
+      },
+    },
+    new globalThis.AbortController().signal,
+  );
+  const url = new globalThis.URL(captured.url);
+  assert.equal(url.origin, "https://openrouter.ai");
+  assert.equal(url.pathname, "/api/v1/messages");
+  assert.equal(captured.init.headers.authorization, `Bearer ${apiKey}`);
+  assert.equal(Object.hasOwn(captured.init.headers, "x-api-key"), false);
+  assert.equal(
+    captured.init.headers["anthropic-version"],
+    ANTHROPIC_API_VERSION,
+  );
+  const body = JSON.parse(captured.init.body);
+  assert.equal(body.model, "anthropic/claude-sonnet-5");
+  assert.deepEqual(Object.keys(body).sort(), [
+    "max_tokens",
+    "messages",
+    "model",
+    "output_config",
+    "system",
+  ]);
+  assert.deepEqual(body.output_config, {
+    format: { type: "json_schema", schema: REFUND_OUTPUT_SCHEMA },
+  });
+  assert.deepEqual(result, {
+    model: "claude-sonnet-5",
+    stopReason: "end_turn",
+    output: {
+      decision: "deny",
+      probabilities: { approve: 0.1, deny: 0.8, review: 0.1 },
+    },
+  });
+});
+
+test("OpenRouter route never copies the key into errors and needs a key", async () => {
+  const apiKey = "sk-or-do-not-leak-this-value";
+  const failing = createLiveOpenRouterAnthropicTransport({
+    apiKey,
+    fetchImplementation: async () =>
+      jsonResponse({ error: { message: apiKey } }, { status: 401 }),
+  });
+  await assert.rejects(
+    failing.generate(
+      {
+        model: "claude-sonnet-5",
+        maxTokens: 256,
+        system: "system",
+        messages: [{ role: "user", content: "input" }],
+        outputConfig: {
+          format: {
+            type: "json_schema",
+            name: "refund_decision",
+            schema: REFUND_OUTPUT_SCHEMA,
+          },
+        },
+      },
+      new globalThis.AbortController().signal,
+    ),
+    (error) =>
+      error instanceof LiveTransportError && !error.message.includes(apiKey),
+  );
+  const previous = process.env.OPENROUTER_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
+  try {
+    assert.throws(
+      () => createLiveOpenRouterAnthropicTransport(),
+      assertLiveError("configuration"),
+    );
+  } finally {
+    if (previous !== undefined) process.env.OPENROUTER_API_KEY = previous;
+  }
+});

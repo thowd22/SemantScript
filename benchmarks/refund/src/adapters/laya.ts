@@ -23,8 +23,10 @@ import {
 
 export const LAYA_CHECKPOINT = REFUND_SYSTEM_PINS.laya.model.name;
 export const LAYA_CHECKPOINT_REVISION = REFUND_SYSTEM_PINS.laya.model.revision;
-export const LAYA_CHECKPOINT_SHA256 = REFUND_SYSTEM_PINS.laya.model.artifactSha256;
-export const LAYA_CODE_REVISION = "d120d4ba220711b93c171973118753460310e16b" as const;
+export const LAYA_CHECKPOINT_SHA256 =
+  REFUND_SYSTEM_PINS.laya.model.artifactSha256;
+export const LAYA_CODE_REVISION =
+  "d120d4ba220711b93c171973118753460310e16b" as const;
 
 export interface LayaChoiceRequest {
   readonly checkpoint: typeof LAYA_CHECKPOINT;
@@ -44,7 +46,10 @@ export interface LayaChoiceResponse {
 
 export interface LayaRunner {
   readonly device: "cpu" | "cuda";
-  choose(request: LayaChoiceRequest, signal: AbortSignal): Promise<LayaChoiceResponse>;
+  choose(
+    request: LayaChoiceRequest,
+    signal: AbortSignal,
+  ): Promise<LayaChoiceResponse>;
 }
 
 export interface LayaAdapterOptions {
@@ -56,7 +61,9 @@ export interface LayaAdapterOptions {
 export function createLayaAdapter(
   options: LayaAdapterOptions,
 ): RefundBaselineAdapter<"laya"> {
-  const timeoutMs = validateTimeout(options.timeoutMs ?? DEFAULT_BASELINE_TIMEOUT_MS);
+  const timeoutMs = validateTimeout(
+    options.timeoutMs ?? DEFAULT_BASELINE_TIMEOUT_MS,
+  );
   const model = pinnedModelProvenance(options.model, {
     provider: "huggingface",
     name: LAYA_CHECKPOINT,
@@ -81,7 +88,10 @@ export function createLayaAdapter(
     support: REFUND_SUPPORT,
     applyCheckpointCalibration: true,
   });
-  const provenance = adapterProvenance("refund-laya-typed-decisions", configuration);
+  const provenance = adapterProvenance(
+    "refund-laya-typed-decisions",
+    configuration,
+  );
 
   return Object.freeze({
     role: "laya",
@@ -90,13 +100,18 @@ export function createLayaAdapter(
     taskSpecSha256: REFUND_TASK_SPEC_SHA256,
     trainingEvidence: null,
     resolveExecutionBackend(): Promise<LayaExecutionBackend> {
-      return Promise.resolve(Object.freeze({
-        kind: "laya",
-        runtime: "python",
-        device: options.runner.device,
-      }));
+      return Promise.resolve(
+        Object.freeze({
+          kind: "laya",
+          runtime: "python",
+          device: options.runner.device,
+        }),
+      );
     },
-    async predict(inputs: RefundInputs, signal?: AbortSignal): Promise<BaselinePrediction> {
+    async predict(
+      inputs: RefundInputs,
+      signal?: AbortSignal,
+    ): Promise<BaselinePrediction> {
       const prompt = buildRefundPrompt(inputs);
       const request: LayaChoiceRequest = Object.freeze({
         checkpoint: LAYA_CHECKPOINT,
@@ -118,7 +133,10 @@ export function createLayaAdapter(
         "selectedIndex",
         "logits",
       ]);
-      assertExactRevision(responseRecord["checkpointRevision"], LAYA_CHECKPOINT_REVISION);
+      assertExactRevision(
+        responseRecord["checkpointRevision"],
+        LAYA_CHECKPOINT_REVISION,
+      );
       return predictionFromLogits(
         responseRecord["selectedIndex"],
         responseRecord["logits"],

@@ -36,7 +36,11 @@ export function createProcessRssSampler(
   options: ProcessRssSamplerOptions = {},
 ): PeakMemorySampler {
   const intervalMs = options.intervalMs ?? 10;
-  if (!Number.isSafeInteger(intervalMs) || intervalMs < 1 || intervalMs > 60_000) {
+  if (
+    !Number.isSafeInteger(intervalMs) ||
+    intervalMs < 1 ||
+    intervalMs > 60_000
+  ) {
     throw new RangeError("intervalMs must be an integer from 1 through 60000");
   }
 
@@ -48,7 +52,8 @@ export function createProcessRssSampler(
     scope: "client-only",
     async start(signal: AbortSignal): Promise<void> {
       if (running) throw new Error("process RSS sampler is already running");
-      if (signal.aborted) throw new Error("process RSS sampling was aborted before start");
+      if (signal.aborted)
+        throw new Error("process RSS sampling was aborted before start");
       running = true;
       workerFailure = undefined;
       const nextWorker = new Worker(RSS_WORKER_SOURCE, {
@@ -70,7 +75,11 @@ export function createProcessRssSampler(
           };
           const onExit = (code: number): void => {
             cleanup();
-            rejectReady(new Error(`process RSS sampler worker exited with code ${String(code)}`));
+            rejectReady(
+              new Error(
+                `process RSS sampler worker exited with code ${String(code)}`,
+              ),
+            );
           };
           const cleanup = (): void => {
             nextWorker.off("message", onMessage);
@@ -105,40 +114,50 @@ export function createProcessRssSampler(
       const activeWorker = worker;
       try {
         if (workerFailure !== undefined) throw workerFailure;
-        const peakBytes = await new Promise<number>((resolvePeak, rejectPeak) => {
-          const onMessage = (message: unknown): void => {
-            if (!isWorkerMessage(message, "stopped")) return;
-            const value = message["peakBytes"];
-            cleanup();
-            if (!Number.isSafeInteger(value) || (value as number) < 0) {
-              rejectPeak(new TypeError("process RSS sample must be a non-negative safe integer"));
-              return;
-            }
-            resolvePeak(value as number);
-          };
-          const onError = (error: Error): void => {
-            cleanup();
-            rejectPeak(error);
-          };
-          const onExit = (code: number): void => {
-            cleanup();
-            rejectPeak(new Error(`process RSS sampler worker exited with code ${String(code)}`));
-          };
-          const cleanup = (): void => {
-            clearTimeout(timer);
-            activeWorker.off("message", onMessage);
-            activeWorker.off("error", onError);
-            activeWorker.off("exit", onExit);
-          };
-          const timer = setTimeout(() => {
-            cleanup();
-            rejectPeak(new Error("process RSS sampler worker did not stop"));
-          }, 5_000);
-          activeWorker.on("message", onMessage);
-          activeWorker.once("error", onError);
-          activeWorker.once("exit", onExit);
-          activeWorker.postMessage("stop");
-        });
+        const peakBytes = await new Promise<number>(
+          (resolvePeak, rejectPeak) => {
+            const onMessage = (message: unknown): void => {
+              if (!isWorkerMessage(message, "stopped")) return;
+              const value = message["peakBytes"];
+              cleanup();
+              if (!Number.isSafeInteger(value) || (value as number) < 0) {
+                rejectPeak(
+                  new TypeError(
+                    "process RSS sample must be a non-negative safe integer",
+                  ),
+                );
+                return;
+              }
+              resolvePeak(value as number);
+            };
+            const onError = (error: Error): void => {
+              cleanup();
+              rejectPeak(error);
+            };
+            const onExit = (code: number): void => {
+              cleanup();
+              rejectPeak(
+                new Error(
+                  `process RSS sampler worker exited with code ${String(code)}`,
+                ),
+              );
+            };
+            const cleanup = (): void => {
+              clearTimeout(timer);
+              activeWorker.off("message", onMessage);
+              activeWorker.off("error", onError);
+              activeWorker.off("exit", onExit);
+            };
+            const timer = setTimeout(() => {
+              cleanup();
+              rejectPeak(new Error("process RSS sampler worker did not stop"));
+            }, 5_000);
+            activeWorker.on("message", onMessage);
+            activeWorker.once("error", onError);
+            activeWorker.once("exit", onExit);
+            activeWorker.postMessage("stop");
+          },
+        );
         return peakBytes;
       } finally {
         running = false;

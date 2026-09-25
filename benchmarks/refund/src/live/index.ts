@@ -2,8 +2,11 @@ export {
   ANTHROPIC_API_VERSION,
   DEFAULT_ANTHROPIC_BASE_URL,
   MAXIMUM_ANTHROPIC_RESPONSE_BYTES,
+  OPENROUTER_ANTHROPIC_BASE_URL,
   createLiveAnthropicTransport,
+  createLiveOpenRouterAnthropicTransport,
   type LiveAnthropicTransportOptions,
+  type LiveOpenRouterAnthropicTransportOptions,
 } from "./anthropic.js";
 export {
   LiveTransportError,

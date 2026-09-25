@@ -1,11 +1,11 @@
 ---
 id: TASK-14.2
 title: 'semantscript doctor: check and explain the environment before anything runs'
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 18:22'
+updated_date: '2026-09-25 18:29'
 labels:
   - dx
   - install
@@ -23,9 +23,9 @@ Two toolchains have to be right before a build works: Node with the native ONNX 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 semantscript doctor reports, one line each with pass or fail and the fix, the Node version, the native runtime bindings for this platform, the Python interpreter the CLI will use, the trainer and model packages and their versions, PyTorch and the device it will train on (CUDA, ROCm, MPS or CPU) with its memory, ONNX Runtime, the teacher configuration (file found, key present in the environment, one-request probe succeeded), and any platform environment the run needs
-- [ ] #2 init runs doctor at the end and train runs its Python and teacher checks first, so a missing piece fails in seconds with the fix named instead of failing minutes into a run
-- [ ] #3 Windows, macOS and Linux (including WSL with ROCm) each have a doctor run recorded in the docs
+- [x] #1 semantscript doctor reports, one line each with pass or fail and the fix, the Node version, the native runtime bindings for this platform, the Python interpreter the CLI will use, the trainer and model packages and their versions, PyTorch and the device it will train on (CUDA, ROCm, MPS or CPU) with its memory, ONNX Runtime, the teacher configuration (file found, key present in the environment, one-request probe succeeded), and any platform environment the run needs
+- [x] #2 init runs doctor at the end and train runs its Python and teacher checks first, so a missing piece fails in seconds with the fix named instead of failing minutes into a run
+- [x] #3 Windows, macOS and Linux (including WSL with ROCm) each have a doctor run recorded in the docs
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -77,4 +77,16 @@ FIX round 3 (commits d4cca44, 0a44d41; CI runs 36172123828 and 36172601064 green
 - Tests: test_windows_fix_lines_use_powershell_and_cmd_syntax (text), and two tests that run each fix in real powershell.exe and cmd.exe and check the variables afterwards (run here via WSL interop, and in a new pwsh step on the windows-latest runner: 3 passed). That step also runs doctor in PowerShell with the venv activated.
 - Advisory fixed: pip fix uses double quotes (works in bash, PowerShell, cmd); the venv hint says 'set the SEMANTSCRIPT_PYTHON environment variable to <venv>' (shell-neutral); the CI default-interpreter step now asserts exit 1 and the venv hint instead of '|| echo'; environment.md: Windows fix-line section, 'Not yet observed' now says the teacher checks never ran on Windows/macOS and which shells were used, re-recorded user-site WSL run and the Windows/macOS CI runs, 'quarter of a second' wording, note that the first WSL run predates the reworded platform-env note; diagnostics, teachers, CONTRIBUTING updated.
 - Checks: build 0; lint:node 0; lint:python clean; test:node all suites 0 fail (cli 17/17); test:python 547 passed 4 skipped; prettier clean.
+
+FINALIZE validation (2026-09-25, HEAD 3b9bd17):
+- Build 0, lint:node 0, lint:python clean (101 files), prettier clean on docs/README/cli/trainer READMEs; test:node 5 suites 0 fail (89/105/17/8/85); pytest test_doctor.py+test_cli.py 28 passed; -k windows_fix_lines 3 passed via WSL interop (real powershell.exe and cmd.exe).
+- AC1: real doctor on WSL2+ROCm with an Ollama qwen2.5:1.5b-instruct-q4_K_M teacher (free probe): 12 passed, exit 0, one line per check (node, runtime-bindings, python, trainer, model, torch, device 'ROCm AMD Radeon RX 9070 XT 15.8 GiB total', onnxruntime, platform-env, teacher-config, teacher-key, teacher-probe 36 in/2 out tokens). With a wrong model tag the probe failed with 'fix: ollama pull <model>'; with the user site on, platform-env failed with 'fix: export PYTHONNOUSERSITE=1; add it to the shell profile ...'.
+- AC2: train with an OpenRouter teacher and no key stopped at teacher-key after 4.9 s, exit 1, 'stopped before training'; train with --python /nonexistent/python stopped in 0.0 s preflight with the python fix; init in a scratch tsc project printed 'environment (semantscript doctor):' with all lines and kept exit 0.
+- AC3: docs/environment.md records doctor runs for Linux WSL2+ROCm (local), Linux Ubuntu CI, Windows native (windows-latest, Git Bash and PowerShell) and macOS (macos-latest arm64) from CI run 36172123828 (all 6 jobs success; gh run view confirms doctor totals per step). Caveat, stated in the doc's 'Not yet observed': Windows and macOS runs are hosted CI runners with --no-teacher and no GPU; no cmd.exe doctor run.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added semantscript doctor (cli/src/doctor.ts + trainer/src/semantscript_trainer/doctor.py): one pass/warn/fail/skip line per check with the fix, covering Node, native bindings, Python, trainer/model, torch and its device with memory, ONNX Runtime, platform variables (PYTHONNOUSERSITE, HSA_ENABLE_DXG_DETECTION, detected by retrying the imports), and the teacher config/key/probe, with Windows-correct PowerShell and cmd fix lines. train and dev run the Python and teacher checks as a preflight (--no-preflight), init ends with doctor (--no-doctor). CI runs doctor in fresh-install, the Python job and on windows-latest and macos-latest. docs/environment.md records runs on WSL2+ROCm, Ubuntu, Windows and macOS. Verified with build, lint, test:node, pytest, real doctor/train/init runs on this machine, and CI run 36172123828.
+<!-- SECTION:FINAL_SUMMARY:END -->

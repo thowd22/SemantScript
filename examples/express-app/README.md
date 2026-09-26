@@ -64,7 +64,9 @@ git-ignored: `backend = "anthropic"`, `model = "anthropic/claude-sonnet-5"`,
 The release this example serves is `217d386c…`, published 2026-09-26T00:48Z
 from the reduced-prompt datasets (below) at seed 5, before the
 [held-out constraint check](../../docs/training-pipeline.md#held-out-constraint-check)
-existed:
+existed. `.semantscript` is git-ignored (`examples/*/.semantscript/`), so a
+clone has no trained release: this one exists on the development machine, and
+the figures below describe it, not what a clone's own `train` will publish.
 
 ```sh
 semantscript train --teacher .semantscript/teacher.toml --cases 192 --epochs 8 --seed 5 \
@@ -91,7 +93,9 @@ demonstration, not as the refund policy.
 ### No retrain from the cached datasets passes the held-out check
 
 `.semantscript/cache` holds the reduced-prompt datasets (refund `caa8e895…`
-with adversarial set `fde84ed3…`, triage `2cbfbe07…`), so any change to the
+with adversarial set `6833e7fc…`, triage `59f21134…`: the content sha256 that
+the train report and `explain` print; the cache files are keyed
+`789d3df6…`, `fde84ed3…` and `2cbfbe07…`), so any change to the
 seed, epochs, learning rate, batch size or head retrains at no teacher cost.
 On 2026-09-26 (RX 9070 XT) the recipe above ran at seeds 1 to 10 with
 `--seed-attempts 1`, and then the training-only variants below. Every run
@@ -143,11 +147,16 @@ list of 2026-09-25:
 
 | Route                                                                                                             | What regenerates                                                   | Requests        | USD             |
 | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------- | --------------- |
-| Gold examples for stale orders in `src/refunds.sem.ts` (the check's suggested fix)                                | the refund dataset (its function id changes); triage stays cached  | 401 (max 1320)  | 0.81 (max 2.67) |
+| Gold examples for stale orders in `src/refunds.sem.ts` (constraint 0 only)                                        | the refund dataset (its function id changes); triage stays cached  | 401 (max 1320)  | 0.81 (max 2.67) |
 | `--cases 384`                                                                                                     | both datasets                                                      | 1192 (max 3069) | 2.02 (max 5.71) |
 | A `constraints` teacher with this OpenRouter teacher as `[teacher.fallback]` ([teachers](../../docs/teachers.md)) | both datasets; the constraints label the refund inputs they decide | 271 (max 457)   | 0.39 (max 0.78) |
 
-None of them has been run, and none is known to pass: each needs an approved
+The gold-example route is not the check's own advice: its `next:` line names
+one `examples` entry for one broken constraint, and in 14 of the 27 runs,
+the best one among them, that was constraint 3, 2 or 4, not 0. Stale-order examples address
+constraint 0 only (6 of the 20 inputs the best run broke), so they are
+unlikely to close the gap on their own. None of them has been run, and none
+is known to pass: each needs an approved
 budget, and the verified accuracy and held-out rate of the result are
 measured only by running it. Pass `--max-cost-usd` to bound the run.
 
@@ -291,8 +300,10 @@ accepting that 3 of the 586 records the release was trained and verified on
 (1 `decideRefund`, 2 `triage`; none of the gold examples) get a different
 answer than from the float32 release. That is a decision for the application
 owner, and the manifest records it (`releases show` prints it). The check has
-no held-out set yet: one joins once the release gate records a held-out set
-for the release. Then `semantscript releases promote <digest>` and
+no held-out set: since the
+[held-out constraint check](../../docs/training-pipeline.md#held-out-constraint-check)
+the train report records a held-out sample (`verification.heldOutConstraints`),
+but `releases derive --int8` does not verify on it yet. Then `semantscript releases promote <digest>` and
 `semantscript package` again ship it; promoting `217d386c` goes back.
 
 Without that tolerance, ship the trained release as a container:

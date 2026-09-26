@@ -189,7 +189,13 @@ For this tutorial's expression a teacher must read the text (its constraints
 do not cover every input: `--teacher constraints` stops with one such input
 and the outputs the constraints admit), so the first two routes apply, or the
 constraints with a language-model `[teacher.fallback]` for the inputs they
-leave open ([teachers](teachers.md)). With a key:
+leave open ([teachers](teachers.md)). Before paying for a run, know that
+this expression has not yet passed the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+at this size: 27 retrains of it at 192 cases and 8 to 32 epochs all failed
+it (details below), so a run at `--cases 200 --epochs 4` will very likely end
+with `train failed` and no release, and step 5 then has nothing to test.
+Check `--estimate` first and budget for more cases or `examples`. With a key:
 
 ```sh
 npx semantscript train --cases 200 --epochs 4 --device cuda
@@ -207,8 +213,9 @@ verifies the gold example and the constraints, and publishes
 then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases.
 
-What a pass on this expression looks like, and what it does not guarantee:
-the Express example's own release, `217d386c` (2026-09-26, Sonnet 5 through
+What the Express example's own release shows (it exists on the development
+machine only: `examples/*/.semantscript/` is git-ignored): `217d386c`
+(2026-09-26, Sonnet 5 through
 OpenRouter, `--cases 192 --epochs 8 --seed 5 --select-best-epoch
 --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01`), verified
 `decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus

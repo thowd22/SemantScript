@@ -124,36 +124,26 @@ no source change, so run the derive and promote steps again after each train
 before packaging. The
 [CLI reference](cli-reference.md#releases-derive---int8) lists the flags.
 
-The Express example's trained release `0fd67142` is the worked case (on the
+The Express example's trained release `f1d1aaac` is the worked case (on the
 development machine only: `examples/*/.semantscript/` is git-ignored, so a
-clone has no trained release). It was trained at seed 1 by a constraints
+clone has no trained release). It was trained at seed 3 by a constraints
 teacher with Sonnet 5 through OpenRouter as its fallback (`--cases 384
---epochs 16 --select-best-epoch`, USD 0.96) and verified `decideRefund` at
-accuracy 0.9872, ECE 0.0087, 0 of 778 corpus violations and 4 of 512
-held-out inputs (`triage` 1.0000, ECE 0.0000); `semantscript releases list`
-prints `0fd67142d16f`, `2/2 passed`, `0.9872`, `0.0087`, `0`, and its
-[README](../examples/express-app/README.md#the-release-on-disk) has the
-recipe. Its bundle measured 685,637,515 bytes (653.9 MiB) on 2026-09-26,
+--epochs 16 --select-best-epoch`, USD 1.20 over two runs) and verified
+`decideRefund` at accuracy 0.9871, ECE 0.0117, 1 of 778 corpus violations and
+2 of 512 held-out inputs (`triage` 1.0000, ECE 0.0000); `semantscript
+releases list` prints `f1d1aaac9d63`, `2/2 passed`, `0.9871`, `0.0117`, `1`,
+and its [README](../examples/express-app/README.md#the-release-on-disk) has
+the recipe. Its bundle measured 685,639,430 bytes (653.9 MiB) on 2026-09-26,
 403.9 MiB over `lambda-zip`. Depth routing alone leaves it over (the
-dependencies stay). `releases derive --int8` measured it on 2026-09-26 on
-1,162 records (6 attested), on CPU, next to the release it replaced,
-`217d386c` (586 records; it predates the held-out check and denied none of
-the stale orders the policy denies):
-
-| Release    | Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                                        |
-| ---------- | ------------------------------------------------- | ----------------- | ---------------- | -------------- | ----------------------------------------------------------------------------- |
-| `0fd67142` | `--per-channel`                                   | 0 of 1,162        | 0                | 0.0047         | published as `c7534774`; bundle 239,712,504 B (228.6 MiB), fits with 21.4 MiB |
-| `217d386c` | default                                           | 6 of 586 (1.02%)  | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                                   |
-| `217d386c` | `--per-channel`                                   | 3 of 586 (0.51%)  | 0                | 0.0914         | refused: decisions changed                                                    |
-| `217d386c` | `--per-channel --max-decision-change-rate 0.0052` | 3 of 586 (0.51%)  | 0                | 0.0914         | published as `f8e22cae`; bundle 239,708,539 B (228.6 MiB), fits with 21.4 MiB |
-
-So the Express int8 release passes the strict gate with `--per-channel` and
-fits `lambda-zip` with no recorded tolerance; the packaged Lambda handler
-answered from that bundle, and `semantscript explain` on it denied the same
-16 stale orders as the float32 release. The previous release fitted only
-under a recorded tolerance of 0.52% changed decisions, which would have been
-the application owner's call. Without int8, the release ships as a container
-unless a smaller encoder is trained
+dependencies stay). `releases derive --int8` measured the lever on its
+predecessor `0fd67142` on 2026-09-26 (1,162 records, 6 attested, on CPU):
+with `--per-channel` it changed 0 of 1,162 decisions (worst int8 ECE 0.0047)
+and packaged to 239,712,504 bytes (228.6 MiB), inside `lambda-zip` with 21.4
+MiB spare, where the release before that, `217d386c`, changed 3 of 586
+(0.51%) and fitted only under a recorded tolerance. The example does not ship
+the int8 release: the derivation check does not yet cover the release gate's
+held-out sample, and one float32 release is the simpler thing to reason
+about, so it ships as a container
 ([example README](../examples/express-app/README.md#deploying-with-the-artifact)).
 
 ## Containers

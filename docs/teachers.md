@@ -267,7 +267,8 @@ to the fallback (7 of its 381 synthetic cases), and 381 (USD 0.75) for
 `triage`, which has no constraints. No counterfactual twin failed, and the
 release passed the
 [held-out constraint check](training-pipeline.md#held-out-constraint-check)
-(4 of 512) on its first seed
+(4 of 512 on its first seed at a 240-day range; the release the example
+serves, `f1d1aaac`, trained at a 730-day range, broke 2 of 512)
 ([example README](../examples/express-app/README.md#the-release-on-disk)).
 
 Whatever the teacher, verification reproduces every gold example exactly and

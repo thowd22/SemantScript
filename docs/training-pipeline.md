@@ -136,7 +136,10 @@ the same datasets found no passing run: the best broke 20 of 512 (3.9%); its
 lists every run. A new dataset from the constraints teacher with a Sonnet 5
 fallback (`--cases 384 --epochs 16`, USD 0.96) passed at 4 of 512 on its first
 seed and published `0fd67142`, which denies paid and fraudulent orders at
-100 to 200 days; its residual errors are listed in the example's README.
+100 to 200 days but not fraudulent ones past its 240-day range; with the
+range widened to 730 days (USD 0.24 more) seed 3 published `f1d1aaac` at 2 of
+512, which denies them out to 1,000 days. The example's README lists every
+run.
 
 When the active constraints require exactly one output for the first
 offending input, the fix is that input as an `examples` entry

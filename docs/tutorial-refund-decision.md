@@ -260,13 +260,13 @@ also reports the changed function missing from the release; apply the
 retrains on the same cached dataset.
 
 What the Express example's own release shows (it exists on the development
-machine only: `examples/*/.semantscript/` is git-ignored): `0fd67142`
-(2026-09-26, that TOML and command, with `--max-cost-usd 12`, on an RX 9070 XT, with Sonnet 5
-through OpenRouter as the fallback; 478 requests, USD 0.96, about 30
-minutes), verified `decideRefund` at accuracy 0.9872, ECE 0.0087, 0 of 778
-corpus violations and 4 of 512 held-out inputs (0.78%, against a 1%
-tolerance), and it answers `deny` for paid and fraudulent orders at 100 to
-200 days for both tiers. Its predecessor `217d386c`, labelled by the language
+machine only: `examples/*/.semantscript/` is git-ignored): `f1d1aaac`
+(2026-09-26, that TOML with the range widened to 730 days and that command,
+on an RX 9070 XT, with Sonnet 5 through OpenRouter as the fallback; 573
+requests over two runs, USD 1.20, about an hour), verified `decideRefund` at
+accuracy 0.9871, ECE 0.0117, 1 of 778 corpus violations and 2 of 512 held-out
+inputs (0.39%, against a 1% tolerance), and it answers `deny` for paid and
+fraudulent orders at 100 to 1,000 days for both tiers. Its predecessor `217d386c`, labelled by the language
 model alone at 192 cases, answered `approve` for those paid orders, and no
 retrain from its cached datasets passed the check: seeds 1 to 10 broke 28 to
 109 of 512 held-out inputs (5.5% to 21.3%) and the best training-only variant
@@ -338,10 +338,10 @@ The server loads the artifact once at startup with `loadSemaArtifact()` and
 no path. The rest of this step is the development machine's output, not
 yours: a clone has no trained release, and your own `train` either published
 one that passed the held-out check or published nothing. The example's
-release `0fd67142` packages to 653.9 MiB (570.9 MiB of it the float32
-artifact, 82.7 MiB `node_modules`) with `semantscript package`, and its int8
-derivation `c7534774` to 228.6 MiB ([deploy](deploy.md)). `semantscript
-test` prints `4/512` in its `held-out` column and `1` in its `seed` column,
+release `f1d1aaac` packages to 653.9 MiB (570.9 MiB of it the float32
+artifact, 82.7 MiB `node_modules`) with `semantscript package`; int8 is an
+optional lever it does not ship ([deploy](deploy.md)). `semantscript
+test` prints `2/512` in its `held-out` column and `3` in its `seed` column,
 and a paid order at 100 days gets the answer the 90-day rule requires:
 
 ```sh

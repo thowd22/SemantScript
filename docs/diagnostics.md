@@ -508,7 +508,7 @@ semantscript explain dist/refunds.sem.js --call decideRefund \
 ```
 
 Against the Express example's earlier release `217d386c`, this printed
-(abridged; its successor `0fd67142` answers `"deny"` at 0.9315):
+(abridged; the release it serves now, `f1d1aaac`, answers `"deny"` at 0.9906):
 
 ```text
 call 1: nf_957c2b2b… (src/refunds.sem.ts:21)

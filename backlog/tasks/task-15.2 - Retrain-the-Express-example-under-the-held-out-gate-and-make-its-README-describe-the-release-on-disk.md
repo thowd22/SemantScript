@@ -7,7 +7,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 19:09'
+updated_date: '2026-09-26 19:40'
 labels:
   - dx
   - example
@@ -99,6 +99,8 @@ Not done (advisory, would need a new paid run and re-review): widen [teacher.ran
 Checks: npm run lint:node clean; npm test -w compiler 89/89; npm test -w cli 66/66; npx prettier --check docs README.md examples/express-app/README.md clean.
 
 Finalize validation 2026-09-26 (worktree, release 0fd67142 current): semantscript explain dist/refunds.sem.js --call decideRefund over standard/enterprise x paid/fraudulent x 100/120/150/200 days (priorRefunds 0, total 100) answered deny 16 of 16, 90-day rule satisfied on each (AC1). semantscript releases show 0fd67142 and semantscript test: decideRefund passed, accuracy 0.9872, ECE 0.0087, corpus violations 0, held-out 4/512 (0.78%, gate 1%), seed 1; triage 1.0000; test passed. releases list: current 0fd67142d16f 2/2 passed 0.9872/0.0087/0 violations, int8 c7534774 0 of 1162 changed. Dataset is teacher-generated under the user's approved spend (constraints+anthropic, 478 requests, USD 0.96423), not cached; AC1 wording covers this. AC2: README, tutorial and deploy.md quote 0fd67142, seed 1, 0.9872, 0.0087, 0 corpus violations, 4 of 512 held-out, 570.9 MiB artifact (du -sb 598,680,461 B), 653.9 MiB package, c7534774 228.6 MiB; releases list agrees. npm run lint:node clean; npm test -w cli 66/0; npm test -w compiler 89/0; prettier --check docs README.md examples/express-app/README.md clean. Total teacher spend for the task USD 0.96.
+
+2026-09-26 follow-up under the user's approved budget (orchestrator, main checkout): the 0..240-day teacher range left fraudulent orders at 365 and 730 days answering review on 0fd67142, so the range was widened to 0..730 in .semantscript/teacher-constraints.toml and the same command rerun. Seed 1 (95 teacher requests, 383 replayed from the journal, USD 0.24): release 8157e95b, refund accuracy 0.9936, ECE 0.0109, corpus violations 2 of 778, held-out 5 of 512 (0.98%), passed. Seeds 2 and 3 from the cached datasets (USD 0): seed 2 failed (4 of 778, 21 of 512); seed 3 published f1d1aaac, accuracy 0.9871, ECE 0.0117, Brier 0.0146, pair consistency 0.9948, corpus violations 1 of 778, held-out 2 of 512 (0.39%). f1d1aaac is current (chosen for rule adherence on unseen inputs); a 32-point explain grid (both tiers x paid/fraudulent x 100/120/150/200/300/365/730/1000 days) answers deny everywhere. Per the user's 'keep it simple, accuracy is paramount' decision the int8 releases (c7534774, f8e22cae) and the superseded float32 releases were pruned; the docs now describe releases derive --int8 as an optional lever only. Bundle: 685,639,430 B (653.9 MiB), release 598,680,483 B, encoder 596,679,464 B. Task spend total USD 1.20 (0.96 + 0.24).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

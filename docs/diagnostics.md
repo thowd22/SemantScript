@@ -195,6 +195,18 @@ message that starts with one of `POINTER_INVALID`, `RELEASE_NOT_FOUND`,
 `RELEASE_INVALID`. The [CLI reference](cli-reference.md#releases) gives each
 cause; nothing is changed when one is reported.
 
+## Packaging errors
+
+`semantscript package` fails with exit status 1 and a message that starts
+with one of `PACKAGE_NO_PROJECT`, `PACKAGE_NO_DIST`, `PACKAGE_NO_RELEASE`,
+`PACKAGE_OUT_EXISTS`, `PACKAGE_INCLUDE_MISSING`, `PACKAGE_INSTALL_FAILED`,
+`PACKAGE_NO_BINDING` or `PACKAGE_BINDING_LOAD_FAILED`, or with the release
+codes above when the current release fails the checks `releases promote`
+applies; the output directory is left as it was. `PACKAGE_OVER_TARGET` also
+exits 1 but writes the bundle and lists the size levers that would fit. The
+[CLI reference](cli-reference.md#package) gives each cause and
+[Deploying](deploy.md#the-size-levers) the levers.
+
 ## Runtime errors
 
 Compiled calls throw typed errors with a `code`. All are synchronous from the

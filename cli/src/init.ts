@@ -619,26 +619,51 @@ function addPackages(
   };
 }
 
+/**
+ * The `.semantscript/` paths that are build outputs, never sources: the
+ * trained artifact, the build cache, the `package` bundle and its staging
+ * directories.
+ */
+const RESERVED_OUTPUTS = [
+  "artifact/",
+  "cache/",
+  "package/",
+  ".package-staging-*/",
+] as const;
+
 function reserveArtifactDirectory(root: string): Outcome {
   const directory = join(root, ".semantscript");
   const ignorePath = join(directory, ".gitignore");
   const file = relative(root, ignorePath);
   if (existsSync(ignorePath)) {
+    const existing = readFileSync(ignorePath, "utf8");
+    const lines = new Set(existing.split(/\r?\n/u).map((line) => line.trim()));
+    const missing = RESERVED_OUTPUTS.filter((entry) => !lines.has(entry));
+    if (missing.length === 0) {
+      return {
+        kind: "unchanged",
+        file,
+        what: "artifact, cache and package directories already reserved",
+      };
+    }
+    const separator =
+      existing.length === 0 || existing.endsWith("\n") ? "" : "\n";
+    writeFileSync(ignorePath, `${existing}${separator}${missing.join("\n")}\n`);
     return {
-      kind: "unchanged",
+      kind: "changed",
       file,
-      what: "artifact and cache directories already reserved",
+      what: `also reserves ${missing.map((entry) => `.semantscript/${entry}`).join(", ")}`,
     };
   }
   mkdirSync(directory, { recursive: true });
   writeFileSync(
     ignorePath,
-    "# SemantScript build outputs: the trained artifact and the build cache\nartifact/\ncache/\n",
+    `# SemantScript build outputs: the trained artifact, the build cache and the package bundle\n${RESERVED_OUTPUTS.join("\n")}\n`,
   );
   return {
     kind: "changed",
     file,
-    what: "reserves .semantscript/artifact and .semantscript/cache",
+    what: "reserves .semantscript/artifact, cache and package",
   };
 }
 

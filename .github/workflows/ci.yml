@@ -239,3 +239,64 @@ jobs:
       - name: Container logs
         if: always()
         run: docker logs ticket-api || true
+
+  package:
+    # docs/deploy.md: `semantscript package` writes the deployable directory;
+    # this job builds the Express example's image from that directory alone
+    # and invokes its serverless handler, both on the fixture artifact.
+    name: semantscript package, Docker image and Lambda handler from the bundle
+    env:
+      ONNXRUNTIME_NODE_INSTALL: skip
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Build the Express example with the fixture artifact
+        working-directory: examples/express-app
+        run: |
+          npm install
+          npm run build
+          npm run fixture-artifact
+      # Must fit AWS Lambda's 250 MB unzipped limit: exit 1 otherwise.
+      - name: semantscript package --target lambda-zip
+        working-directory: examples/express-app
+        run: npx --no-install semantscript package --include deploy/lambda.mjs --target lambda-zip
+      - name: Invoke the packaged Lambda handler once
+        working-directory: examples/express-app/.semantscript/package
+        run: |
+          node --input-type=module -e '
+            const { handler } = await import("./deploy/lambda.mjs");
+            const response = await handler({
+              body: JSON.stringify({ subject: "Checkout is down", body: "Every customer sees a 500." }),
+            });
+            console.log("handler ->", JSON.stringify(response));
+            // The loaded runtime keeps its inference worker alive; exit explicitly.
+            process.exit(response.statusCode === 201 && JSON.parse(response.body).priority === "urgent" ? 0 : 1);
+          '
+      - name: Build the image from the bundle
+        working-directory: examples/express-app
+        run: docker build -f deploy/Dockerfile.package -t ticket-api-package .semantscript/package
+      - name: Run the image and send one request
+        run: |
+          docker run -d --name ticket-api-package -p 3000:3000 ticket-api-package
+          # Wait until the server accepts connections (any HTTP status), then
+          # send the one POST /tickets.
+          for attempt in $(seq 1 60); do
+            if curl -sS -o /dev/null localhost:3000/ 2>/dev/null; then break; fi
+            sleep 1
+          done
+          ticket=$(curl -fsS -X POST localhost:3000/tickets \
+            -H 'content-type: application/json' \
+            -d '{"subject":"Checkout is down","body":"Every customer sees a 500."}')
+          echo "POST /tickets -> $ticket"
+          echo "$ticket" | grep -q '"priority":"urgent"'
+          docker image ls ticket-api-package --format 'image size {{.Size}}'
+      - name: Container logs
+        if: always()
+        run: docker logs ticket-api-package || true

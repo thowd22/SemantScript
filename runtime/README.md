@@ -269,3 +269,6 @@ place of `npm ci --omit=dev`, and
 [`scripts/cold-start.mjs`](../examples/express-app/scripts/cold-start.mjs)
 measures the cold start (process start, artifact load, first response) and
 resident memory; the numbers are in that example's README.
+`semantscript package` assembles the three into one directory, prunes the
+native bindings to the target platform and reports the size against a Lambda
+or Cloud Run limit ([Deploying](../docs/deploy.md)).

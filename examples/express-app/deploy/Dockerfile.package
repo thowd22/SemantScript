@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1
+# Runs the ticket API from the directory `semantscript package` writes. The
+# bundle is the whole build context, so nothing from the repository is needed:
+#
+#   npx semantscript package --include deploy/lambda.mjs
+#   docker build -f deploy/Dockerfile.package -t ticket-api .semantscript/package
+#   docker run -p 3000:3000 ticket-api
+#
+# The bundle holds dist/ (without the IR bundle, which has the prompt text),
+# the production node_modules with the native bindings of one platform and
+# arch, .semantscript/artifact with the current release only, and
+# semantscript-package.json, the digest of every file. The runtime finds the
+# artifact by searching upward from dist/server.js, so no variable is needed.
+#
+# Package for the image's platform and arch. node:22-bookworm-slim is
+# multi-arch: docker build gives linux/x64 on an x64 host and linux/arm64 on
+# Apple silicon or Graviton. Packaging on another OS or arch, pass the image's,
+# e.g. --platform linux --arch arm64 on Apple silicon; a mismatched bundle
+# fails when the container loads the runtime.
+FROM node:22-bookworm-slim
+ENV NODE_ENV=production
+WORKDIR /app
+COPY . .
+USER node
+EXPOSE 3000
+CMD ["node", "--enable-source-maps", "dist/server.js"]

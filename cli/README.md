@@ -3,8 +3,9 @@
 `semantscript` is the single entry point over the compiler, trainer, verifier
 and runtime packages. It coordinates them without owning their core
 implementations: `build` is the compiler, `train` is the Python trainer's
-bundle driver, `test`, `run` and `explain` are the runtime, and `releases`
-manages the published releases under the artifact root.
+bundle driver, `test`, `run` and `explain` are the runtime, `releases`
+manages the published releases under the artifact root, and `package`
+writes the deployable bundle.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>] [--python <exe>] [--trainer-module <module>]
@@ -18,6 +19,7 @@ semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <j
 semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
 semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json] <module.js> --call <export> [--input <json> | --input-file <path>]
+semantscript package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>] [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
 ```
 
 ## init
@@ -45,7 +47,8 @@ A config it cannot edit safely (missing, unparsable, `require()`-based, or a
 `next.config` that already sets one of the three keys) is reported as `manual`
 with the snippet to add, and nothing is written to it. `init` also adds
 `@semantscript/core` and `@semantscript/compiler` to `package.json`, writes
-`.semantscript/.gitignore` reserving `artifact/` and `cache/`, and, unless
+`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/` and
+`.package-staging-*/` (appending any that are missing on a re-run), and, unless
 `--no-example` is passed or a `.sem.ts` file already exists, one starter
 expression (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). It ends
 with the next steps (`npm install`, the tool's build, `semantscript train`,
@@ -352,3 +355,25 @@ bundle is optional (`--bundle`, else the build's); `--cache-dir` defaults to
 `.semantscript/cache`, `--neighbors` to 5, and `--json` prints one document.
 The [wrong-answer workflow](../docs/diagnostics.md#wrong-answer-workflow)
 explains how to read the output.
+
+## package
+
+`semantscript package` writes `.semantscript/package/`, a directory that runs
+on its own: `dist/` without the IR bundle (it holds the prompt text), the
+production `node_modules` pruned to the target platform's ONNX Runtime and
+tokenizers binaries (no CUDA or TensorRT provider; the runtime runs on the
+CPU), `.semantscript/artifact` with only the current release, any
+`--include` files, and `semantscript-package.json` with the SHA-256 and size
+of every file. The current release is checked first the way `releases
+promote` checks a target, and on the host platform the pruned bindings are
+loaded from the bundle before it is kept. The output is a size table by part
+(dist, node_modules with its largest packages, encoder, adapter, heads,
+tokenizer, included files) and the total.
+
+`--target lambda-zip|lambda-image|cloud-run-functions` or `--max-bytes <n>`
+checks the total. Over it, the bundle is still written, the command exits 1
+with `PACKAGE_OVER_TARGET`, and it lists the levers with the bundle each
+would give: depth routing (or, for a release with some domains already
+routed, routing the rest), int8 quantization (a measurement only: no int8
+derivation exists for applications yet), both, or a smaller encoder. See [Deploying](../docs/deploy.md) and the
+[CLI reference](../docs/cli-reference.md#package).

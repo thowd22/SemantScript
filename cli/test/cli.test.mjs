@@ -597,7 +597,7 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   );
   assert.match(
     await readFile(join(root, ".semantscript", ".gitignore"), "utf8"),
-    /artifact\/\ncache\//u,
+    /artifact\/\ncache\/\npackage\/\n\.package-staging-\*\/\n/u,
   );
 
   const second = capture(root);
@@ -608,6 +608,24 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   );
   assert.equal((second.stdout().match(/^ {2}unchanged/gmu) ?? []).length, 5);
   assert.equal(await readFile(join(root, "tsconfig.json"), "utf8"), tsconfig);
+
+  // A project initialised before `package` existed gets the new entries
+  // appended, and its own lines kept.
+  await writeFile(
+    join(root, ".semantscript", ".gitignore"),
+    "# mine\nartifact/\ncache/",
+  );
+  const third = capture(root);
+  assert.equal(
+    await runCli(["init", "--no-doctor"], third.io),
+    0,
+    third.stderr(),
+  );
+  assert.equal(
+    await readFile(join(root, ".semantscript", ".gitignore"), "utf8"),
+    "# mine\nartifact/\ncache/\npackage/\n.package-staging-*/\n",
+  );
+  assert.match(third.stdout(), /also reserves \.semantscript\/package\//u);
 });
 
 test("init wires Vite, Next.js and esbuild projects and leaves conflicting configs to the user", async (t) => {

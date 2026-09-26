@@ -9,6 +9,7 @@ import { doctorCommand } from "./doctor.js";
 import { explainCommand } from "./explain.js";
 import { initCommand } from "./init.js";
 import { CliUsageError, processIo, type CliIo } from "./io.js";
+import { packageCommand } from "./package.js";
 import { releasesCommand } from "./releases.js";
 import { runCommand } from "./run.js";
 import { teacherCommand } from "./teacher.js";
@@ -67,6 +68,13 @@ export const USAGE = `usage: semantscript <command> [options]
          call an export and show, for each sema call, the answer's calibrated
          distribution, the constraints active for the input, the nearest gold
          examples and training cases, and the release and verification it came from
+  package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>]
+         [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions
+         | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
+         write a deployable directory: dist/ without the IR bundle, production
+         node_modules pruned to the platform's native bindings, the current
+         release only and a manifest of digests; print its size by part and,
+         over the target, which size lever would fit it
 
   defaults: the bundle is the build's semantscript.ir.v1.json, the artifact is
   .semantscript/artifact (or SEMANTSCRIPT_ARTIFACT), the teacher is teacher.toml
@@ -82,6 +90,7 @@ export {
   doctorCommand,
   explainCommand,
   initCommand,
+  packageCommand,
   releasesCommand,
   runCommand,
   teacherCommand,
@@ -132,6 +141,19 @@ export {
   evaluatePredicate,
 } from "./constraint-eval.js";
 export { DISTANCE_DESCRIPTION, nearest } from "./nearest.js";
+export {
+  MEASURED_ENCODER,
+  PACKAGE_KIND,
+  PACKAGE_MANIFEST,
+  PACKAGE_TARGETS,
+  PackageError,
+  depthRouting,
+  isDepthRouted,
+  packageLevers,
+  pruneNativeBindings,
+  type PackageLever,
+  type PackageTarget,
+} from "./package.js";
 export type { CliIo } from "./io.js";
 
 const COMMANDS: Readonly<
@@ -147,6 +169,7 @@ const COMMANDS: Readonly<
   explain: explainCommand,
   teacher: teacherCommand,
   releases: releasesCommand,
+  package: packageCommand,
 };
 
 /** Dispatch one invocation; returns the process exit status. */

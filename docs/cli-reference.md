@@ -27,15 +27,18 @@ semantscript releases promote <release> [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <duration>] [--artifact <root>] [--dry-run] [--json]
 semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json]
                      <module.js> --call <export> [--input <json> | --input-file <path>]
+semantscript package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>] [--include <path>]...
+                     [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>]
+                     [--platform <os>] [--arch <cpu>] [--force] [--json]
 ```
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                                                                                                                                                                                                                                                         |
-| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, a refused `releases` switch or prune (the message starts with its code, below), an `explain` whose call reached a function id the artifact lacks or failed with anything but a missing id or a below-threshold confidence, or any other error while working. |
-| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`), and `explain` without `--call`.                                                                                                                                                                                                                                                                                                                             |
+| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, a refused `releases` switch or prune, a `package` that failed or exceeds its target (the message starts with its code, below), an `explain` whose call reached a function id the artifact lacks or failed with anything but a missing id or a below-threshold confidence, or any other error while working. |
+| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`), and `explain` without `--call`.                                                                                                                                                                                                                                                                                                                                                                            |
 
 Usage errors print the message and the usage text to stderr. Every other
 failure prints its message to stderr; compile diagnostics carry the file, line,
@@ -52,6 +55,7 @@ Every command runs without flags in an initialised project:
 | Artifact root      | `--artifact`, else `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact`. The runtime's `loadSemaArtifact()` with no path resolves the same way, searching upward from the compiled entry script and then from the working directory.                                                                                                                                    |
 | Teacher            | `--teacher` (a file, or the keyword `constraints` for the built-in constraints teacher when no file of that name exists), else the first of `semantscript.teacher.toml`, `teacher.toml`, `.semantscript/teacher.toml`; else, when `ANTHROPIC_API_KEY` is set, `train` writes `.semantscript/teacher.toml` for `claude-sonnet-5` and uses it. The key never enters a file. |
 | Python interpreter | `--python`, else `SEMANTSCRIPT_PYTHON`, else `python3` (`python` on Windows). Inside this repository the trainer and model sources (and `.python-packages` when present) are prepended to `PYTHONPATH`.                                                                                                                                                                   |
+| npm (`package`)    | `SEMANTSCRIPT_NPM`, else `npm` on the `PATH`. `package` installs the bundle's production dependencies with it: `npm ci --omit=dev` from `package-lock.json` when every dependency comes from a registry, else `npm install --omit=dev --install-links --no-package-lock`, which resolves registry versions afresh rather than from the lockfile.                          |
 | Cache directory    | `--cache-dir`, else `.semantscript/cache`.                                                                                                                                                                                                                                                                                                                                |
 
 ## `init`
@@ -67,7 +71,9 @@ What it writes: the adapter entry for the detected tool (see the
 [build tool pages](build-tools/tsc.md)), the editor plugin entry
 `{ "name": "@semantscript/compiler/ts-plugin" }` in `tsconfig.json`,
 `@semantscript/core` and `@semantscript/compiler` in `package.json`,
-`.semantscript/.gitignore` reserving `artifact/` and `cache/`, and the starter
+`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/` and
+`.package-staging-*/` (on a project initialised earlier it appends whichever
+are missing), and the starter
 expression. A config it cannot edit safely (missing, unparsable,
 `require()`-based, or a `next.config` that already sets `turbopack`,
 `serverExternalPackages` or `outputFileTracingIncludes`) is reported as
@@ -495,3 +501,92 @@ uses; when it reaches another copy, the call fails with "no SemantScript
 artifact is loaded" and explain says to run the application's own CLI. The
 [diagnostics catalogue](diagnostics.md#wrong-answer-workflow) walks from an
 explain report to the example or constraint to add.
+
+## `package`
+
+Writes a self-contained directory to deploy: everything the compiled
+application needs at run time and nothing else. Run it from the application's
+directory after `build` and `train`.
+
+| Path in the bundle          | Contents                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dist/`                     | The compiled output at its path relative to the project (`dist/` unless `--dist` names another), without `semantscript.ir.v1.json` (the IR bundle holds the prompt text; the runtime needs only the artifact).                                                                                                                                                         |
+| `node_modules/`             | The production dependencies. With a `package-lock.json` and only registry dependencies: `npm ci --omit=dev`. With `file:` dependencies (as in this repository's examples): `npm install --omit=dev --install-links` with each `file:` path made absolute, so the linked packages become real copies. Both run with `ONNXRUNTIME_NODE_INSTALL=skip` (no CUDA download). |
+| `.semantscript/artifact/`   | `current.json` and the one release it names, checked first exactly as `releases promote` checks a target (integrity, verification, the runtime's loader). Older releases stay behind.                                                                                                                                                                                  |
+| `--include` paths           | Each file or directory at its path relative to the project, for example `deploy/lambda.mjs`.                                                                                                                                                                                                                                                                           |
+| `package.json`              | The project's, without `devDependencies` (it keeps `"type": "module"` and the scripts).                                                                                                                                                                                                                                                                                |
+| `semantscript-package.json` | The manifest (`kind` `semantscript.package`, version 1): the release digest and application, platform, arch, Node version, the install command, the pruned binding paths, the bytes of each part and the path, size and SHA-256 of every other file (symlinks by their target).                                                                                        |
+
+`onnxruntime-node` and `tokenizers` ship prebuilt binaries for every platform
+(548 MB and 64 MB installed). The bundle keeps the target's only: for ONNX
+Runtime its `bin/napi-v*/<platform>/<arch>` directory without the CUDA and
+TensorRT provider libraries (the runtime runs the CPU provider), for
+tokenizers the `.node` files of that platform and arch (both libc variants on
+Linux, and `darwin-universal` on macOS). When the target is this machine, a
+child Node process then loads both bindings from the bundle. The runtime finds
+`.semantscript/artifact` by its upward search from `dist/`, so the bundle runs
+from any working directory with no variable set.
+
+The command prints the size of each part in bytes (the apparent size, which
+is what Lambda counts unzipped): `dist`, `node_modules` with its five largest
+packages, the artifact split into encoder, adapter, heads, tokenizer and
+manifest, each included path, `package.json`, the manifest and the total.
+
+| Flag          | Value | Effect                                                                                                                                                                                                                    |
+| ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--project`   | path  | The application directory holding `package.json` (default: the working directory).                                                                                                                                        |
+| `--dist`      | path  | The compiled output, a directory inside the project (default `dist`); the bundle keeps it at that path, so `main` and the scripts still resolve.                                                                          |
+| `--artifact`  | path  | The artifact root (default `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact` in the project).                                                                                                                        |
+| `--out`       | path  | Where to write the bundle (default `.semantscript/package` in the project). It is built beside it and renamed into place.                                                                                                 |
+| `--include`   | path  | Repeatable: a file or directory inside the project to ship at the same relative path. The compiled output, `node_modules`, `.semantscript`, `package.json` and the manifest are reserved, and it may not contain `--out`. |
+| `--target`    | name  | Check the total against a deployment limit (below).                                                                                                                                                                       |
+| `--max-bytes` | count | Check the total against this many bytes instead of a named target.                                                                                                                                                        |
+| `--platform`  | os    | The `process.platform` to keep native binaries for (default this machine's), for example `linux`.                                                                                                                         |
+| `--arch`      | cpu   | The `process.arch` to keep native binaries for (default this machine's), for example `arm64` for Lambda on Graviton.                                                                                                      |
+| `--force`     |       | Replace an existing bundle. Without it an existing bundle is refused; a non-empty directory with no `semantscript-package.json` is refused even with it.                                                                  |
+| `--json`      |       | Print one JSON document (`kind` `semantscript.package.report`, version 1): the parts, totals, target, encoder facts and levers.                                                                                           |
+
+| Target                | Limit (bytes)  | Source (checked 2026-09-25)                                                                                       |
+| --------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `lambda-zip`          | 262,144,000    | AWS Lambda quotas: a .zip deployment package is at most 250 MB unzipped, including layers (AWS MB = 1,048,576 B). |
+| `lambda-image`        | 10,737,418,240 | AWS Lambda quotas: a container image is at most 10 GB uncompressed, including all layers and the base image.      |
+| `cloud-run-functions` | 500,000,000    | Cloud Run functions quotas: 500 MB uncompressed for sources plus modules. Cloud Run services have no image limit. |
+
+Over the target, the bundle is still written, the report lists the size
+levers with the bundle each would give and whether it fits, and the command
+exits 1 with `PACKAGE_OVER_TARGET`. The levers scale the release's encoder by
+sizes measured on ModernBERT-base, so for another encoder they are estimates
+([Deploying](deploy.md) explains them): depth routing to 12, 6 and 4 layers
+(`build --domain-depth`, given to every domain), int8 dynamic quantization (a measurement from the
+refund benchmark under a recorded tolerance; no int8 derivation exists for
+applications yet, so it is not a step to run and its rows read
+`fits (measurement only)`, with `actionable: false` in `--json`), both together, and a smaller encoder (`train --encoder-name`,
+reported as the largest encoder graph that fits). A lever the release already
+uses is not suggested again: depth routing when the release ships a routed
+encoder prefix (a function `encoderRef` other than the default encoder, or a
+`depth-NNN` encoder ref or path), int8 when an encoder's `onnx.precision` is
+not `float32`. A mixed release, with some domains on a prefix and others still
+on the full-depth encoder, is offered routing the remaining domains instead,
+which drops the full encoder (`encoder.routing` is `none`, `mixed` or `full`
+in `--json`). For an already quantized encoder the depth levers project the
+float32 prefix that training writes. When the bundle without its encoder is
+already over the target, only the smaller-encoder row is shown, saying that
+no encoder lever helps.
+
+| Code                                                          | Cause                                                                                                                                     |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `PACKAGE_NO_PROJECT`                                          | The project has no `package.json`, or it is not a JSON object.                                                                            |
+| `PACKAGE_NO_DIST`                                             | The compiled output directory does not exist; build first.                                                                                |
+| `PACKAGE_NO_RELEASE`                                          | The artifact root has no `current.json`, or it names a release that is not on disk; train first. An invalid pointer is `POINTER_INVALID`. |
+| `PACKAGE_OUT_EXISTS`                                          | `--out` holds an earlier bundle and `--force` was not given, is a non-empty directory `package` did not write, or is not a directory.     |
+| `PACKAGE_INCLUDE_MISSING`                                     | An `--include` path does not exist.                                                                                                       |
+| `PACKAGE_INSTALL_FAILED`                                      | npm did not start or exited non-zero; the message holds npm's first 20 lines and its last 8.                                              |
+| `PACKAGE_NO_BINDING`                                          | `onnxruntime-node` or `tokenizers` ships no binary for the requested platform and arch.                                                   |
+| `PACKAGE_BINDING_LOAD_FAILED`                                 | The pruned bindings did not load from the bundle on this machine.                                                                         |
+| `PACKAGE_OVER_TARGET`                                         | The bundle exceeds `--target` or `--max-bytes`; it is written anyway.                                                                     |
+| `RELEASE_INTEGRITY`, `RELEASE_UNVERIFIED`, `RELEASE_REJECTED` | The current release fails the same checks `releases promote` applies (above).                                                             |
+
+An unknown `--target`, `--target` together with `--max-bytes`, a `--max-bytes`
+that is not a positive whole number, a positional argument, a `--dist` outside the project, an `--include`
+outside the project, on a reserved path or containing `--out`, or an `--out` that is the project,
+the compiled output or the artifact (or contains one of them) exits 2.

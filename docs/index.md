@@ -47,7 +47,10 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   environment variable and exit code of `semantscript`, including `explain`,
   which shows for one input why an expression answered as it did, and
   `semantscript releases` to list, inspect, roll back, promote and prune
-  artifact releases.
+  artifact releases and `semantscript package` to write a deployable bundle.
+- [Deploying](deploy.md): `semantscript package` and what the bundle holds,
+  the Lambda and Cloud Run size targets, and the depth, int8 and
+  smaller-encoder levers with their measured sizes.
 - [Build cache](build-cache.md): what is content-addressed, when retraining
   happens, where the caches live (including the teacher response journal) and
   how to clear them, and how the cache interacts with a release rollback.
@@ -132,7 +135,7 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [Model](../model/README.md): the encoder, adapter and head modules and the
   ONNX export with parity checks.
 - [CLI](../cli/README.md): `semantscript init | doctor | build | train | teacher probe |
-dev | test | run | explain | releases`, the zero-config defaults, the environment checks, the dev loop
+dev | test | run | explain | releases | package`, the zero-config defaults, the environment checks, the dev loop
   and the build cache rules.
 - [Framework](../framework/README.md): decorated controllers for Express, Nest
   and Next.js handlers, one sema request scope per request, and deterministic

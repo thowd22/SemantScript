@@ -158,41 +158,84 @@ The app calls `loadSemaArtifact()` with no path. The runtime then uses
 `SEMANTSCRIPT_ARTIFACT` when set, and otherwise searches for
 `.semantscript/artifact` upward from the compiled entry (`dist/server.js`)
 and from the working directory, so shipping the artifact directory beside
-`dist/` is the whole deployment story. Three things travel together: `dist/`,
-`node_modules/` (installed on the target platform; `onnxruntime-node` and
-`tokenizers` carry prebuilt binaries for linux x64 and arm64, macOS and
-Windows, nothing to build or download by hand) and `.semantscript/artifact/`.
-In this repository the example's `@semantscript/*` dependencies are `file:`
-links and its `package-lock.json` is not committed, so install the production
-tree with `npm install --omit=dev --install-links`, which copies the linked
-packages with their own dependencies, as the Dockerfile below does; `npm ci`
-needs a lockfile and would leave symlinks into the repository. An app that
-depends on published `@semantscript/*` packages and commits its lockfile uses
-`npm ci --omit=dev`.
+`dist/` is the whole deployment story. `semantscript package` puts the three
+parts together in one directory and says how big it is:
 
-- [`deploy/Dockerfile`](deploy/Dockerfile): a two-stage image built from the
-  repository root (`docker build -f examples/express-app/deploy/Dockerfile .`).
-  The build stage installs the workspace, builds the compiler, runtime and
-  framework, compiles the app with `tspc`, and installs the production tree
-  with `npm install --omit=dev --install-links`, which packs the `file:`
-  packages into real copies with their own dependencies. The runtime stage
-  keeps only `dist/` (without the IR bundle, which holds the prompt text),
-  that `node_modules` and `.semantscript/artifact`, and runs as the `node`
-  user. [`deploy/Dockerfile.dockerignore`](deploy/Dockerfile.dockerignore)
-  limits the context to those sources, so local installs never enter it. CI
-  builds the image from a fresh clone on every push with the fixture artifact
-  and smoke-runs both routes; the image is 624 MB and builds in about 36 s
-  without a layer cache
-  ([measured](../../docs/CONTRIBUTING.md#continuous-integration)). To ship
-  a trained model, train first so `.semantscript/artifact` holds the release,
-  then build.
+```sh
+npm run build                     # and train, so .semantscript/artifact holds a release
+npx semantscript package --include deploy/lambda.mjs --target lambda-zip
+```
+
+It writes `.semantscript/package/` with `dist/` (without the IR bundle, which
+holds the prompt text), the production `node_modules` (the `file:` links to the
+repository's `@semantscript/*` packages installed as real copies with
+`npm install --omit=dev --install-links`; an app on published packages with a
+lockfile gets `npm ci --omit=dev`), `.semantscript/artifact` with the current
+release only, `deploy/lambda.mjs`, and `semantscript-package.json`, the
+sha256 and size of every file. `onnxruntime-node` and `tokenizers` ship
+binaries for every platform; the bundle keeps only the target's (the host by
+default, or `--platform linux --arch arm64`), and drops ONNX Runtime's CUDA
+and TensorRT providers, since the runtime runs the CPU provider. The command
+prints the size of each part and checks the total against the target; the
+[CLI reference](../../docs/cli-reference.md#package) lists the
+targets and the [deploy guide](../../docs/deploy.md) the size levers.
+
+- [`deploy/Dockerfile.package`](deploy/Dockerfile.package): a single-stage
+  image whose build context is the bundle
+  (`docker build -f deploy/Dockerfile.package -t ticket-api .semantscript/package`);
+  it copies the directory, runs as the `node` user and starts
+  `dist/server.js`. The bundle carries native bindings for one platform and
+  arch, so package for the image's: on macOS or another non-Linux host pass
+  `--platform linux --arch arm64` (Apple silicon, whose Docker builds
+  linux/arm64) or `--platform linux --arch x64` (an Intel Mac or Windows),
+  or the container fails when it loads the runtime. CI packages this example with the fixture artifact on
+  every push, builds this image from the bundle, sends one `POST /tickets`
+  and invokes the packaged Lambda handler once; that image is 314 MB and
+  builds in 6 s from the bundle
+  ([measured](../../docs/CONTRIBUTING.md#continuous-integration)).
+- [`deploy/Dockerfile`](deploy/Dockerfile): the older two-stage image built
+  from the repository root (`docker build -f examples/express-app/deploy/Dockerfile .`),
+  which installs and compiles inside the build stage and keeps the same three
+  parts. [`deploy/Dockerfile.dockerignore`](deploy/Dockerfile.dockerignore)
+  limits its context to those sources. CI builds it from a fresh clone on
+  every push with the fixture artifact and smoke-runs both routes; the image
+  is 624 MB and builds in about 36 s without a layer cache.
 - [`deploy/lambda.mjs`](deploy/lambda.mjs): a serverless handler (API Gateway
-  HTTP API event shape) over the same compiled `triage` function. The
-  artifact loads once per execution environment on the first invocation and
-  stays loaded while the environment is warm.
+  HTTP API event shape) over the same compiled `triage` function, shipped in
+  the bundle with `--include deploy/lambda.mjs` (its handler is
+  `deploy/lambda.handler`). The artifact loads once per execution environment
+  on the first invocation and stays loaded while the environment is warm.
 - [`scripts/cold-start.mjs`](scripts/cold-start.mjs): measures a cold start
   of either shape: a fresh Node process, the artifact load and the first
   request, and the process's resident set after that request.
+
+Bundle sizes, measured 2026-09-25 on linux/x64 (Node 22.22):
+
+| Artifact                                         | node_modules | Artifact  | Total     | lambda-zip (250 MiB) |
+| ------------------------------------------------ | ------------ | --------- | --------- | -------------------- |
+| Fixture (`npm run fixture-artifact`)             | 82.3 MiB     | 12.1 KiB  | 82.6 MiB  | fits                 |
+| Trained release `217d386c…` (22 layers, float32) | 82.3 MiB     | 570.9 MiB | 653.6 MiB | over by 403.6 MiB    |
+
+The trained release does not fit a Lambda .zip package: its encoder alone is
+596,679,464 bytes (569.0 MiB), a full-depth float32 ModernBERT-base, and AWS
+counts 262,144,000 bytes unzipped for the function and its layers together.
+`package --target lambda-zip` exits 1 with `PACKAGE_OVER_TARGET` and projects
+each lever from the measured encoder sizes: depth routing alone does not fit
+(about 462, 347 and 309 MiB at 12, 6 and 4 layers, because the 82 MiB of
+dependencies stay), depth 6 or 4 with int8 would (about 151 and 141 MiB), int8
+alone would (about 228 MiB), and so would an encoder whose graph is at most
+165.5 MiB. The int8 figures are measurements, not a step you can run: no int8
+derivation exists for applications yet (it has only been measured on the
+refund benchmark, where it changed 1 of 80 attested cases and the strict gate
+refused it). The levers you can act on today are a smaller encoder
+(`train --encoder-name`) and depth routing, which alone is not enough here.
+Until one of those fits, ship the trained release as a container:
+[`deploy/Dockerfile.package`](deploy/Dockerfile.package) runs the bundle as
+the Express server on Cloud Run or any container host, which has no size
+limit near 654 MiB. The bundle is also well under Lambda's container image
+limit (`--target lambda-image`, 10 GiB), but this example has no Lambda
+container recipe: that image would need a Lambda Node.js base image with
+`deploy/lambda.handler` as its command, not the Express server image.
 
 Cold start and memory, measured 2026-09-24 on the development machine (AMD
 Ryzen 9 9900X, 16 GB, WSL2, Node 22.22, CPU inference through ONNX Runtime)
@@ -212,5 +255,6 @@ verification, resource digests, ONNX session creation in the inference
 worker) and one request round trip through the loaded runtime, but not the
 first encoder pass, which the refund benchmark measures at 28 ms p50 on this
 CPU (`results-compact-2026-09-24`). The resident set is dominated by the
-float32 encoder; the int8 release under `results-int8-2026-09-24` is the lever
-when memory matters more than the last points of accuracy.
+float32 encoder; the int8 release under `results-int8-2026-09-24` measured how
+far quantization would cut it, but that is a measurement on the refund
+benchmark, not a step an application can run yet.

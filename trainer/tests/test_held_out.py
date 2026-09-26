@@ -11,14 +11,6 @@ from copy import deepcopy
 from typing import Any
 
 import pytest
-from test_constraints_teacher import (
-    STATUS,
-    complete_constraints,
-    lit,
-    op,
-    rule,
-)
-from test_constraints_teacher import refund_ir as teacher_refund_ir
 
 from semantscript_trainer.canonical_input import serialize_canonical_inputs
 from semantscript_trainer.constraints import (
@@ -32,14 +24,133 @@ from semantscript_trainer.held_out import (
     sample_held_out_inputs,
 )
 
+# --- IR helpers (the constraints teacher's refund policy, self-contained) -------
 
-def refund_ir(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """The constraints teacher's refund IR with named object types (canonical input needs them)."""
 
-    ir = teacher_refund_ir(*args, **kwargs)
-    for entry in ir["inputs"]:
-        entry["type"] = {**entry["type"], "name": entry["tsType"]}
-    return ir
+def path(*names: str) -> dict[str, Any]:
+    node: dict[str, Any] = {"node": "input", "name": names[0]}
+    for name in names[1:]:
+        node = {"node": "property", "object": node, "property": name}
+    return node
+
+
+def lit(value: Any) -> dict[str, Any]:
+    return {"node": "literal", "value": value}
+
+
+def op(operator: str, left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    return {"node": "binary", "operator": operator, "left": left, "right": right}
+
+
+def rule(kind: str, predicate: dict[str, Any], output: Any, source: str = "rule") -> dict[str, Any]:
+    return {"kind": kind, "source": source, "predicate": predicate, "output": output}
+
+
+def union(*values: str) -> dict[str, Any]:
+    return {"kind": "union", "variants": [{"kind": "literal", "value": v} for v in values]}
+
+
+CUSTOMER = {
+    "kind": "object",
+    "name": "Customer",
+    "fields": [
+        {"name": "priorRefunds", "optional": False, "type": {"kind": "number"}},
+        {"name": "tier", "optional": False, "type": union("enterprise", "standard")},
+    ],
+}
+ORDER = {
+    "kind": "object",
+    "name": "Order",
+    "fields": [
+        {"name": "ageDays", "optional": False, "type": {"kind": "number"}},
+        {"name": "status", "optional": False, "type": union("fraudulent", "paid")},
+        {"name": "total", "optional": False, "type": {"kind": "number"}},
+    ],
+}
+AGE = path("order", "ageDays")
+STATUS = path("order", "status")
+TIER = path("customer", "tier")
+PRIOR = path("customer", "priorRefunds")
+
+
+def within_window() -> dict[str, Any]:
+    return op(
+        "||",
+        op("&&", op("===", TIER, lit("enterprise")), op("<=", AGE, lit(60))),
+        op("&&", op("===", TIER, lit("standard")), op("<=", AGE, lit(30))),
+    )
+
+
+def complete_constraints() -> list[dict[str, Any]]:
+    """A refund policy that decides every input: deny, review or approve."""
+
+    paid_in_window = op("&&", op("===", STATUS, lit("paid")), within_window())
+    return [
+        rule("always", op(">", AGE, lit(90)), "deny", "order.ageDays > 90"),
+        rule(
+            "always",
+            op("&&", op("<=", AGE, lit(90)), op("===", STATUS, lit("fraudulent"))),
+            "review",
+            "fraudulent within 90 days",
+        ),
+        rule(
+            "always",
+            op(
+                "&&",
+                op("&&", op("<=", AGE, lit(90)), op("===", STATUS, lit("paid"))),
+                {"node": "unary", "operator": "!", "operand": within_window()},
+            ),
+            "review",
+            "paid outside the tier window",
+        ),
+        rule("always", op("&&", paid_in_window, op("<=", PRIOR, lit(2))), "approve", "in window"),
+        rule("always", op("&&", paid_in_window, op(">", PRIOR, lit(2))), "review", "repeat"),
+        rule("never", op(">", PRIOR, lit(2)), "approve", "customer.priorRefunds > 2"),
+    ]
+
+
+def refund_ir(
+    constraints: list[dict[str, Any]] | None = None,
+    *,
+    examples: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "kind": "semantscript.neural-function",
+        "irVersion": 1,
+        "stage": "source",
+        "id": "nf_" + "a" * 64,
+        "semanticSha256": "b" * 64,
+        "source": {"path": "src/refund.sem.ts", "line": 16, "column": 10, "sourceSha256": "c" * 64},
+        "definition": {
+            "template": [{"kind": "text", "text": "Decide the refund."}],
+            "examples": examples
+            if examples is not None
+            else [
+                {
+                    "inputs": {
+                        "customer": {"priorRefunds": 0, "tier": "enterprise"},
+                        "order": {"ageDays": 45, "status": "paid", "total": 129.5},
+                    },
+                    "output": "approve",
+                }
+            ],
+            "constraints": complete_constraints() if constraints is None else constraints,
+        },
+        "inputs": [
+            {"name": "customer", "index": 0, "tsType": "Customer", "type": deepcopy(CUSTOMER)},
+            {"name": "order", "index": 1, "tsType": "Order", "type": deepcopy(ORDER)},
+        ],
+        "output": {
+            "kind": "scalar",
+            "tsType": "RefundDecision",
+            "head": {
+                "kind": "nominal",
+                "sourceKind": "string-union",
+                "support": ["approve", "deny", "review"],
+            },
+        },
+        "model": {"encoder": "encoder.test", "adapter": "adapter.test.refund"},
+    }
 
 
 def sample(ir: dict[str, Any], **kwargs: Any) -> Any:

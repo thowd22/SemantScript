@@ -27,7 +27,12 @@ semantscript releases promote <release> [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <duration>] [--artifact <root>] [--dry-run] [--json]
 semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json]
                      <module.js> --call <export> [--input <json> | --input-file <path>]
+semantscript --version
 ```
+
+`semantscript --version` (also `-v` or `version`) prints `semantscript`
+and the release version every package shares, and exits 0. The trainer's
+console script answers the same way: `semantscript-trainer --version`.
 
 ## Exit codes
 

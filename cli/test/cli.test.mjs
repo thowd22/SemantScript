@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import {
   chmod,
   copyFile,
@@ -7,10 +8,11 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { setTimeout } from "node:timers";
@@ -108,6 +110,14 @@ test("usage and unknown commands exit with status 2", async () => {
   assert.equal(await runCli(["doctor", "--help"], commandHelp.io), 0);
   assert.equal(commandHelp.stdout(), USAGE);
   assert.equal(await runCli(["train", "-h"], capture(process.cwd()).io), 0);
+  const rootPackage = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  for (const flag of ["--version", "-v", "version"]) {
+    const version = capture(process.cwd());
+    assert.equal(await runCli([flag], version.io), 0);
+    assert.equal(version.stdout(), `semantscript ${rootPackage.version}\n`);
+  }
   assert.match(
     renderChecks([
       { id: "device", status: "warn", summary: "cpu", fix: null },
@@ -215,6 +225,54 @@ export const freeText = sema<string>\`free text \${message}\`;
     1,
   );
   assert.match(missingOutDir.stderr(), /must set compilerOptions\.outDir/u);
+});
+
+test("build rewrites sema sites when ts-patch has patched typescript and tsconfig lists the transformer", async (t) => {
+  // The tsc setup `init` writes: a `plugins` transform entry plus `ts-patch
+  // install`. The patched emit must not apply the transformer a second time,
+  // or build fails with "planned 1 sema rewrites ... but matched 0". The
+  // loader hook stands in for the patched install: it hands every importer of
+  // `typescript` the ts-patch live compiler, which honors `plugins`.
+  const root = await scratch(t, "semantscript-cli-build-patched-");
+  const configPath = await createProject(root, { "app.sem.ts": program });
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  config.compilerOptions.plugins = [
+    { transform: "@semantscript/compiler/transformer" },
+  ];
+  await writeFile(configPath, JSON.stringify(config));
+  await symlink(
+    resolve(here, "..", "..", "compiler"),
+    join(root, "node_modules", "@semantscript", "compiler"),
+    "junction",
+  );
+  const hook = join(root, "patched-typescript.mjs");
+  await writeFile(
+    hook,
+    [
+      'import { register } from "node:module";',
+      "const source = `export async function resolve(specifier, context, next) {",
+      '  return next(specifier === "typescript" ? "ts-patch/compiler" : specifier, context);',
+      "}`;",
+      "register(`data:text/javascript,${encodeURIComponent(source)}`, import.meta.url);",
+      "",
+    ].join("\n"),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      pathToFileURL(hook).href,
+      join(here, "..", "bin", "semantscript.js"),
+      "build",
+      "--project",
+      configPath,
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /compiled 1 neural function\(s\)/u);
+  const emitted = await readFile(join(root, "dist", "app.sem.js"), "utf8");
+  assert.match(emitted, /__sema\.call\("nf_[a-f0-9]{64}"/u);
 });
 
 test("test reports shipped verification and replays bundle examples through the runtime", async (t) => {

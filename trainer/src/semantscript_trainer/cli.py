@@ -164,7 +164,7 @@ def train_bundle(
     adversarial_config: AdversarialGenerationConfig | None = None,
     application_id: str | None = None,
     application_version: str = "0.0.0",
-    compiler_version: str = "0.0.0",
+    compiler_version: str = TRAINER_VERSION,
     trainer_version: str = TRAINER_VERSION,
     trainer_commit: str | None = None,
     tokenizer: Any | None = None,
@@ -1056,7 +1056,7 @@ def _git_commit(package_directory: Path | None = None) -> str:
         text=True,
         check=False,
     )
-    lines = completed.stdout.split()
+    lines = completed.stdout.splitlines()
     if completed.returncode != 0 or len(lines) != 2 or Path(lines[0]).resolve() != root:
         return "0000000"
     return lines[1]
@@ -1075,6 +1075,9 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="python -m semantscript_trainer.cli",
         description="Train, verify and export every function of a SemantScript IR bundle.",
     )
+    parser.add_argument(
+        "--version", action="version", version=f"semantscript-trainer {__version__}"
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     train = commands.add_parser("train", help="produce an artifact from an IR bundle")
     train.add_argument("--bundle", required=True, type=Path, help="compiler IR bundle")
@@ -1091,7 +1094,7 @@ def _build_parser() -> argparse.ArgumentParser:
     train.add_argument("--cases", type=int, default=DEFAULT_CASES)
     train.add_argument("--application-id")
     train.add_argument("--application-version", default="0.0.0")
-    train.add_argument("--compiler-version", default="0.0.0")
+    train.add_argument("--compiler-version", default=__version__)
     train.add_argument("--encoder-name")
     train.add_argument("--encoder-revision")
     train.add_argument("--local-files-only", action="store_true")

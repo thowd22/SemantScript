@@ -5,7 +5,7 @@ npm install semantscript @semantscript/core @semantscript/compiler
 pip install "semantscript-trainer[training]"   # for train, dev and teacher probe
 ```
 
-First publish pending, see [releasing](../docs/releasing.md).
+First publish pending, see [releasing](https://github.com/thowd22/SemantScript/blob/main/docs/releasing.md).
 
 `semantscript` is the single entry point over the compiler, trainer, verifier
 and runtime packages. It coordinates them without owning their core
@@ -118,7 +118,7 @@ will be asked for and `--trainer-module` names another trainer module. When
 the default interpreter lacks the packages and a `.venv` sits in the working
 directory or above it, the fix lines name that venv's interpreter (`--python`
 or `SEMANTSCRIPT_PYTHON`). Exit 1 when any check fails. The
-[environment guide](../docs/environment.md) explains each check and records
+[environment guide](https://github.com/thowd22/SemantScript/blob/main/docs/environment.md) explains each check and records
 doctor runs per platform.
 
 ## build
@@ -325,7 +325,7 @@ with `watch: true` swaps to the target and a later rollback can swap back.
 `releases prune --keep <n>` and/or `--older-than <30d|12h|90m>` delete old
 releases to free disk. The current release is never removed, whatever its
 age, and neither are invalid releases or an export in progress. `--dry-run`
-shows what would go. See the [CLI reference](../docs/cli-reference.md#releases)
+shows what would go. See the [CLI reference](https://github.com/thowd22/SemantScript/blob/main/docs/cli-reference.md#releases)
 for the error codes.
 
 ## explain
@@ -340,7 +340,7 @@ and returns the model's top answer instead). For each call it prints the value,
 confidence, uncertainty and distribution; every constraint whose predicate
 holds for the input, with whether the answer satisfies it (predicates are
 evaluated with the trainer's semantics, pinned by
-[`examples/constraints/predicate-vectors.v1.json`](../examples/constraints/predicate-vectors.v1.json));
+[`examples/constraints/predicate-vectors.v1.json`](https://github.com/thowd22/SemantScript/blob/main/examples/constraints/predicate-vectors.v1.json));
 the nearest gold examples from the bundle; the nearest training cases with
 their labels and origins (gold, synthetic with the teacher, adversarial
 constraint-boundary or counterfactual) from the cached dataset whose digest the
@@ -357,5 +357,5 @@ longer has; the command then exits 1. A `@confidence` answer below its
 threshold is reported, and explain never runs the application's fallbacks. The
 bundle is optional (`--bundle`, else the build's); `--cache-dir` defaults to
 `.semantscript/cache`, `--neighbors` to 5, and `--json` prints one document.
-The [wrong-answer workflow](../docs/diagnostics.md#wrong-answer-workflow)
+The [wrong-answer workflow](https://github.com/thowd22/SemantScript/blob/main/docs/diagnostics.md#wrong-answer-workflow)
 explains how to read the output.

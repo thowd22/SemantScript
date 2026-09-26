@@ -90,7 +90,7 @@ test("set writes one version into every package, pin, lockfile entry and the tra
   assert.equal(wrongTag.status, 1);
   assert.match(
     wrongTag.stderr,
-    /tag v3\.4\.5 does not match package\.json version 3\.4\.5-rc\.2/u,
+    /tag v3\.4\.5 does not match the package\.json version 3\.4\.5-rc\.2: tag the release as v3\.4\.5-rc\.2/u,
   );
 });
 

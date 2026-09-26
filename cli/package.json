@@ -44,8 +44,10 @@
   },
   "dependencies": {
     "@semantscript/compiler": "0.1.0",
-    "@semantscript/core": "0.1.0",
-    "typescript": "6.0.3"
+    "@semantscript/core": "0.1.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.9.0 <7.0.0"
   },
   "engines": {
     "node": ">=22.13.0"

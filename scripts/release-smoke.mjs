@@ -19,9 +19,10 @@
 //   --no-train            stop after init, build and the package imports
 //   --workdir <dir>       use this empty directory instead of a new temp one
 //   --keep                keep the directory afterwards (always kept on failure)
+//   --help, -h            print this usage
 //
 // Prints a JSON summary on the last line, with the versions the artifact
-// manifest records.
+// manifest records; "directoryKept" says whether "directory" still exists.
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -41,6 +42,7 @@ import { PUBLISHED_WORKSPACES, pythonVersion } from "./version.mjs";
 
 const { values } = parseArgs({
   options: {
+    help: { type: "boolean", short: "h", default: false },
     tarballs: { type: "string" },
     registry: { type: "string" },
     version: { type: "string" },
@@ -55,6 +57,18 @@ const { values } = parseArgs({
   },
   allowPositionals: false,
 });
+
+if (values.help) {
+  // The usage is the header comment of this file, minus the comment markers.
+  const source = readFileSync(new URL(import.meta.url), "utf8").split("\n");
+  const header = [];
+  for (const line of source) {
+    if (!line.startsWith("//")) break;
+    header.push(line.replace(/^\/\/ ?/u, ""));
+  }
+  console.log(header.join("\n"));
+  process.exit(0);
+}
 
 if ((values.tarballs === undefined) === (values.registry === undefined)) {
   console.error(
@@ -359,6 +373,7 @@ if (!values["no-train"]) {
   );
 }
 
+const removeDirectory = !values.keep && values.workdir === undefined;
+summary.directoryKept = !removeDirectory;
 console.log(`\nrelease-smoke: passed\n${JSON.stringify(summary)}`);
-if (!values.keep && values.workdir === undefined)
-  rmSync(directory, { recursive: true, force: true });
+if (removeDirectory) rmSync(directory, { recursive: true, force: true });

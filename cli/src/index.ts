@@ -3,6 +3,8 @@ import { realpathSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { VERSION } from "@semantscript/compiler";
+
 import { buildCommand } from "./build.js";
 import { devCommand } from "./dev.js";
 import { doctorCommand } from "./doctor.js";
@@ -16,6 +18,7 @@ import { testCommand } from "./test-command.js";
 import { trainCommand } from "./train.js";
 
 export const USAGE = `usage: semantscript <command> [options]
+       semantscript --version
 
   init   [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor]
          [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>]
@@ -163,6 +166,11 @@ export async function runCli(
   ) {
     io.stdout(USAGE);
     return command === undefined ? 2 : 0;
+  }
+  if (command === "--version" || command === "-v" || command === "version") {
+    // One version is shared by every package (scripts/version.mjs).
+    io.stdout(`semantscript ${VERSION}\n`);
+    return 0;
   }
   if (
     Object.hasOwn(COMMANDS, command) &&

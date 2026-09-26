@@ -5,7 +5,7 @@ npm install @semantscript/core
 ```
 
 Published as `@semantscript/core` (first publish pending, see
-[releasing](../docs/releasing.md)); `VERSION` is the release version it shares
+[releasing](https://github.com/thowd22/SemantScript/blob/main/docs/releasing.md)); `VERSION` is the release version it shares
 with the other SemantScript packages.
 
 The runtime package loads and verifies immutable application artifacts, validates
@@ -269,11 +269,11 @@ function bundle) installs the right one with no manual step, and installs
 made on one platform do not carry to another (bundle on the platform you
 deploy to, or in the image). Ship three things together: the compiled
 JavaScript, `node_modules` and the artifact directory; nothing else is read
-at runtime. [`examples/express-app/deploy`](../examples/express-app/deploy)
+at runtime. [`examples/express-app/deploy`](https://github.com/thowd22/SemantScript/blob/main/examples/express-app/deploy)
 has a multi-stage Dockerfile and a serverless handler; because that example
 links the workspace packages with `file:` dependencies and commits no
 lockfile, its Dockerfile uses `npm install --omit=dev --install-links` in
 place of `npm ci --omit=dev`, and
-[`scripts/cold-start.mjs`](../examples/express-app/scripts/cold-start.mjs)
+[`scripts/cold-start.mjs`](https://github.com/thowd22/SemantScript/blob/main/examples/express-app/scripts/cold-start.mjs)
 measures the cold start (process start, artifact load, first response) and
 resident memory; the numbers are in that example's README.

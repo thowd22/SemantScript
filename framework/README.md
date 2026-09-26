@@ -4,7 +4,7 @@
 npm install @semantscript/framework @semantscript/core
 ```
 
-First publish pending, see [releasing](../docs/releasing.md).
+First publish pending, see [releasing](https://github.com/thowd22/SemantScript/blob/main/docs/releasing.md).
 
 `@semantscript/framework` is the thin Phase 4 layer: controller-style handlers
 with sema expressions inside, mounted on the HTTP stack an application already
@@ -65,7 +65,7 @@ value), the Express round trip over HTTP, the middleware and the Next handlers,
 and a controller driven through `handle()` over a stub artifact from
 `@semantscript/core/testing`. To test your own handlers without a trained
 model, see "Testing handlers" in the
-[framework guide](../docs/framework-guide.md#testing-handlers).
+[framework guide](https://github.com/thowd22/SemantScript/blob/main/docs/framework-guide.md#testing-handlers).
 
 ## Persistence and transactions
 

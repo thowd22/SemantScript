@@ -81,3 +81,32 @@ def test_a_source_checkout_records_its_commit() -> None:
         pytest.skip("not a git checkout")
     package = ROOT / "trainer" / "src" / "semantscript_trainer"
     assert cli._git_commit(package) == head.stdout.strip()
+
+
+def test_cli_version_flag_prints_the_shared_version(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["--version"])
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out.strip() == f"semantscript-trainer {__version__}"
+
+
+def test_compiler_version_defaults_to_the_shared_version() -> None:
+    arguments = cli._build_parser().parse_args(
+        ["train", "--bundle", "b.json", "--artifact", "a", "--teacher", "constraints"]
+    )
+    assert arguments.compiler_version == __version__
+
+
+def test_git_commit_handles_a_checkout_path_with_spaces(tmp_path: Path) -> None:
+    root = tmp_path / "with space" / "repo"
+    package = root / "trainer" / "src" / "semantscript_trainer"
+    package.mkdir(parents=True)
+    (package / "x.py").write_text("")
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run([*git, "-C", str(root), "add", "."], check=True)
+    subprocess.run([*git, "-C", str(root), "commit", "-qm", "x"], check=True)
+    head = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    )
+    assert cli._git_commit(package) == head.stdout.strip()

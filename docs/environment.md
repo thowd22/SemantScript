@@ -56,6 +56,13 @@ notes that the variable is set.
 
 ## Recorded runs
 
+These transcripts are kept as they were printed, before the first release
+version: they show `semantscript_trainer 0.0.0` where doctor now prints the
+shared release version (0.1.0), and the older trainer fix text
+`pip install -e . from the SemantScript checkout` where doctor now prints
+`pip install "semantscript-trainer[training]"` first (the table above has
+the current fix lines).
+
 ### Linux: WSL2 with ROCm (run 2026-09-25)
 
 WSL2 (kernel 6.18 `microsoft-standard-WSL2`), Ubuntu 24.04 with the

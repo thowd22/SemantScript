@@ -16,7 +16,7 @@ pip install "semantscript-trainer[training]"   # PyTorch, Transformers, ONNX, ON
 The distribution `semantscript-trainer` carries two import packages,
 `semantscript_trainer` and `semantscript_model`, and shares its version with the
 npm packages (`semantscript_trainer.__version__`; see
-[releasing](../docs/releasing.md)). Without the `training` extra it installs only
+[releasing](https://github.com/thowd22/SemantScript/blob/main/docs/releasing.md)). Without the `training` extra it installs only
 the teacher clients, enough for `semantscript doctor` and `train --estimate`. The
 `semantscript` CLI starts it as `python -m semantscript_trainer.cli`; the same
 driver is installed as the `semantscript-trainer` command. For a GPU, install the

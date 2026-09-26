@@ -1,11 +1,11 @@
 # Compiler
 
 ```sh
-npm install --save-dev @semantscript/compiler
+npm install @semantscript/compiler
 ```
 
 Published as `@semantscript/compiler` (first publish pending, see
-[releasing](../docs/releasing.md)); `VERSION` is the release version it shares
+[releasing](https://github.com/thowd22/SemantScript/blob/main/docs/releasing.md)); `VERSION` is the release version it shares
 with the other SemantScript packages.
 
 The compiler package finds `sema<T>` sites in TypeScript, resolves their input and
@@ -169,9 +169,9 @@ subpaths resolve under
 both `import` and `require` (ts-patch and webpack load them with `require`, which
 Node 22.12+ supports for ESM without top-level await).
 
-Runnable adoption examples: [`examples/express-app`](../examples/express-app)
-(tsc transformer), [`examples/next-app`](../examples/next-app) (loader) and
-[`examples/refund-service`](../examples/refund-service) (transformer with
+Runnable adoption examples: [`examples/express-app`](https://github.com/thowd22/SemantScript/blob/main/examples/express-app)
+(tsc transformer), [`examples/next-app`](https://github.com/thowd22/SemantScript/blob/main/examples/next-app) (loader) and
+[`examples/refund-service`](https://github.com/thowd22/SemantScript/blob/main/examples/refund-service) (transformer with
 routed, depth-6 domains).
 
 ## Editor plugin

@@ -231,6 +231,12 @@ function main(argv) {
     else positionals.push(argument);
   }
   if (command === "set" && positionals.length === 1) {
+    try {
+      pythonVersion(positionals[0].replace(/^v/u, ""));
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      return 2;
+    }
     setVersion(root, positionals[0].replace(/^v/u, ""));
     const problems = findMismatches(root, positionals[0].replace(/^v/u, ""));
     if (problems.length > 0) {
@@ -245,12 +251,10 @@ function main(argv) {
   if (command === "check" && positionals.length === 0) {
     const version = readSourceVersion(root);
     const problems = findMismatches(root, version);
-    if (
-      tag !== undefined &&
-      tag.replace(/^refs\/tags\//u, "") !== `v${version}`
-    ) {
-      problems.push(
-        `tag ${tag} does not match package.json version ${version} (expected v${version})`,
+    const bareTag = tag?.replace(/^refs\/tags\//u, "");
+    if (bareTag !== undefined && bareTag !== `v${version}`) {
+      console.error(
+        `tag ${bareTag} does not match the package.json version ${version}: tag the release as v${version}, or bump first with node scripts/version.mjs set ${bareTag.replace(/^v/u, "")} and commit before tagging`,
       );
     }
     if (problems.length > 0) {
@@ -259,6 +263,7 @@ function main(argv) {
       );
       return 1;
     }
+    if (bareTag !== undefined && bareTag !== `v${version}`) return 1;
     console.log(
       `version ${version} (Python ${pythonVersion(version)}) is consistent`,
     );

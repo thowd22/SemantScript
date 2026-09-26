@@ -10,6 +10,10 @@ follows the same steps with the differences noted at the end.
 
 - **Node 22** and a TypeScript project compiled by `tsc` (the tutorial's
   case), Vite, esbuild or Next.js. The example is Express 5.
+- **TypeScript 6** (`npm install -D typescript@6`). The packages accept
+  5.9 to 6.x, but the `tsc` route's `ts-patch` 4 needs 6, and TypeScript 7
+  is not supported yet: with 7 installed, the install below stops with an
+  `ERESOLVE` peer-dependency error.
 - **Python 3.12** with the trainer, `semantscript-trainer` from PyPI with
   its `training` extra (PyTorch, Transformers, ONNX and ONNX Runtime); step 2
   installs it. The CLI finds the interpreter through `--python`,

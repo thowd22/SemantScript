@@ -3,11 +3,11 @@ id: TASK-15.2
 title: >-
   Retrain the Express example under the held-out gate and make its README
   describe the release on disk
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 18:33'
+updated_date: '2026-09-26 19:09'
 labels:
   - dx
   - example
@@ -27,8 +27,8 @@ examples/express-app currently serves release 217d386c (built 2026-09-26T00:48Z,
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 examples/express-app serves a release that passes the held-out constraint gate, trained from the cached datasets or, under the user's approved teacher spend (2026-09-26: 'Feel free to use the full 50$ budget if that will speed up training. This needs to work with express.'), from a newly generated teacher dataset, and semantscript explain answers deny for standard and enterprise customers with paid and fraudulent orders at 100, 120, 150 and 200 days
-- [ ] #2 examples/express-app/README.md, docs/tutorial-refund-decision.md and docs/deploy.md quote the current release's digest, seed, accuracy, ECE, corpus and held-out violation figures and sizes, and semantscript releases list agrees with them
+- [x] #1 examples/express-app serves a release that passes the held-out constraint gate, trained from the cached datasets or, under the user's approved teacher spend (2026-09-26: 'Feel free to use the full 50$ budget if that will speed up training. This needs to work with express.'), from a newly generated teacher dataset, and semantscript explain answers deny for standard and enterprise customers with paid and fraudulent orders at 100, 120, 150 and 200 days
+- [x] #2 examples/express-app/README.md, docs/tutorial-refund-decision.md and docs/deploy.md quote the current release's digest, seed, accuracy, ECE, corpus and held-out violation figures and sizes, and semantscript releases list agrees with them
 - [x] #3 If no cached-dataset seed passes, the per-seed corpus and held-out violation rates are recorded in the task and no teacher spend happens without the user's approval
 <!-- AC:END -->
 
@@ -97,10 +97,12 @@ Fix round 1 (2026-09-26): reviewers flagged AC1's 'trained from the cached datas
 Advisory fixes: docs/teachers.md 'below' -> 'above'; docs/training-pipeline.md no longer claims a blanket 'denies orders past 90 days' (now: paid and fraudulent at 100 to 200 days, residual errors in the README); examples/express-app/README.md quick start says a bare train fails the held-out check here and names the passing recipe, and a new paragraph lists the release's known misses. Verified with explain: enterprise/fraudulent/95/total 100 -> review, enterprise/paid/365/total 5 -> approve, both VIOLATED on the 90-day rule (reviewer's probe: 18/2556 wrong up to 240 days, 47/216 at 300 and 365). docs/tutorial-refund-decision.md: TOML now includes seed = 1 and max_tokens = 4096, command adds --seed 1 --seed-attempts 3, key note says OpenRouter key, route table 'a few minutes'; train --estimate with the tutorial's TOML now prints 0 requests, USD 0.00 (both functions cached), i.e. it reuses the example's cache.
 Not done (advisory, would need a new paid run and re-review): widen [teacher.ranges] order.ageDays to 0..730 so stale orders past 240 days are covered; train --estimate with that TOML: 471 requests (max 674), USD 0.61 (max 1.04), about 29 min of teacher time. No teacher request was sent in this round (USD 0).
 Checks: npm run lint:node clean; npm test -w compiler 89/89; npm test -w cli 66/66; npx prettier --check docs README.md examples/express-app/README.md clean.
+
+Finalize validation 2026-09-26 (worktree, release 0fd67142 current): semantscript explain dist/refunds.sem.js --call decideRefund over standard/enterprise x paid/fraudulent x 100/120/150/200 days (priorRefunds 0, total 100) answered deny 16 of 16, 90-day rule satisfied on each (AC1). semantscript releases show 0fd67142 and semantscript test: decideRefund passed, accuracy 0.9872, ECE 0.0087, corpus violations 0, held-out 4/512 (0.78%, gate 1%), seed 1; triage 1.0000; test passed. releases list: current 0fd67142d16f 2/2 passed 0.9872/0.0087/0 violations, int8 c7534774 0 of 1162 changed. Dataset is teacher-generated under the user's approved spend (constraints+anthropic, 478 requests, USD 0.96423), not cached; AC1 wording covers this. AC2: README, tutorial and deploy.md quote 0fd67142, seed 1, 0.9872, 0.0087, 0 corpus violations, 4 of 512 held-out, 570.9 MiB artifact (du -sb 598,680,461 B), 653.9 MiB package, c7534774 228.6 MiB; releases list agrees. npm run lint:node clean; npm test -w cli 66/0; npm test -w compiler 89/0; prettier --check docs README.md examples/express-app/README.md clean. Total teacher spend for the task USD 0.96.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Retrained the Express example under the user's approved spend: the constraints teacher with Sonnet 5 through OpenRouter as fallback (--cases 384, --seed 1, USD 0.96) produced release 0fd67142, which passes the held-out constraint gate (4 of 512, 1% tolerance) with decideRefund accuracy 0.9872, ECE 0.0087, 0 of 778 corpus violations; int8 derivative c7534774 fits lambda-zip. semantscript explain answers deny on all 16 AC1 grid inputs (float32 and int8). README, tutorial, deploy.md, teachers.md, training-pipeline.md and diagnostics.md describe the release, its recipe and its known misses (fraudulent orders just past 90 days on the enterprise tier, and stale orders past the 240-day training range). The 27 free cached-dataset retrains that failed first are recorded (AC3). The release artifacts are git-ignored and live in the worktree until copied into the main checkout.
+examples/express-app now serves release 0fd67142 (seed 1), trained with the constraints teacher plus the OpenRouter Anthropic fallback under the user's approved spend (478 requests, USD 0.96). It passes the held-out constraint gate (4/512, 0.78% against 1%), with refund accuracy 0.9872, ECE 0.0087 and 0 corpus violations; its int8 derivation c7534774 changes 0 of 1,162 decisions and packages to 228.6 MiB. semantscript explain answers deny on all 16 grid inputs (standard/enterprise x paid/fraudulent x 100/120/150/200 days). The example README, docs/tutorial-refund-decision.md and docs/deploy.md quote these figures and sizes, and releases list/show agree; the README lists known misses outside the grid (e.g. enterprise/paid/365 days approves). Verified with explain, releases list/show, semantscript test, lint, cli and compiler tests, and prettier. The git-ignored .semantscript artifact, cache and reports must be copied from the worktree to the main checkout.
 <!-- SECTION:FINAL_SUMMARY:END -->

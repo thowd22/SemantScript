@@ -30,7 +30,7 @@
       "family": "verifier",
       "failure": "`N gold/human example prediction(s) failed`, and no teacher-labelled case repeats the miss",
       "cause": "The example disagrees with what the model learned from the teacher's labels: the example, the labels or a constraint is wrong.",
-      "fix": "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}): if it is right, add examples near it or a constraint for its rule; if not, correct it"
+      "fix": "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}); when a release is already published, semantscript explain <module.js> --call <export> with the example's inputs lists it beside the nearest teacher-labelled cases from this run's cached dataset. If the example is right, add examples near it or a constraint for its rule; if not, correct it"
     },
     {
       "id": "violation-example",

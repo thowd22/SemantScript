@@ -53,9 +53,13 @@ test("the remedies whose next step is explain or the stub artifact name it", asy
       id,
     );
   }
-  // A failed verification publishes nothing, so explain has no release to
-  // describe: the train-side gold fix must not send the developer there.
-  assert.doesNotMatch(fixes.get("gold-check-example"), /semantscript explain/);
+  // A failed retrain still caches its dataset, and explain lists the gold
+  // example beside the nearest teacher-labelled cases from it when a release
+  // is already published.
+  assert.match(
+    fixes.get("gold-check-example"),
+    /when a release is already published, semantscript explain/,
+  );
   assert.doesNotMatch(fixes.get("estimate-killed"), /--batch-size|--device/);
 });
 

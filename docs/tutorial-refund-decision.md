@@ -208,9 +208,11 @@ then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases,
 each followed by a `next:` line with the fix
 ([diagnostics](diagnostics.md#verification-failures)). A failed
-verification publishes nothing, so there is no release for
-`semantscript explain` (step 5) to describe yet: follow the `next:` line and
-rerun `train`.
+verification publishes nothing, so on this first train there is no release
+for `semantscript explain` (step 5) to load yet: follow the `next:` line and
+rerun `train`. On a later retrain that fails, the earlier release is still
+published and the run's dataset is cached, so explain on a call with the
+example's inputs shows the example beside the teacher's nearest labels.
 
 To see the whole flow without any key on the clone route, run the reference
 application instead, whose expressions are labeled by their own constraints

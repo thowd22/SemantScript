@@ -414,7 +414,8 @@ built before the manifest recorded seeds.
 Exit 1 when any function's status is not `passed`, any bundle function is
 absent from the artifact, or any example mismatches. An absent function and a
 mismatch each add a `next:` line (retrain on this bundle; rebuild, retrain
-and rerun), and so does a function that did not pass (retrain, or roll back),
+and rerun, then `semantscript explain` on the example's inputs if it still
+fails), and so does a function that did not pass (retrain, or roll back),
 which `--json` lists as `next`. With nothing published at the artifact root
 the command exits 1 with
 `no artifact at <root> (current.json is missing); next: run semantscript train …`;

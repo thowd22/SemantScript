@@ -76,7 +76,8 @@ npx semantscript init
 `init` finds `tsconfig.json`, adds the transformer entry and the editor
 plugin entry to its `plugins`, adds `@semantscript/core` and
 `@semantscript/compiler` to `package.json` with `ts-patch` and a `prepare`
-script, reserves `.semantscript/` in a `.gitignore`, and writes a starter
+script, reserves the build outputs under `.semantscript/` (the artifact, the
+cache and the `package` bundle) in a `.gitignore`, and writes a starter
 `src/hello.sem.ts` (pass `--no-example` to skip it). It ends with the
 `doctor` checks under `environment (semantscript doctor):`, so a missing
 Python package, GPU or teacher shows now; they send no billed request and

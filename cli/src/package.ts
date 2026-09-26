@@ -127,8 +127,8 @@ export interface LeverInput {
 }
 
 const INT8_TOLERANCE =
-  "only under a recorded tolerance: the measured int8 release changed 2 attested cases and 0.105% of decisions (attestedDisagreementTolerance 2, argmaxDisagreementTolerance 0.01, benchmarks/refund/data/results-int8-2026-09-24); the strict gate refused it";
-const INT8_HOW = `derive it with benchmarks/refund/program/quantize_release.py (no CLI command yet), ${INT8_TOLERANCE}`;
+  "and only under a recorded tolerance: the measured int8 refund release changed 1 of 80 attested cases and 0.105% of decisions, which the strict gate refused (it was measured under attestedDisagreementTolerance 2 and argmaxDisagreementTolerance 0.01, benchmarks/refund/data/results-int8-2026-09-24)";
+const INT8_HOW = `a measurement, not a step to run: no int8 derivation exists for applications yet (it has only been measured on the refund benchmark, through a refund-specific driver), ${INT8_TOLERANCE}`;
 
 /**
  * The size levers for a bundle over its limit, each with the projected
@@ -184,7 +184,7 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
             "depth+int8",
             `depth ${String(depth)} and int8`,
             Math.round(scaled(MEASURED_ENCODER.depthBytes[depth]) * int8Ratio),
-            `semantscript build --domain-depth <domain>=${String(depth)}, train, then quantize as for int8 above (the same recorded-tolerance condition)`,
+            `semantscript build --domain-depth <domain>=${String(depth)}, then train; the int8 half is a measurement only, as for int8 above`,
           ),
         );
       }
@@ -721,6 +721,8 @@ function isInside(parent: string, child: string): boolean {
 }
 
 const RESERVED_INCLUDES = new Set([
+  // dist is copied without the IR bundle, which holds the prompt text.
+  "dist",
   "node_modules",
   ".semantscript",
   "package.json",
@@ -814,6 +816,10 @@ async function installDependencies(
         : "0.0.0",
     private: true,
     dependencies: production,
+    // npm ci checks the lockfile against these too, so they must stay.
+    ...(packageJson["overrides"] === undefined
+      ? {}
+      : { overrides: packageJson["overrides"] }),
   };
   await writeFile(
     join(staging, "package.json"),
@@ -883,7 +889,12 @@ function runNpm(
         resolvePromise();
         return;
       }
-      const tail = output.join("").trim().split("\n").slice(-15).join("\n");
+      // npm states the cause first and may follow it with its usage text.
+      const lines = output.join("").trim().split("\n");
+      const tail =
+        lines.length <= 30
+          ? lines.join("\n")
+          : [...lines.slice(0, 20), "...", ...lines.slice(-8)].join("\n");
       reject(
         new PackageError(
           "PACKAGE_INSTALL_FAILED",

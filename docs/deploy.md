@@ -12,7 +12,9 @@ npx semantscript train                      # .semantscript/artifact holds a rel
 npx semantscript package --include deploy/lambda.mjs --target lambda-zip
 ```
 
-The bundle lands in `.semantscript/package/`. Copy that directory into a
+The bundle lands in `.semantscript/package/`, which the `.semantscript/.gitignore`
+that `semantscript init` writes keeps out of git (run `init` again on a project
+initialised before `package` existed to add the entry). Copy that directory into a
 container image or zip it for a function platform; its
 `semantscript-package.json` records the SHA-256 and size of every file, so a
 deployment can be checked against it. The
@@ -62,16 +64,20 @@ dependencies and a few hundred kilobytes of adapter and heads. When a bundle
 is over its target, `package` lists each lever with the bundle it would give
 and whether that fits, scaling the release's encoder by these measurements:
 
-| Lever                      | Encoder (ModernBERT-base) | Condition                                                                                                                                                                                                               | Source                           |
-| -------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Depth routing to 12 layers | 395,833,756 B             | `build --domain-depth <domain>=12`, then train; the refund policy kept 160/160 on its final set                                                                                                                         | `results-depth-sweep-2026-09-24` |
-| Depth routing to 6 layers  | 275,297,443 B             | the same at 6                                                                                                                                                                                                           | same                             |
-| Depth routing to 4 layers  | 235,118,960 B             | the same at 4                                                                                                                                                                                                           | same                             |
-| Int8 dynamic quantization  | 150,073,785 B             | only under a recorded tolerance: the measured int8 refund release changed 2 attested cases and 0.105 percent of decisions, and the strict gate refused it; derived with `benchmarks/refund/program/quantize_release.py` | `results-int8-2026-09-24`        |
-| Depth and int8             | depth size × 0.2515       | both of the above                                                                                                                                                                                                       | both                             |
-| A smaller encoder          | the budget left           | `train --encoder-name <model>`; the report gives the largest encoder graph that fits                                                                                                                                    | —                                |
+| Lever                      | Encoder (ModernBERT-base) | Condition                                                                                                                                                                                             | Source                           |
+| -------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Depth routing to 12 layers | 395,833,756 B             | `build --domain-depth <domain>=12`, then train; the refund policy kept 160/160 on its final set                                                                                                       | `results-depth-sweep-2026-09-24` |
+| Depth routing to 6 layers  | 275,297,443 B             | the same at 6                                                                                                                                                                                         | same                             |
+| Depth routing to 4 layers  | 235,118,960 B             | the same at 4                                                                                                                                                                                         | same                             |
+| Int8 dynamic quantization  | 150,073,785 B             | a measurement only: no int8 derivation exists for applications yet, and the measured int8 refund release changed 1 of 80 attested cases and 0.105 percent of decisions, which the strict gate refused | `results-int8-2026-09-24`        |
+| Depth and int8             | depth size × 0.2515       | depth routing, with the int8 half a measurement only                                                                                                                                                  | both                             |
+| A smaller encoder          | the budget left           | `train --encoder-name <model>`; the report gives the largest encoder graph that fits                                                                                                                  | —                                |
 
-For another encoder the projections are estimates. A lever the release
+The int8 rows are there so the report shows how far quantization would go,
+not as a step to take: the int8 derivation has only been run on the refund
+benchmark, through a refund-specific driver that replays that benchmark's
+release pipeline, and no `semantscript` command derives an int8 release for an
+application. For another encoder the projections are estimates. A lever the release
 already uses is not offered again: depth routing when a function reads a
 routed encoder prefix, int8 when an encoder's `onnx.precision` is not
 `float32`. Depth prefixes are separate graphs, so an application with domains
@@ -79,9 +85,10 @@ at two depths ships the shared layers twice ([scaling
 results](scaling-results.md#depth-routing-the-cost-of-a-pass)).
 
 The Express example's trained release is the worked case: its bundle is
-685,309,329 bytes (653.6 MiB), 403.6 MiB over `lambda-zip`. Depth routing
+685,309,690 bytes (653.6 MiB), 403.6 MiB over `lambda-zip`. Depth routing
 alone leaves it over (the dependencies stay); int8, or depth 6 or 4 with
-int8, fits; otherwise it ships as a container
+int8, would fit, but no int8 derivation exists for applications yet, so today
+it ships as a container unless a smaller encoder is trained
 ([example README](../examples/express-app/README.md#deploying-with-the-artifact)).
 
 ## Containers
@@ -90,6 +97,8 @@ The Express example's
 [`deploy/Dockerfile.package`](../examples/express-app/deploy/Dockerfile.package)
 is the whole recipe: `FROM node:22-bookworm-slim`, copy the bundle, run as the
 `node` user, start `dist/server.js`. Build the bundle on the image's platform
-(or pass `--platform linux --arch x64`), because the native bindings are per
-platform. CI packages the example on every push, builds this image from the
+(or pass `--platform` and `--arch` matching the image: `node:22-bookworm-slim`
+is linux/arm64 on Apple silicon), because the native bindings are per
+platform. `--platform` and `--arch` prune only `onnxruntime-node` and
+`tokenizers`; any other native dependency is installed for the host. CI packages the example on every push, builds this image from the
 bundle, sends one request to it and invokes the packaged Lambda handler.

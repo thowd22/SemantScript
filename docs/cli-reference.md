@@ -53,6 +53,7 @@ Every command runs without flags in an initialised project:
 | Artifact root      | `--artifact`, else `SEMANTSCRIPT_ARTIFACT`, else `.semantscript/artifact`. The runtime's `loadSemaArtifact()` with no path resolves the same way, searching upward from the compiled entry script and then from the working directory.                                                                                                                                    |
 | Teacher            | `--teacher` (a file, or the keyword `constraints` for the built-in constraints teacher when no file of that name exists), else the first of `semantscript.teacher.toml`, `teacher.toml`, `.semantscript/teacher.toml`; else, when `ANTHROPIC_API_KEY` is set, `train` writes `.semantscript/teacher.toml` for `claude-sonnet-5` and uses it. The key never enters a file. |
 | Python interpreter | `--python`, else `SEMANTSCRIPT_PYTHON`, else `python3` (`python` on Windows). Inside this repository the trainer and model sources (and `.python-packages` when present) are prepended to `PYTHONPATH`.                                                                                                                                                                   |
+| npm (`package`)    | `SEMANTSCRIPT_NPM`, else `npm` on the `PATH`. `package` installs the bundle's production dependencies with it: `npm ci --omit=dev` from `package-lock.json` when every dependency comes from a registry, else `npm install --omit=dev --install-links --no-package-lock`, which resolves registry versions afresh rather than from the lockfile.                          |
 | Cache directory    | `--cache-dir`, else `.semantscript/cache`.                                                                                                                                                                                                                                                                                                                                |
 
 ## `init`
@@ -68,7 +69,9 @@ What it writes: the adapter entry for the detected tool (see the
 [build tool pages](build-tools/tsc.md)), the editor plugin entry
 `{ "name": "@semantscript/compiler/ts-plugin" }` in `tsconfig.json`,
 `@semantscript/core` and `@semantscript/compiler` in `package.json`,
-`.semantscript/.gitignore` reserving `artifact/` and `cache/`, and the starter
+`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/` and
+`.package-staging-*/` (on a project initialised earlier it appends whichever
+are missing), and the starter
 expression. A config it cannot edit safely (missing, unparsable,
 `require()`-based, or a `next.config` that already sets `turbopack`,
 `serverExternalPackages` or `outputFileTracingIncludes`) is reported as
@@ -482,8 +485,9 @@ levers with the bundle each would give and whether it fits, and the command
 exits 1 with `PACKAGE_OVER_TARGET`. The levers scale the release's encoder by
 sizes measured on ModernBERT-base, so for another encoder they are estimates
 ([Deploying](deploy.md) explains them): depth routing to 12, 6 and 4 layers
-(`build --domain-depth`), int8 dynamic quantization (only under a recorded
-tolerance), both together, and a smaller encoder (`train --encoder-name`,
+(`build --domain-depth`), int8 dynamic quantization (a measurement from the
+refund benchmark under a recorded tolerance; no int8 derivation exists for
+applications yet, so it is not a step to run), both together, and a smaller encoder (`train --encoder-name`,
 reported as the largest encoder graph that fits). A lever the release already
 uses is not suggested again: depth routing when a function reads a routed
 encoder prefix (`encoderRef`), int8 when an encoder's `onnx.precision` is not

@@ -10,7 +10,7 @@ adapter and a head in ONNX Runtime.
 flowchart LR
   subgraph build["Build time"]
     SRC[".sem.ts sources\n+ ordinary TypeScript"]
-    CLI["semantscript CLI\n(init · doctor · build · train · dev · test · run · releases)"]
+    CLI["semantscript CLI\n(init · doctor · build · train · dev · test · run · releases · package)"]
     COMP["Compiler (Node)\nsites → IR, execution plan,\nrewrite to __sema.call"]
     JS["Compiled JavaScript\n(no prompt text)"]
     IR["IR bundle\nsemantscript.ir.v1.json"]

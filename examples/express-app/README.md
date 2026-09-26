@@ -201,6 +201,9 @@ targets and the [deploy guide](../../docs/deploy.md) the size levers.
   the bundle with `--include deploy/lambda.mjs` (its handler is
   `deploy/lambda.handler`). The artifact loads once per execution environment
   on the first invocation and stays loaded while the environment is warm.
+- [`scripts/cold-start.mjs`](scripts/cold-start.mjs): measures a cold start
+  of either shape: a fresh Node process, the artifact load and the first
+  request, and the process's resident set after that request.
 
 Bundle sizes, measured 2026-09-25 on linux/x64 (Node 22.22):
 
@@ -215,17 +218,20 @@ counts 262,144,000 bytes unzipped for the function and its layers together.
 `package --target lambda-zip` exits 1 with `PACKAGE_OVER_TARGET` and projects
 each lever from the measured encoder sizes: depth routing alone does not fit
 (about 462, 347 and 309 MiB at 12, 6 and 4 layers, because the 82 MiB of
-dependencies stay), int8 dynamic quantization does (about 228 MiB) but only
-under a recorded tolerance (the measured int8 refund release changed 2
-attested cases; the strict gate refused it), depth 6 or 4 with int8 does
-(about 151 and 141 MiB), and so would an encoder whose graph is at most
-165.5 MiB. Without any of those, ship the trained release as a container:
-the same bundle is well under the Lambda container image limit
-(`--target lambda-image`, 10 GiB) and Cloud Run has no image size limit.
-
-- [`scripts/cold-start.mjs`](scripts/cold-start.mjs): measures a cold start
-  of either shape: a fresh Node process, the artifact load and the first
-  request, and the process's resident set after that request.
+dependencies stay), depth 6 or 4 with int8 would (about 151 and 141 MiB), int8
+alone would (about 228 MiB), and so would an encoder whose graph is at most
+165.5 MiB. The int8 figures are measurements, not a step you can run: no int8
+derivation exists for applications yet (it has only been measured on the
+refund benchmark, where it changed 1 of 80 attested cases and the strict gate
+refused it). The levers you can act on today are a smaller encoder
+(`train --encoder-name`) and depth routing, which alone is not enough here.
+Until one of those fits, ship the trained release as a container:
+[`deploy/Dockerfile.package`](deploy/Dockerfile.package) runs the bundle as
+the Express server on Cloud Run or any container host, which has no size
+limit near 654 MiB. The bundle is also well under Lambda's container image
+limit (`--target lambda-image`, 10 GiB), but this example has no Lambda
+container recipe: that image would need a Lambda Node.js base image with
+`deploy/lambda.handler` as its command, not the Express server image.
 
 Cold start and memory, measured 2026-09-24 on the development machine (AMD
 Ryzen 9 9900X, 16 GB, WSL2, Node 22.22, CPU inference through ONNX Runtime)

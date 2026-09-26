@@ -338,6 +338,18 @@ test("packageLevers projects the measured depth and int8 sizes and skips levers 
     byLabel.get("int8 dynamic quantization").how,
     /recorded tolerance/u,
   );
+  assert.match(
+    byLabel.get("int8 dynamic quantization").how,
+    /no int8 derivation exists for applications yet/u,
+  );
+  assert.match(
+    byLabel.get("int8 dynamic quantization").how,
+    /changed 1 of 80 attested cases/u,
+  );
+  assert.doesNotMatch(
+    byLabel.get("int8 dynamic quantization").how,
+    /quantize_release/u,
+  );
   assert.equal(byLabel.get("depth 4 and int8").fits, true);
   const smaller = byLabel.get("a smaller encoder");
   assert.equal(smaller.encoderBudgetBytes, limitBytes - rest);
@@ -518,6 +530,12 @@ test("package reports missing inputs, bad options and an unverified release with
   assert.match(outside.stderr, /inside the project/u);
   const reserved = await run(project, ["--include", "package.json"]);
   assert.equal(reserved.code, 2);
+  const irBundle = await run(project, [
+    "--include",
+    "dist/semantscript.ir.v1.json",
+  ]);
+  assert.equal(irBundle.code, 2);
+  assert.match(irBundle.stderr, /dist is written by package itself/u);
   const selfOut = await run(project, ["--out", "."]);
   assert.equal(selfOut.code, 2);
 

@@ -18,7 +18,7 @@ semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
-semantscript package [--project <dir>] [--artifact <root>] [--out <dir>] [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
+semantscript package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>] [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
 ```
 
 ## init
@@ -46,7 +46,8 @@ A config it cannot edit safely (missing, unparsable, `require()`-based, or a
 `next.config` that already sets one of the three keys) is reported as `manual`
 with the snippet to add, and nothing is written to it. `init` also adds
 `@semantscript/core` and `@semantscript/compiler` to `package.json`, writes
-`.semantscript/.gitignore` reserving `artifact/` and `cache/`, and, unless
+`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/` and
+`.package-staging-*/` (appending any that are missing on a re-run), and, unless
 `--no-example` is passed or a `.sem.ts` file already exists, one starter
 expression (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). It ends
 with the next steps (`npm install`, the tool's build, `semantscript train`,
@@ -339,6 +340,6 @@ tokenizer, included files) and the total.
 `--target lambda-zip|lambda-image|cloud-run-functions` or `--max-bytes <n>`
 checks the total. Over it, the bundle is still written, the command exits 1
 with `PACKAGE_OVER_TARGET`, and it lists the levers with the bundle each
-would give: depth routing, int8 quantization under its recorded tolerance,
-both, or a smaller encoder. See [Deploying](../docs/deploy.md) and the
+would give: depth routing, int8 quantization (a measurement only: no int8
+derivation exists for applications yet), both, or a smaller encoder. See [Deploying](../docs/deploy.md) and the
 [CLI reference](../docs/cli-reference.md#package).

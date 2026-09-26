@@ -126,6 +126,13 @@ release and oversized files, checks tensor names, shapes, opsets and the
 encoder-adapter-head chain, and only then swaps the new function table into
 service.
 
+Releases accumulate: nothing removes an old one on publication, so switching
+back is a pointer rewrite. `semantscript releases` lists them, `releases
+rollback` and `releases promote` rewrite `current.json` atomically after
+checking the target release the same way, and `releases prune` deletes old
+releases other than the current one (see the
+[CLI reference](cli-reference.md#releases)).
+
 ## Canonical input encodings
 
 The runtime validates a call's inputs against the function's `inputs`

@@ -143,7 +143,7 @@ exercises the whole path without a trained model).
 
 ## The two that tie them together
 
-The **CLI** (`semantscript init | doctor | build | train | dev | test | run | teacher probe`) drives
+The **CLI** (`semantscript init | doctor | build | train | dev | test | run | teacher probe | releases`) drives
 the four with zero-config defaults ([CLI reference](cli-reference.md)); the
 **framework** (`@semantscript/framework`) puts request scopes, guards and
 decision-gated transactions around compiled calls in Express, Nest and

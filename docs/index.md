@@ -43,10 +43,12 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 ## Reader-facing references
 
 - [CLI reference](cli-reference.md): every command, flag, default,
-  environment variable and exit code of `semantscript`.
+  environment variable and exit code of `semantscript`, including
+  `semantscript releases` to list, inspect, roll back, promote and prune
+  artifact releases.
 - [Build cache](build-cache.md): what is content-addressed, when retraining
   happens, where the caches live (including the teacher response journal) and
-  how to clear them.
+  how to clear them, and how the cache interacts with a release rollback.
 - [Diagnostics catalogue](diagnostics.md): every compiler diagnostic, editor
   warning, trainer and verifier failure and runtime error, with cause and fix.
 - [Language reference](language-reference.md): `sema<T>` syntax, inputs,

@@ -1,3 +1,5 @@
+import type { ManifestFunctionSummary } from "./manifest.js";
+
 /** Render aligned plain-text columns for terminal output. */
 export function renderTable(
   headers: readonly string[],
@@ -20,4 +22,33 @@ export function formatRatio(value: number): string {
 
 export function shortId(functionId: string): string {
   return functionId.length > 14 ? `${functionId.slice(0, 11)}…` : functionId;
+}
+
+/** The per-function verification columns `test` and `releases show` share. */
+export const VERIFICATION_HEADERS: readonly string[] = [
+  "function",
+  "verification",
+  "accuracy",
+  "ece",
+  "brier",
+  "pairs",
+  "attested",
+  "violations",
+  "heads",
+];
+
+export function verificationCells(
+  fn: ManifestFunctionSummary,
+): readonly string[] {
+  return [
+    shortId(fn.id),
+    fn.status,
+    formatRatio(fn.accuracy),
+    formatRatio(fn.ece),
+    formatRatio(fn.brier),
+    formatRatio(fn.pairConsistency),
+    String(fn.attestedCases),
+    String(fn.constraintViolations),
+    fn.heads.map((head) => formatRatio(head.accuracy)).join("/"),
+  ];
 }

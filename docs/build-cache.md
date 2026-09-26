@@ -107,6 +107,21 @@ that matters.
   compiler derives from source, and the plan's stages and domains are outside
   that identity.
 
+## Releases, rollback and prune
+
+The build cache and the artifact root are separate. Every `train` publishes an
+immutable release under `<artifact-root>/releases/` and points `current.json`
+at it; `semantscript releases` lists them, `releases rollback` points
+`current.json` back at an earlier one and `releases prune` deletes old ones
+(see the [CLI reference](cli-reference.md#releases)). Pruning frees disk but
+never touches the cache, and never removes the current release.
+
+The cache reuses a published release only while `current.json` still names
+the release it last published. After a rollback, the next `train` therefore
+exports the cached state again as a new release (its manifest carries a new
+`build.createdAt`) and makes it current: roll back to keep an older release in
+service, and train again only once the regression is fixed.
+
 ## Clearing it
 
 Deleting `.semantscript/cache` (or the `--cache-dir` you passed) is always

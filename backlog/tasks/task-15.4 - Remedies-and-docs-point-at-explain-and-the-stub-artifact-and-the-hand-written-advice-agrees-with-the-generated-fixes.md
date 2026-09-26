@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 06:37'
+updated_date: '2026-09-26 06:41'
 labels:
   - dx
 milestone: m-6
@@ -48,4 +48,6 @@ Risks: remedies.json merge with 15.1/15.3 (edit named entries in place, one inse
 
 <!-- SECTION:NOTES:BEGIN -->
 IMPLEMENT: remedies.json edits (gold-check-example, test-example-mismatch, unknown-function name semantscript explain; runtime-not-loaded, artifact-missing, editor-no-artifact name loadSemaStubArtifact() from @semantscript/core/testing); new estimate-killed trainer-process remedy (no --batch-size/--device) used by cli/src/train.ts --estimate branch; regenerated outputs (generate-remedies --check exit 0). Seed-retry gold stop reason now ends 'a gold miss is not a seed effect' with no advice (tests in test_seed_retry.py and test_cli.py). docs/diagnostics.md prose for VerificationConfigurationError, ArtifactExportError/ArtifactPublicationError, TrainingConfigurationError/TrainingExecutionError aligned with train-no-gold-examples, train-failed, artifact-export-failed, train-path-unwritable, train-out-of-memory; estimate-killed prose. init reserves *.traceback.txt (verified with git check-ignore in a scratch project). explain/stub pointers in tutorial steps 4-5, build-cache.md, framework-guide.md Testing handlers, framework/README.md; reserved-entry lists in cli-reference, getting-started, build-cache, cli/README. Local: npm run build ok, lint:node ok, test:node 369/369 pass, trainer pytest (remedies, failures, seed_retry, verification, cli) 70 passed, ruff clean, prettier --check clean.
+
+Committed and pushed task-15.4 (9cc92a8); CI run 36224327946 green on all 7 jobs (Node lint/build/tests, Python lint and tests dev and dev,training, fresh clone, package, doctor macOS/Windows).
 <!-- SECTION:NOTES:END -->

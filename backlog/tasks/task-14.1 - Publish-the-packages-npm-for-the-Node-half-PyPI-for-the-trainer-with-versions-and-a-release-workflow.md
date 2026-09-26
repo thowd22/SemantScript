@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 03:40'
+updated_date: '2026-09-26 04:01'
 labels:
   - dx
   - install
@@ -71,4 +71,6 @@ IMPLEMENT (2026-09-25):
 - Checks: npm run build ok; lint:node ok; test:node 345 pass; ruff check/format ok; pytest 709 passed 4 skipped; prettier --check docs README.md ok.
 
 CI on task-14.1: CI run 36215282158 success (all jobs). Release dry run 36214993058 failed only in publish-npm (npm read release/x.tgz as a GitHub shorthand); fixed with ./release paths. Release dry run 36215282093 success in 4.3 min: verify, test (3.8 min), pack (twine check --strict PASSED wheel+sdist), smoke 3.4 min on hosted CPU (clean venv pip install of the wheel [training] from PyPI deps, npm install of the 4 tarballs in /tmp, init/build/train 96 cases acc 1.0/test/run true,false; manifest compilerVersion+trainerVersion 0.1.0), npm publish --dry-run of core/compiler/framework/cli OK, PyPI dry run OK; publish-pypi and github-release skipped as designed. Recorded in docs/releasing.md.
+
+FIX round 1 (commit 0aa7d86). Blocking review findings 1-4 (AC1, AC2, publish half of AC3 not met) are correct and are user-gated, not code defects: the public registries, LICENSE choice, NPM_TOKEN, PyPI trusted publisher and pypi environment need the user; those criteria stay unchecked. Blocking finding 5 fixed: the tutorial no longer claims both routes are identical from step 4; doctor has a published-route line, steps 4-5 run from the project directory (published) or examples/express-app (clone), the refund-service run and npm start are marked clone only, and step 5 says how the published route continues (import the compiled module after loadSemaArtifact). Advisory fixes: semantscript CLI takes typescript as a peer (>=5.9 <7, same as the compiler) so an app on TS 5.9 no longer gets two compilers (verified: npm ls typescript deduped, semantscript build rc=0 in a TS 5.9 app from the packs); getting-started and the tutorial state TypeScript 6; semantscript --version / -v / version and semantscript-trainer --version; trainer --compiler-version defaults to __version__; _git_commit splits on lines (path-with-space test); new cli test builds under the ts-patch live compiler with a plugins entry (fails with 'planned 1 sema rewrites ... but matched 0' when the fix is removed); version.mjs tag mismatch names the real fix and set rejects bad input with exit 2; release-smoke --help and directoryKept; package README links are absolute GitHub URLs; compiler README install matches docs; environment.md notes its transcripts predate 0.1.0. Checks: npm run build, lint:node rc 0, test:node all pass (cli 42), pytest test_version/test_cli/test_doctor 52 passed, ruff check/format clean, prettier clean, version.mjs check consistent, release-smoke --no-train from fresh packs passed.
 <!-- SECTION:NOTES:END -->

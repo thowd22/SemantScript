@@ -53,7 +53,7 @@ derived from them.
 
 The corpus constraint check scores only inputs the model trained on. A model
 can keep a rule on its boundary pairs and training cases and still break it a
-few steps away: the Express example's release `217d386c` passed with zero
+few steps away: the Express example's earlier release `217d386c` passed with zero
 corpus violations and answered `review` or `approve` for orders at 100 to 200
 days under `always(() => order.ageDays > 90, "deny")`, because its training
 inputs past 90 days were the boundary cases at 91 days and a few cases at 132.
@@ -131,10 +131,11 @@ inputs (seed 5, which published release `217d386c` before the check, now
 also exceeds the corpus tolerance at 8 of 394: GPU training is not
 bit-for-bit repeatable). A sweep of seeds 1 to 10 and of training-only
 variants (more epochs, other learning rates and batch sizes, an MLP head) on
-the same datasets found no passing run: the best broke 20 of 512 (3.9%), so
-the example keeps `217d386c` and its
-[README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)
-lists every run and the teacher cost of the fixes.
+the same datasets found no passing run: the best broke 20 of 512 (3.9%); its
+[README](../examples/express-app/README.md#retrains-from-the-older-cached-datasets-failed-the-held-out-check)
+lists every run. A new dataset from the constraints teacher with a Sonnet 5
+fallback (`--cases 384 --epochs 16`, USD 0.96) passed at 4 of 512 on its first
+seed and published `0fd67142`, which denies orders past 90 days.
 
 When the active constraints require exactly one output for the first
 offending input, the fix is that input as an `examples` entry

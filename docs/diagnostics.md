@@ -507,7 +507,8 @@ semantscript explain dist/refunds.sem.js --call decideRefund \
   --input '[{"tier":"standard","priorRefunds":0},{"ageDays":120,"status":"fraudulent","total":80}]'
 ```
 
-Against the Express example's release, this printed (abridged):
+Against the Express example's earlier release `217d386c`, this printed
+(abridged; its successor `0fd67142` answers `"deny"` at 0.9315):
 
 ```text
 call 1: nf_957c2b2b… (src/refunds.sem.ts:21)

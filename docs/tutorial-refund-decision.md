@@ -195,18 +195,41 @@ Pick a teacher. All four routes produce the same artifact layout; the
 
 For this tutorial's expression a teacher must read the text (its constraints
 do not cover every input: `--teacher constraints` stops with one such input
-and the outputs the constraints admit), so the first two routes apply, or the
-constraints with a language-model `[teacher.fallback]` for the inputs they
-leave open ([teachers](teachers.md)). Before paying for a run, know that
-this expression has not yet passed the
+and the outputs the constraints admit), so the first two routes apply, or,
+better, the constraints with a language-model `[teacher.fallback]` for the
+inputs they leave open ([teachers](teachers.md)). The mixed teacher is the
+route that passed the
 [held-out constraint check](training-pipeline.md#held-out-constraint-check)
-at this size: 27 retrains of it at 192 cases and 8 to 32 epochs all failed
-it (details below), so a run at `--cases 200 --epochs 4` will very likely end
-with `train failed` and no release, and step 5 then has nothing to test.
-Check `--estimate` first and budget for more cases or `examples`. With a key:
+for this expression: the rules label every paid or fraudulent order and every
+order past 90 days, the language model labels only the cancelled orders at 90
+days or less (and every input of an expression with no constraints), and the
+check samples its inputs the same way. With the language model alone, 27
+retrains at 192 cases and 8 to 32 epochs all failed the check (details
+below). Write `.semantscript/teacher-constraints.toml`:
+
+```toml
+[teacher]
+backend = "constraints"
+
+[teacher.ranges]
+"order.ageDays" = { low = 0, high = 240 }
+
+[teacher.fallback]
+backend = "anthropic"
+model = "anthropic/claude-sonnet-5"      # "claude-sonnet-5" with an Anthropic key
+base_url = "https://openrouter.ai/api"   # leave out with an Anthropic key
+mode = "direct"
+```
+
+Then, with the key in `ANTHROPIC_API_KEY`, price the run and train:
 
 ```sh
-npx semantscript train --cases 200 --epochs 4 --device cuda
+npx semantscript train --teacher .semantscript/teacher-constraints.toml --cases 384 --epochs 16 \
+  --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 \
+  --device cuda --estimate
+npx semantscript train --teacher .semantscript/teacher-constraints.toml --cases 384 --epochs 16 \
+  --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 \
+  --device cuda --max-cost-usd 2
 ```
 
 `npx semantscript doctor` in the same directory checks the teacher you
@@ -218,7 +241,9 @@ when `ANTHROPIC_API_KEY` is set (or takes `--teacher`), generates the cases,
 trains ModernBERT-base plus one head, fits the calibration temperature,
 verifies the gold examples and the constraints, and publishes
 `.semantscript/artifact`. Expect the encoder download the first time (600 MB),
-then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
+then the teacher's requests (about 30 minutes for the Express example's 478
+through OpenRouter) and about three minutes of training, verification and
+export on the GPU, or much longer on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases,
 each followed by a `next:` line with the fix
 ([diagnostics](diagnostics.md#verification-failures)). A failed
@@ -232,26 +257,25 @@ also reports the changed function missing from the release; apply the
 retrains on the same cached dataset.
 
 What the Express example's own release shows (it exists on the development
-machine only: `examples/*/.semantscript/` is git-ignored): `217d386c`
-(2026-09-26, Sonnet 5 through
-OpenRouter, `--cases 192 --epochs 8 --seed 5 --select-best-epoch
---counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01`), verified
-`decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus
-violations, before the
-[held-out constraint check](training-pipeline.md#held-out-constraint-check)
-existed, and it answers `approve` for paid orders at 100 to 200 days. No
-retrain from its cached datasets passes that check today: seeds 1 to 10 broke
-28 to 109 of 512 held-out inputs (5.5% to 21.3%) and the best training-only
-variant 20 of 512 (3.9%), against a 1% tolerance
-([example README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)).
-If your run fails there, the failure's `next:` line names one `examples`
-entry for the most-broken constraint; that is the right first step, but on
-this expression the failures spread over several constraints, so expect to
-add entries for each of them; more gold examples
-across the broken constraints or a larger `--cases` are the routes, both call
-the teacher again, and neither is yet known to pass, so check `--estimate`
-and pass `--max-cost-usd`. To walk steps 4 and 5 without a key or a paid
-run, use the reference application below.
+machine only: `examples/*/.semantscript/` is git-ignored): `0fd67142`
+(2026-09-26, that command at `--seed 1` on an RX 9070 XT, with Sonnet 5
+through OpenRouter as the fallback; 478 requests, USD 0.96, about 30
+minutes), verified `decideRefund` at accuracy 0.9872, ECE 0.0087, 0 of 778
+corpus violations and 4 of 512 held-out inputs (0.78%, against a 1%
+tolerance), and it answers `deny` for paid and fraudulent orders at 100 to
+200 days for both tiers. Its predecessor `217d386c`, labelled by the language
+model alone at 192 cases, answered `approve` for those paid orders, and no
+retrain from its cached datasets passed the check: seeds 1 to 10 broke 28 to
+109 of 512 held-out inputs (5.5% to 21.3%) and the best training-only variant
+20 of 512 (3.9%)
+([example README](../examples/express-app/README.md#retrains-from-the-older-cached-datasets-failed-the-held-out-check)).
+GPU training is not bit-for-bit repeatable, so your run's figures will
+differ. If it fails the check, the failure's `next:` line names one
+`examples` entry for the most-broken constraint; that is the right first
+step, and more gold examples across the broken constraints, another
+`--seed` from the cached datasets (free) or a larger `--cases` are the
+routes after it; check `--estimate` and pass `--max-cost-usd`. To walk steps
+4 and 5 without a key or a paid run, use the reference application below.
 
 To see the whole flow without any key on the clone route, run the reference
 application instead, whose expressions are labeled by their own constraints
@@ -310,16 +334,17 @@ npm start        # clone only: POST /refunds/:orderId decides over PGlite and co
 The server loads the artifact once at startup with `loadSemaArtifact()` and
 no path. The rest of this step is the development machine's output, not
 yours: a clone has no trained release, and your own `train` either published
-one that passed the held-out check or published nothing. The example's release `217d386c` packages to 653.9 MiB (570.9 MiB
-of it the float32 artifact, 82.7 MiB `node_modules`) with `semantscript
-package`, and `semantscript test` prints `-` in its `held-out` and `seed`
-columns because it was published before those fields. A paid order at 100
-days shows, on that machine, the answer the held-out check now refuses:
+one that passed the held-out check or published nothing. The example's
+release `0fd67142` packages to 653.9 MiB (570.9 MiB of it the float32
+artifact, 82.7 MiB `node_modules`) with `semantscript package`, and its int8
+derivation `c7534774` to 228.6 MiB ([deploy](deploy.md)). `semantscript
+test` prints `4/512` in its `held-out` column and `1` in its `seed` column,
+and a paid order at 100 days gets the answer the 90-day rule requires:
 
 ```sh
 npx semantscript run dist/refunds.sem.js --call decideRefund \
   --input '[{"tier":"standard","priorRefunds":0},{"total":100,"ageDays":100,"status":"paid"}]'
-"approve"
+"deny"
 ```
 
 ## What you have

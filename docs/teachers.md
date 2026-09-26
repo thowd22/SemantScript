@@ -254,8 +254,21 @@ constraints decide it)
 ```
 
 With a local fallback, start with `--counterfactual-ratio 0` (or a small
-ratio), or make the constraints complete so no case needs the fallback. An
-Anthropic fallback has not been run in mixed mode.
+ratio), or make the constraints complete so no case needs the fallback.
+
+An Anthropic fallback in mixed mode has one end-to-end run: the Express
+example on 2026-09-26, with Sonnet 5 through OpenRouter as the fallback,
+`[teacher.ranges]` `"order.ageDays" = { low = 0, high = 240 }`, `--cases 384
+--epochs 16 --select-best-epoch --counterfactual-ratio 0.5`. `train
+--estimate` priced it at 517 requests (max 828) and USD 0.70 (max 1.34); it
+sent 478 for USD 0.96 in about 30 minutes, 97 of them (USD 0.22) for
+`decideRefund`, whose six rules left only cancelled orders at 90 days or less
+to the fallback (7 of its 381 synthetic cases), and 381 (USD 0.75) for
+`triage`, which has no constraints. No counterfactual twin failed, and the
+release passed the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+(4 of 512) on its first seed
+([example README](../examples/express-app/README.md#the-release-on-disk)).
 
 Whatever the teacher, verification reproduces every gold example exactly and
 refuses an expression with none, so `train` stops before generating anything
@@ -342,7 +355,8 @@ prompt without a schema failure. The Express datasets were since regenerated
 with the new prompt (USD 0.99), and 27 training runs on them verified
 `decideRefund` at accuracy 0.9000 to 0.9875, but none passes the
 [held-out constraint check](training-pipeline.md#held-out-constraint-check)
-([example README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)).
+([example README](../examples/express-app/README.md#retrains-from-the-older-cached-datasets-failed-the-held-out-check));
+the example's release now comes from the mixed constraints teacher (below).
 
 A language-model teacher's configuration digest includes the prompt layout
 version, so datasets cached with the old prompt are regenerated once for the

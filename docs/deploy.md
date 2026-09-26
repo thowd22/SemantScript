@@ -114,8 +114,9 @@ manifest digest, the quantization settings, the tolerances and the figures in
 each quantized encoder's `onnx.quantization` (`releases show` prints them),
 the runtime loads it like any release, and `releases promote` or `rollback`
 switch to it and back. The check covers the training, gold and adversarial
-records only: a held-out set joins it once the release gate records one for
-the release. The records are in the build cache, so a release trained on
+records only: the release gate records a held-out sample since the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check),
+but the int8 check does not verify on it yet. The records are in the build cache, so a release trained on
 another machine, or after `.semantscript/cache` was cleared, cannot be
 derived until it is retrained where its cache is. A later `semantscript train`
 or `dev` publishes the float32 release again and makes it current, even with
@@ -123,16 +124,30 @@ no source change, so run the derive and promote steps again after each train
 before packaging. The
 [CLI reference](cli-reference.md#releases-derive---int8) lists the flags.
 
-The Express example's trained release is the worked case: its bundle is
-685,309,690 bytes (653.6 MiB), 403.6 MiB over `lambda-zip`. Depth routing
+The Express example's trained release `217d386c` is the worked case (on the
+development machine only: `examples/*/.semantscript/` is git-ignored, so a
+clone has no trained release). It was trained at seed 5 (inferred from the name of the report that
+records its manifest, `train-report-reduced-seed5.json`; neither the report
+nor the manifest has a seed field) and verified
+`decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus violations
+(`triage` 1.0000, ECE 0.0000); its held-out figure is not recorded, and
+`semantscript releases list` prints `217d386c9852`, `2/2 passed`, `0.9241`,
+`0.0719`, `0`. Its bundle measured 685,635,429 bytes (653.9 MiB) on 2026-09-26, 403.9 MiB over
+`lambda-zip`. (That release predates the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+and answers `approve` or `review` for orders past 90 days that its policy
+denies; no retrain from its cached datasets passes the check, so the example
+still ships it for the wiring only, as its
+[README](../examples/express-app/README.md#the-release-on-disk-breaks-the-90-day-rule)
+records.) Depth routing
 alone leaves it over (the dependencies stay). `releases derive --int8`
 measured it on 2026-09-26 on 586 records (6 attested), on CPU:
 
-| Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                          |
-| ------------------------------------------------- | ----------------- | ---------------- | -------------- | --------------------------------------------------------------- |
-| default                                           | 6 (1.02%)         | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                     |
-| `--per-channel`                                   | 3 (0.51%)         | 0                | 0.0914         | refused: decisions changed                                      |
-| `--per-channel --max-decision-change-rate 0.0052` | 3 (0.51%)         | 0                | 0.0914         | published; bundle 239,697,592 B (228.6 MiB), fits with 21.4 MiB |
+| Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                                        |
+| ------------------------------------------------- | ----------------- | ---------------- | -------------- | ----------------------------------------------------------------------------- |
+| default                                           | 6 (1.02%)         | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                                   |
+| `--per-channel`                                   | 3 (0.51%)         | 0                | 0.0914         | refused: decisions changed                                                    |
+| `--per-channel --max-decision-change-rate 0.0052` | 3 (0.51%)         | 0                | 0.0914         | published as `f8e22cae`; bundle 239,708,539 B (228.6 MiB), fits with 21.4 MiB |
 
 So the strict gate refuses the Express int8 release, and it fits `lambda-zip`
 only under a recorded tolerance of 0.52% changed decisions (none attested),

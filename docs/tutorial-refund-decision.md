@@ -113,7 +113,8 @@ mkdir -p src && curl -fsSLo src/refunds.sem.ts \
   https://raw.githubusercontent.com/thowd22/SemantScript/main/examples/express-app/src/refunds.sem.ts
 ```
 
-Its core (the full file carries all six policy rules as constraints):
+Its core (the full file carries three gold examples and all six policy rules
+as constraints):
 
 ```ts
 // examples/express-app/src/refunds.sem.ts
@@ -124,25 +125,32 @@ export function decideRefund(customer: Customer, order: Order): RefundDecision {
     examples: [
       {
         inputs: {
-          customer: { priorRefunds: 0, tier: "enterprise" },
-          order: { ageDays: 45, status: "paid", total: 129 },
+          customer: { tier: "standard", priorRefunds: 1 },
+          order: { total: 88.5, ageDays: 12, status: "paid" },
         },
         output: "approve",
       },
+      // two more gold examples: an enterprise order outside its 60-day window (deny) and a fraudulent review
     ],
     constraints: [
-      never(() => order.status === "fraudulent", "approve"),
       always(() => order.ageDays > 90, "deny"),
+      never(() => order.status === "fraudulent", "approve"),
+      // four more: fraudulent within 90 days, and the tier windows for paid orders
     ],
-  })`Apply our refund policy. Enterprise customers get 60 days; everyone else gets 30. Suspicious circumstances go to review.
-Customer: ${customer}
-Order: ${order}`;
+  })`
+    Decide a refund request. Deny orders older than 90 days. Never approve a
+    fraudulent order; review it unless it is stale. Deny paid orders outside
+    the tier window (60 days enterprise, 30 days standard). Inside the window,
+    review when the customer has more than two prior refunds, else approve.
+    Customer: ${customer}
+    Order: ${order}
+  `;
 }
 ```
 
 The output type is the support (`"approve" | "deny" | "review"`), the
-interpolations are the inputs, the example is an attested case the verifier
-must reproduce, and the two constraints are rules the release gate checks.
+interpolations are the inputs, the examples are attested cases the verifier
+must reproduce, and the constraints are rules the release gate checks.
 The text is what a teacher reads to generate the corpus.
 
 ## 3. Compile
@@ -189,7 +197,13 @@ For this tutorial's expression a teacher must read the text (its constraints
 do not cover every input: `--teacher constraints` stops with one such input
 and the outputs the constraints admit), so the first two routes apply, or the
 constraints with a language-model `[teacher.fallback]` for the inputs they
-leave open ([teachers](teachers.md)). With a key:
+leave open ([teachers](teachers.md)). Before paying for a run, know that
+this expression has not yet passed the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+at this size: 27 retrains of it at 192 cases and 8 to 32 epochs all failed
+it (details below), so a run at `--cases 200 --epochs 4` will very likely end
+with `train failed` and no release, and step 5 then has nothing to test.
+Check `--estimate` first and budget for more cases or `examples`. With a key:
 
 ```sh
 npx semantscript train --cases 200 --epochs 4 --device cuda
@@ -202,7 +216,7 @@ no billed request; a missing key or package stops it there with the fix),
 finds the bundle under `dist/`, writes `.semantscript/teacher.toml`
 when `ANTHROPIC_API_KEY` is set (or takes `--teacher`), generates the cases,
 trains ModernBERT-base plus one head, fits the calibration temperature,
-verifies the gold example and the constraints, and publishes
+verifies the gold examples and the constraints, and publishes
 `.semantscript/artifact`. Expect the encoder download the first time (600 MB),
 then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases,
@@ -216,6 +230,28 @@ example's inputs shows the example beside the teacher's nearest labels. It
 also reports the changed function missing from the release; apply the
 `next:` line's fix before training again, since the unchanged expression
 retrains on the same cached dataset.
+
+What the Express example's own release shows (it exists on the development
+machine only: `examples/*/.semantscript/` is git-ignored): `217d386c`
+(2026-09-26, Sonnet 5 through
+OpenRouter, `--cases 192 --epochs 8 --seed 5 --select-best-epoch
+--counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01`), verified
+`decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus
+violations, before the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+existed, and it answers `approve` for paid orders at 100 to 200 days. No
+retrain from its cached datasets passes that check today: seeds 1 to 10 broke
+28 to 109 of 512 held-out inputs (5.5% to 21.3%) and the best training-only
+variant 20 of 512 (3.9%), against a 1% tolerance
+([example README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)).
+If your run fails there, the failure's `next:` line names one `examples`
+entry for the most-broken constraint; that is the right first step, but on
+this expression the failures spread over several constraints, so expect to
+add entries for each of them; more gold examples
+across the broken constraints or a larger `--cases` are the routes, both call
+the teacher again, and neither is yet known to pass, so check `--estimate`
+and pass `--max-cost-usd`. To walk steps 4 and 5 without a key or a paid
+run, use the reference application below.
 
 To see the whole flow without any key on the clone route, run the reference
 application instead, whose expressions are labeled by their own constraints
@@ -234,8 +270,9 @@ npx semantscript run dist/refunds.sem.js --call decideRefund \
 "approve"
 ```
 
-`test` reports the shipped verification, checks the release's digests and
-replays the build's IR example through the runtime; `run` loads the artifact,
+`test` reports the shipped verification (including the `held-out` column,
+the inputs of the held-out sample that broke a constraint), checks the
+release's digests and replays the build's IR example through the runtime; `run` loads the artifact,
 imports the compiled module and calls the export with the JSON arguments. That
 is the end of the published route: import `decideRefund` from
 `dist/refunds.sem.js` in your own code, after one `await loadSemaArtifact()` at
@@ -271,13 +308,27 @@ npm start        # clone only: POST /refunds/:orderId decides over PGlite and co
 ```
 
 The server loads the artifact once at startup with `loadSemaArtifact()` and
-no path.
+no path. The rest of this step is the development machine's output, not
+yours: a clone has no trained release, and your own `train` either published
+one that passed the held-out check or published nothing. The example's release `217d386c` packages to 653.9 MiB (570.9 MiB
+of it the float32 artifact, 82.7 MiB `node_modules`) with `semantscript
+package`, and `semantscript test` prints `-` in its `held-out` and `seed`
+columns because it was published before those fields. A paid order at 100
+days shows, on that machine, the answer the held-out check now refuses:
+
+```sh
+npx semantscript run dist/refunds.sem.js --call decideRefund \
+  --input '[{"tier":"standard","priorRefunds":0},{"total":100,"ageDays":100,"status":"paid"}]'
+"approve"
+```
 
 ## What you have
 
 A compiled function whose behavior lives in a 275 to 600 MB artifact beside
 `dist/`, answers in milliseconds on a CPU with no network, and was verified
-against its example and constraints before it was published. Changing the
+against its example and constraints, on its training corpus and on a held-out
+sample of inputs it never trained on, before it was published (if `train`
+published nothing, you have the diagnosis of why instead). Changing the
 text, examples or constraints and running `train` again retrains only that
 expression's head through the [build cache](build-cache.md); `semantscript dev`
 does it on every save. The [architecture overview](architecture.md) shows

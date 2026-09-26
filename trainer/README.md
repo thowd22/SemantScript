@@ -428,9 +428,9 @@ cache strictly by digest: the training dataset named by
 `trainingProvenance.datasetSha256` (gold cases are the attested records) and the
 adversarial dataset `function.json` pins, or the only one built on that dataset.
 It publishes without moving `current.json` and writes a
-`semantscript.derive-report`; `held_out_records` is the hook through which a
-held-out set joins the check once the release gate records one (it returns none
-today).
+`semantscript.derive-report`; `held_out_records` is the hook through which the
+release gate's held-out sample would join the check; derive does not re-check
+held-out inputs yet (it returns none today).
 
 The release is built in a private directory under `releases`, resources are
 hashed before the deterministic manifest is written, and the release directory is

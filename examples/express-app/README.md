@@ -28,6 +28,7 @@ npm run build               # tspc: dist/*.js, dist/*.js.map and dist/semantscri
 npm test                    # the bundle and both routes over a fixture artifact, no training needed
 npm run fixture-artifact    # optional: a fixture artifact in .semantscript/artifact, to run without training
 npx semantscript train      # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
+                            # (calls a paid teacher, and has not yet passed the held-out check for decideRefund: see below)
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
 
@@ -53,88 +54,158 @@ Both expressions carry three gold examples, and `decideRefund` carries the
 policy's six rules as constraints (`src/refunds.sem.ts`), which is what makes
 a numeric policy learnable from a few hundred teacher cases: the trainer
 labels boundary pairs and counterfactual twins against them and the release
-gate refuses a model that breaks one. Trained 2026-09-25 with Sonnet 5 through
-OpenRouter's Anthropic-format route (`.semantscript/teacher.toml`, git-ignored:
-`backend = "anthropic"`, `model = "anthropic/claude-sonnet-5"`,
+gate refuses a model that breaks one, on its corpus and on a held-out sample.
+The release on disk predates the held-out part of that gate and breaks the
+90-day rule (next section), and no retrain from the cached datasets passes it
+yet. The teacher is Sonnet 5 through
+OpenRouter's Anthropic-format route (`.semantscript/teacher.toml`,
+git-ignored: `backend = "anthropic"`, `model = "anthropic/claude-sonnet-5"`,
 `base_url = "https://openrouter.ai/api"`, `mode = "direct"`, with
-`ANTHROPIC_API_KEY` set to the OpenRouter key for the process):
+`ANTHROPIC_API_KEY` set to the OpenRouter key for the process).
+
+### The release on disk breaks the 90-day rule
+
+The release this example serves is `217d386c…`, published 2026-09-26T00:48Z
+from the reduced-prompt datasets (below) at seed 5, before the
+[held-out constraint check](../../docs/training-pipeline.md#held-out-constraint-check)
+existed. `.semantscript` is git-ignored (`examples/*/.semantscript/`), so a
+clone has no trained release: this one exists on the development machine, and
+the figures below describe it, not what a clone's own `train` will publish.
+Its manifest has no seed field (`releases show` prints `-`); the seed comes
+from the run that published it, whose report
+`.semantscript/train-report-reduced-seed5.json` records manifest
+`217d386c985212c5…`. Its held-out figure does not exist: the release was
+never checked on held-out inputs.
 
 ```sh
-semantscript train --teacher .semantscript/teacher.toml --cases 192 --epochs 8 --seed 3 \
+semantscript train --teacher .semantscript/teacher.toml --cases 192 --epochs 8 --seed 5 \
   --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 --device cuda
 ```
 
-| Expression     | Rows (synthetic + adversarial + gold) | Best epoch | Verified accuracy | ECE   | Pair consistency | Constraint violations |
-| -------------- | ------------------------------------- | ---------- | ----------------- | ----- | ---------------- | --------------------- |
-| `decideRefund` | 192 + 202                             | 6          | 0.987             | 0.008 | 0.979            | 0 of 394              |
-| `triage`       | 192                                   | 6          | 1.000             | 0.000 | 1.000            | 0 of 192              |
+| Expression     | Rows (synthetic + adversarial + gold) | Verified accuracy | ECE    | Pair consistency | Corpus violations | Held-out violations |
+| -------------- | ------------------------------------- | ----------------- | ------ | ---------------- | ----------------- | ------------------- |
+| `decideRefund` | 192 + 202 (3 gold)                    | 0.9241            | 0.0719 | 0.947            | 0 of 394          | not recorded        |
+| `triage`       | 192 (3 gold)                          | 1.0000            | 0.0000 | 1.000            | 0 of 192          | no constraints      |
 
-Release `5c755d08…`, published under decision-8's recorded 1% violation
-tolerance and in fact recording zero raw violations; `semantscript test
---bundle dist/semantscript.ir.v1.json` passes and `semantscript run
-dist/refunds.sem.js --call decideRefund --input '[…]'` answers `approve`,
-`deny`, `review` on the seeded cases and `deny` on a standard-tier order at 45
-days. Two earlier seeds (1 and 2) trained from the same cached datasets failed
-the gate on standard-tier orders at 45 days (2.0% and 1.3% violations), so the
-seed is part of the record, as it was for the refund benchmark's release.
-The same corpus regenerated on 2026-09-25 with the reduced teacher prompt
-(TASK-14.5: constraints sent as source text, no duplicated schema) cost
-USD 0.99 for 496 requests under `--max-cost-usd 3`, a tenth of the figure
-above. At the matched seed (3) the refund expression verified at the same
-accuracy (0.987) with ECE 0.011 and pair consistency 0.926, but 5 of 394
-records violated a constraint near the tier window, over the 1% tolerance;
-seeds 1, 2 and 4 landed at 1.0%, 1.5% and 2.0%, and seed 5 published
-(release `217d386c…`, refund 0.924, ECE 0.072, triage 1.000). So the reduced
-prompt buys the same accuracy at a tenth of the cost, and the near-threshold
-gate stays a seed lottery on this corpus size either way; the release the
-table above describes remains the stronger one.
+`semantscript releases list` prints the same release (`217d386c9852`,
+`2/2 passed`, min accuracy `0.9241`, max ECE `0.0719`, violations `0`), and
+`releases show 217d386c` prints `-` in its `held-out` and `seed` columns,
+because the manifest predates both fields. The gate it passed checked only
+the corpus, and the corpus has few orders past 90 days away from the
+boundary: on 2026-09-26, `semantscript explain dist/refunds.sem.js --call
+decideRefund` with `priorRefunds` 0 and a total of 100 answered `approve` for
+every paid order and `review` for every fraudulent one at 100, 120, 150 and
+200 days, for both tiers. None of the 16 answers is the `deny` that
+`always(() => order.ageDays > 90, "deny")` requires, and `explain` says so
+on each one:
 
-`train` now draws that lottery itself
-([seed retry](../../docs/cli-reference.md#seed-retry)): a failure only on
-the violation rate or the ECE, within `--seed-retry-margin` times the gate
-(default 2), retrains on the cached datasets with the next seed, up to
-`--seed-attempts` runs (default 3). On the reduced-prompt datasets
-(2026-09-25, RX 9070 XT, the command above with `--seed 2 --seed-attempts 5
---seed-retry-margin 3`), seed 2 failed at 6 of 394 (1.52%), seed 3 at 5 of
-394 (1.27%), and seed 4 passed at 2 of 394 and published; the report listed
-all three attempts, both verified IRs and the release manifest recorded seed
-4 (`semantscript test` prints it in its `seed` column), the teacher sent no
-request (USD 0), and the rebuild with the same flags reused that release. The
-first seed to pass publishes: seed 4 passed at accuracy 0.9367, where the
-failed seeds 2 and 3 had reached 0.9750 and 0.9873, and the attempts table
-shows that tradeoff.
-With `--seed-retry-margin 1.2`, seed 2's 1.52% was outside the margin and
-the build stopped at once, saying so. GPU training is not bit-for-bit
-repeatable, so a seed's violation count can move by a few records between
-runs (seed 4 had failed at 8 of 394 the day before).
-
-Generation cost about USD 10 through OpenRouter for the two expressions
-(about 600 requests at roughly 8,000 prompt tokens each, plus three attempts
-for each of five counterfactual anchors the teacher could not twin); the
-seed reruns cost nothing because the datasets were cached.
-
-That release was generated with the teacher prompt of that day. The prompt
-has since been made compact and is served through prompt caching
-([teachers](../../docs/teachers.md#prompt-size-and-caching)): the
-decideRefund case request went from 6,552 input tokens and USD 0.0138 to
-USD 0.0071 for the first request and USD 0.0017 once cached. Because the
-teacher's configuration digest includes the prompt layout, the next
-`semantscript train` with this teacher regenerates both datasets.
-Before that paid run, `semantscript train --estimate` with the recipe above
-prints:
-
-```text
-teacher: anthropic anthropic/claude-sonnet-5; price: OpenRouter price list (2026-09-25) (USD 2 in / 10 out per million tokens)
-function      source              requests        input tokens  cached     output tokens  USD              time
-------------  ------------------  --------------  ------------  ---------  -------------  ---------------  ------
-nf_957c2b2b…  src/refunds.sem.ts  407 (max 1344)  997,984       877,912    38,834         0.81 (max 2.67)  27 min
-nf_bcbf93e1…  src/triage.sem.ts   189 (max 189)   253,827       218,080    9,450          0.21 (max 0.21)  13 min
-total                             596 (max 1533)  1,251,811     1,095,992  48,284         1.02 (max 2.88)  40 min
+```sh
+npx semantscript explain dist/refunds.sem.js --call decideRefund \
+  --input '[{"tier":"standard","priorRefunds":0},{"total":100,"ageDays":150,"status":"fraudulent"}]'
+#  value        "review"
+#  constraints  2 active of 6 (4 inactive)
+#    always "deny" when order.ageDays > 90: VIOLATED by the answer
 ```
 
-About USD 1 against the USD 10 the release above cost. The verified accuracy
-of a release trained on regenerated datasets has not been measured yet; pass
-`--max-cost-usd 3` to bound that run.
+Its closing `verification passed` line (accuracy, ECE, Brier, pair
+consistency, attested cases and corpus constraint violations; it has no
+held-out field) and `semantscript test`'s `test passed` describe the corpus
+gate the release passed in 2026-09; the `-` in `test`'s (and `releases
+show`'s) `held-out` column means it was never checked on held-out inputs. Treat it as a wiring
+demonstration, not as the refund policy.
+
+### No retrain from the cached datasets passes the held-out check
+
+`.semantscript/cache` holds the reduced-prompt datasets (refund `caa8e895…`
+with adversarial set `6833e7fc…`, triage `59f21134…`: the content sha256 that
+the train report and `explain` print; the cache files are keyed
+`789d3df6…`, `fde84ed3…` and `2cbfbe07…`), so any change to the
+seed, epochs, learning rate, batch size or head retrains at no teacher cost.
+On 2026-09-26 (RX 9070 XT) the recipe above ran at seeds 1 to 10 with
+`--seed-attempts 1`, and then the training-only variants below. Every run
+sent 0 teacher requests (USD 0); `triage` passed each time at accuracy 1.000,
+and `decideRefund` failed each time on the held-out check (the sample of 512
+inputs is drawn from the build's seed; tolerance 1%, decision-8):
+
+| Seed | Variant                              | Accuracy | ECE    | Corpus violations | Held-out violations |
+| ---- | ------------------------------------ | -------- | ------ | ----------------- | ------------------- |
+| 1    | recipe above                         | 0.9747   | 0.0227 | 1 of 394          | 60 of 512 (11.7%)   |
+| 2    | recipe above                         | 0.9750   | 0.0414 | 6 of 394          | 28 of 512 (5.5%)    |
+| 3    | recipe above                         | 0.9873   | 0.0106 | 5 of 394          | 70 of 512 (13.7%)   |
+| 4    | recipe above                         | 0.9620   | 0.0302 | 8 of 394          | 53 of 512 (10.4%)   |
+| 5    | recipe above                         | 0.9494   | 0.0620 | 8 of 394          | 109 of 512 (21.3%)  |
+| 6    | recipe above                         | 0.9625   | 0.0122 | 0 of 394          | 30 of 512 (5.9%)    |
+| 7    | recipe above                         | 0.9367   | 0.0703 | 12 of 394         | 72 of 512 (14.1%)   |
+| 8    | recipe above                         | 0.9231   | 0.0290 | 8 of 394          | 60 of 512 (11.7%)   |
+| 9    | recipe above                         | 0.9750   | 0.0366 | 5 of 394          | 50 of 512 (9.8%)    |
+| 10   | recipe above                         | 0.9351   | 0.0876 | 1 of 394          | 43 of 512 (8.4%)    |
+| 2    | `--epochs 16`                        | 0.9625   | 0.0306 | 1 of 394          | 25 of 512 (4.9%)    |
+| 2    | `--epochs 16` (or 32), best epoch 12 | 0.9875   | 0.0225 | 2 of 394          | 20 of 512 (3.9%)    |
+| 2    | `--epochs 16 --batch-size 4`         | 0.9875   | 0.0214 | 0 of 394          | 38 of 512 (7.4%)    |
+| 2    | `--learning-rate 5e-5`               | 0.9625   | 0.0450 | 9 of 394          | 60 of 512 (11.7%)   |
+| 2    | `--epochs 16 --learning-rate 1e-5`   | 0.9750   | 0.0517 | 2 of 394          | 34 of 512 (6.6%)    |
+| 2    | `--head-architecture mlp`            | 0.9750   | 0.0371 | 6 of 394          | 43 of 512 (8.4%)    |
+| 2    | without `--select-best-epoch`        | 0.9000   | 0.0770 | 5 of 394          | 49 of 512 (9.6%)    |
+| 6    | `--epochs 16`                        | 0.9500   | 0.0276 | 0 of 394          | 28 of 512 (5.5%)    |
+| 6    | `--epochs 16` (or 32), best epoch 7  | 0.9625   | 0.0122 | 0 of 394          | 30 of 512 (5.9%)    |
+| 6    | `--learning-rate 5e-5`               | 0.9500   | 0.0569 | 2 of 394          | 37 of 512 (7.2%)    |
+| 6    | `--epochs 16 --learning-rate 1e-5`   | 0.9625   | 0.0202 | 0 of 394          | 35 of 512 (6.8%)    |
+| 6    | `--head-architecture mlp`            | 0.9500   | 0.0493 | 6 of 394          | 77 of 512 (15.0%)   |
+| 6    | without `--select-best-epoch`        | 0.9375   | 0.0343 | 2 of 394          | 35 of 512 (6.8%)    |
+| 1    | `--epochs 32`, best epoch 12         | 0.9873   | 0.0261 | 0 of 394          | 67 of 512 (13.1%)   |
+| 9    | `--epochs 16`, best epoch 5          | 0.9750   | 0.0241 | 6 of 394          | 65 of 512 (12.7%)   |
+
+Variants keep the recipe's other flags; "best epoch" rows pass
+`--select-best-epoch`. The best run broke 20 of 512 held-out inputs, four
+times the tolerance, and the broken inputs are spread over constraints 0
+(past 90 days), 2 (fraudulent within 90 days), 3 (paid outside the tier
+window), 4 and 5 (inside the window), not only the 90-day rule. A narrow
+corpus gate passes on most of these runs; the held-out check is what fails.
+Seed 5 broke 8 of 394 corpus records on this retrain, where it had broken
+none when it published `217d386c` (GPU training is not bit-for-bit
+repeatable).
+
+A passing release needs more teacher data, which costs money. `semantscript
+train --estimate` (no request sent) prices each route with the OpenRouter
+list of 2026-09-25:
+
+| Route                                                                                                             | What regenerates                                                   | Requests        | USD             |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------- | --------------- |
+| Gold examples for stale orders in `src/refunds.sem.ts` (constraint 0 only)                                        | the refund dataset (its function id changes); triage stays cached  | 401 (max 1320)  | 0.81 (max 2.67) |
+| `--cases 384`                                                                                                     | both datasets                                                      | 1192 (max 3069) | 2.02 (max 5.71) |
+| A `constraints` teacher with this OpenRouter teacher as `[teacher.fallback]` ([teachers](../../docs/teachers.md)) | both datasets; the constraints label the refund inputs they decide | 271 (max 457)   | 0.39 (max 0.78) |
+
+The gold-example route is not the check's own advice: its `next:` line names
+one `examples` entry for one broken constraint, and in 14 of the 27 runs,
+the best one among them, that was constraint 3, 2 or 4, not 0. Stale-order examples address
+constraint 0 only (6 of the 20 inputs the best run broke), so they are
+unlikely to close the gap on their own. None of them has been run, and none
+is known to pass: each needs an approved
+budget, and the verified accuracy and held-out rate of the result are
+measured only by running it. Pass `--max-cost-usd` to bound the run.
+
+### Earlier releases
+
+Release `5c755d08…` (2026-09-25, the teacher prompt of that day, seed 3,
+refund accuracy 0.987, ECE 0.008, 0 of 394 corpus violations) is no longer
+under `.semantscript/artifact/releases`; generating its datasets cost about
+USD 10 for about 600 requests. The same corpus regenerated with the reduced
+teacher prompt (TASK-14.5: constraints sent as source text, no duplicated
+schema) cost USD 0.99 for 496 requests under `--max-cost-usd 3`, and those
+are the cached datasets above. Neither `5c755d08` nor `217d386c` was checked
+on held-out inputs.
+
+`train` retries seeds itself
+([seed retry](../../docs/cli-reference.md#seed-retry)): a failure only on the
+violation rate or the ECE, within `--seed-retry-margin` times the gate
+(default 2), retrains on the cached datasets with the next seed, up to
+`--seed-attempts` runs (default 3). On the reduced-prompt datasets
+(2026-09-25, before the held-out check), `--seed 2 --seed-attempts 5
+--seed-retry-margin 3` failed seed 2 at 6 of 394 and seed 3 at 5 of 394,
+then published seed 4 at 2 of 394, with no teacher request. Under the
+held-out check, every run above is outside the default margin (the best,
+3.9%, is past twice the 1% tolerance), so a retry would stop after its first
+seed; the sweep ran one seed per build instead.
 
 `dist/semantscript.ir.v1.json` is the IR bundle the trainer consumes. The
 transformer writes it every build, so `semantscript train` always sees the
@@ -209,17 +280,24 @@ targets and the [deploy guide](../../docs/deploy.md) the size levers.
   of either shape: a fresh Node process, the artifact load and the first
   request, and the process's resident set after that request.
 
-Bundle sizes, measured 2026-09-25 on linux/x64 (Node 22.22):
+Bundle sizes on linux/x64 (Node 22.22), the fixture measured 2026-09-25 and
+the trained release 2026-09-26:
 
 | Artifact                                         | node_modules | Artifact  | Total     | lambda-zip (250 MiB) |
 | ------------------------------------------------ | ------------ | --------- | --------- | -------------------- |
 | Fixture (`npm run fixture-artifact`)             | 82.3 MiB     | 12.1 KiB  | 82.6 MiB  | fits                 |
-| Trained release `217d386c…` (22 layers, float32) | 82.3 MiB     | 570.9 MiB | 653.6 MiB | over by 403.6 MiB    |
-| Int8 release `7f982976…` derived from it (below) | 82.6 MiB     | 145.7 MiB | 228.6 MiB | fits, 21.4 MiB spare |
+| Trained release `217d386c…` (22 layers, float32) | 82.7 MiB     | 570.9 MiB | 653.9 MiB | over by 403.9 MiB    |
+| Int8 release `f8e22cae…` derived from it (below) | 82.7 MiB     | 145.7 MiB | 228.6 MiB | fits, 21.4 MiB spare |
 
-The int8 row was measured on 2026-09-26 on the same machine: 239,697,592
-bytes in total, with an encoder of 150,750,065 bytes (143.8 MiB), and the
-packaged Lambda handler answered `POST /tickets` from it.
+The int8 row was derived and measured on 2026-09-26 on the same machine, and
+the release sits beside `217d386c` under `.semantscript/artifact/releases`
+(`releases list` prints it, not current): 239,708,539 bytes in total, with an
+encoder of 150,750,065 bytes (143.8 MiB), and the packaged Lambda handler
+answered `POST /tickets` from it with `201` and `"urgent"`. An earlier
+derivation of the same release in another checkout (`7f982976…`, 239,697,592
+bytes) gave the same figures. Like `217d386c` it was never checked on
+held-out inputs (`derive` verifies on the release's training, gold and
+adversarial records).
 
 The trained release does not fit a Lambda .zip package: its encoder alone is
 596,679,464 bytes (569.0 MiB), a full-depth float32 ModernBERT-base, and AWS
@@ -235,23 +313,34 @@ alone would (about 228 MiB), and so would an encoder whose graph is at most
 chain against the float32 one on the release's own records from the build
 cache: 586 records, 394 for `decideRefund` (192 training cases, 3 of them gold,
 and 202 adversarial ones) and 192 for `triage` (3 gold). On this release the
-strict default gate refuses both settings, so nothing is published:
+strict default gate refuses both settings; only the third run, which records
+a decision-change tolerance, publishes:
 
 | Settings                                          | Decisions changed | Attested changed | Worst int8 ECE (float32) | Encoder   | Time on CPU | Gate                                          |
 | ------------------------------------------------- | ----------------- | ---------------- | ------------------------ | --------- | ----------- | --------------------------------------------- |
 | default                                           | 6 of 586 (1.02%)  | 0 of 6           | 0.1049 (0.0391)          | 143.1 MiB | 2 min 25 s  | refused: decisions changed, ECE over 0.1      |
 | `--per-channel`                                   | 3 of 586 (0.51%)  | 0 of 6           | 0.0914 (0.0391)          | 143.8 MiB | 5 min 26 s  | refused: decisions changed                    |
-| `--per-channel --max-decision-change-rate 0.0052` | 3 of 586          | 0 of 6           | 0.0914                   | 143.8 MiB | 4 min 6 s   | published, with the tolerance in the manifest |
+| `--per-channel --max-decision-change-rate 0.0052` | 3 of 586          | 0 of 6           | 0.0914                   | 143.8 MiB | 56 s        | published, with the tolerance in the manifest |
 
 Times are wall clock on the development machine (Ryzen 9 9900X, WSL2, CPU
-only, about 3 GB resident); the second and third runs shared it with test
-runs. The int8 row in the size table is that last derivation. Publishing it means
+only, about 3 GB resident); the first two runs shared it with test runs,
+and the third is the 2026-09-26 derivation on an idle CPU that published
+`f8e22cae` (an earlier run with the same settings took 4 min 6 s on a busy CPU
+and gave the same figures). The int8 row in the size table is that release.
+`semantscript releases list` prints `0.0719` as its max ECE: the int8
+manifest carries the float32 release's verification figures, and the int8
+ECE (0.0914) is in the derive report
+(`.semantscript/artifact.derive-report.json`); `releases show`'s `derived`
+line prints the ECE threshold the derivation passed (0.1), not the measured
+value. Publishing it means
 accepting that 3 of the 586 records the release was trained and verified on
 (1 `decideRefund`, 2 `triage`; none of the gold examples) get a different
 answer than from the float32 release. That is a decision for the application
 owner, and the manifest records it (`releases show` prints it). The check has
-no held-out set yet: one joins once the release gate records a held-out set
-for the release. Then `semantscript releases promote <digest>` and
+no held-out set: since the
+[held-out constraint check](../../docs/training-pipeline.md#held-out-constraint-check)
+the train report records a held-out sample (`verification.heldOutConstraints`),
+but `releases derive --int8` does not verify on it yet. Then `semantscript releases promote <digest>` and
 `semantscript package` again ship it; promoting `217d386c` goes back.
 
 Without that tolerance, ship the trained release as a container:

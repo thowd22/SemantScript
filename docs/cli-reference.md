@@ -592,9 +592,10 @@ are the release's own, taken from the build cache by digest:
 A missing dataset, or two adversarial datasets that could both be the one,
 stops the derivation with `int8-records-missing` in the
 [diagnostics catalogue](diagnostics.md) instead of verifying on other
-records. A held-out set joins the check once the release gate records one;
-until then the report says the check ran on the training, gold and
-adversarial records only.
+records. The release gate records a held-out sample in the train report
+(`verification.heldOutConstraints`), but the int8 check does not verify on it
+yet: the report says the check ran on the training, gold and adversarial
+records only.
 
 The gate refuses the release when more attested records changed decision
 than `--max-attested-disagreements` allows (default 0), when the share of all

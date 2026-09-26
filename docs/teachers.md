@@ -80,8 +80,9 @@ With the prompt of that day a request cost about USD 0.017 through this route
 6,552). A constrained expression needs about twice as many requests as cases
 (boundary pairs, counterfactual twins at the configured ratio, and up to
 three attempts for an anchor the teacher cannot twin): the Express example's
-two expressions at 192 cases each cost about USD 10 and published on the
-third training seed, all from the same cached datasets. The prompt has since
+two expressions at 192 cases each cost about USD 10 and published release
+`5c755d08` on the third training seed, all from the same cached datasets
+(that release is no longer on disk). The prompt has since
 been reduced and is served through prompt caching (below): the same case
 costs USD 0.0071 for the first request and USD 0.0017 from the cache.
 
@@ -337,10 +338,11 @@ Half of the USD 0.017 per request recorded for the old prompt is USD 0.0085;
 a request now costs USD 0.0017 once its kind is cached and USD 0.0071 when
 it is the first. The triage case prompt went from 3,816 to 2,527 characters.
 Qwen3-14B through Ollama answered six cases of each expression with the new
-prompt without a schema failure. What has not been measured is the verified
-accuracy of a model trained on datasets regenerated with the new prompt; the
-full comparison (both Express expressions at 192 cases, then the same recipe
-and seed 3) is estimated at USD 1.02 (at most USD 2.88) and has not been run.
+prompt without a schema failure. The Express datasets were since regenerated
+with the new prompt (USD 0.99), and 27 training runs on them verified
+`decideRefund` at accuracy 0.9000 to 0.9875, but none passes the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+([example README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)).
 
 A language-model teacher's configuration digest includes the prompt layout
 version, so datasets cached with the old prompt are regenerated once for the

@@ -129,7 +129,12 @@ held-out constraint check failed on 36 of 512 sampled inputs (0.0703125 exceeds 
 Seeds 3 and 5 on the same datasets broke 70 and 109 of the 512 held-out
 inputs (seed 5, which published release `217d386c` before the check, now
 also exceeds the corpus tolerance at 8 of 394: GPU training is not
-bit-for-bit repeatable).
+bit-for-bit repeatable). A sweep of seeds 1 to 10 and of training-only
+variants (more epochs, other learning rates and batch sizes, an MLP head) on
+the same datasets found no passing run: the best broke 20 of 512 (3.9%), so
+the example keeps `217d386c` and its
+[README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)
+lists every run and the teacher cost of the fixes.
 
 When the active constraints require exactly one output for the first
 offending input, the fix is that input as an `examples` entry

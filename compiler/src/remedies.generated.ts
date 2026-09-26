@@ -493,6 +493,16 @@ export const REMEDY_TEMPLATES = {
     fix: "train with more cases (--cases), or set a confidence threshold with a fallback so low-confidence answers are caught",
     params: [],
   },
+  "int8-gate-refused": {
+    family: "cli",
+    fix: "keep serving the float32 release (current.json is unchanged){alternative}; to publish anyway, record a tolerance that admits these figures with semantscript releases derive --int8 {tolerance}, which the manifest keeps and semantscript releases show prints",
+    params: ["alternative", "tolerance"],
+  },
+  "int8-records-missing": {
+    family: "cli",
+    fix: "pass --cache-dir the build cache the release was trained with (it needs dataset {dataset} for {function}, not found under {cache}); when that cache is gone, retrain with semantscript train so the new release's records are cached, then derive from it",
+    params: ["dataset", "function", "cache"],
+  },
 } as const;
 
 /** Every remedy a tool prints, keyed by its id in `diagnostics/remedies.json`. */

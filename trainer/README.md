@@ -398,8 +398,27 @@ artifact/
 A scalar function publishes one head resource with an empty manifest `outputPath`;
 a flat interface function publishes one per field with `outputPath` `[field]`,
 per-head calibration and verification metadata, and the `all-fields` policy when
-it is thresholded. The int8 derivation (`quantize_release_artifact`) still accepts
-only single-function scalar releases.
+it is thresholded.
+
+The int8 derivation (`quantize_release_artifact`) takes any published release:
+it quantizes every encoder graph (one per depth in a depth-routed release),
+copies the other resources after checking their digests, and runs each
+`QuantizationRecord` through its function's chain (encoder, adapter, then every
+head) on both graphs; a record names its function with `function_id` when the
+release has several, and a multi-head function takes one label per head through
+`label_indices`. The gate refuses on attested or overall decision changes beyond
+the tolerances and on any head's int8 ECE above the threshold, and the report
+carries the figures per function. With `record_sources` the derived manifest also
+records them (`onnx.quantization.verification`). `semantscript_trainer.derive`
+(`derive_int8_release`, the `derive-int8` subcommand behind `semantscript
+releases derive --int8`) finds an application release's records in the build
+cache strictly by digest: the training dataset named by
+`trainingProvenance.datasetSha256` (gold cases are the attested records) and the
+adversarial dataset `function.json` pins, or the only one built on that dataset.
+It publishes without moving `current.json` and writes a
+`semantscript.derive-report`; `held_out_records` is the hook through which a
+held-out set joins the check once the release gate records one (it returns none
+today).
 
 The release is built in a private directory under `releases`, resources are
 hashed before the deterministic manifest is written, and the release directory is

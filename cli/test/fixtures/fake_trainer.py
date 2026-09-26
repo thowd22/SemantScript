@@ -28,6 +28,13 @@ the process with that signal, as the out-of-memory killer or a native crash
 does; ``signal:<NAME>:after-warning`` first logs a traceback it goes on from. ``FAKE_TRAINER_NOISE``
 prints a traceback a library logged and went on from before the report, and
 Python's ``Exception ignored in`` shutdown traceback after it.
+
+``derive-int8`` records its arguments at ``FAKE_TRAINER_ARGV_PATH`` and writes a
+``semantscript.derive-report`` to ``--report``: a published one that copies the
+source release under a new digest with an int8 encoder entry (so ``releases
+promote`` can verify it), or, with ``FAKE_DERIVE_REFUSE``, a refused one with
+the gate's figures and exit status 2. ``FAKE_DERIVE_MISSING`` prints the
+records-missing error line and exits 1 without a report.
 """
 
 from __future__ import annotations
@@ -173,9 +180,153 @@ def teacher_probe(argv: list[str]) -> int:
     return 1 if failed else 0
 
 
+def derive_int8(argv: list[str]) -> int:
+    import hashlib
+    import shutil
+
+    values: dict[str, str | bool] = {}
+    index = 0
+    while index < len(argv):
+        item = argv[index]
+        if index + 1 < len(argv) and not argv[index + 1].startswith("--"):
+            values[item[2:]] = argv[index + 1]
+            index += 2
+            continue
+        values[item[2:]] = True
+        index += 1
+    record_path = os.environ.get("FAKE_TRAINER_ARGV_PATH")
+    if record_path:
+        Path(record_path).write_text(json.dumps({"argv": argv}), encoding="utf-8")
+    if os.environ.get("FAKE_DERIVE_MISSING"):
+        print(
+            "error: the build cache has no training dataset; next: pass --cache-dir the build "
+            "cache the release was trained with",
+            file=sys.stderr,
+        )
+        return 1
+    root = Path(str(values["artifact"]))
+    source = str(values["release"])
+    settings = {
+        "method": "dynamic",
+        "weightType": values.get("weight-type", "int8"),
+        "perChannel": values.get("per-channel", False) is True,
+        "reduceRange": values.get("reduce-range", False) is True,
+        "argmaxDisagreementTolerance": float(values.get("max-decision-change-rate", 0)),
+        "attestedDisagreementTolerance": int(values.get("max-attested-disagreements", 0)),
+        "eceThreshold": float(values.get("ece-threshold", 0.1)),
+        "sourceManifestSha256": source,
+    }
+    refused = bool(os.environ.get("FAKE_DERIVE_REFUSE"))
+    function = {
+        "id": "nf_" + "1" * 64,
+        "recordsChecked": 10,
+        "labeledRecords": 10,
+        "attestedRecords": 2,
+        "argmaxDisagreements": 1 if refused else 0,
+        "attestedDisagreements": 1 if refused else 0,
+        "sourceAccuracy": 1.0,
+        "quantizedAccuracy": 0.9 if refused else 1.0,
+        "sourceEce": 0.02,
+        "quantizedEce": 0.03,
+    }
+    quantization = {
+        "recordsChecked": 10,
+        "attestedRecords": 2,
+        "argmaxDisagreements": function["argmaxDisagreements"],
+        "attestedDisagreements": function["attestedDisagreements"],
+        "argmaxDisagreementRate": 0.1 if refused else 0.0,
+        "sourceEce": 0.02,
+        "quantizedEce": 0.03,
+        "sourceEncoderByteLength": 4000,
+        "quantizedEncoderByteLength": 1000,
+        "functions": [function],
+    }
+    report: dict[str, object] = {
+        "kind": "semantscript.derive-report",
+        "reportVersion": 1,
+        "precision": "int8-dynamic",
+        "artifactRoot": str(root),
+        "source": {
+            "manifestSha256": source,
+            "release": f"releases/sha256-{source}",
+            "bytes": 5000,
+        },
+        "settings": settings,
+        "recordSources": [
+            {
+                "kind": "training-dataset",
+                "functionId": function["id"],
+                "sha256": "d" * 64,
+                "records": 10,
+                "path": "/cache/datasets/v1/dd/x.json",
+            }
+        ],
+        "heldOut": {"records": 0, "note": "no held-out set is recorded for this release"},
+        "quantization": quantization,
+    }
+    status = 0
+    if refused:
+        report.update(
+            status="refused",
+            derived=None,
+            failures=["1 attested record(s) changed decision (tolerance 0)"],
+            next="keep serving the float32 release (current.json is unchanged), or try "
+            "semantscript releases derive --int8 --per-channel",
+        )
+        status = 2
+    else:
+        source_release = root / "releases" / f"sha256-{source}"
+        manifest = json.loads((source_release / "manifest.json").read_text(encoding="utf-8"))
+        manifest["build"]["createdAt"] = "2099-01-01T00:00:00Z"
+        for resource in manifest["resources"]:
+            if resource["role"] == "encoder":
+                resource["onnx"]["precision"] = "int8-dynamic"
+                resource["onnx"]["quantization"] = {
+                    **settings,
+                    "verification": {
+                        "recordsChecked": 10,
+                        "attestedRecords": 2,
+                        "decisionChanges": 0,
+                        "attestedDecisionChanges": 0,
+                        "decisionChangeRate": 0.0,
+                        "sourceEce": 0.02,
+                        "quantizedEce": 0.03,
+                        "recordSources": [
+                            {
+                                "kind": "training-dataset",
+                                "functionId": function["id"],
+                                "sha256": "d" * 64,
+                                "records": 10,
+                            }
+                        ],
+                        "functions": [],
+                    },
+                }
+        data = json.dumps(manifest, indent=2).encode()
+        digest = hashlib.sha256(data).hexdigest()
+        target = root / "releases" / f"sha256-{digest}"
+        shutil.copytree(source_release, target)
+        (target / "manifest.json").write_bytes(data)
+        report.update(
+            status="published",
+            derived={
+                "manifestSha256": digest,
+                "release": f"releases/sha256-{digest}",
+                "bytes": 2000,
+            },
+            failures=[],
+            next=f"semantscript releases promote {digest[:12]}",
+        )
+    Path(str(values["report"])).write_text(json.dumps(report), encoding="utf-8")
+    print(json.dumps(report))
+    return status
+
+
 def main(argv: list[str]) -> int:
     if argv[:1] == ["doctor"]:
         return doctor(argv[1:])
+    if argv[:1] == ["derive-int8"]:
+        return derive_int8(argv[1:])
     if argv[:2] == ["teacher", "probe"]:
         return teacher_probe(argv[2:])
     values: dict[str, str | bool] = {}

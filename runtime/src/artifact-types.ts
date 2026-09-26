@@ -24,6 +24,44 @@ export interface OnnxQuantizationV1 {
   readonly attestedDisagreementTolerance: number;
   readonly eceThreshold: number;
   readonly sourceManifestSha256: string;
+  /** What the derivation checked the graph on and what it changed; absent on older int8 releases. */
+  readonly verification?: QuantizationVerificationV1;
+}
+
+/** One set of records a quantized graph was checked on, by the file's SHA-256. */
+export interface QuantizationRecordSourceV1 {
+  readonly kind: "training-dataset" | "adversarial-dataset" | "held-out";
+  readonly functionId: string;
+  readonly sha256: string;
+  readonly records: number;
+}
+
+export interface QuantizationFunctionVerificationV1 {
+  readonly id: string;
+  readonly recordsChecked: number;
+  readonly attestedRecords: number;
+  readonly decisionChanges: number;
+  readonly attestedDecisionChanges: number;
+  /** Null when none of the function's records carried a label. */
+  readonly sourceEce: number | null;
+  readonly quantizedEce: number | null;
+}
+
+/**
+ * The figures `semantscript releases derive --int8` measured when it ran the
+ * quantized chain against the float32 one: decisions changed overall and on
+ * attested (gold) records, and the worst head's ECE on both graphs.
+ */
+export interface QuantizationVerificationV1 {
+  readonly recordsChecked: number;
+  readonly attestedRecords: number;
+  readonly decisionChanges: number;
+  readonly attestedDecisionChanges: number;
+  readonly decisionChangeRate: number;
+  readonly sourceEce: number;
+  readonly quantizedEce: number;
+  readonly recordSources: readonly QuantizationRecordSourceV1[];
+  readonly functions: readonly QuantizationFunctionVerificationV1[];
 }
 
 export interface OnnxAbiV1 {

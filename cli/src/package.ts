@@ -114,7 +114,7 @@ export interface PackageLever {
   /** For a smaller encoder: the largest encoder graph that fits. */
   readonly encoderBudgetBytes: number | null;
   readonly fits: boolean;
-  /** False for a lever that is a measurement only (int8): no command produces it yet. */
+  /** False for a lever that is a measurement only: no command produces it. */
   readonly actionable: boolean;
   readonly how: string;
 }
@@ -138,8 +138,8 @@ export interface LeverInput {
 }
 
 const INT8_TOLERANCE =
-  "and only under a recorded tolerance: the measured int8 refund release changed 1 of 80 attested cases and 0.105% of decisions, which the strict gate refused (it was measured under attestedDisagreementTolerance 2 and argmaxDisagreementTolerance 0.01; docs/deploy.md has the figures)";
-const INT8_HOW = `a measurement, not a step to run: no int8 derivation exists for applications yet (it has only been measured on the refund benchmark, through a refund-specific driver), ${INT8_TOLERANCE}`;
+  "the derivation checks the int8 chain against the float32 one on the release's own training, gold and adversarial records from the build cache and refuses by default on any changed decision; the measured int8 refund release changed 1 of 80 attested cases and 0.105% of decisions, which that strict gate refuses (it was measured under attestedDisagreementTolerance 2 and argmaxDisagreementTolerance 0.01), so a release may need a recorded tolerance (--max-attested-disagreements, --max-decision-change-rate) before it publishes; docs/deploy.md has the figures";
+const INT8_HOW = `semantscript releases derive --int8 derives the int8 release from the current one and publishes it beside it, then semantscript releases promote <release> points current.json at it (package again afterwards); ${INT8_TOLERANCE}`;
 
 const DEPTH_PREFIX = /(?:^|[./])depth-\d{3}(?:$|[./])/u;
 
@@ -308,7 +308,6 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
         "int8 dynamic quantization",
         Math.round(input.encoderBytes * int8Ratio),
         INT8_HOW,
-        false,
       ),
     );
     if (!input.depthRouted) {
@@ -318,8 +317,7 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
             "depth+int8",
             `depth ${String(depth)} and int8`,
             Math.round(scaled(MEASURED_ENCODER.depthBytes[depth]) * int8Ratio),
-            `give every domain depth ${String(depth)} (semantscript build --domain-depth <domain>=${String(depth)} once per domain), then train; the int8 half is a measurement only, as for int8 above`,
-            false,
+            `give every domain depth ${String(depth)} (semantscript build --domain-depth <domain>=${String(depth)} once per domain), then train, then semantscript releases derive --int8 and semantscript releases promote <release>, under the same gate as int8 above`,
           ),
         );
       }

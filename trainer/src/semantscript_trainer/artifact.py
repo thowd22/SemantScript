@@ -1425,7 +1425,9 @@ def _validate_onnx_precision(onnx: Any, label: str) -> None:
         if "quantization" in onnx:
             raise ArtifactConfigurationError(f"{label} float32 graph cannot carry quantization")
         return
-    if not isinstance(quantization, dict) or set(quantization) != _ONNX_QUANTIZATION_FIELDS:
+    if not isinstance(quantization, dict) or set(quantization) - {"verification"} != (
+        _ONNX_QUANTIZATION_FIELDS
+    ):
         raise ArtifactConfigurationError(
             f"{label} quantized graph must carry exactly the quantization fields"
         )
@@ -1453,6 +1455,102 @@ def _validate_onnx_precision(onnx: Any, label: str) -> None:
     _require_sha256(
         f"{label} quantization sourceManifestSha256", quantization.get("sourceManifestSha256")
     )
+    if "verification" in quantization:
+        _validate_quantization_verification(
+            quantization["verification"], f"{label} quantization verification"
+        )
+
+
+_QUANTIZATION_VERIFICATION_FIELDS = {
+    "recordsChecked",
+    "attestedRecords",
+    "decisionChanges",
+    "attestedDecisionChanges",
+    "decisionChangeRate",
+    "sourceEce",
+    "quantizedEce",
+    "recordSources",
+    "functions",
+}
+_QUANTIZATION_RECORD_SOURCE_KINDS = ("training-dataset", "adversarial-dataset", "held-out")
+
+
+def _validate_quantization_verification(value: Any, label: str) -> None:
+    """What a derived graph was checked on and what it changed (optional; older int8 lack it)."""
+
+    def count(entry: dict[str, Any], name: str, where: str) -> int:
+        item = entry.get(name)
+        if (
+            isinstance(item, bool)
+            or not isinstance(item, (int, float))
+            or item < 0
+            or item != int(item)
+        ):
+            raise ArtifactConfigurationError(f"{where} {name} must be a non-negative integer")
+        return int(item)
+
+    def unit(item: Any, name: str, where: str, *, nullable: bool = False) -> None:
+        if item is None and nullable:
+            return
+        if not _is_finite_number(item) or not 0 <= item <= 1:
+            raise ArtifactConfigurationError(f"{where} {name} must be within [0, 1]")
+
+    if not isinstance(value, dict) or set(value) != _QUANTIZATION_VERIFICATION_FIELDS:
+        raise ArtifactConfigurationError(f"{label} must carry exactly the verification fields")
+    records = count(value, "recordsChecked", label)
+    if records < 1:
+        raise ArtifactConfigurationError(f"{label} recordsChecked must be at least 1")
+    if count(value, "attestedRecords", label) > records:
+        raise ArtifactConfigurationError(f"{label} attestedRecords exceeds recordsChecked")
+    if count(value, "decisionChanges", label) > records:
+        raise ArtifactConfigurationError(f"{label} decisionChanges exceeds recordsChecked")
+    if count(value, "attestedDecisionChanges", label) > value["attestedRecords"]:
+        raise ArtifactConfigurationError(f"{label} attestedDecisionChanges exceeds attestedRecords")
+    for name in ("decisionChangeRate", "sourceEce", "quantizedEce"):
+        unit(value.get(name), name, label)
+    sources = value.get("recordSources")
+    if not isinstance(sources, list):
+        raise ArtifactConfigurationError(f"{label} recordSources must be an array")
+    for index, source in enumerate(sources):
+        where = f"{label} recordSources[{index}]"
+        if (
+            not isinstance(source, dict)
+            or set(source) != {"kind", "functionId", "sha256", "records"}
+            or source.get("kind") not in _QUANTIZATION_RECORD_SOURCE_KINDS
+            or not isinstance(source.get("functionId"), str)
+            or not source["functionId"]
+        ):
+            raise ArtifactConfigurationError(
+                f"{where} must be {{kind, functionId, sha256, records}} with a known kind"
+            )
+        _require_sha256(f"{where} sha256", source.get("sha256"))
+        count(source, "records", where)
+    functions = value.get("functions")
+    if not isinstance(functions, list):
+        raise ArtifactConfigurationError(f"{label} functions must be an array")
+    for index, entry in enumerate(functions):
+        where = f"{label} functions[{index}]"
+        if not isinstance(entry, dict) or set(entry) != {
+            "id",
+            "recordsChecked",
+            "attestedRecords",
+            "decisionChanges",
+            "attestedDecisionChanges",
+            "sourceEce",
+            "quantizedEce",
+        }:
+            raise ArtifactConfigurationError(f"{where} must carry exactly the function fields")
+        if not isinstance(entry.get("id"), str) or not entry["id"]:
+            raise ArtifactConfigurationError(f"{where} id must be a non-empty string")
+        for name in (
+            "recordsChecked",
+            "attestedRecords",
+            "decisionChanges",
+            "attestedDecisionChanges",
+        ):
+            count(entry, name, where)
+        for name in ("sourceEce", "quantizedEce"):
+            unit(entry.get(name), name, where, nullable=True)
 
 
 def _validate_manifest_inputs(inputs: Any) -> None:

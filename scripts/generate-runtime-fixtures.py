@@ -30,33 +30,42 @@ def save(name: str, graph: onnx.GraphProto) -> None:
 
 def encoder(batch: str | int = "BATCH") -> onnx.GraphProto:
     inputs = [
-        helper.make_tensor_value_info(
-            "input_ids", TensorProto.INT64, [batch, "SEQUENCE"]
-        ),
-        helper.make_tensor_value_info(
-            "attention_mask", TensorProto.INT64, [batch, "SEQUENCE"]
-        ),
+        helper.make_tensor_value_info("input_ids", TensorProto.INT64, [batch, "SEQUENCE"]),
+        helper.make_tensor_value_info("attention_mask", TensorProto.INT64, [batch, "SEQUENCE"]),
     ]
-    output = helper.make_tensor_value_info(
-        "sentence_embedding", TensorProto.FLOAT, [batch, 1]
-    )
+    output = helper.make_tensor_value_info("sentence_embedding", TensorProto.FLOAT, [batch, 1])
     axes = helper.make_tensor("axes", TensorProto.INT64, [1], [1])
     nodes = [
         helper.make_node("Cast", ["input_ids"], ["ids_float"], to=TensorProto.FLOAT),
-        helper.make_node(
-            "Cast", ["attention_mask"], ["mask_float"], to=TensorProto.FLOAT
-        ),
+        helper.make_node("Cast", ["attention_mask"], ["mask_float"], to=TensorProto.FLOAT),
         helper.make_node("Mul", ["ids_float", "mask_float"], ["masked"]),
-        helper.make_node(
-            "ReduceSum", ["masked", "axes"], ["sentence_embedding"], keepdims=1
-        ),
+        helper.make_node("ReduceSum", ["masked", "axes"], ["sentence_embedding"], keepdims=1),
     ]
     return helper.make_graph(nodes, "fixture-encoder", inputs, [output], [axes])
 
 
-def adapter(
-    batch: str | int = "BATCH", hidden: str | int = 1
-) -> onnx.GraphProto:
+def quantizable_encoder(scale: float = 100.0) -> onnx.GraphProto:
+    """The fixture encoder followed by a MatMul with a constant weight.
+
+    Dynamic quantization converts a MatMul with a constant operand, which the
+    plain fixture encoder lacks, so this is the graph `releases derive --int8`
+    runs on in the tests and the CI package job. The weight is positive, so
+    every answer is the plain encoder's (the head's third support value); it
+    only sharpens the head's confidence so an uncalibrated fixture still
+    passes the ECE gate on fixture-labelled records. A weight of 100 and the
+    masked sum both quantize exactly, so the int8 graph decides as the
+    float32 one does.
+    """
+
+    graph = encoder()
+    graph.name = "fixture-quantizable-encoder"
+    graph.node[-1].output[0] = "summed"
+    graph.initializer.append(helper.make_tensor("projection", TensorProto.FLOAT, [1, 1], [scale]))
+    graph.node.append(helper.make_node("MatMul", ["summed", "projection"], ["sentence_embedding"]))
+    return graph
+
+
+def adapter(batch: str | int = "BATCH", hidden: str | int = 1) -> onnx.GraphProto:
     input_value = helper.make_tensor_value_info(
         "sentence_embedding", TensorProto.FLOAT, [batch, hidden]
     )
@@ -72,12 +81,8 @@ def adapter(
 
 
 def head(output_width: int = 3, batch: str | int = "BATCH") -> onnx.GraphProto:
-    input_value = helper.make_tensor_value_info(
-        "function_embedding", TensorProto.FLOAT, [batch, 1]
-    )
-    output_value = helper.make_tensor_value_info(
-        "logits", TensorProto.FLOAT, [batch, output_width]
-    )
+    input_value = helper.make_tensor_value_info("function_embedding", TensorProto.FLOAT, [batch, 1])
+    output_value = helper.make_tensor_value_info("logits", TensorProto.FLOAT, [batch, output_width])
     weights = helper.make_tensor(
         "weights",
         TensorProto.FLOAT,
@@ -104,3 +109,4 @@ save("fixed-batch-adapter.onnx", adapter(1))
 save("fixed-batch-head.onnx", head(batch=1))
 save("symbolic-hidden-adapter.onnx", adapter(hidden="HIDDEN"))
 save("wide-adapter.onnx", adapter(hidden=2))
+save("quantizable-encoder.onnx", quantizable_encoder())

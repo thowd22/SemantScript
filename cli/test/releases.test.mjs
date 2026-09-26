@@ -569,3 +569,211 @@ test("a running process with watch enabled swaps to the release a rollback point
     await runtime.closeSemaArtifact();
   }
 });
+
+const fakeTrainerDirectory = join(
+  new URL(".", import.meta.url).pathname,
+  "fixtures",
+);
+const python = process.platform === "win32" ? "python" : "python3";
+
+async function derive(root, args, env = {}) {
+  const output = capture(root);
+  const io = {
+    ...output.io,
+    env: { ...output.io.env, PYTHONPATH: fakeTrainerDirectory, ...env },
+  };
+  const code = await runCli(
+    [
+      "releases",
+      "derive",
+      ...args,
+      "--artifact",
+      root,
+      "--python",
+      python,
+      "--trainer-module",
+      "fake_trainer",
+    ],
+    io,
+  );
+  return { code, stdout: output.stdout(), stderr: output.stderr() };
+}
+
+test("releases derive --int8 runs the trainer on the current or named release and publishes beside it", async (t) => {
+  const root = await scratch(t, "semantscript-releases-derive-");
+  const { middle, newest } = await threeReleases(root);
+  const argvPath = join(root, "argv.json");
+
+  const published = await derive(
+    root,
+    [
+      "--int8",
+      "--cache-dir",
+      "cache",
+      "--per-channel",
+      "--max-attested-disagreements",
+      "1",
+      "--max-decision-change-rate",
+      "0.01",
+      "--ece-threshold",
+      "0.2",
+    ],
+    { FAKE_TRAINER_ARGV_PATH: argvPath },
+  );
+  assert.equal(published.code, 0, published.stderr);
+  const { argv } = JSON.parse(await readFile(argvPath, "utf8"));
+  assert.deepEqual(argv, [
+    "--artifact",
+    root,
+    "--release",
+    newest,
+    "--cache-dir",
+    join(root, "cache"),
+    "--report",
+    `${root}.derive-report.json`,
+    "--max-attested-disagreements",
+    "1",
+    "--max-decision-change-rate",
+    "0.01",
+    "--ece-threshold",
+    "0.2",
+    "--per-channel",
+  ]);
+  const report = JSON.parse(
+    await readFile(`${root}.derive-report.json`, "utf8"),
+  );
+  t.after(() => rm(`${root}.derive-report.json`, { force: true }));
+  const derived = report.derived.manifestSha256;
+  assert.match(
+    published.stdout,
+    new RegExp(
+      `^derived releases/sha256-${derived} from releases/sha256-${newest} \\(int8-dynamic, weights int8, per-channel yes, reduce-range no\\)$`,
+      "mu",
+    ),
+  );
+  assert.match(
+    published.stdout,
+    /^nf_11111111… +10 +2 +0 +0 +0\.0200 +0\.0300$/mu,
+  );
+  assert.match(
+    published.stdout,
+    /^verified on: training-dataset dddddddddddd/mu,
+  );
+  assert.match(published.stdout, /^held-out: no held-out set is recorded/mu);
+  assert.match(published.stdout, /^encoder 3\.9 KiB -> 1000 B; release /mu);
+  assert.match(
+    published.stdout,
+    new RegExp(
+      `^next: semantscript releases promote ${derived.slice(0, 12)} --artifact ${root.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&")} \\(semantscript releases promote ${newest.slice(0, 12)} returns to the float32 release\\)$`,
+      "mu",
+    ),
+  );
+  // Published beside the source; the pointer is untouched.
+  assert.equal(await currentDigest(root), newest);
+
+  // list and show name the derivation and its recorded figures.
+  const listed = await run(root, []);
+  assert.match(
+    listed.stdout,
+    new RegExp(
+      `^${derived.slice(0, 12)}: int8-dynamic from sha256-${newest.slice(0, 12)}: 0 of 10 decisions changed \\(0 of 2 attested\\); tolerance 1 attested, rate 0\\.01, ECE 0\\.2$`,
+      "mu",
+    ),
+  );
+  const listedJson = JSON.parse((await run(root, ["--json"])).stdout);
+  const entry = listedJson.releases.find(
+    (release) => release.manifestSha256 === derived,
+  );
+  assert.equal(entry.derivation.precision, "int8-dynamic");
+  assert.equal(entry.derivation.sourceManifestSha256, newest);
+  assert.equal(entry.derivation.decisionChanges, 0);
+  assert.equal(entry.derivation.recordsChecked, 10);
+  assert.equal(
+    listedJson.releases.find((release) => release.manifestSha256 === newest)
+      .derivation,
+    null,
+  );
+  const shown = await run(root, ["show", derived.slice(0, 12)]);
+  assert.match(
+    shown.stdout,
+    /^derived {6}int8-dynamic from sha256-[a-f0-9]{12}: 0 of 10 decisions changed/mu,
+  );
+
+  // A named release, and --promote verifies it and points current.json at it.
+  const promoted = await derive(root, [
+    "--int8",
+    middle.slice(0, 10),
+    "--promote",
+  ]);
+  assert.equal(promoted.code, 0, promoted.stderr);
+  assert.match(promoted.stdout, /promoting it:\npointed /u);
+  const current = await currentDigest(root);
+  assert.notEqual(current, newest);
+  const promotedManifest = JSON.parse(
+    await readFile(
+      join(root, "releases", `sha256-${current}`, "manifest.json"),
+      "utf8",
+    ),
+  );
+  const encoder = promotedManifest.resources.find(
+    (resource) => resource.role === "encoder",
+  );
+  assert.equal(encoder.onnx.quantization.sourceManifestSha256, middle);
+  // And back: the float32 release is one promote away.
+  assert.equal((await run(root, ["promote", newest])).code, 0);
+  assert.equal(await currentDigest(root), newest);
+});
+
+test("releases derive --int8 exits 2 with the figures and the next command when the gate refuses", async (t) => {
+  const root = await scratch(t, "semantscript-releases-derive-refused-");
+  const { newest } = await threeReleases(root);
+  t.after(() => rm(`${root}.derive-report.json`, { force: true }));
+  const before = await readdir(join(root, "releases"));
+
+  const refused = await derive(root, ["--int8", "--promote"], {
+    FAKE_DERIVE_REFUSE: "1",
+  });
+  assert.equal(refused.code, 2, refused.stderr);
+  assert.match(
+    refused.stdout,
+    /^derive refused: nothing was published and current\.json is unchanged\n {2}1 attested record\(s\) changed decision \(tolerance 0\)\nnext: keep serving the float32 release/mu,
+  );
+  assert.match(refused.stdout, /^nf_11111111… +10 +2 +1 +1 /mu);
+  assert.doesNotMatch(refused.stdout, /pointed/u);
+  assert.equal(await currentDigest(root), newest);
+  assert.deepEqual(await readdir(join(root, "releases")), before);
+
+  const json = await derive(root, ["--int8", "--json"], {
+    FAKE_DERIVE_REFUSE: "1",
+  });
+  assert.equal(json.code, 2);
+  assert.equal(JSON.parse(json.stdout).status, "refused");
+
+  // A trainer error (records missing) passes its next: line through, exit 1.
+  const missing = await derive(root, ["--int8"], { FAKE_DERIVE_MISSING: "1" });
+  assert.equal(missing.code, 1);
+  assert.match(missing.stderr, /; next: pass --cache-dir the build cache/u);
+  assert.equal(missing.stdout, "");
+});
+
+test("releases derive checks its options before running anything", async (t) => {
+  const root = await scratch(t, "semantscript-releases-derive-usage-");
+  await threeReleases(root);
+  for (const [args, message] of [
+    [[], /releases derive needs --int8/u],
+    [
+      ["--int8", "--weight-type", "int4"],
+      /--weight-type must be int8 or uint8/u,
+    ],
+    [["--int8", "--max-attested-disagreements=1.5"], /whole number/u],
+    [["--int8", "--max-decision-change-rate", "2"], /from 0 to 1/u],
+    [["--int8", "a", "b"], /at most one release/u],
+  ]) {
+    const result = await derive(root, args);
+    assert.equal(result.code, 2, args.join(" "));
+    assert.match(result.stderr, message);
+  }
+  const unknown = await derive(root, ["--int8", "0000000"]);
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.stderr, /RELEASE_NOT_FOUND/u);
+});

@@ -329,6 +329,83 @@
         },
         "sourceManifestSha256": {
           "$ref": "#/$defs/sha256"
+        },
+        "verification": {
+          "$ref": "#/$defs/quantizationVerification"
+        }
+      }
+    },
+    "quantizationVerification": {
+      "$comment": "What semantscript releases derive --int8 checked the quantized graph on and what it changed; releases derived before this block existed omit it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordsChecked",
+        "attestedRecords",
+        "decisionChanges",
+        "attestedDecisionChanges",
+        "decisionChangeRate",
+        "sourceEce",
+        "quantizedEce",
+        "recordSources",
+        "functions"
+      ],
+      "properties": {
+        "recordsChecked": { "type": "integer", "minimum": 1 },
+        "attestedRecords": { "type": "integer", "minimum": 0 },
+        "decisionChanges": { "type": "integer", "minimum": 0 },
+        "attestedDecisionChanges": { "type": "integer", "minimum": 0 },
+        "decisionChangeRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sourceEce": { "type": "number", "minimum": 0, "maximum": 1 },
+        "quantizedEce": { "type": "number", "minimum": 0, "maximum": 1 },
+        "recordSources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "functionId", "sha256", "records"],
+            "properties": {
+              "kind": {
+                "enum": ["training-dataset", "adversarial-dataset", "held-out"]
+              },
+              "functionId": { "type": "string", "minLength": 1 },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "records": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "recordsChecked",
+              "attestedRecords",
+              "decisionChanges",
+              "attestedDecisionChanges",
+              "sourceEce",
+              "quantizedEce"
+            ],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "recordsChecked": { "type": "integer", "minimum": 0 },
+              "attestedRecords": { "type": "integer", "minimum": 0 },
+              "decisionChanges": { "type": "integer", "minimum": 0 },
+              "attestedDecisionChanges": { "type": "integer", "minimum": 0 },
+              "sourceEce": {
+                "type": ["number", "null"],
+                "minimum": 0,
+                "maximum": 1
+              },
+              "quantizedEce": {
+                "type": ["number", "null"],
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
         }
       }
     },

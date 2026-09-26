@@ -308,7 +308,7 @@ export async function runTrain(
  * Runs the trainer with its stderr forwarded through `filter` as it arrives,
  * so progress shows per expression.
  */
-function runProcess(
+export function runProcess(
   command: string,
   args: readonly string[],
   io: CliIo,
@@ -529,12 +529,12 @@ export function classifyTrainerFailure(traceback: string): TrainerFailure {
 }
 
 /** `<report without .json>.traceback.txt`, next to the report. */
-function tracebackPath(report: string): string {
+export function tracebackPath(report: string): string {
   return `${report.replace(/\.json$/u, "")}.traceback.txt`;
 }
 
 /** Identifies one version of a file, or undefined when there is none. */
-async function fileStamp(path: string): Promise<string | undefined> {
+export async function fileStamp(path: string): Promise<string | undefined> {
   try {
     const stats = await stat(path, { bigint: true });
     return `${String(stats.ino)}:${String(stats.size)}:${String(stats.mtimeNs)}:${String(stats.ctimeNs)}`;
@@ -573,7 +573,7 @@ function shellWord(value: string): string {
  * The one line `train` prints in place of a trainer traceback, naming the
  * doctor check to run; the traceback itself goes to `path`.
  */
-async function trainerFailureLine(
+export async function trainerFailureLine(
   traceback: string,
   options: {
     readonly python: string;
@@ -624,7 +624,11 @@ async function pythonIsCurrent(python: string, io: CliIo): Promise<boolean> {
 }
 
 /** `unable to run <python>: spawn <python> ENOENT; next: ...` */
-function unableToRun(python: string, error: Error, doctor: string): string {
+export function unableToRun(
+  python: string,
+  error: Error,
+  doctor: string,
+): string {
   return `unable to run ${python}: ${error.message}; next: ${remedyText("python-missing", { doctor })}\n`;
 }
 

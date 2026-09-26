@@ -13,6 +13,7 @@ consumer can see what the graph was allowed to change.
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import os
 import re
@@ -41,7 +42,6 @@ from semantscript_trainer.artifact import (
     _publish_release,
     _remove_owned_staging,
     _require_directory_identity,
-    _resource_paths,
     _safe_existing_release_file,
     _validate_manifest_document,
     _validate_rfc3339,
@@ -78,26 +78,57 @@ class QuantizationRecord:
 
     ``label_index`` is the expected output's index in the head support and is
     needed for calibration; ``attested`` marks acceptance-test cases, which
-    have their own (default zero) disagreement tolerance.
+    have their own (default zero) disagreement tolerance. ``function_id``
+    names the function the record belongs to and is required when the release
+    has more than one. A function with several heads (an object output) takes
+    one label per head, in manifest order, through ``label_indices`` instead
+    of ``label_index``; ``None`` leaves that head unlabeled.
     """
 
     inputs: dict[str, JsonValue]
     label_index: int | None = None
     attested: bool = False
+    function_id: str | None = None
+    label_indices: tuple[int | None, ...] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.inputs, dict):
             raise ArtifactConfigurationError("quantization record inputs must be an object")
-        if self.label_index is not None and (
-            isinstance(self.label_index, bool)
-            or not isinstance(self.label_index, int)
-            or self.label_index < 0
-        ):
+        if self.label_index is not None and not _is_label(self.label_index):
             raise ArtifactConfigurationError(
                 "quantization record label_index must be a non-negative integer or None"
             )
         if not isinstance(self.attested, bool):
             raise ArtifactConfigurationError("quantization record attested must be a boolean")
+        if self.function_id is not None and (
+            not isinstance(self.function_id, str) or not self.function_id
+        ):
+            raise ArtifactConfigurationError(
+                "quantization record function_id must be a non-empty string or None"
+            )
+        if self.label_indices is not None:
+            if self.label_index is not None:
+                raise ArtifactConfigurationError(
+                    "quantization record takes label_index or label_indices, not both"
+                )
+            if (
+                not isinstance(self.label_indices, tuple)
+                or not self.label_indices
+                or any(label is not None and not _is_label(label) for label in self.label_indices)
+            ):
+                raise ArtifactConfigurationError(
+                    "quantization record label_indices must be a non-empty tuple of "
+                    "non-negative integers or None"
+                )
+
+    def labels(self) -> tuple[int | None, ...]:
+        """One label per head: ``label_indices``, or ``label_index`` for a single head."""
+
+        return self.label_indices if self.label_indices is not None else (self.label_index,)
+
+
+def _is_label(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,8 +181,48 @@ class QuantizationConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class QuantizationFunctionReport:
+    """One function's share of the quantized-graph check.
+
+    Accuracy and ECE are over the function's labeled records, the worst head
+    for ECE; they are ``None`` when none of its records carries a label.
+    """
+
+    function_id: str
+    records_checked: int
+    labeled_records: int
+    attested_records: int
+    argmax_disagreements: int
+    attested_disagreements: int
+    source_accuracy: float | None
+    quantized_accuracy: float | None
+    source_ece: float | None
+    quantized_ece: float | None
+
+    def to_document(self) -> dict[str, JsonValue]:
+        return {
+            "id": self.function_id,
+            "recordsChecked": self.records_checked,
+            "labeledRecords": self.labeled_records,
+            "attestedRecords": self.attested_records,
+            "argmaxDisagreements": self.argmax_disagreements,
+            "attestedDisagreements": self.attested_disagreements,
+            "sourceAccuracy": self.source_accuracy,
+            "quantizedAccuracy": self.quantized_accuracy,
+            "sourceEce": self.source_ece,
+            "quantizedEce": self.quantized_ece,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class QuantizationReport:
-    """What the quantized chain did on the supplied records, gate or no gate."""
+    """What the quantized chain did on the supplied records, gate or no gate.
+
+    For a release with several functions or heads, accuracy is over every
+    labeled head decision, the ECE figures are the worst head's, the
+    temperature is the first head's and the encoder sizes add up every
+    encoder graph; ``functions`` carries each function's own figures.
+    """
 
     source_manifest_sha256: str
     method: str
@@ -174,6 +245,7 @@ class QuantizationReport:
     quantized_encoder_byte_length: int
     quantized_matmul_count: int
     elapsed_seconds: float
+    functions: tuple[QuantizationFunctionReport, ...] = ()
 
     def to_document(self) -> dict[str, JsonValue]:
         return {
@@ -198,6 +270,35 @@ class QuantizationReport:
             "quantizedEncoderByteLength": self.quantized_encoder_byte_length,
             "quantizedMatMulCount": self.quantized_matmul_count,
             "elapsedSeconds": self.elapsed_seconds,
+            "functions": [function.to_document() for function in self.functions],
+        }
+
+    def to_manifest_verification(
+        self, record_sources: Sequence[dict[str, JsonValue]]
+    ) -> dict[str, JsonValue]:
+        """The figures a derived manifest records next to its tolerances."""
+
+        return {
+            "recordsChecked": self.records_checked,
+            "attestedRecords": self.attested_records,
+            "decisionChanges": self.argmax_disagreements,
+            "attestedDecisionChanges": self.attested_disagreements,
+            "decisionChangeRate": float(self.argmax_disagreement_rate),
+            "sourceEce": float(self.source_ece),
+            "quantizedEce": float(self.quantized_ece),
+            "recordSources": [dict(source) for source in record_sources],
+            "functions": [
+                {
+                    "id": function.function_id,
+                    "recordsChecked": function.records_checked,
+                    "attestedRecords": function.attested_records,
+                    "decisionChanges": function.argmax_disagreements,
+                    "attestedDecisionChanges": function.attested_disagreements,
+                    "sourceEce": function.source_ece,
+                    "quantizedEce": function.quantized_ece,
+                }
+                for function in self.functions
+            ],
         }
 
 
@@ -224,14 +325,23 @@ def quantize_release_artifact(
     config: ArtifactExportConfig | None = None,
     artifact_root: str | os.PathLike[str] | None = None,
     created_at: str | None = None,
+    record_sources: Sequence[dict[str, JsonValue]] | None = None,
 ) -> QuantizedArtifact:
     """Publish a quantized copy of one released artifact after verifying it.
 
     The source release is found under ``source_artifact_root`` by manifest
-    digest and every resource is integrity-checked before use. The new release
-    is published under ``artifact_root`` (the source root when omitted) with
-    the same staging, exclusive-write and content-addressing rules as a fresh
-    export, and its pointer is advanced when the export config says so.
+    digest and every resource is integrity-checked before use. Every encoder
+    graph is quantized (a depth-routed release has one per depth) and every
+    other resource is copied unchanged. Each record runs through its
+    function's chain (its encoder, adapter and heads) on both graphs, and a
+    decision is the tuple of the heads' answers. The new release is published
+    under ``artifact_root`` (the source root when omitted) with the same
+    staging, exclusive-write and content-addressing rules as a fresh export,
+    and its pointer is advanced when the export config says so.
+
+    ``record_sources`` names what the records were drawn from (dataset
+    digests and counts); when given, each quantized encoder's manifest entry
+    also records the figures the gate measured (``quantization.verification``).
     """
 
     resolved = ArtifactExportConfig() if config is None else config
@@ -241,6 +351,7 @@ def quantize_release_artifact(
     if not isinstance(settings, QuantizationConfig):
         raise ArtifactConfigurationError("quantization must be a QuantizationConfig")
     checked_records = _validate_records(records)
+    sources_document = _validate_record_sources(record_sources)
     if (
         not isinstance(source_manifest_sha256, str)
         or _SHA256.fullmatch(source_manifest_sha256) is None
@@ -255,27 +366,25 @@ def quantize_release_artifact(
     source_release = source_root / "releases" / f"sha256-{source_manifest_sha256}"
     manifest = _load_source_manifest(source_release, source_manifest_sha256, resolved)
     sources = _source_resources(manifest, source_release, resolved)
-    function = cast(dict[str, Any], cast(list[Any], manifest["functions"])[0])
-    function_id = cast(str, function["id"])
-    encoder_onnx = cast(dict[str, Any], sources["encoder"][0]["onnx"])
-    if encoder_onnx.get("precision", "float32") != "float32":
-        raise ArtifactConfigurationError("source release encoder is already quantized")
-    head_outputs = cast(list[Any], cast(dict[str, Any], sources["head"][0]["onnx"])["outputs"])
-    logit_count = _dimension(cast(dict[str, Any], head_outputs[0])["shape"][1])
+    chains = _function_chains(manifest, sources)
+    tokenizer_ref = _model_ref(manifest, "tokenizerRef")
+    tokenizer_resource = sources.get(tokenizer_ref)
+    if tokenizer_resource is None or tokenizer_resource[0].get("role") != "tokenizer":
+        raise ArtifactConfigurationError("source manifest model.tokenizerRef names no tokenizer")
     maximum_sequence_length = _positive_integer(
-        sources["tokenizer"][0].get("maximumSequenceLength"), "tokenizer maximumSequenceLength"
+        tokenizer_resource[0].get("maximumSequenceLength"), "tokenizer maximumSequenceLength"
     )
-    temperature = _temperature(function)
+    encoder_refs = [ref for ref, (resource, _) in sources.items() if resource["role"] == "encoder"]
+    for ref in encoder_refs:
+        onnx = cast(dict[str, Any], sources[ref][0]["onnx"])
+        if onnx.get("precision", "float32") != "float32":
+            raise ArtifactConfigurationError("source release encoder is already quantized")
     compatibility = manifest.get("compatibility")
     encoding = compatibility.get("canonicalInput") if isinstance(compatibility, dict) else None
     input_version = canonical_input_version(encoding)
     if input_version is None:
         raise ArtifactConfigurationError("source manifest declares an unsupported canonical input")
-    for record in checked_records:
-        if record.label_index is not None and record.label_index >= logit_count:
-            raise ArtifactConfigurationError(
-                "quantization record label_index exceeds the head support"
-            )
+    _assign_records(checked_records, chains)
 
     root, root_descriptor = _prepare_artifact_root(
         source_artifact_root if artifact_root is None else artifact_root
@@ -293,30 +402,42 @@ def quantize_release_artifact(
         _require_directory_identity(releases, releases_descriptor, "artifact releases")
         _require_directory_identity(staging, staging_descriptor, "artifact staging")
         staging_io_root = _descriptor_directory_path(staging, staging_descriptor)
-        paths = _resource_paths(staging_io_root, function_id)
-        copied: dict[str, bytes] = {}
-        for role in ("tokenizer", "adapter", "head"):
-            copied[role] = _read_resource(sources[role][1], resolved.maximum_resource_bytes)
-            _write_exclusive(paths[role], copied[role])
-        component = _quantize_encoder(sources["encoder"][1], paths["encoder"], settings, resolved)
+        paths = {
+            ref: staging_io_root / cast(str, resource["path"])
+            for ref, (resource, _) in sources.items()
+        }
+        tokenizer_json = b""
+        for ref, (resource, path) in sources.items():
+            if resource["role"] == "encoder":
+                continue
+            data = _read_resource(path, resolved.maximum_resource_bytes)
+            if ref == tokenizer_ref:
+                tokenizer_json = data
+            _write_exclusive(paths[ref], data)
+        components = {
+            ref: _quantize_encoder(sources[ref][1], paths[ref], settings, resolved)
+            for ref in encoder_refs
+        }
         report = _verify_quantized_chain(
-            source_encoder=sources["encoder"][1],
-            quantized_encoder=paths["encoder"],
-            adapter=paths["adapter"],
-            head=paths["head"],
-            tokenizer_json=copied["tokenizer"],
-            input_schema=cast(list[Any], function["inputs"]),
+            source_encoders={ref: sources[ref][1] for ref in encoder_refs},
+            quantized_encoders={ref: paths[ref] for ref in encoder_refs},
+            resource_paths=paths,
+            chains=chains,
+            tokenizer_json=tokenizer_json,
             input_version=input_version,
             maximum_sequence_length=maximum_sequence_length,
-            logit_count=logit_count,
-            temperature=temperature,
             records=checked_records,
             settings=settings,
             source_manifest_sha256=source_manifest_sha256,
-            component=component,
+            components=[components[ref] for ref in encoder_refs],
             started=started,
         )
-        resources = _derived_resources(manifest, paths, settings, source_manifest_sha256, resolved)
+        verification = (
+            None if sources_document is None else report.to_manifest_verification(sources_document)
+        )
+        resources = _derived_resources(
+            manifest, paths, settings, source_manifest_sha256, resolved, verification
+        )
         derived = deepcopy(manifest)
         restore_integral_numbers(derived)
         derived["resources"] = cast(JsonValue, resources)
@@ -373,6 +494,24 @@ def quantize_release_artifact(
             os.close(root_descriptor)
 
 
+@dataclass(frozen=True, slots=True)
+class _Head:
+    ref: str
+    width: int
+    temperature: float
+
+
+@dataclass(frozen=True, slots=True)
+class _Chain:
+    """One function's path through the release: its encoder, adapter and heads."""
+
+    function_id: str
+    input_schema: list[Any]
+    encoder_ref: str
+    adapter_ref: str
+    heads: tuple[_Head, ...]
+
+
 def _validate_records(records: Sequence[QuantizationRecord]) -> tuple[QuantizationRecord, ...]:
     if isinstance(records, (str, bytes)) or not isinstance(records, Sequence):
         raise ArtifactConfigurationError("records must be a sequence of QuantizationRecord")
@@ -383,10 +522,39 @@ def _validate_records(records: Sequence[QuantizationRecord]) -> tuple[Quantizati
         )
     if any(not isinstance(record, QuantizationRecord) for record in checked):
         raise ArtifactConfigurationError("records must be QuantizationRecord instances")
-    if not any(record.label_index is not None for record in checked):
+    if not any(any(label is not None for label in record.labels()) for record in checked):
         raise ArtifactConfigurationError(
             "quantization verification needs at least one labeled record for calibration"
         )
+    return checked
+
+
+_RECORD_SOURCE_KINDS = ("training-dataset", "adversarial-dataset", "held-out")
+
+
+def _validate_record_sources(
+    record_sources: Sequence[dict[str, JsonValue]] | None,
+) -> list[dict[str, JsonValue]] | None:
+    if record_sources is None:
+        return None
+    if isinstance(record_sources, (str, bytes)) or not isinstance(record_sources, Sequence):
+        raise ArtifactConfigurationError("record_sources must be a sequence of objects")
+    checked: list[dict[str, JsonValue]] = []
+    for index, source in enumerate(record_sources):
+        if (
+            not isinstance(source, dict)
+            or set(source) != {"kind", "functionId", "sha256", "records"}
+            or source.get("kind") not in _RECORD_SOURCE_KINDS
+            or not isinstance(source.get("functionId"), str)
+            or not isinstance(source.get("sha256"), str)
+            or _SHA256.fullmatch(cast(str, source["sha256"])) is None
+            or not _is_label(source.get("records"))
+        ):
+            raise ArtifactConfigurationError(
+                f"record_sources[{index}] must be {{kind, functionId, sha256, records}} with "
+                f"kind one of {', '.join(_RECORD_SOURCE_KINDS)}"
+            )
+        checked.append(dict(source))
     return checked
 
 
@@ -412,27 +580,36 @@ def _load_source_manifest(
     ):
         raise ArtifactConfigurationError("source manifest is not an application artifact v1")
     functions = manifest.get("functions")
-    if not isinstance(functions, list) or len(functions) != 1 or not isinstance(functions[0], dict):
-        raise ArtifactConfigurationError("source manifest must contain exactly one function")
+    if (
+        not isinstance(functions, list)
+        or not functions
+        or not all(isinstance(function, dict) for function in functions)
+    ):
+        raise ArtifactConfigurationError("source manifest must contain at least one function")
     return manifest
 
 
 def _source_resources(
     manifest: dict[str, JsonValue], release: Path, config: ArtifactExportConfig
 ) -> dict[str, tuple[dict[str, Any], Path]]:
+    """Every resource by ref, each integrity-checked against the manifest."""
+
     resources = manifest.get("resources")
-    if not isinstance(resources, list) or len(resources) != 4:
-        raise ArtifactConfigurationError(
-            "quantized derivation supports single-function scalar artifacts only "
-            "(one tokenizer, encoder, adapter and head resource)"
-        )
-    by_role: dict[str, tuple[dict[str, Any], Path]] = {}
+    if not isinstance(resources, list) or not resources:
+        raise ArtifactConfigurationError("source manifest resources must be a non-empty array")
+    by_ref: dict[str, tuple[dict[str, Any], Path]] = {}
     for resource in resources:
         if not isinstance(resource, dict):
             raise ArtifactConfigurationError("source manifest resources must be objects")
+        ref = resource.get("ref")
         role = resource.get("role")
         relative = resource.get("path")
-        if role not in _RESOURCE_ROLES or role in by_role or not isinstance(relative, str):
+        if (
+            not isinstance(ref, str)
+            or ref in by_ref
+            or role not in _RESOURCE_ROLES
+            or not isinstance(relative, str)
+        ):
             raise ArtifactConfigurationError("source manifest resource roles are invalid")
         path = _safe_existing_release_file(release, relative)
         byte_length, digest = _file_identity(path, config.maximum_resource_bytes)
@@ -442,10 +619,101 @@ def _source_resources(
             raise ArtifactConfigurationError(
                 f"source release resource {relative} lacks ONNX metadata"
             )
-        by_role[role] = (resource, path)
-    if set(by_role) != set(_RESOURCE_ROLES):
+        by_ref[ref] = (resource, path)
+    roles = {resource["role"] for resource, _ in by_ref.values()}
+    if roles != set(_RESOURCE_ROLES):
         raise ArtifactConfigurationError("source manifest must cover every resource role once")
-    return by_role
+    if sum(1 for resource, _ in by_ref.values() if resource["role"] == "tokenizer") != 1:
+        raise ArtifactConfigurationError("source manifest must contain exactly one tokenizer")
+    return by_ref
+
+
+def _model_ref(manifest: dict[str, JsonValue], key: str) -> str:
+    model = manifest.get("model")
+    ref = model.get(key) if isinstance(model, dict) else None
+    if not isinstance(ref, str):
+        raise ArtifactConfigurationError(f"source manifest model.{key} is missing")
+    return ref
+
+
+def _function_chains(
+    manifest: dict[str, JsonValue], sources: dict[str, tuple[dict[str, Any], Path]]
+) -> dict[str, _Chain]:
+    model_encoder = _model_ref(manifest, "encoderRef")
+    model_adapter = _model_ref(manifest, "adapterRef")
+
+    def resource(ref: object, role: str, label: str) -> dict[str, Any]:
+        entry = sources.get(ref) if isinstance(ref, str) else None
+        if entry is None or entry[0]["role"] != role:
+            raise ArtifactConfigurationError(f"{label} names no {role} resource")
+        return entry[0]
+
+    chains: dict[str, _Chain] = {}
+    for function in cast(list[dict[str, Any]], manifest["functions"]):
+        function_id = function.get("id")
+        if not isinstance(function_id, str) or function_id in chains:
+            raise ArtifactConfigurationError("source manifest function ids are invalid")
+        encoder_ref = function.get("encoderRef", model_encoder)
+        adapter_ref = function.get("adapterRef", model_adapter)
+        resource(encoder_ref, "encoder", f"function {function_id} encoderRef")
+        resource(adapter_ref, "adapter", f"function {function_id} adapterRef")
+        heads = function.get("heads")
+        if not isinstance(heads, list) or not heads:
+            raise ArtifactConfigurationError(f"function {function_id} must have at least one head")
+        chain_heads: list[_Head] = []
+        for head in heads:
+            if not isinstance(head, dict):
+                raise ArtifactConfigurationError(f"function {function_id} heads must be objects")
+            head_resource = resource(head.get("headRef"), "head", f"function {function_id} head")
+            outputs = cast(list[Any], cast(dict[str, Any], head_resource["onnx"])["outputs"])
+            chain_heads.append(
+                _Head(
+                    ref=cast(str, head["headRef"]),
+                    width=_dimension(cast(dict[str, Any], outputs[0])["shape"][1]),
+                    temperature=_temperature(head),
+                )
+            )
+        inputs = function.get("inputs")
+        if not isinstance(inputs, list):
+            raise ArtifactConfigurationError(f"function {function_id} inputs must be an array")
+        chains[function_id] = _Chain(
+            function_id=function_id,
+            input_schema=inputs,
+            encoder_ref=cast(str, encoder_ref),
+            adapter_ref=cast(str, adapter_ref),
+            heads=tuple(chain_heads),
+        )
+    return chains
+
+
+def _assign_records(records: tuple[QuantizationRecord, ...], chains: dict[str, _Chain]) -> None:
+    """Every record names a function of the release (implicit for one) and fits its heads."""
+
+    only = next(iter(chains)) if len(chains) == 1 else None
+    for index, record in enumerate(records):
+        function_id = record.function_id or only
+        if function_id is None:
+            raise ArtifactConfigurationError(
+                f"quantization record {index} needs a function_id: the release has "
+                f"{len(chains)} functions"
+            )
+        chain = chains.get(function_id)
+        if chain is None:
+            raise ArtifactConfigurationError(
+                f"quantization record {index} names function {function_id}, which the "
+                "release does not contain"
+            )
+        labels = record.labels()
+        if len(labels) != len(chain.heads):
+            raise ArtifactConfigurationError(
+                f"quantization record {index} has {len(labels)} label(s) for "
+                f"{len(chain.heads)} head(s)"
+            )
+        for label, head in zip(labels, chain.heads, strict=True):
+            if label is not None and label >= max(head.width, 2):
+                raise ArtifactConfigurationError(
+                    "quantization record label_index exceeds the head support"
+                )
 
 
 def _quantize_encoder(
@@ -457,6 +725,8 @@ def _quantize_encoder(
         raise ArtifactConfigurationError(
             "artifact quantization requires the optional ONNX training dependencies"
         ) from error
+    root_logger = logging.getLogger()
+    root_logger.addFilter(_quiet_preprocessing_advice)
     try:
         return quantize_onnx_encoder(
             source,
@@ -468,24 +738,48 @@ def _quantize_encoder(
         )
     except ImportError as error:
         raise ArtifactConfigurationError(str(error)) from error
+    finally:
+        root_logger.removeFilter(_quiet_preprocessing_advice)
+
+
+def _quiet_preprocessing_advice(record: logging.LogRecord) -> bool:
+    """Drop onnxruntime's advice to run its static-quantization preprocessing first.
+
+    Dynamic quantization of an exported encoder does not need it, and the gate
+    below is what decides whether the quantized graph is acceptable.
+    """
+
+    return not record.getMessage().startswith("Please consider to run pre-processing")
+
+
+class _Tally:
+    """Decision and calibration counts for one function."""
+
+    def __init__(self, chain: _Chain) -> None:
+        self.chain = chain
+        self.records = 0
+        self.labeled = 0
+        self.attested = 0
+        self.disagreements = 0
+        self.attested_disagreements = 0
+        self.source_logits: list[list[Any]] = [[] for _ in chain.heads]
+        self.quantized_logits: list[list[Any]] = [[] for _ in chain.heads]
+        self.labels: list[list[int]] = [[] for _ in chain.heads]
 
 
 def _verify_quantized_chain(
     *,
-    source_encoder: Path,
-    quantized_encoder: Path,
-    adapter: Path,
-    head: Path,
+    source_encoders: dict[str, Path],
+    quantized_encoders: dict[str, Path],
+    resource_paths: dict[str, Path],
+    chains: dict[str, _Chain],
     tokenizer_json: bytes,
-    input_schema: list[Any],
     input_version: int,
     maximum_sequence_length: int,
-    logit_count: int,
-    temperature: float,
     records: tuple[QuantizationRecord, ...],
     settings: QuantizationConfig,
     source_manifest_sha256: str,
-    component: Any,
+    components: Sequence[Any],
     started: float,
 ) -> QuantizationReport:
     try:
@@ -504,38 +798,54 @@ def _verify_quantized_chain(
     def session(path: Path) -> Any:
         return onnxruntime.InferenceSession(str(path), providers=["CPUExecutionProvider"])
 
+    used_encoders = {chain.encoder_ref for chain in chains.values()}
     try:
         tokenizer = Tokenizer.from_str(tokenizer_json.decode("utf-8"))
         tokenizer.enable_truncation(maximum_sequence_length)
-        source_session = session(source_encoder)
-        quantized_session = session(quantized_encoder)
-        adapter_session = session(adapter)
-        head_session = session(head)
+        source_sessions = {ref: session(source_encoders[ref]) for ref in used_encoders}
+        quantized_sessions = {ref: session(quantized_encoders[ref]) for ref in used_encoders}
+        adapter_sessions = {
+            ref: session(resource_paths[ref]) for ref in {c.adapter_ref for c in chains.values()}
+        }
+        head_sessions = {
+            head.ref: session(resource_paths[head.ref])
+            for chain in chains.values()
+            for head in chain.heads
+        }
     except Exception as error:
         raise ArtifactConfigurationError(
             f"quantized-graph verification could not start: {error}"
         ) from error
 
-    def chain(encoder_session: Any, ids: Any, mask: Any) -> Any:
+    def chain_logits(encoder_session: Any, chain: _Chain, ids: Any, mask: Any) -> list[Any]:
         embedding = encoder_session.run(None, {"input_ids": ids, "attention_mask": mask})[0]
-        function_embedding = adapter_session.run(None, {"sentence_embedding": embedding})[0]
-        logits = head_session.run(None, {"function_embedding": function_embedding})[0]
-        if logits.shape != (1, logit_count) or not bool(numpy.isfinite(logits).all()):
-            raise ArtifactConfigurationError(
-                "chain produced logits of the wrong shape or non-finite"
-            )
-        return logits[0]
+        function_embedding = adapter_sessions[chain.adapter_ref].run(
+            None, {"sentence_embedding": embedding}
+        )[0]
+        outputs: list[Any] = []
+        for head in chain.heads:
+            logits = head_sessions[head.ref].run(None, {"function_embedding": function_embedding})[
+                0
+            ]
+            if logits.shape != (1, head.width) or not bool(numpy.isfinite(logits).all()):
+                raise ArtifactConfigurationError(
+                    "chain produced logits of the wrong shape or non-finite"
+                )
+            outputs.append(logits[0])
+        return outputs
 
-    source_logits: list[Any] = []
-    quantized_logits: list[Any] = []
-    labels: list[int] = []
-    disagreements = 0
-    attested_disagreements = 0
-    attested_records = 0
+    def decision(logits: Any) -> int:
+        # A single-logit head is a sigmoid: the decision is whether it is positive.
+        return int(logits[0] > 0) if logits.shape[0] == 1 else int(logits.argmax())
+
+    only = next(iter(chains)) if len(chains) == 1 else None
+    tallies = {function_id: _Tally(chain) for function_id, chain in chains.items()}
     for index, record in enumerate(records):
+        tally = tallies[cast(str, record.function_id or only)]
+        chain = tally.chain
         try:
             text = serialize_canonical_inputs(
-                input_schema, record.inputs, version=input_version
+                chain.input_schema, record.inputs, version=input_version
             ).decode("utf-8")
         except Exception as error:
             raise ArtifactConfigurationError(
@@ -546,54 +856,112 @@ def _verify_quantized_chain(
             raise ArtifactConfigurationError(f"quantization record {index} tokenized to nothing")
         ids = numpy.asarray([encoding.ids], dtype=numpy.int64)
         mask = numpy.asarray([encoding.attention_mask], dtype=numpy.int64)
-        source = chain(source_session, ids, mask)
-        quantized = chain(quantized_session, ids, mask)
-        if int(source.argmax()) != int(quantized.argmax()):
-            disagreements += 1
+        source = chain_logits(source_sessions[chain.encoder_ref], chain, ids, mask)
+        quantized = chain_logits(quantized_sessions[chain.encoder_ref], chain, ids, mask)
+        tally.records += 1
+        changed = any(
+            decision(left) != decision(right) for left, right in zip(source, quantized, strict=True)
+        )
+        if changed:
+            tally.disagreements += 1
             if record.attested:
-                attested_disagreements += 1
+                tally.attested_disagreements += 1
         if record.attested:
-            attested_records += 1
-        if record.label_index is not None:
-            source_logits.append(source)
-            quantized_logits.append(quantized)
-            labels.append(record.label_index)
+            tally.attested += 1
+        labels = record.labels()
+        if any(label is not None for label in labels):
+            tally.labeled += 1
+        for position, label in enumerate(labels):
+            if label is not None:
+                tally.source_logits[position].append(source[position])
+                tally.quantized_logits[position].append(quantized[position])
+                tally.labels[position].append(label)
 
-    targets = torch.tensor(labels, dtype=torch.int64)
-    source_metrics = calibration_metrics(
-        torch.tensor(numpy.stack(source_logits), dtype=torch.float32),
-        targets,
-        temperature=temperature,
-        bin_count=settings.ece_bins,
-    )
-    quantized_metrics = calibration_metrics(
-        torch.tensor(numpy.stack(quantized_logits), dtype=torch.float32),
-        targets,
-        temperature=temperature,
-        bin_count=settings.ece_bins,
-    )
+    function_reports: list[QuantizationFunctionReport] = []
+    head_eces: list[tuple[str, float, float]] = []
+    correct_source = 0
+    correct_quantized = 0
+    labeled_decisions = 0
+    for function_id, tally in tallies.items():
+        function_source_ece: float | None = None
+        function_quantized_ece: float | None = None
+        function_correct_source = 0
+        function_correct_quantized = 0
+        function_decisions = 0
+        for position, head in enumerate(tally.chain.heads):
+            labels = tally.labels[position]
+            if not labels:
+                continue
+            targets = torch.tensor(labels, dtype=torch.int64)
+            source_metrics = calibration_metrics(
+                torch.tensor(numpy.stack(tally.source_logits[position]), dtype=torch.float32),
+                targets,
+                temperature=head.temperature,
+                bin_count=settings.ece_bins,
+            )
+            quantized_metrics = calibration_metrics(
+                torch.tensor(numpy.stack(tally.quantized_logits[position]), dtype=torch.float32),
+                targets,
+                temperature=head.temperature,
+                bin_count=settings.ece_bins,
+            )
+            head_eces.append((function_id, float(source_metrics.ece), float(quantized_metrics.ece)))
+            function_source_ece = max(function_source_ece or 0.0, float(source_metrics.ece))
+            function_quantized_ece = max(
+                function_quantized_ece or 0.0, float(quantized_metrics.ece)
+            )
+            function_correct_source += round(float(source_metrics.accuracy) * len(labels))
+            function_correct_quantized += round(float(quantized_metrics.accuracy) * len(labels))
+            function_decisions += len(labels)
+        correct_source += function_correct_source
+        correct_quantized += function_correct_quantized
+        labeled_decisions += function_decisions
+        function_reports.append(
+            QuantizationFunctionReport(
+                function_id=function_id,
+                records_checked=tally.records,
+                labeled_records=tally.labeled,
+                attested_records=tally.attested,
+                argmax_disagreements=tally.disagreements,
+                attested_disagreements=tally.attested_disagreements,
+                source_accuracy=(
+                    function_correct_source / function_decisions if function_decisions else None
+                ),
+                quantized_accuracy=(
+                    function_correct_quantized / function_decisions if function_decisions else None
+                ),
+                source_ece=function_source_ece,
+                quantized_ece=function_quantized_ece,
+            )
+        )
+
+    disagreements = sum(tally.disagreements for tally in tallies.values())
+    attested_disagreements = sum(tally.attested_disagreements for tally in tallies.values())
+    first = components[0]
+    first_chain = next(iter(chains.values()))
     report = QuantizationReport(
         source_manifest_sha256=source_manifest_sha256,
-        method=component.method,
-        weight_type=component.weight_type,
-        per_channel=component.per_channel,
-        reduce_range=component.reduce_range,
+        method=first.method,
+        weight_type=first.weight_type,
+        per_channel=first.per_channel,
+        reduce_range=first.reduce_range,
         records_checked=len(records),
-        labeled_records=len(labels),
-        attested_records=attested_records,
+        labeled_records=sum(tally.labeled for tally in tallies.values()),
+        attested_records=sum(tally.attested for tally in tallies.values()),
         argmax_disagreements=disagreements,
         attested_disagreements=attested_disagreements,
         argmax_disagreement_rate=disagreements / len(records),
-        source_accuracy=float(source_metrics.accuracy),
-        quantized_accuracy=float(quantized_metrics.accuracy),
-        source_ece=float(source_metrics.ece),
-        quantized_ece=float(quantized_metrics.ece),
-        temperature=temperature,
+        source_accuracy=correct_source / labeled_decisions,
+        quantized_accuracy=correct_quantized / labeled_decisions,
+        source_ece=max(ece for _, ece, _ in head_eces),
+        quantized_ece=max(ece for _, _, ece in head_eces),
+        temperature=first_chain.heads[0].temperature,
         ece_bins=settings.ece_bins,
-        source_encoder_byte_length=component.source_byte_length,
-        quantized_encoder_byte_length=component.byte_length,
-        quantized_matmul_count=component.quantized_matmul_count,
+        source_encoder_byte_length=sum(component.source_byte_length for component in components),
+        quantized_encoder_byte_length=sum(component.byte_length for component in components),
+        quantized_matmul_count=sum(component.quantized_matmul_count for component in components),
         elapsed_seconds=round(time.monotonic() - started, 3),
+        functions=tuple(function_reports),
     )
     failures: list[str] = []
     if attested_disagreements > settings.maximum_attested_disagreements:
@@ -607,10 +975,13 @@ def _verify_quantized_chain(
             f"(rate {report.argmax_disagreement_rate:.6f}, "
             f"tolerance {settings.maximum_argmax_disagreement_rate})"
         )
-    if report.quantized_ece > settings.ece_threshold:
-        failures.append(
-            f"quantized ECE {report.quantized_ece:.6f} exceeds threshold {settings.ece_threshold}"
-        )
+    for function_id, _, quantized_ece in head_eces:
+        if quantized_ece > settings.ece_threshold:
+            where = "" if len(chains) == 1 else f" for {function_id}"
+            failures.append(
+                f"quantized ECE {quantized_ece:.6f}{where} exceeds threshold "
+                f"{settings.ece_threshold}"
+            )
     if failures:
         raise QuantizationGateError("quantization gate failed: " + "; ".join(failures), report)
     return report
@@ -622,19 +993,23 @@ def _derived_resources(
     settings: QuantizationConfig,
     source_manifest_sha256: str,
     config: ArtifactExportConfig,
+    verification: dict[str, JsonValue] | None = None,
 ) -> list[dict[str, JsonValue]]:
     resources: list[dict[str, JsonValue]] = []
     for original in cast(list[Any], manifest["resources"]):
         resource = cast(dict[str, JsonValue], deepcopy(original))
         restore_integral_numbers(resource)
         role = cast(str, resource["role"])
-        byte_length, digest = _file_identity(paths[role], config.maximum_resource_bytes)
+        byte_length, digest = _file_identity(
+            paths[cast(str, resource["ref"])], config.maximum_resource_bytes
+        )
         if role == "encoder":
             onnx = cast(dict[str, JsonValue], resource["onnx"])
             onnx["precision"] = QUANTIZED_PRECISION
-            onnx["quantization"] = cast(
-                JsonValue, settings.to_manifest_document(source_manifest_sha256)
-            )
+            document = settings.to_manifest_document(source_manifest_sha256)
+            if verification is not None:
+                document["verification"] = cast(JsonValue, deepcopy(verification))
+            onnx["quantization"] = cast(JsonValue, document)
             resource["byteLength"] = byte_length
             resource["sha256"] = digest
         elif byte_length != resource["byteLength"] or digest != resource["sha256"]:
@@ -669,11 +1044,8 @@ def _lstat(path: Path, label: str) -> os.stat_result:
     return info
 
 
-def _temperature(function: dict[str, Any]) -> float:
-    heads = function.get("heads")
-    if not isinstance(heads, list) or len(heads) != 1 or not isinstance(heads[0], dict):
-        raise ArtifactConfigurationError("source manifest must contain exactly one head")
-    calibration = heads[0].get("calibration")
+def _temperature(head: dict[str, Any]) -> float:
+    calibration = head.get("calibration")
     value = calibration.get("temperature") if isinstance(calibration, dict) else None
     if (
         isinstance(value, bool)
@@ -709,6 +1081,7 @@ __all__ = [
     "MAXIMUM_QUANTIZATION_RECORDS",
     "QUANTIZED_PRECISION",
     "QuantizationConfig",
+    "QuantizationFunctionReport",
     "QuantizationGateError",
     "QuantizationRecord",
     "QuantizationReport",

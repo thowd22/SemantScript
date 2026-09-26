@@ -645,6 +645,8 @@ function validateOnnxPrecision(onnx: JsonRecord, path: string): void {
       "sourceManifestSha256",
     ],
     `${path}.quantization`,
+    "SEMA_ARTIFACT_INVALID_MANIFEST",
+    ["verification"],
   );
   equal(get(quantization, "method"), "dynamic", `${path}.quantization.method`);
   choice(
@@ -669,6 +671,103 @@ function validateOnnxPrecision(onnx: JsonRecord, path: string): void {
     SHA256,
     `${path}.quantization.sourceManifestSha256`,
   );
+  if ("verification" in quantization)
+    validateQuantizationVerification(
+      get(quantization, "verification"),
+      `${path}.quantization.verification`,
+    );
+}
+
+const QUANTIZATION_FUNCTION_COUNTS = [
+  "recordsChecked",
+  "attestedRecords",
+  "decisionChanges",
+  "attestedDecisionChanges",
+] as const;
+
+/**
+ * What `semantscript releases derive --int8` checked a quantized graph on and
+ * what it changed. Optional: releases derived before it existed omit it.
+ */
+function validateQuantizationVerification(value: unknown, path: string): void {
+  const verification = object(value, path);
+  exact(
+    verification,
+    [
+      ...QUANTIZATION_FUNCTION_COUNTS,
+      "decisionChangeRate",
+      "sourceEce",
+      "quantizedEce",
+      "recordSources",
+      "functions",
+    ],
+    path,
+  );
+  const records = integer(
+    get(verification, "recordsChecked"),
+    `${path}.recordsChecked`,
+    1,
+  );
+  const attested = integer(
+    get(verification, "attestedRecords"),
+    `${path}.attestedRecords`,
+    0,
+  );
+  if (attested > records)
+    invalid(`${path}.attestedRecords exceeds recordsChecked`);
+  if (
+    integer(
+      get(verification, "decisionChanges"),
+      `${path}.decisionChanges`,
+      0,
+    ) > records
+  )
+    invalid(`${path}.decisionChanges exceeds recordsChecked`);
+  if (
+    integer(
+      get(verification, "attestedDecisionChanges"),
+      `${path}.attestedDecisionChanges`,
+      0,
+    ) > attested
+  )
+    invalid(`${path}.attestedDecisionChanges exceeds attestedRecords`);
+  for (const name of ["decisionChangeRate", "sourceEce", "quantizedEce"])
+    unit(get(verification, name), `${path}.${name}`);
+  for (const [index, entry] of list(
+    get(verification, "recordSources"),
+    `${path}.recordSources`,
+  ).entries()) {
+    const where = `${path}.recordSources[${String(index)}]`;
+    const source = object(entry, where);
+    exact(source, ["kind", "functionId", "sha256", "records"], where);
+    choice(
+      get(source, "kind"),
+      ["training-dataset", "adversarial-dataset", "held-out"],
+      `${where}.kind`,
+    );
+    nonempty(get(source, "functionId"), `${where}.functionId`);
+    matches(get(source, "sha256"), SHA256, `${where}.sha256`);
+    integer(get(source, "records"), `${where}.records`, 0);
+  }
+  for (const [index, entry] of list(
+    get(verification, "functions"),
+    `${path}.functions`,
+  ).entries()) {
+    const where = `${path}.functions[${String(index)}]`;
+    const fn = object(entry, where);
+    exact(
+      fn,
+      ["id", ...QUANTIZATION_FUNCTION_COUNTS, "sourceEce", "quantizedEce"],
+      where,
+    );
+    nonempty(get(fn, "id"), `${where}.id`);
+    for (const name of QUANTIZATION_FUNCTION_COUNTS)
+      integer(get(fn, name), `${where}.${name}`, 0);
+    for (const name of ["sourceEce", "quantizedEce"]) {
+      const ece = get(fn, name);
+      if (ece !== null) unit(ece, `${where}.${name}`);
+    }
+  }
 }
 
 function validateTensor(value: unknown, path: string): void {

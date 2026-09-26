@@ -120,7 +120,7 @@ export interface LeverInput {
   readonly totalBytes: number;
   readonly encoderBytes: number;
   readonly limitBytes: number;
-  /** A function's adapter reads a depth-routed prefix (function encoderRef). */
+  /** The release already ships a depth-routed prefix encoder (see isDepthRouted). */
   readonly depthRouted: boolean;
   /** An encoder resource is already quantized (onnx.precision int8-dynamic). */
   readonly quantized: boolean;
@@ -129,6 +129,41 @@ export interface LeverInput {
 const INT8_TOLERANCE =
   "and only under a recorded tolerance: the measured int8 refund release changed 1 of 80 attested cases and 0.105% of decisions, which the strict gate refused (it was measured under attestedDisagreementTolerance 2 and argmaxDisagreementTolerance 0.01, benchmarks/refund/data/results-int8-2026-09-24)";
 const INT8_HOW = `a measurement, not a step to run: no int8 derivation exists for applications yet (it has only been measured on the refund benchmark, through a refund-specific driver), ${INT8_TOLERANCE}`;
+
+const DEPTH_PREFIX = /(?:^|[./])depth-\d{3}(?:$|[./])/u;
+
+/**
+ * Whether a release already uses depth routing. A mixed release names the
+ * prefix in a function's encoderRef; a fully routed one exports only the
+ * prefix graph (models/encoder/depth-NNN.onnx) and names it in
+ * model.encoderRef, with no function encoderRef at all.
+ */
+export function isDepthRouted(
+  manifest: Readonly<Record<string, unknown>>,
+): boolean {
+  if (
+    listFunctions(manifest).some((fn) => typeof fn["encoderRef"] === "string")
+  )
+    return true;
+  const model = manifest["model"];
+  if (
+    typeof model === "object" &&
+    model !== null &&
+    typeof (model as Record<string, unknown>)["encoderRef"] === "string" &&
+    DEPTH_PREFIX.test(
+      (model as Record<string, unknown>)["encoderRef"] as string,
+    )
+  )
+    return true;
+  return listResources(manifest).some(
+    (resource) =>
+      resource["role"] === "encoder" &&
+      ((typeof resource["ref"] === "string" &&
+        DEPTH_PREFIX.test(resource["ref"])) ||
+        (typeof resource["path"] === "string" &&
+          DEPTH_PREFIX.test(resource["path"]))),
+  );
+}
 
 /**
  * The size levers for a bundle over its limit, each with the projected
@@ -163,7 +198,7 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
           "depth",
           `depth routing to ${String(depth)} layers`,
           scaled(MEASURED_ENCODER.depthBytes[depth]),
-          `semantscript build --domain-depth <domain>=${String(depth)}, then train (the refund policy kept 160/160 on its final set at 4, 6 and 12 layers)`,
+          `give every domain that depth (semantscript build --domain-depth <domain>=${String(depth)} once per domain, or domainDepths in a tspc plugin entry), then train; a domain left at full depth keeps the full encoder in the bundle beside the prefix (the refund policy kept 160/160 on its final set at 4, 6 and 12 layers)`,
         ),
       );
     }
@@ -184,7 +219,7 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
             "depth+int8",
             `depth ${String(depth)} and int8`,
             Math.round(scaled(MEASURED_ENCODER.depthBytes[depth]) * int8Ratio),
-            `semantscript build --domain-depth <domain>=${String(depth)}, then train; the int8 half is a measurement only, as for int8 above`,
+            `give every domain depth ${String(depth)} (semantscript build --domain-depth <domain>=${String(depth)} once per domain), then train; the int8 half is a measurement only, as for int8 above`,
           ),
         );
       }
@@ -547,9 +582,7 @@ export async function packageCommand(
         (resource["onnx"] as Record<string, unknown>)["precision"] !==
           "float32",
     );
-    const depthRouted = listFunctions(manifest).some(
-      (fn) => typeof fn["encoderRef"] === "string",
-    );
+    const depthRouted = isDepthRouted(manifest);
     const over = target !== undefined && totalBytes > target.bytes;
     const levers =
       target !== undefined && over

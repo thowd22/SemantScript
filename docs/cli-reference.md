@@ -485,12 +485,13 @@ levers with the bundle each would give and whether it fits, and the command
 exits 1 with `PACKAGE_OVER_TARGET`. The levers scale the release's encoder by
 sizes measured on ModernBERT-base, so for another encoder they are estimates
 ([Deploying](deploy.md) explains them): depth routing to 12, 6 and 4 layers
-(`build --domain-depth`), int8 dynamic quantization (a measurement from the
+(`build --domain-depth`, given to every domain), int8 dynamic quantization (a measurement from the
 refund benchmark under a recorded tolerance; no int8 derivation exists for
 applications yet, so it is not a step to run), both together, and a smaller encoder (`train --encoder-name`,
 reported as the largest encoder graph that fits). A lever the release already
-uses is not suggested again: depth routing when a function reads a routed
-encoder prefix (`encoderRef`), int8 when an encoder's `onnx.precision` is not
+uses is not suggested again: depth routing when the release ships a routed
+encoder prefix (a function `encoderRef`, or a `depth-NNN` `model.encoderRef`),
+int8 when an encoder's `onnx.precision` is not
 `float32`.
 
 | Code                                                          | Cause                                                                                                                                     |

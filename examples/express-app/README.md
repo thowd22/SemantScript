@@ -184,7 +184,11 @@ targets and the [deploy guide](../../docs/deploy.md) the size levers.
   image whose build context is the bundle
   (`docker build -f deploy/Dockerfile.package -t ticket-api .semantscript/package`);
   it copies the directory, runs as the `node` user and starts
-  `dist/server.js`. CI packages this example with the fixture artifact on
+  `dist/server.js`. The bundle carries native bindings for one platform and
+  arch, so package for the image's: on macOS or another non-Linux host pass
+  `--platform linux --arch arm64` (Apple silicon, whose Docker builds
+  linux/arm64) or `--arch x64`, or the container fails when it loads the
+  runtime. CI packages this example with the fixture artifact on
   every push, builds this image from the bundle, sends one `POST /tickets`
   and invokes the packaged Lambda handler once; that image is 314 MB and
   builds in 6 s from the bundle
@@ -251,5 +255,6 @@ verification, resource digests, ONNX session creation in the inference
 worker) and one request round trip through the loaded runtime, but not the
 first encoder pass, which the refund benchmark measures at 28 ms p50 on this
 CPU (`results-compact-2026-09-24`). The resident set is dominated by the
-float32 encoder; the int8 release under `results-int8-2026-09-24` is the lever
-when memory matters more than the last points of accuracy.
+float32 encoder; the int8 release under `results-int8-2026-09-24` measured how
+far quantization would cut it, but that is a measurement on the refund
+benchmark, not a step an application can run yet.

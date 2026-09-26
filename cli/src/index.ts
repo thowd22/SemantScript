@@ -134,6 +134,7 @@ export {
   PACKAGE_MANIFEST,
   PACKAGE_TARGETS,
   PackageError,
+  isDepthRouted,
   packageLevers,
   pruneNativeBindings,
   type PackageLever,

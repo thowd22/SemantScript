@@ -17,6 +17,7 @@ import test from "node:test";
 
 import { createFixtureArtifact } from "../../runtime/test/fixtures/artifact.mjs";
 import {
+  isDepthRouted,
   MEASURED_ENCODER,
   PACKAGE_TARGETS,
   packageLevers,
@@ -406,6 +407,68 @@ test("package recognises a depth-routed release and skips the depth levers", asy
   const report = JSON.parse(result.stdout);
   assert.equal(report.encoder.depthRouted, true);
   assert.ok(report.levers.every((lever) => !lever.lever.startsWith("depth")));
+});
+
+test("package recognises a fully routed release with no function encoderRef", async (t) => {
+  // Every domain routed: the trainer exports only the prefix graph and names
+  // it in model.encoderRef; no function carries an encoderRef.
+  const root = await scratch(t, "semantscript-package-fully-routed-");
+  const { project, artifact } = await stubProject(root, {
+    dependencies: false,
+  });
+  await createFixtureArtifact(artifact, {
+    transformManifest: (manifest) => {
+      manifest.build.createdAt = "2020-01-04T00:00:00Z";
+      const encoder = manifest.resources.find(
+        (resource) => resource.role === "encoder",
+      );
+      encoder.ref = "encoder.application.depth-006";
+      manifest.model.encoderRef = "encoder.application.depth-006";
+      for (const fn of manifest.functions) delete fn.encoderRef;
+    },
+  });
+  const result = await run(project, ["--max-bytes", "1000", "--json"]);
+  assert.equal(result.code, 1, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.encoder.depthRouted, true);
+  assert.ok(report.levers.every((lever) => !lever.lever.startsWith("depth")));
+});
+
+test("isDepthRouted reads function refs, model.encoderRef and prefix paths", () => {
+  const encoder = (ref, path) => ({ role: "encoder", ref, path });
+  assert.equal(
+    isDepthRouted({
+      model: { encoderRef: "encoder.main" },
+      resources: [encoder("encoder.main", "models/encoder/model.onnx")],
+      functions: [{}],
+    }),
+    false,
+  );
+  assert.equal(
+    isDepthRouted({
+      model: { encoderRef: "encoder.refund-benchmark.depth-004" },
+      resources: [
+        encoder(
+          "encoder.refund-benchmark.depth-004",
+          "models/encoder/depth-004.onnx",
+        ),
+      ],
+      functions: [{}],
+    }),
+    true,
+  );
+  assert.equal(
+    isDepthRouted({
+      model: { encoderRef: "encoder.x" },
+      resources: [encoder("encoder.x", "models/encoder/depth-012.onnx")],
+      functions: [],
+    }),
+    true,
+  );
+  assert.equal(
+    isDepthRouted({ functions: [{ encoderRef: "encoder.depth4" }] }),
+    true,
+  );
 });
 
 async function nativeTree(root) {

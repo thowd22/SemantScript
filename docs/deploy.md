@@ -66,7 +66,7 @@ and whether that fits, scaling the release's encoder by these measurements:
 
 | Lever                      | Encoder (ModernBERT-base) | Condition                                                                                                                                                                                             | Source                           |
 | -------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Depth routing to 12 layers | 395,833,756 B             | `build --domain-depth <domain>=12`, then train; the refund policy kept 160/160 on its final set                                                                                                       | `results-depth-sweep-2026-09-24` |
+| Depth routing to 12 layers | 395,833,756 B             | every domain at 12 (`build --domain-depth <domain>=12` once per domain), then train; the refund policy kept 160/160 on its final set                                                                  | `results-depth-sweep-2026-09-24` |
 | Depth routing to 6 layers  | 275,297,443 B             | the same at 6                                                                                                                                                                                         | same                             |
 | Depth routing to 4 layers  | 235,118,960 B             | the same at 4                                                                                                                                                                                         | same                             |
 | Int8 dynamic quantization  | 150,073,785 B             | a measurement only: no int8 derivation exists for applications yet, and the measured int8 refund release changed 1 of 80 attested cases and 0.105 percent of decisions, which the strict gate refused | `results-int8-2026-09-24`        |
@@ -78,11 +78,17 @@ not as a step to take: the int8 derivation has only been run on the refund
 benchmark, through a refund-specific driver that replays that benchmark's
 release pipeline, and no `semantscript` command derives an int8 release for an
 application. For another encoder the projections are estimates. A lever the release
-already uses is not offered again: depth routing when a function reads a
-routed encoder prefix, int8 when an encoder's `onnx.precision` is not
+already uses is not offered again: depth routing when the release ships a
+routed encoder prefix (a function `encoderRef`, or a `depth-NNN` encoder named
+by `model.encoderRef` when every domain is routed), int8 when an encoder's `onnx.precision` is not
 `float32`. Depth prefixes are separate graphs, so an application with domains
 at two depths ships the shared layers twice ([scaling
-results](scaling-results.md#depth-routing-the-cost-of-a-pass)).
+results](scaling-results.md#depth-routing-the-cost-of-a-pass)). The depth
+projections hold only when every domain is routed: a domain left at full depth
+keeps the full encoder in the bundle beside the prefix, so routing one domain
+of several makes the bundle larger. A tspc project such as the Express example
+sets `domainDepths` in its tsconfig plugin entry instead, since a later
+`npm run build` rewrites the IR bundle.
 
 The Express example's trained release is the worked case: its bundle is
 685,309,690 bytes (653.6 MiB), 403.6 MiB over `lambda-zip`. Depth routing

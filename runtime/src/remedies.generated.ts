@@ -12,7 +12,7 @@ export const REMEDY_TEMPLATES = {
   },
   "gold-check-example": {
     family: "verifier",
-    fix: "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}): semantscript explain <module.js> --call <export> with its inputs lists the nearest teacher-labelled cases and the constraints that apply; if the example is right, add examples near it or a constraint for its rule; if not, correct it",
+    fix: "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}): if it is right, add examples near it or a constraint for its rule; if not, correct it",
     params: ["case", "expected", "predicted"],
   },
   "violation-example": {

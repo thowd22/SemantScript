@@ -166,3 +166,6 @@ and the gold examples still show. Keep the cache while you work through a
 wrong answer: explain it, add the example or constraint the
 [wrong-answer workflow](diagnostics.md#wrong-answer-workflow) names, and the
 next `train` retrains only that function's head from the cached shared state.
+The new example or constraint changes that function's dataset key, so the
+teacher labels its cases again: run `semantscript train --estimate` first to
+see the cost.

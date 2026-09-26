@@ -206,10 +206,11 @@ verifies the gold example and the constraints, and publishes
 `.semantscript/artifact`. Expect the encoder download the first time (600 MB),
 then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases,
-each followed by a `next:` line with the fix; a missed gold example that the
-teacher's labels do not explain points at `semantscript explain` (step 5),
-which lists the teacher-labelled cases nearest its inputs
-([diagnostics](diagnostics.md#verification-failures)).
+each followed by a `next:` line with the fix
+([diagnostics](diagnostics.md#verification-failures)). A failed
+verification publishes nothing, so there is no release for
+`semantscript explain` (step 5) to describe yet: follow the `next:` line and
+rerun `train`.
 
 To see the whole flow without any key on the clone route, run the reference
 application instead, whose expressions are labeled by their own constraints
@@ -245,8 +246,11 @@ It prints the answer's distribution, the constraints active for that input,
 and the gold examples and teacher-labelled training cases nearest it, from
 the dataset the release was trained on. The
 [wrong-answer workflow](diagnostics.md#wrong-answer-workflow) goes from that
-report to the example or constraint to add; the next `train` retrains only
-that expression's head.
+report to the example or constraint to add. The next `train` retrains only
+that expression's head, but a changed example or constraint changes the
+expression's dataset, so the teacher labels its cases again (a paid run on
+the OpenRouter route): run `npx semantscript train --estimate` first to see
+the cost.
 
 Tests of your own code that calls `decideRefund` need no training: load a
 stub artifact with `loadSemaStubArtifact()` from `@semantscript/core/testing`

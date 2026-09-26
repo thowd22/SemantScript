@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import process from "node:process";
@@ -32,6 +32,31 @@ test("the generated remedy tables and the catalogue match diagnostics/remedies.j
     { encoding: "utf8" },
   );
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("the remedies whose next step is explain or the stub artifact name it", async () => {
+  const source = JSON.parse(
+    await readFile(join(repository, "diagnostics", "remedies.json"), "utf8"),
+  );
+  const fixes = new Map(source.remedies.map((entry) => [entry.id, entry.fix]));
+  for (const id of ["test-example-mismatch", "unknown-function"]) {
+    assert.match(fixes.get(id), /semantscript explain/, id);
+  }
+  for (const id of [
+    "runtime-not-loaded",
+    "artifact-missing",
+    "editor-no-artifact",
+  ]) {
+    assert.match(
+      fixes.get(id),
+      /loadSemaStubArtifact\(\) from @semantscript\/core\/testing/,
+      id,
+    );
+  }
+  // A failed verification publishes nothing, so explain has no release to
+  // describe: the train-side gold fix must not send the developer there.
+  assert.doesNotMatch(fixes.get("gold-check-example"), /semantscript explain/);
+  assert.doesNotMatch(fixes.get("estimate-killed"), /--batch-size|--device/);
 });
 
 test("remedy fills a template and rejects unknown ids and parameters", () => {

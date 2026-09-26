@@ -273,11 +273,14 @@ expression trains nothing, a changed one trains only its head.
 ## 7. Test and run
 
 ```sh
-npx semantscript test --bundle dist/semantscript.ir.v1.json
+npx semantscript test
 ```
 
-reads the release's verification per function and, with `--bundle`, replays
-every example in the IR through the runtime. Then call the function directly:
+reads the release's verification per function, checks the release's digests,
+and replays every example in the build's IR (`dist/semantscript.ir.v1.json`)
+through the runtime; once `semantscript build` has rebuilt a changed program,
+an artifact trained before the change fails here with the command that fixes
+it. Then call the function directly:
 
 ```sh
 npx semantscript run dist/triage.sem.js --call triage --input '["Checkout is down", "Every customer sees a 500 since 9am"]'

@@ -172,16 +172,22 @@ export function resolveArtifactRoot(values: OptionValues, io: CliIo): string {
 export function resolveBundlePath(values: OptionValues, io: CliIo): string {
   const requested = stringOption(values, "bundle");
   if (requested !== undefined) return resolve(io.cwd, requested);
-  const candidates = bundleCandidates(io.cwd);
-  const found = candidates.find((candidate) => existsSync(candidate));
+  const found = findBuiltBundle(io.cwd);
   if (found === undefined) {
     throw new CliUsageError(
-      `--bundle is required: no ${BUNDLE_FILE_NAME} under ${candidates
+      `--bundle is required: no ${BUNDLE_FILE_NAME} under ${bundleCandidates(
+        io.cwd,
+      )
         .map((candidate) => dirname(candidate))
         .join(", ")} (run the build first)`,
     );
   }
   return found;
+}
+
+/** The first bundle the build wrote among {@link bundleCandidates}, or undefined when there is none. */
+export function findBuiltBundle(cwd: string): string | undefined {
+  return bundleCandidates(cwd).find((candidate) => existsSync(candidate));
 }
 
 export function bundleCandidates(cwd: string): readonly string[] {

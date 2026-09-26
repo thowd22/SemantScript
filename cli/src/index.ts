@@ -48,8 +48,9 @@ export const USAGE = `usage: semantscript <command> [options]
          latency, tokens and cost
   dev    [build and train options] [--debounce <ms>] [--once]
          build and train, then watch the sources and repeat on every save
-  test   [--artifact <root>] [--bundle <path>] [--json]
-         report each function's verification and replay the bundle's examples
+  test   [--artifact <root>] [--bundle <path> | --no-bundle] [--json]
+         report each function's verification, check the release's digests,
+         and compare the artifact with the build's bundle, replaying its examples
   run    [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
          load the artifact, import the compiled module and call an export
   releases [list] [--artifact <root>] [--json]

@@ -21,7 +21,7 @@ semantscript build [--project tsconfig.json] [--application <id>] [--bundle <pat
 semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.toml>|constraints] [--estimate] [--max-cost-usd <x>] [options]
 semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe>] [--json]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
-semantscript test  [--artifact <root>] [--bundle <path>] [--json]
+semantscript test  [--artifact <root>] [--bundle <path> | --no-bundle] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
@@ -300,15 +300,22 @@ Reads the artifact pointer and manifest and reports, per function, the
 verification it shipped with: status, accuracy, ECE, Brier, pair consistency,
 attested cases, constraint violations, the training seed the release passed at
 (`-` for releases from before seeds were recorded) and each head's accuracy. Trained models
-are not persisted, so this is the gate `train` already enforced; with
-`--bundle` the command also loads the artifact and replays every IR example
-through the runtime, comparing outputs by value (diagnostic functions by their
+are not persisted, so this is the gate `train` already enforced. It then runs
+the runtime's load checks on the release (`checkSemaArtifact`: pointer,
+manifest digest, resource sizes and digests, symlinks), and a release that
+fails exits 1 with the runtime's `ArtifactLoadError` code and remedy. Last it
+finds the build's bundle as `train` and `explain` do (`--bundle` overrides it),
+compares its functions with the artifact's and replays every IR example through
+the runtime, comparing outputs by value (diagnostic functions by their
 `value`). Any function whose status is not `passed`, any bundle function absent
-from the artifact and any example mismatch make the command exit with status 1,
-each with a `next:` line naming the fix (retrain, rebuild then retrain, or
-`semantscript releases rollback`); an artifact whose pointer or release does not
-read fails the same way `run` does, naming `releases rollback`. `--json` prints
-the same as one document, with the `next:` lines as `next`.
+from the artifact, any artifact function the bundle no longer has (the program
+changed since training) and any example mismatch make the command exit with
+status 1, each with a `next:` line naming the fix (retrain, rebuild then
+retrain, or `semantscript releases rollback`); no build output exits 1 naming
+`semantscript build`, and `--no-bundle` checks the artifact alone. An artifact
+whose pointer or manifest does not read fails with the runtime's code, and a
+missing release file reports the runtime's code too and names `releases rollback`. `--json` prints the same as one document, with the
+`next:` lines as `next`.
 
 ## run
 

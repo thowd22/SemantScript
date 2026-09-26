@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -14,7 +13,7 @@ import {
   jsonStrictEqual,
 } from "./constraint-eval.js";
 import {
-  bundleCandidates,
+  findBuiltBundle,
   resolveArtifactRoot,
   resolveBundlePath,
 } from "./defaults.js";
@@ -297,7 +296,7 @@ function findBundle(
   if (stringOption(values, "bundle") !== undefined) {
     return resolveBundlePath(values, io);
   }
-  return bundleCandidates(io.cwd).find((path) => existsSync(path)) ?? null;
+  return findBuiltBundle(io.cwd) ?? null;
 }
 
 async function readBundle(

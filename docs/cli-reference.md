@@ -18,7 +18,7 @@ semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.tom
                    [--estimate] [--max-cost-usd <x>] [options]
 semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe>] [--json]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
-semantscript test  [--artifact <root>] [--bundle <path>] [--json]
+semantscript test  [--artifact <root>] [--bundle <path> | --no-bundle] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list] [--artifact <root>] [--json]
 semantscript releases show <release> [--artifact <root>] [--json]
@@ -43,7 +43,7 @@ console script answers the same way: `semantscript-trainer --version`.
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, a refused `releases` switch or prune, a `package` that failed or exceeds its target (the message starts with its code, below), an `explain` whose call reached a function id the artifact lacks or failed with anything but a missing id or a below-threshold confidence, or any other error while working. |
-| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`), and `explain` without `--call`.                                                                                                                                                                                                                                                                                                                                                                            |
+| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`, or `test --bundle` with `--no-bundle`), and `explain` without `--call`.                                                                                                                                                                                                                                                                                                                                     |
 
 Usage errors print the message and the usage text to stderr. Every other
 failure prints its message to stderr; compile diagnostics carry the file, line,
@@ -404,20 +404,47 @@ constraint violations, the training seed the release passed at, each head's
 accuracy). The seed is `-` in the table and `null` in `--json` for a release
 built before the manifest recorded seeds.
 
-| Flag         | Value | Effect                                                                                                                        |
-| ------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--artifact` | path  | The artifact root (default above).                                                                                            |
-| `--bundle`   | path  | Also load the artifact and replay every IR example through the runtime, comparing by value (diagnostic functions by `value`). |
-| `--json`     |       | Print one JSON document instead of the table.                                                                                 |
+It then runs the runtime's own load checks on the release (`checkSemaArtifact`,
+without starting ONNX sessions): the pointer, the manifest digest against the
+release name, every resource's size and SHA-256, and symlinks or non-regular
+files. A release that fails exits 1 with
+`artifact at <root> fails the runtime's load checks: <code>: <detail>; next: <remedy>`,
+where `<code>` is the runtime's `ArtifactLoadError` code
+(`SEMA_ARTIFACT_INTEGRITY`, `SEMA_ARTIFACT_PATH`, ...) and `<remedy>` is the fix the runtime would print
+([diagnostics](diagnostics.md#runtime-errors)). A manifest that no longer
+parses, or a `current.json` symlinked to nothing, fails the same way. Every
+release gets these checks, including one whose manifest records a function
+that did not pass verification: its pointer and manifest digests are checked
+(so a manifest hand-edited to read `failed` is `SEMA_ARTIFACT_INTEGRITY`), and
+the runtime's refusal of the unverified status itself is left to the
+unverified `next:` line below. The runtime stops at that status, before the
+resource digests, so those are checked once the release is retrained.
+
+Last, it compares the artifact with the build's bundle, found the way `train`
+and `explain` find it (default above), and replays every IR example through the
+runtime, comparing by value (diagnostic functions by `value`).
+
+| Flag          | Value | Effect                                                                                                                          |
+| ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `--artifact`  | path  | The artifact root (default above).                                                                                              |
+| `--bundle`    | path  | The IR bundle to compare with and replay; default the build's bundle. No build output fails with `semantscript build`.          |
+| `--no-bundle` |       | Check the artifact alone: verification and digests, no bundle and no replay. Cannot be combined with `--bundle`.                |
+| `--json`      |       | Print one JSON document instead of the table, with `bundle` (the path, or `null`), `missingFunctions` and `unbundledFunctions`. |
 
 Exit 1 when any function's status is not `passed`, any bundle function is
-absent from the artifact, or any example mismatches. An absent function and a
-mismatch each add a `next:` line (retrain on this bundle; rebuild, retrain
-and rerun), and so does a function that did not pass (retrain, or roll back),
-which `--json` lists as `next`. With nothing published at the artifact root
-the command exits 1 with
+absent from the artifact, any artifact function is not in the bundle (the
+program changed since training), or any example mismatches. Each adds a
+`next:` line (retrain on this bundle; rebuild, retrain and rerun; retrain or
+roll back), which `--json` lists as `next`; ids missing both ways get the one
+rebuild-and-retrain line. A `--bundle` path that does not read, or a file that
+is not a `semantscript.ir-bundle`, exits 1 with the no-build `next:` line. Without
+`--bundle` and `--no-bundle` and with no build output, the command exits 1 with
+`no semantscript.ir.v1.json under <directories>; next: run semantscript build, …`.
+With nothing published at the artifact root the command exits 1 with
 `no artifact at <root> (current.json is missing); next: run semantscript train …`;
-a pointer or release that does not read ends with
+a release file that is missing (a deleted manifest, or a pointer naming a release
+that does not exist) reports the runtime's `ArtifactLoadError` code, such as
+`SEMA_ARTIFACT_PATH` or `SEMA_ARTIFACT_INVALID_POINTER`, and ends with
 `next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, …`,
 the same fix `run` prints for that artifact.
 

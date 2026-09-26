@@ -187,8 +187,8 @@ targets and the [deploy guide](../../docs/deploy.md) the size levers.
   `dist/server.js`. The bundle carries native bindings for one platform and
   arch, so package for the image's: on macOS or another non-Linux host pass
   `--platform linux --arch arm64` (Apple silicon, whose Docker builds
-  linux/arm64) or `--arch x64`, or the container fails when it loads the
-  runtime. CI packages this example with the fixture artifact on
+  linux/arm64) or `--platform linux --arch x64` (an Intel Mac or Windows),
+  or the container fails when it loads the runtime. CI packages this example with the fixture artifact on
   every push, builds this image from the bundle, sends one `POST /tickets`
   and invokes the packaged Lambda handler once; that image is 314 MB and
   builds in 6 s from the bundle

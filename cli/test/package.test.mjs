@@ -17,6 +17,7 @@ import test from "node:test";
 
 import { createFixtureArtifact } from "../../runtime/test/fixtures/artifact.mjs";
 import {
+  depthRouting,
   isDepthRouted,
   MEASURED_ENCODER,
   PACKAGE_TARGETS,
@@ -272,10 +273,11 @@ test("package prints the size table and refuses to overwrite a package without -
 test("package over its target still writes the bundle, exits 1 with PACKAGE_OVER_TARGET and lists the levers", async (t) => {
   const root = await scratch(t, "semantscript-package-over-");
   const { project } = await stubProject(root, { dependencies: false });
-  const text = await run(project, ["--max-bytes", "1000"]);
-  assert.equal(text.code, 1);
+  // Far below the bundle without its encoder: no encoder lever can help.
+  const hopeless = await run(project, ["--max-bytes", "1000"]);
+  assert.equal(hopeless.code, 1);
   assert.match(
-    text.stderr,
+    hopeless.stderr,
     /^PACKAGE_OVER_TARGET: the bundle is .* over max-bytes's/u,
   );
   assert.ok(
@@ -283,31 +285,47 @@ test("package over its target still writes the bundle, exits 1 with PACKAGE_OVER
       join(project, ".semantscript", "package", "semantscript-package.json"),
     ),
   );
-  assert.match(text.stdout, /over by .*; levers/u);
+  assert.match(hopeless.stdout, /over by .*; levers/u);
+  assert.match(hopeless.stdout, /^a smaller encoder +/mu);
+  assert.doesNotMatch(hopeless.stdout, /^depth routing/mu);
+  assert.match(hopeless.stdout, /no encoder lever helps/u);
+
+  const sized = JSON.parse((await run(project, ["--force", "--json"])).stdout);
+  const limit = sized.totalBytes - 1;
+  const text = await run(project, ["--max-bytes", String(limit), "--force"]);
+  assert.equal(text.code, 1);
   assert.match(text.stdout, /^depth routing to 4 layers +~/mu);
-  assert.match(text.stdout, /^int8 dynamic quantization +~/mu);
+  assert.match(
+    text.stdout,
+    /^int8 dynamic quantization +~.* fits \(measurement only\)$/mu,
+  );
   assert.match(text.stdout, /^a smaller encoder +/mu);
   assert.match(text.stdout, /recorded tolerance/u);
   assert.match(text.stdout, /semantscript build --domain-depth <domain>=6/u);
 
-  const json = await run(project, ["--max-bytes", "1000", "--force", "--json"]);
+  const json = await run(project, [
+    "--max-bytes",
+    String(limit),
+    "--force",
+    "--json",
+  ]);
   assert.equal(json.code, 1);
   const report = JSON.parse(json.stdout);
   assert.equal(report.target.fits, false);
-  assert.equal(report.target.overBytes, report.totalBytes - 1000);
+  assert.equal(report.target.overBytes, 1);
+  assert.equal(report.encoder.routing, "none");
   assert.deepEqual(
-    report.levers.map((lever) => lever.lever),
+    report.levers.map((lever) => [lever.lever, lever.actionable]),
     [
-      "depth",
-      "depth",
-      "depth",
-      "int8",
-      "depth+int8",
-      "depth+int8",
-      "smaller-encoder",
+      ["depth", true],
+      ["depth", true],
+      ["depth", true],
+      ["int8", false],
+      ["depth+int8", false],
+      ["depth+int8", false],
+      ["smaller-encoder", true],
     ],
   );
-  assert.ok(report.levers.every((lever) => lever.fits === false));
 });
 
 test("packageLevers projects the measured depth and int8 sizes and skips levers the release already uses", () => {
@@ -378,6 +396,45 @@ test("packageLevers projects the measured depth and int8 sizes and skips levers 
     quantized.map((lever) => lever.lever),
     ["depth", "depth", "depth", "smaller-encoder"],
   );
+  // Training writes a float32 prefix: an int8 encoder's depth lever projects
+  // the float32 prefix size, not the int8 one scaled down.
+  const quantizedDepth4 = packageLevers({
+    totalBytes: rest + MEASURED_ENCODER.int8Bytes,
+    encoderBytes: MEASURED_ENCODER.int8Bytes,
+    limitBytes: 150_000_000 + rest,
+    depthRouted: false,
+    quantized: true,
+  }).find((lever) => lever.label === "depth routing to 4 layers");
+  assert.equal(
+    quantizedDepth4.projectedBytes,
+    rest + MEASURED_ENCODER.depthBytes[4],
+  );
+  assert.equal(quantizedDepth4.fits, false);
+  assert.match(quantizedDepth4.how, /float32 prefix/u);
+
+  // A mixed release: one domain on the depth-4 prefix, one at full depth.
+  // Routing the remaining domain drops the full encoder.
+  const mixed = packageLevers({
+    totalBytes:
+      88_000_000 + MEASURED_ENCODER.fullBytes + MEASURED_ENCODER.depthBytes[4],
+    encoderBytes: MEASURED_ENCODER.fullBytes + MEASURED_ENCODER.depthBytes[4],
+    limitBytes: PACKAGE_TARGETS["cloud-run-functions"].bytes,
+    depthRouted: true,
+    quantized: false,
+    fullEncoderBytes: MEASURED_ENCODER.fullBytes,
+    fullDepthFunctions: ["a"],
+  });
+  assert.deepEqual(
+    mixed.map((lever) => lever.lever),
+    ["route-remaining", "int8", "smaller-encoder"],
+  );
+  assert.equal(
+    mixed[0].projectedBytes,
+    88_000_000 + MEASURED_ENCODER.depthBytes[4],
+  );
+  assert.equal(mixed[0].fits, true);
+  assert.equal(mixed[0].actionable, true);
+  assert.match(mixed[0].how, /still at full depth: a/u);
   const hopeless = packageLevers({
     totalBytes: 2 * limitBytes,
     encoderBytes: 1,
@@ -390,7 +447,7 @@ test("packageLevers projects the measured depth and int8 sizes and skips levers 
   assert.match(hopeless[0].how, /nothing fits/u);
 });
 
-test("package recognises a depth-routed release and skips the depth levers", async (t) => {
+test("package recognises a mixed depth-routed release and offers routing the remaining domains", async (t) => {
   const root = await scratch(t, "semantscript-package-routed-");
   const { project, artifact } = await stubProject(root, {
     dependencies: false,
@@ -402,11 +459,27 @@ test("package recognises a depth-routed release and skips the depth levers", asy
       manifest.functions[0].encoderRef = "encoder.depth4";
     },
   });
-  const result = await run(project, ["--max-bytes", "1000", "--json"]);
+  const sized = JSON.parse((await run(project, ["--json"])).stdout);
+  const result = await run(project, [
+    "--max-bytes",
+    String(sized.totalBytes - 1),
+    "--force",
+    "--json",
+  ]);
   assert.equal(result.code, 1, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.encoder.depthRouted, true);
+  assert.equal(report.encoder.routing, "mixed");
+  assert.ok(report.encoder.fullDepthEncoderBytes > 0);
   assert.ok(report.levers.every((lever) => !lever.lever.startsWith("depth")));
+  const remaining = report.levers.find(
+    (lever) => lever.lever === "route-remaining",
+  );
+  assert.ok(remaining, JSON.stringify(report.levers));
+  assert.equal(
+    remaining.projectedBytes,
+    report.totalBytes - report.encoder.fullDepthEncoderBytes,
+  );
 });
 
 test("package recognises a fully routed release with no function encoderRef", async (t) => {
@@ -431,7 +504,13 @@ test("package recognises a fully routed release with no function encoderRef", as
   assert.equal(result.code, 1, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.encoder.depthRouted, true);
-  assert.ok(report.levers.every((lever) => !lever.lever.startsWith("depth")));
+  assert.equal(report.encoder.routing, "full");
+  assert.ok(
+    report.levers.every(
+      (lever) =>
+        !lever.lever.startsWith("depth") && lever.lever !== "route-remaining",
+    ),
+  );
 });
 
 test("isDepthRouted reads function refs, model.encoderRef and prefix paths", () => {
@@ -469,6 +548,95 @@ test("isDepthRouted reads function refs, model.encoderRef and prefix paths", () 
     isDepthRouted({ functions: [{ encoderRef: "encoder.depth4" }] }),
     true,
   );
+  // A function naming the default encoder explicitly is not routed.
+  assert.equal(
+    isDepthRouted({
+      model: { encoderRef: "encoder.main" },
+      resources: [encoder("encoder.main", "models/encoder/model.onnx")],
+      functions: [{ encoderRef: "encoder.main" }],
+    }),
+    false,
+  );
+  // The mixed release the review found: one domain on the prefix, one not.
+  assert.deepEqual(
+    depthRouting({
+      model: { encoderRef: "encoder.app" },
+      resources: [
+        encoder("encoder.app", "models/encoder/model.onnx"),
+        encoder("encoder.app.depth-004", "models/encoder/depth-004.onnx"),
+      ],
+      functions: [
+        { id: "a" },
+        { id: "b", encoderRef: "encoder.app.depth-004" },
+      ],
+    }),
+    {
+      routed: true,
+      fullEncoderRefs: ["encoder.app"],
+      fullDepthFunctions: ["a"],
+    },
+  );
+});
+
+test("package keeps a --dist output at its project path so the entry points resolve", async (t) => {
+  const root = await scratch(t, "semantscript-package-build-dir-");
+  const { project } = await stubProject(root, { dependencies: false });
+  await rm(join(project, "dist"), { recursive: true, force: true });
+  await writeJson(join(project, "package.json"), {
+    name: "stub-app",
+    version: "1.0.0",
+    type: "module",
+    main: "build/server/index.js",
+    scripts: { start: "node build/server/index.js" },
+  });
+  await mkdir(join(project, "build", "server"), { recursive: true });
+  await writeFile(join(project, "build", "server", "index.js"), "export {};\n");
+  await writeFile(join(project, "build", "semantscript.ir.v1.json"), "{}\n");
+  const out = join(root, "bundle");
+  const result = await run(project, ["--dist", "build", "--out", out]);
+  assert.equal(result.code, 0, result.stderr);
+  const deployed = JSON.parse(
+    await readFile(join(out, "package.json"), "utf8"),
+  );
+  assert.ok(existsSync(join(out, deployed.main)));
+  assert.ok(!existsSync(join(out, "dist")));
+  assert.ok(!existsSync(join(out, "build", "semantscript.ir.v1.json")));
+  assert.match(result.stdout, /^build +\d+/mu);
+
+  const outside = await run(project, [
+    "--dist",
+    join(root, "elsewhere"),
+    "--out",
+    join(root, "b2"),
+  ]);
+  assert.equal(outside.code, 2);
+  assert.match(outside.stderr, /must be a directory inside the project/u);
+
+  const nested = await run(project, [
+    "--dist",
+    "build",
+    "--include",
+    "build",
+    "--out",
+    join(root, "b3"),
+  ]);
+  assert.equal(nested.code, 2);
+  assert.match(nested.stderr, /build is written by package itself/u);
+});
+
+test("package refuses an --include that contains --out before writing anything", async (t) => {
+  const root = await scratch(t, "semantscript-package-include-out-");
+  const { project } = await stubProject(root, { dependencies: false });
+  await mkdir(join(project, "deploy"), { recursive: true });
+  const result = await run(project, [
+    "--include",
+    "deploy",
+    "--out",
+    "deploy/bundle",
+  ]);
+  assert.equal(result.code, 2, result.stderr);
+  assert.match(result.stderr, /contains --out/u);
+  assert.deepEqual(await readdir(join(project, "deploy")), ["handler.mjs"]);
 });
 
 async function nativeTree(root) {

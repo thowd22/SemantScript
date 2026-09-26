@@ -106,13 +106,16 @@ export const MEASURED_ENCODER = {
 } as const;
 
 export interface PackageLever {
-  readonly lever: "depth" | "int8" | "depth+int8" | "smaller-encoder";
+  readonly lever:
+    "depth" | "route-remaining" | "int8" | "depth+int8" | "smaller-encoder";
   readonly label: string;
   /** The projected bundle total; null for a smaller encoder, whose size depends on the model. */
   readonly projectedBytes: number | null;
   /** For a smaller encoder: the largest encoder graph that fits. */
   readonly encoderBudgetBytes: number | null;
   readonly fits: boolean;
+  /** False for a lever that is a measurement only (int8): no command produces it yet. */
+  readonly actionable: boolean;
   readonly how: string;
 }
 
@@ -124,73 +127,152 @@ export interface LeverInput {
   readonly depthRouted: boolean;
   /** An encoder resource is already quantized (onnx.precision int8-dynamic). */
   readonly quantized: boolean;
+  /**
+   * For a mixed release (some domains routed to a prefix, some at full
+   * depth): the bytes of the full-depth encoder graphs, which routing the
+   * remaining domains would drop. Zero or absent otherwise.
+   */
+  readonly fullEncoderBytes?: number;
+  /** For a mixed release: the functions still on the full-depth encoder. */
+  readonly fullDepthFunctions?: readonly string[];
 }
 
 const INT8_TOLERANCE =
-  "and only under a recorded tolerance: the measured int8 refund release changed 1 of 80 attested cases and 0.105% of decisions, which the strict gate refused (it was measured under attestedDisagreementTolerance 2 and argmaxDisagreementTolerance 0.01, benchmarks/refund/data/results-int8-2026-09-24)";
+  "and only under a recorded tolerance: the measured int8 refund release changed 1 of 80 attested cases and 0.105% of decisions, which the strict gate refused (it was measured under attestedDisagreementTolerance 2 and argmaxDisagreementTolerance 0.01; docs/deploy.md has the figures)";
 const INT8_HOW = `a measurement, not a step to run: no int8 derivation exists for applications yet (it has only been measured on the refund benchmark, through a refund-specific driver), ${INT8_TOLERANCE}`;
 
 const DEPTH_PREFIX = /(?:^|[./])depth-\d{3}(?:$|[./])/u;
 
+export interface DepthRouting {
+  /** Any domain is routed to a prefix encoder. */
+  readonly routed: boolean;
+  /**
+   * Encoder resources (by ref) at full depth in a routed release: a mixed
+   * release keeps them for the domains left at full depth. Empty for a
+   * release that is not routed or is fully routed.
+   */
+  readonly fullEncoderRefs: readonly string[];
+  /** Functions of a mixed release that still run the full-depth encoder. */
+  readonly fullDepthFunctions: readonly string[];
+}
+
 /**
- * Whether a release already uses depth routing. A mixed release names the
- * prefix in a function's encoderRef; a fully routed one exports only the
- * prefix graph (models/encoder/depth-NNN.onnx) and names it in
- * model.encoderRef, with no function encoderRef at all.
+ * How a release uses depth routing. A prefix encoder is one whose ref or
+ * path names a depth-NNN prefix, or one a function names in its encoderRef
+ * that is not model.encoderRef. A mixed release has a prefix and a
+ * full-depth encoder (the default for functions with no encoderRef); a
+ * fully routed one exports only the prefix graph and names it in
+ * model.encoderRef.
  */
+export function depthRouting(
+  manifest: Readonly<Record<string, unknown>>,
+): DepthRouting {
+  const model = manifest["model"];
+  const modelRef =
+    typeof model === "object" &&
+    model !== null &&
+    typeof (model as Record<string, unknown>)["encoderRef"] === "string"
+      ? ((model as Record<string, unknown>)["encoderRef"] as string)
+      : undefined;
+  const functions = listFunctions(manifest);
+  const functionRefs = new Set(
+    functions
+      .map((fn) => fn["encoderRef"])
+      .filter((ref): ref is string => typeof ref === "string"),
+  );
+  const isPrefix = (ref: string | undefined, path?: unknown): boolean =>
+    (ref !== undefined && DEPTH_PREFIX.test(ref)) ||
+    (typeof path === "string" && DEPTH_PREFIX.test(path)) ||
+    (ref !== undefined && ref !== modelRef && functionRefs.has(ref));
+  const encoders = listResources(manifest).filter(
+    (resource) => resource["role"] === "encoder",
+  );
+  const prefixRefs = new Set<string>();
+  const fullRefs: string[] = [];
+  for (const encoder of encoders) {
+    const ref = typeof encoder["ref"] === "string" ? encoder["ref"] : undefined;
+    if (isPrefix(ref, encoder["path"])) {
+      if (ref !== undefined) prefixRefs.add(ref);
+    } else if (ref !== undefined) {
+      fullRefs.push(ref);
+    }
+  }
+  const routed =
+    prefixRefs.size > 0 ||
+    [...functionRefs].some((ref) => ref !== modelRef) ||
+    (modelRef !== undefined && DEPTH_PREFIX.test(modelRef)) ||
+    encoders.some((encoder) => isPrefix(undefined, encoder["path"]));
+  if (!routed) {
+    return { routed: false, fullEncoderRefs: [], fullDepthFunctions: [] };
+  }
+  const fullSet = new Set(fullRefs);
+  const fullDepthFunctions = functions
+    .filter((fn) => {
+      const ref =
+        typeof fn["encoderRef"] === "string" ? fn["encoderRef"] : modelRef;
+      return ref !== undefined && fullSet.has(ref);
+    })
+    .map((fn) => (typeof fn["id"] === "string" ? fn["id"] : "?"));
+  return { routed: true, fullEncoderRefs: fullRefs, fullDepthFunctions };
+}
+
+/** Whether a release already uses depth routing, mixed or full (see depthRouting). */
 export function isDepthRouted(
   manifest: Readonly<Record<string, unknown>>,
 ): boolean {
-  if (
-    listFunctions(manifest).some((fn) => typeof fn["encoderRef"] === "string")
-  )
-    return true;
-  const model = manifest["model"];
-  if (
-    typeof model === "object" &&
-    model !== null &&
-    typeof (model as Record<string, unknown>)["encoderRef"] === "string" &&
-    DEPTH_PREFIX.test(
-      (model as Record<string, unknown>)["encoderRef"] as string,
-    )
-  )
-    return true;
-  return listResources(manifest).some(
-    (resource) =>
-      resource["role"] === "encoder" &&
-      ((typeof resource["ref"] === "string" &&
-        DEPTH_PREFIX.test(resource["ref"])) ||
-        (typeof resource["path"] === "string" &&
-          DEPTH_PREFIX.test(resource["path"]))),
-  );
+  return depthRouting(manifest).routed;
 }
 
 /**
  * The size levers for a bundle over its limit, each with the projected
  * bundle total, skipping any the release already uses. Encoder sizes scale
  * by the ModernBERT-base measurements, so for another encoder they are
- * estimates.
+ * estimates. Training writes a float32 graph, so for an already quantized
+ * encoder the depth levers scale its float32 size, not the int8 one.
  */
 export function packageLevers(input: LeverInput): readonly PackageLever[] {
   const rest = input.totalBytes - input.encoderBytes;
-  const scaled = (bytes: number): number =>
-    Math.round(input.encoderBytes * (bytes / MEASURED_ENCODER.fullBytes));
   const int8Ratio = MEASURED_ENCODER.int8Bytes / MEASURED_ENCODER.fullBytes;
+  const float32Encoder = input.quantized
+    ? input.encoderBytes / int8Ratio
+    : input.encoderBytes;
+  const scaled = (bytes: number): number =>
+    Math.round(float32Encoder * (bytes / MEASURED_ENCODER.fullBytes));
   const lever = (
     kind: PackageLever["lever"],
     label: string,
     encoder: number,
     how: string,
+    actionable = true,
   ): PackageLever => ({
     lever: kind,
     label,
     projectedBytes: rest + encoder,
     encoderBudgetBytes: null,
     fits: rest + encoder <= input.limitBytes,
+    actionable,
     how,
   });
   const levers: PackageLever[] = [];
+  const budget = input.limitBytes - rest;
+  const smaller: PackageLever = {
+    lever: "smaller-encoder",
+    label: "a smaller encoder",
+    projectedBytes: null,
+    encoderBudgetBytes: Math.max(budget, 0),
+    fits: budget > 0,
+    actionable: true,
+    how:
+      budget > 0
+        ? `semantscript train --encoder-name <model> with an encoder whose ONNX graph is at most ${formatBytes(budget)} (${String(budget)} bytes)`
+        : `nothing fits: the bundle without its encoder is already ${formatBytes(rest)}, so no encoder lever helps; the dependencies, the compiled output or the includes are what is over`,
+  };
+  // When the rest of the bundle is already over, no encoder lever can help.
+  if (budget <= 0) return [smaller];
   const depths = [12, 6, 4] as const;
+  const trained = input.quantized
+    ? "then train (training writes a float32 prefix, so the int8 encoder is replaced by a larger graph; the size shown is that float32 prefix)"
+    : "then train";
   if (!input.depthRouted) {
     for (const depth of depths) {
       levers.push(
@@ -198,10 +280,26 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
           "depth",
           `depth routing to ${String(depth)} layers`,
           scaled(MEASURED_ENCODER.depthBytes[depth]),
-          `give every domain that depth (semantscript build --domain-depth <domain>=${String(depth)} once per domain, or domainDepths in a tspc plugin entry), then train; a domain left at full depth keeps the full encoder in the bundle beside the prefix (the refund policy kept 160/160 on its final set at 4, 6 and 12 layers)`,
+          `give every domain that depth (semantscript build --domain-depth <domain>=${String(depth)} once per domain, or domainDepths in a tspc plugin entry), ${trained}; a domain left at full depth keeps the full encoder in the bundle beside the prefix (the refund policy kept 160/160 on its final set at 4, 6 and 12 layers)`,
         ),
       );
     }
+  }
+  const fullEncoderBytes = input.fullEncoderBytes ?? 0;
+  if (input.depthRouted && fullEncoderBytes > 0) {
+    const remaining = input.fullDepthFunctions ?? [];
+    const named =
+      remaining.length === 0
+        ? ""
+        : ` (still at full depth: ${remaining.slice(0, 5).join(", ")}${remaining.length > 5 ? `, and ${String(remaining.length - 5)} more` : ""})`;
+    levers.push(
+      lever(
+        "route-remaining",
+        "route the remaining domains",
+        input.encoderBytes - fullEncoderBytes,
+        `give the domains left at full depth the depth the others use${named} (semantscript build --domain-depth <domain>=<depth>, or domainDepths in a tspc plugin entry), then train; the release then exports only the prefix and drops the ${formatBytes(fullEncoderBytes)} full-depth encoder`,
+      ),
+    );
   }
   if (!input.quantized) {
     levers.push(
@@ -210,6 +308,7 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
         "int8 dynamic quantization",
         Math.round(input.encoderBytes * int8Ratio),
         INT8_HOW,
+        false,
       ),
     );
     if (!input.depthRouted) {
@@ -220,23 +319,13 @@ export function packageLevers(input: LeverInput): readonly PackageLever[] {
             `depth ${String(depth)} and int8`,
             Math.round(scaled(MEASURED_ENCODER.depthBytes[depth]) * int8Ratio),
             `give every domain depth ${String(depth)} (semantscript build --domain-depth <domain>=${String(depth)} once per domain), then train; the int8 half is a measurement only, as for int8 above`,
+            false,
           ),
         );
       }
     }
   }
-  const budget = input.limitBytes - rest;
-  levers.push({
-    lever: "smaller-encoder",
-    label: "a smaller encoder",
-    projectedBytes: null,
-    encoderBudgetBytes: Math.max(budget, 0),
-    fits: budget > 0,
-    how:
-      budget > 0
-        ? `semantscript train --encoder-name <model> with an encoder whose ONNX graph is at most ${formatBytes(budget)} (${String(budget)} bytes)`
-        : `nothing fits: the bundle without its encoder is already ${formatBytes(rest)}`,
-  });
+  levers.push(smaller);
   return levers;
 }
 
@@ -452,6 +541,20 @@ export async function packageCommand(
   const arch = stringOption(scalar, "arch") ?? process.arch;
   const includes = values.include ?? [];
 
+  // The compiled output keeps its path relative to the project, so the
+  // deployed package.json's main and scripts still name real files.
+  const distPath = relative(project, dist).split(sep).join("/");
+  if (!isInside(project, dist)) {
+    throw new CliUsageError(
+      `--dist ${dist} must be a directory inside the project ${project}, so the deployed package.json's entry points still resolve`,
+    );
+  }
+  const distFirst = distPath.split("/")[0] ?? "";
+  if (RESERVED_INCLUDES.has(distFirst)) {
+    throw new CliUsageError(
+      `--dist ${dist}: ${distFirst} is written by package itself`,
+    );
+  }
   const packageJson = await readProjectPackage(project);
   if (!(await isRealDirectory(dist))) {
     throw new PackageError(
@@ -470,6 +573,11 @@ export async function packageCommand(
     throw new CliUsageError(
       `--out ${out} is inside the compiled output or the artifact; choose a directory of its own`,
     );
+  }
+  const reserved = new Set([...RESERVED_INCLUDES, distFirst]);
+  const includeSources: IncludeSource[] = [];
+  for (const spec of includes) {
+    includeSources.push(await checkInclude(project, out, reserved, spec));
   }
   await checkOut(out, values.force === true);
 
@@ -500,7 +608,7 @@ export async function packageCommand(
   await mkdir(staging, { recursive: true });
   try {
     // Compiled output without the IR bundle, which holds the prompt text.
-    await cp(dist, join(staging, "dist"), {
+    await cp(dist, join(staging, distPath), {
       recursive: true,
       verbatimSymlinks: true,
       filter: (source) => !source.endsWith(`${sep}${BUNDLE_FILE_NAME}`),
@@ -515,8 +623,8 @@ export async function packageCommand(
       pointerBytes(release.digest),
     );
     const included: string[] = [];
-    for (const spec of includes) {
-      included.push(await copyInclude(project, staging, spec));
+    for (const include of includeSources) {
+      included.push(await copyInclude(staging, include));
     }
 
     const install = await installDependencies(
@@ -537,7 +645,7 @@ export async function packageCommand(
 
     const files = await listFiles(staging);
     const resources = resourceRoles(manifest, `releases/${release.name}`);
-    const parts = partSizes(files, resources, included);
+    const parts = partSizes(files, resources, included, distPath);
     const filesBytes = files.reduce((total, file) => total + file.bytes, 0);
     const encoderBytes = files
       .filter((file) => resources.get(file.path) === "encoder")
@@ -582,7 +690,25 @@ export async function packageCommand(
         (resource["onnx"] as Record<string, unknown>)["precision"] !==
           "float32",
     );
-    const depthRouted = isDepthRouted(manifest);
+    const routing = depthRouting(manifest);
+    const depthRouted = routing.routed;
+    const fullEncoderPaths = new Set(
+      listResources(manifest)
+        .filter(
+          (resource) =>
+            resource["role"] === "encoder" &&
+            typeof resource["ref"] === "string" &&
+            routing.fullEncoderRefs.includes(resource["ref"]) &&
+            typeof resource["path"] === "string",
+        )
+        .map(
+          (resource) =>
+            `.semantscript/artifact/releases/${release.name}/${resource["path"] as string}`,
+        ),
+    );
+    const fullEncoderBytes = files
+      .filter((file) => fullEncoderPaths.has(file.path))
+      .reduce((total, file) => total + file.bytes, 0);
     const over = target !== undefined && totalBytes > target.bytes;
     const levers =
       target !== undefined && over
@@ -592,6 +718,8 @@ export async function packageCommand(
             limitBytes: target.bytes,
             depthRouted,
             quantized,
+            fullEncoderBytes,
+            fullDepthFunctions: routing.fullDepthFunctions,
           })
         : [];
 
@@ -621,7 +749,17 @@ export async function packageCommand(
                     fits: !over,
                     overBytes: over ? totalBytes - target.bytes : 0,
                   },
-            encoder: { bytes: encoderBytes, depthRouted, quantized },
+            encoder: {
+              bytes: encoderBytes,
+              depthRouted,
+              routing: !depthRouted
+                ? "none"
+                : fullEncoderBytes > 0
+                  ? "mixed"
+                  : "full",
+              fullDepthEncoderBytes: fullEncoderBytes,
+              quantized,
+            },
             levers,
           },
           null,
@@ -754,19 +892,31 @@ function isInside(parent: string, child: string): boolean {
 }
 
 const RESERVED_INCLUDES = new Set([
-  // dist is copied without the IR bundle, which holds the prompt text.
-  "dist",
   "node_modules",
   ".semantscript",
   "package.json",
   PACKAGE_MANIFEST,
 ]);
 
-async function copyInclude(
+interface IncludeSource {
+  readonly source: string;
+  /** Project-relative POSIX path, which is also its path in the bundle. */
+  readonly path: string;
+}
+
+/**
+ * Validate an --include before anything is written: it must name an
+ * existing file or directory inside the project, outside the paths package
+ * writes itself (the compiled output, which is copied without its IR bundle,
+ * node_modules, the artifact, package.json and the manifest), and it must
+ * not contain --out.
+ */
+async function checkInclude(
   project: string,
-  staging: string,
+  out: string,
+  reserved: ReadonlySet<string>,
   spec: string,
-): Promise<string> {
+): Promise<IncludeSource> {
   const source = resolve(project, spec);
   const path = relative(project, source);
   if (path.length === 0 || !isInside(project, source)) {
@@ -776,9 +926,14 @@ async function copyInclude(
   }
   const posix = path.split(sep).join("/");
   const first = posix.split("/")[0] ?? "";
-  if (RESERVED_INCLUDES.has(first)) {
+  if (reserved.has(first)) {
     throw new CliUsageError(
       `--include ${spec}: ${first} is written by package itself`,
+    );
+  }
+  if (source === out || isInside(source, out)) {
+    throw new CliUsageError(
+      `--include ${spec} contains --out ${out}; write the package somewhere else`,
     );
   }
   try {
@@ -792,10 +947,17 @@ async function copyInclude(
     }
     throw error;
   }
-  const destination = join(staging, path);
+  return { source, path: posix };
+}
+
+async function copyInclude(
+  staging: string,
+  include: IncludeSource,
+): Promise<string> {
+  const destination = join(staging, ...include.path.split("/"));
   await mkdir(dirname(destination), { recursive: true });
-  await cp(source, destination, { recursive: true, dereference: true });
-  return posix;
+  await cp(include.source, destination, { recursive: true, dereference: true });
+  return include.path;
 }
 
 interface InstallRecord {
@@ -1058,6 +1220,7 @@ function partSizes(
   files: readonly PackageFile[],
   roles: ReadonlyMap<string, string>,
   included: readonly string[],
+  distPath: string,
 ): readonly PartSize[] {
   const sum = (predicate: (file: PackageFile) => boolean): number =>
     files.filter(predicate).reduce((total, file) => total + file.bytes, 0);
@@ -1099,7 +1262,7 @@ function partSizes(
 
   const includedSet = included.map((path) => under(path));
   return [
-    { part: "dist", bytes: sum(under("dist")) },
+    { part: distPath, bytes: sum(under(distPath)) },
     {
       part: "node_modules",
       bytes: sum(under("node_modules")),
@@ -1183,7 +1346,11 @@ function renderTarget(
     lever.projectedBytes === null
       ? `encoder <= ${formatBytes(lever.encoderBudgetBytes ?? 0)}`
       : `~${formatBytes(lever.projectedBytes)}`,
-    lever.fits ? "fits" : "does not fit",
+    lever.fits
+      ? lever.actionable
+        ? "fits"
+        : "fits (measurement only)"
+      : "does not fit",
   ]);
   return `${[
     head,

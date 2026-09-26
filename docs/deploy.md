@@ -81,7 +81,10 @@ application. For another encoder the projections are estimates. A lever the rele
 already uses is not offered again: depth routing when the release ships a
 routed encoder prefix (a function `encoderRef`, or a `depth-NNN` encoder named
 by `model.encoderRef` when every domain is routed), int8 when an encoder's `onnx.precision` is not
-`float32`. Depth prefixes are separate graphs, so an application with domains
+`float32`. A mixed release, where some domains use a prefix and others still
+use the full-depth encoder, is offered routing the remaining domains, which
+drops the full encoder from the bundle. For an int8 encoder the depth levers
+project the float32 prefix that training writes. Depth prefixes are separate graphs, so an application with domains
 at two depths ships the shared layers twice ([scaling
 results](scaling-results.md#depth-routing-the-cost-of-a-pass)). The depth
 projections hold only when every domain is routed: a domain left at full depth

@@ -340,6 +340,7 @@ tokenizer, included files) and the total.
 `--target lambda-zip|lambda-image|cloud-run-functions` or `--max-bytes <n>`
 checks the total. Over it, the bundle is still written, the command exits 1
 with `PACKAGE_OVER_TARGET`, and it lists the levers with the bundle each
-would give: depth routing, int8 quantization (a measurement only: no int8
+would give: depth routing (or, for a release with some domains already
+routed, routing the rest), int8 quantization (a measurement only: no int8
 derivation exists for applications yet), both, or a smaller encoder. See [Deploying](../docs/deploy.md) and the
 [CLI reference](../docs/cli-reference.md#package).

@@ -1,7 +1,25 @@
 {
   "name": "@semantscript/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "The SemantScript runtime: loads verified artifacts and answers compiled sema expressions with local ONNX inference",
+  "keywords": [
+    "semantscript",
+    "sema",
+    "typescript",
+    "classifier",
+    "runtime",
+    "onnx",
+    "inference"
+  ],
+  "homepage": "https://github.com/thowd22/SemantScript/tree/main/runtime#readme",
+  "bugs": {
+    "url": "https://github.com/thowd22/SemantScript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thowd22/SemantScript.git",
+    "directory": "runtime"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,5 +47,11 @@
   "dependencies": {
     "onnxruntime-node": "1.30.0",
     "tokenizers": "0.23.2"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -1,5 +1,12 @@
 # CLI
 
+```sh
+npm install semantscript @semantscript/core @semantscript/compiler
+pip install "semantscript-trainer[training]"   # for train, dev and teacher probe
+```
+
+First publish pending, see [releasing](../docs/releasing.md).
+
 `semantscript` is the single entry point over the compiler, trainer, verifier
 and runtime packages. It coordinates them without owning their core
 implementations: `build` is the compiler, `train` is the Python trainer's
@@ -237,7 +244,7 @@ Training options pass through unchanged: `--cases`, `--epochs`, `--batch-size`,
 `--encoder-revision`, `--local-files-only`, `--ece-threshold`,
 `--max-constraint-violation-rate`, `--seed-attempts`, `--seed-retry-margin`,
 `--counterfactual-ratio`, `--adapter-bottleneck-size`, `--no-cache`, `--full`,
-`--application-id`, `--application-version`, `--compiler-version` and
+`--application-id`, `--application-version`, `--compiler-version` (default: the installed `@semantscript/compiler` version) and
 `--cache-dir` (default
 `.semantscript/cache`). The interpreter is `--python`,
 then `SEMANTSCRIPT_PYTHON`, then `python3` (`python` on Windows); inside this repository the trainer

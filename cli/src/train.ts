@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
+import { VERSION as COMPILER_VERSION } from "@semantscript/compiler";
+
 import {
   DEFAULT_TRAINER_MODULE,
   pythonPath,
@@ -168,6 +170,11 @@ export async function runTrain(
   for (const name of PASSTHROUGH_STRING) {
     const value = values[name];
     if (typeof value === "string") commandArgs.push(`--${name}`, value);
+  }
+  // The manifest records which compiler produced the bundle: the installed
+  // @semantscript/compiler unless the caller names another.
+  if (typeof values["compiler-version"] !== "string") {
+    commandArgs.push("--compiler-version", COMPILER_VERSION);
   }
   for (const name of PASSTHROUGH_BOOLEAN) {
     if (values[name] === true) commandArgs.push(`--${name}`);

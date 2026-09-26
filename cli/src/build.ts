@@ -130,9 +130,15 @@ export async function compileProject(
     io.stderr(`${configPath} must set compilerOptions.outDir\n`);
     return failed(sourceFiles);
   }
+  // Without the tsconfig `plugins`: once `ts-patch install` has patched the
+  // project's typescript (the tsc setup `init` writes), the patched emit would
+  // apply the transformer entry itself and leave no sema site for this build
+  // to rewrite ("planned 1 sema rewrites ... but matched 0").
+  const compilerOptions: ts.CompilerOptions = { ...parsed.options };
+  delete compilerOptions["plugins"];
   const program = ts.createProgram({
     rootNames: parsed.fileNames,
-    options: parsed.options,
+    options: compilerOptions,
     ...(parsed.projectReferences === undefined
       ? {}
       : { projectReferences: parsed.projectReferences }),

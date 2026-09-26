@@ -28,6 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from semantscript_trainer._version import __version__
 from semantscript_trainer.adversarial import (
     AdversarialDataset,
     AdversarialDatasetGenerator,
@@ -113,7 +114,8 @@ BUNDLE_KIND = "semantscript.ir-bundle"
 REPORT_KIND = "semantscript.train-report"
 REPORT_VERSION = 1
 DEFAULT_CASES = 64
-TRAINER_VERSION = "0.0.0"
+# The release version of this package, shared with the npm packages.
+TRAINER_VERSION = __version__
 _TRAINING_KEY_KIND = "semantscript.training-key"
 
 
@@ -1035,16 +1037,29 @@ def _pinned_weights_sha256(config: TrainingConfig) -> str:
     return hashlib.sha256(Path(weights).read_bytes()).hexdigest()
 
 
-def _git_commit() -> str:
+def _git_commit(package_directory: Path | None = None) -> str:
+    """The SemantScript commit this trainer runs from, or 0000000 when installed.
+
+    Only a source checkout (the package at ``<root>/trainer/src/semantscript_trainer``
+    with ``<root>`` the git top level) has a commit of its own. An installed
+    package can sit inside the user's repository (a project ``.venv``), whose
+    commit says nothing about the trainer; there the release version identifies it.
+    """
+    directory = (package_directory or Path(__file__).parent).resolve()
+    root = directory.parents[2] if len(directory.parents) > 2 else None
+    if root is None or directory != root / "trainer" / "src" / "semantscript_trainer":
+        return "0000000"
     completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=Path(__file__).resolve().parent,
+        ["git", "rev-parse", "--show-toplevel", "HEAD"],
+        cwd=directory,
         capture_output=True,
         text=True,
         check=False,
     )
-    commit = completed.stdout.strip()
-    return commit if completed.returncode == 0 and commit else "0000000"
+    lines = completed.stdout.split()
+    if completed.returncode != 0 or len(lines) != 2 or Path(lines[0]).resolve() != root:
+        return "0000000"
+    return lines[1]
 
 
 def _utc_now() -> str:

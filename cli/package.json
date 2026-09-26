@@ -1,7 +1,23 @@
 {
   "name": "semantscript",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "The semantscript command: init, build, train, test, run, explain and releases",
+  "keywords": [
+    "semantscript",
+    "sema",
+    "typescript",
+    "classifier",
+    "cli"
+  ],
+  "homepage": "https://github.com/thowd22/SemantScript/tree/main/cli#readme",
+  "bugs": {
+    "url": "https://github.com/thowd22/SemantScript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thowd22/SemantScript.git",
+    "directory": "cli"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -27,8 +43,14 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@semantscript/compiler": "0.0.0",
-    "@semantscript/core": "0.0.0",
+    "@semantscript/compiler": "0.1.0",
+    "@semantscript/core": "0.1.0",
     "typescript": "6.0.3"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

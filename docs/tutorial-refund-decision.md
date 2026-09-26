@@ -1,8 +1,8 @@
-# Tutorial: from a fresh clone to a running refund decision
+# Tutorial: from an empty directory to a running refund decision
 
-This is the end-to-end path through the repository as it stands: clone, build
-both halves, compile the refund-decision expression, train its artifact, and
-call it. Every command was run on the development machine described below;
+This is the end-to-end path: install the packages (from npm and PyPI, or from
+a clone of the repository), compile the refund-decision expression, train its
+artifact, and call it. Every command was run on the development machine described below;
 where a step needs something you must provide (a teacher), the alternatives
 are listed with what each costs. The [getting-started guide](getting-started.md)
 covers the other direction, adding one expression to an app you already have.
@@ -18,10 +18,45 @@ covers the other direction, adding one expression to an app you already have.
 | Disk              | 600 MB for the encoder checkpoint, 275 to 600 MB per artifact, as much again for the build cache | 3 GB free                                                             |
 | Network           | Once, for the ModernBERT-base checkpoint from the Hugging Face Hub, plus the teacher if remote   |                                                                       |
 
-## 1. Clone and build
+## 1. Install
+
+Two routes; from step 4 on the commands are the same. The published packages
+need no clone; the clone is the contributor's route and the one the
+repository's examples use.
+
+### From npm and PyPI
 
 ```sh
-git clone <this repository> semantscript && cd semantscript
+mkdir refund-decision && cd refund-decision
+npm init -y && npm pkg set type=module scripts.build="tspc -p tsconfig.json"
+npm install semantscript @semantscript/core @semantscript/compiler @semantscript/framework
+python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install "semantscript-trainer[training]"   # trainer, model, torch, transformers, onnx, onnxruntime
+export SEMANTSCRIPT_PYTHON="$PWD/.venv/bin/python"
+printf '%s\n' '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","target":"ES2022","strict":true,"skipLibCheck":true,"rootDir":"src","outDir":"dist"},"include":["src"]}' > tsconfig.json
+npx semantscript init --tool tsc --no-example   # wires the transformer, adds ts-patch, runs doctor
+npm install                                     # runs the prepare script: ts-patch install
+```
+
+The four npm packages and the trainer share one version, and every artifact
+records the compiler and trainer versions that built it. For a GPU, install
+the CUDA or ROCm PyTorch build into the venv first
+([pytorch.org](https://pytorch.org/get-started/locally/)).
+
+> **First publish pending.** The release workflow is in place
+> ([releasing](releasing.md)) but version 0.1.0 is not on npm and PyPI yet, so
+> `npm install` and `pip install` above return 404 until it is. Until then
+> take the clone route below, or `npm install` the four `npm pack` tarballs
+> and `pip install` the clone as the [getting-started guide](getting-started.md)
+> describes; this route was run end to end against a local registry holding
+> exactly those packs (`init`, `build`, `train --teacher constraints`, `test`
+> and `run` in a directory with no checkout, recorded in
+> [releasing](releasing.md#local-proof)).
+
+### From a clone
+
+```sh
+git clone https://github.com/thowd22/SemantScript.git semantscript && cd semantscript
 npm install                    # links the workspaces
 npm run build                  # tsc -b: compiler, runtime, cli, framework, refund benchmark
 python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
@@ -60,7 +95,15 @@ the full run.
 ## 2. The expression
 
 The refund decision lives in the Express example, already wired to the
-compiler through its `tsconfig.json`:
+compiler through its `tsconfig.json`. On the published-packages route, fetch
+the same file into your project:
+
+```sh
+mkdir -p src && curl -fsSLo src/refunds.sem.ts \
+  https://raw.githubusercontent.com/thowd22/SemantScript/main/examples/express-app/src/refunds.sem.ts
+```
+
+Its core (the full file carries all six policy rules as constraints):
 
 ```ts
 // examples/express-app/src/refunds.sem.ts
@@ -94,12 +137,25 @@ The text is what a teacher reads to generate the corpus.
 
 ## 3. Compile
 
+On the published-packages route, in your project directory:
+
+```sh
+npm run build                  # tspc -p tsconfig.json (or npx semantscript build)
+ls dist/refunds.sem.js dist/semantscript.ir.v1.json
+```
+
+On the clone route, in the example:
+
 ```sh
 cd examples/express-app
 npm install                    # file: links to ../../compiler, ../../runtime, ../../framework
 npm run build                  # tspc -p tsconfig.json
 ls dist/refunds.sem.js dist/semantscript.ir.v1.json
 ```
+
+The examples keep `file:` links on purpose: they build against the
+repository's sources, so CI tests the tree as it is rather than the last
+published release. Everything below runs the same in either directory.
 
 `dist/refunds.sem.js` now calls the runtime by function id and
 `dist/semantscript.ir.v1.json` holds the IR record and the execution plan.

@@ -1,5 +1,11 @@
 # Framework
 
+```sh
+npm install @semantscript/framework @semantscript/core
+```
+
+First publish pending, see [releasing](../docs/releasing.md).
+
 `@semantscript/framework` is the thin Phase 4 layer: controller-style handlers
 with sema expressions inside, mounted on the HTTP stack an application already
 has. It owns no server. Three things come from it:

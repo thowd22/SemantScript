@@ -20,6 +20,7 @@ torch = pytest.importorskip("torch")
 pytest.importorskip("onnx")
 pytest.importorskip("onnxruntime")
 
+from semantscript_trainer import __version__  # noqa: E402
 from semantscript_trainer import cli as cli_module  # noqa: E402
 from semantscript_trainer.cli import (  # noqa: E402
     TrainBundleError,
@@ -415,6 +416,7 @@ def test_trains_verifies_and_exports_the_refund_example_bundle(tmp_path: Path) -
         tokenizer=RuleTokenizer(),
         encoder=RuleEncoder(),
         base_model_weights_sha256="4" * 64,
+        compiler_version="1.2.3",
         trainer_commit="abcdef0",
         log=messages.append,
         meter=SpendMeter(free_price("rule-fixture")),
@@ -422,6 +424,9 @@ def test_trains_verifies_and_exports_the_refund_example_bundle(tmp_path: Path) -
 
     report = result.report
     assert report["kind"] == "semantscript.train-report" and report["status"] == "passed"
+    # The shared release version: the compiler's as handed in, the trainer's own.
+    assert result.exported.manifest["build"]["compilerVersion"] == "1.2.3"
+    assert result.exported.manifest["build"]["trainerVersion"] == __version__
     assert report["teacher"]["spend"]["requests"] == 0
     assert report["teacher"]["spend"]["costUsd"] == 0
     assert any(": teacher: 0 request(s)" in m for m in messages)

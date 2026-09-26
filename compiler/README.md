@@ -1,5 +1,13 @@
 # Compiler
 
+```sh
+npm install --save-dev @semantscript/compiler
+```
+
+Published as `@semantscript/compiler` (first publish pending, see
+[releasing](../docs/releasing.md)); `VERSION` is the release version it shares
+with the other SemantScript packages.
+
 The compiler package finds `sema<T>` sites in TypeScript, resolves their input and
 output types, emits lifecycle-aware NeuralFunction IR, builds neural dependency
 plans, and rewrites source sites to runtime calls.

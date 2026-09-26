@@ -782,6 +782,14 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   );
   assert.equal(after("--artifact"), join(root, ".semantscript", "artifact"));
   assert.equal(after("--teacher"), join(root, ".semantscript", "teacher.toml"));
+  // The manifest's build.compilerVersion comes from the installed compiler.
+  const compilerPackage = JSON.parse(
+    await readFile(
+      new URL("../../compiler/package.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.equal(after("--compiler-version"), compilerPackage.version);
   assert.match(
     await readFile(join(root, ".semantscript", "teacher.toml"), "utf8"),
     /backend = "anthropic"/u,
@@ -798,7 +806,15 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   });
   assert.equal(
     await runCli(
-      ["train", "--python", python, "--trainer-module", "fake_trainer"],
+      [
+        "train",
+        "--python",
+        python,
+        "--trainer-module",
+        "fake_trainer",
+        "--compiler-version",
+        "9.8.7",
+      ],
       explicit.io,
     ),
     0,
@@ -807,6 +823,11 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   const second = JSON.parse(await readFile(argvPath, "utf8"));
   const secondAfter = (flag) => second.argv[second.argv.indexOf(flag) + 1];
   assert.equal(secondAfter("--teacher"), join(root, "teacher.toml"));
+  assert.equal(secondAfter("--compiler-version"), "9.8.7");
+  assert.equal(
+    second.argv.filter((value) => value === "--compiler-version").length,
+    1,
+  );
   assert.equal(secondAfter("--artifact"), join(root, "elsewhere", "artifact"));
 
   const testRun = capture(root, {
@@ -1120,7 +1141,10 @@ test("doctor prints one line per check with the fix, and exits 1 on a failure", 
     noModule.stdout(),
     / {2}fail {2}trainer {11}.* cannot import no_such_trainer_module/u,
   );
-  assert.match(noModule.stdout(), /fix: pip install -e "\.\[training\]"/u);
+  assert.match(
+    noModule.stdout(),
+    /fix: install the trainer into .*: pip install "semantscript-trainer\[training\]" \(in a SemantScript checkout: pip install -e "\.\[training\]"/u,
+  );
 
   const badProbe = capture(root, env);
   assert.equal(await runCli([...base, "--probe", "maybe"], badProbe.io), 2);

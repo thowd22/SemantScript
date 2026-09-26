@@ -1,6 +1,9 @@
 import { dispatchSemaCall, dispatchSemaStage } from "./artifact-runtime.js";
 import type { SemaStageEntry, SemaStageOutcome } from "./artifact-runtime.js";
 
+/** The release version of @semantscript/core, shared by every SemantScript package. */
+export { VERSION } from "./version.js";
+
 export {
   checkSemaArtifact,
   closeSemaArtifact,

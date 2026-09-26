@@ -1,3 +1,5 @@
+/** The release version of @semantscript/compiler, shared by every SemantScript package. */
+export { VERSION } from "./version.js";
 export {
   findMalformedSemaSites,
   findSemaSites,

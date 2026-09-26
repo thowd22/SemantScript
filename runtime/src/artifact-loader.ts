@@ -24,6 +24,7 @@ import type {
   TensorDescriptorV1,
 } from "./artifact-types.js";
 import { parseStrictJson, StrictJsonError } from "./strict-json.js";
+import { VERSION } from "./version.js";
 
 const SHA256 = /^[a-f0-9]{64}$/u;
 const RELEASE = /^sha256-([a-f0-9]{64})$/u;
@@ -68,6 +69,7 @@ export class ArtifactLoadError extends Error {
 
 export interface ArtifactLoadOptions<PreparedResource = Uint8Array> {
   readonly backend?: ArtifactResourceBackend<PreparedResource>;
+  /** Compared with the manifest's minimumRuntimeVersion; defaults to this package's version. */
   readonly runtimeVersion?: string;
   readonly supportedCapabilities?: ReadonlySet<string> | readonly string[];
   readonly supportedOnnxOpsets?: ReadonlySet<number> | readonly number[];
@@ -214,7 +216,7 @@ export async function loadArtifact<PreparedResource = Uint8Array>(
 function resolveOptions<P>(
   options: ArtifactLoadOptions<P>,
 ): ResolvedOptions<P> {
-  const runtimeVersion = options.runtimeVersion ?? "0.0.0";
+  const runtimeVersion = options.runtimeVersion ?? VERSION;
   if (!SEMVER.test(runtimeVersion))
     throw new TypeError("runtimeVersion must be valid semver");
 

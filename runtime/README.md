@@ -1,5 +1,13 @@
 # Runtime
 
+```sh
+npm install @semantscript/core
+```
+
+Published as `@semantscript/core` (first publish pending, see
+[releasing](../docs/releasing.md)); `VERSION` is the release version it shares
+with the other SemantScript packages.
+
 The runtime package loads and verifies immutable application artifacts, validates
 and canonically serializes function inputs, executes encoder/adapter/head inference,
 applies per-head temperature calibration, and enforces confidence policy.

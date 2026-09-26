@@ -13,16 +13,18 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [Architecture overview](architecture.md): compiler, trainer, model,
   runtime, CLI and framework in one diagram, with the build-time and
   request-time steps and the contracts between the parts.
-- [Getting started](getting-started.md): add one sema expression to an
-  existing Express (or Next.js) app and take it through `init`, `build`,
-  `train`, `test` and `run`, with the hardware, teacher and time it needs.
+- [Getting started](getting-started.md): install the npm packages and the
+  Python trainer, add one sema expression to an existing Express (or
+  Next.js) app and take it through `init`, `build`, `train`, `test` and
+  `run`, with the hardware, teacher and time it needs.
 - [Environment and `semantscript doctor`](environment.md): every check
   doctor runs (Node, native bindings, Python, trainer, PyTorch and its
   device, ONNX Runtime, platform variables, teacher) with its fix, how the
   WSL2 and user-site variables are detected, and recorded runs per platform.
-- [Tutorial: from a fresh clone](tutorial-refund-decision.md): clone, build
-  both halves, compile the refund-decision expression, train it through one
-  of four teacher routes, and call it, with hardware and time stated.
+- [Tutorial: from an empty directory](tutorial-refund-decision.md): install
+  from npm and PyPI or from a clone, compile the refund-decision expression,
+  train it through one of four teacher routes, and call it, with hardware and
+  time stated.
 - [Component guides](components.md): compiler, trainer, model and runtime,
   each with inputs, outputs, configuration and how to run it alone.
 - [Teachers](teachers.md): the Anthropic and Ollama backends, the OpenRouter
@@ -76,6 +78,10 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [Scaling results](scaling-results.md): the parallel-head, batch, one-stage
   application and depth-routing measurements, with guidance on when fusing
   helps.
+- [Releasing](releasing.md): the five packages and their one shared version,
+  `scripts/version.mjs`, the tagged release workflow with its dry run and
+  smoke install, the local proof against a private registry, and what the
+  first publish needs.
 - [CONTRIBUTING](CONTRIBUTING.md): repository layout, the Node and Python
   toolchains, lint and tests for both halves, continuous integration with its
   measured wall times, and the Backlog workflow.

@@ -55,11 +55,11 @@ CHECK_IDS = (
     "teacher-probe",
 )
 MINIMUM_PYTHON = (3, 12)
-DISTRIBUTION = "semantscript-python"
+DISTRIBUTION = "semantscript-trainer"
 TRAINING_EXTRA_FIX = (
-    'install the training extra into this interpreter: pip install -e ".[training]" from the '
-    "SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from "
-    "https://pytorch.org/get-started/locally/ first)"
+    'install the training extra into this interpreter: pip install "semantscript-trainer[training]" '
+    '(in a SemantScript checkout: pip install -e ".[training]"; for a GPU, install the CUDA or '
+    "ROCm torch build from https://pytorch.org/get-started/locally/ first)"
 )
 PROBE_TIMEOUT_SECONDS = 60.0
 PROBE_PROMPT = "Reply with the single word ok."
@@ -276,10 +276,13 @@ def _python_check() -> Check:
 
 
 def _distribution_version() -> str:
+    from semantscript_trainer._version import __version__
+
     try:
-        return importlib.metadata.version(DISTRIBUTION)
+        installed = importlib.metadata.version(DISTRIBUTION)
     except importlib.metadata.PackageNotFoundError:
-        return "source checkout"
+        return f"{__version__} (source checkout)"
+    return installed if installed == __version__ else f"{__version__} (installed as {installed})"
 
 
 def _package_checks() -> list[Check]:
@@ -294,8 +297,8 @@ def _package_checks() -> list[Check]:
                 "trainer",
                 "fail",
                 f"{trainer_summary}; missing {', '.join(missing)}",
-                "pip install -e . from the SemantScript checkout (installs the teacher clients "
-                "anthropic and openai)",
+                "pip install semantscript-trainer (installs the teacher clients anthropic and "
+                "openai; in a SemantScript checkout: pip install -e .)",
             )
         )
     else:
@@ -308,8 +311,8 @@ def _package_checks() -> list[Check]:
                 "model",
                 "fail",
                 f"semantscript_model does not import: {type(error).__name__}: {error}",
-                "pip install -e . from the SemantScript checkout, or run the CLI from the "
-                "checkout so model/src is on PYTHONPATH",
+                "pip install semantscript-trainer (in a SemantScript checkout: pip install -e ., "
+                "or run the CLI from the checkout so model/src is on PYTHONPATH)",
             )
         )
     else:

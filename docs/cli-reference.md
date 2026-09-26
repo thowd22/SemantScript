@@ -241,7 +241,7 @@ Options handed to the trainer unchanged:
 | `--seed-retry-margin`                                             | factor   | How far past its gate a failure may be and still retry: the violation rate and the ECE each within this many times their gate (default 2, from 1 through 10). |
 | `--counterfactual-ratio`                                          | fraction | Share of synthetic cases that get a counterfactual twin (default 1).                                                                                          |
 | `--adapter-bottleneck-size`                                       | integer  | Width of the per-domain adapter.                                                                                                                              |
-| `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest.                                                                                                                                     |
+| `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest; `--compiler-version` defaults to the installed `@semantscript/compiler` version.                                                    |
 | `--no-cache`                                                      |          | Ignore the build cache and write nothing to it.                                                                                                               |
 | `--full`                                                          |          | Retrain every function jointly, discarding cached function records.                                                                                           |
 

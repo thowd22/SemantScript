@@ -285,7 +285,11 @@ def test_the_trainer_s_own_error_classes_map_to_their_fix(
 def test_a_failed_encoder_download_names_network_access_not_a_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from huggingface_hub.errors import LocalEntryNotFoundError
+    # The hub's class, without importing huggingface_hub (absent from the dev extra).
+    class LocalEntryNotFoundError(FileNotFoundError):
+        pass
+
+    LocalEntryNotFoundError.__module__ = "huggingface_hub.errors"
 
     monkeypatch.delenv(DOCTOR_COMMAND_VARIABLE, raising=False)
 

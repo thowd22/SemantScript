@@ -14,6 +14,7 @@ import {
   pythonPath,
   resolvePython,
 } from "./defaults.js";
+import { remedyText } from "./remedy.js";
 import {
   CliUsageError,
   listOf,
@@ -47,8 +48,6 @@ const PROBE_MODES = ["request", "free", "none"] as const;
 const NATIVE_PACKAGES = ["onnxruntime-node", "tokenizers"] as const;
 /** The oldest Python the trainer imports on (it uses PEP 695 `type` statements). */
 export const MINIMUM_PYTHON_VERSION = "3.12";
-const PYTHON_FIX =
-  "install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON";
 /** Checks whose fix is to install into, or pick, another interpreter. */
 const INTERPRETER_CHECK_IDS: readonly string[] = [
   "python",
@@ -215,7 +214,7 @@ export function withVirtualEnvironmentHint(
   python: string,
   venv: string,
 ): readonly DoctorCheck[] {
-  const hint = `if the packages are in ${venv} rather than ${python} (the default interpreter), pass --python ${venv} or set the SEMANTSCRIPT_PYTHON environment variable to ${venv}`;
+  const hint = remedyText("doctor-venv", { venv, python });
   return checks.map((check) =>
     check.status === "fail" && INTERPRETER_CHECK_IDS.includes(check.id)
       ? {
@@ -280,7 +279,7 @@ export function checkNode(
         id: "node",
         status: "fail",
         summary: `${summary} is older than ${MINIMUM_NODE_VERSION}`,
-        fix: `install Node ${MINIMUM_NODE_VERSION} or later (the repository's .nvmrc pins the tested release; nvm install)`,
+        fix: remedyText("doctor-node", { minimum: MINIMUM_NODE_VERSION }),
       };
 }
 
@@ -301,7 +300,7 @@ export async function checkRuntimeBindings(
       id: "runtime-bindings",
       status: "fail",
       summary: `@semantscript/core does not resolve: ${message(error)}`,
-      fix: "npm install in the project (the CLI loads the runtime from @semantscript/core)",
+      fix: remedyText("doctor-runtime-unresolved"),
     };
   }
   const require = createRequire(base);
@@ -316,7 +315,9 @@ export async function checkRuntimeBindings(
         id: "runtime-bindings",
         status: "fail",
         summary: `${name} does not load on ${platform}: ${firstLine(message(error))}`,
-        fix: `run npm install (or npm rebuild ${NATIVE_PACKAGES.join(" ")}) on this machine; the native binaries are per platform, so a node_modules copied from another OS or architecture does not load`,
+        fix: remedyText("doctor-runtime-native", {
+          packages: NATIVE_PACKAGES.join(" "),
+        }),
       };
     }
   }
@@ -353,7 +354,7 @@ export async function runPythonDoctor(
         id: "python",
         status: "fail",
         summary: `unable to run ${options.python}: ${outcome.error.message}`,
-        fix: PYTHON_FIX,
+        fix: remedyText("doctor-python"),
       },
       "the interpreter does not start",
     );
@@ -392,13 +393,13 @@ export async function runPythonDoctor(
             id: "python",
             status: "fail",
             summary: `Python ${found} (${options.python}) is older than ${MINIMUM_PYTHON_VERSION}, which the trainer needs`,
-            fix: PYTHON_FIX,
+            fix: remedyText("doctor-python"),
           }
       : {
           id: "python",
           status: "fail",
           summary: `${options.python} does not run a Python program: ${stderrTail}`,
-          fix: PYTHON_FIX,
+          fix: remedyText("doctor-python"),
         };
   const moduleRoot = options.trainerModule.split(".")[0] ?? "";
   const missingModule = new RegExp(
@@ -411,20 +412,23 @@ export async function runPythonDoctor(
         id: "trainer",
         status: "fail",
         summary: `${options.python} cannot import ${options.trainerModule}: ${stderrTail}`,
-        fix: `pip install -e ".[training]" from the SemantScript checkout into ${options.python}, or run the CLI from the checkout (it adds trainer/src and model/src to PYTHONPATH)`,
+        fix: remedyText("doctor-trainer-import", { python: options.python }),
       }
     : noDoctor
       ? {
           id: "trainer",
           status: "fail",
           summary: `${options.trainerModule} has no doctor command`,
-          fix: "update the SemantScript trainer to the release that matches this CLI, or pass --no-preflight to train without the checks",
+          fix: remedyText("doctor-trainer-outdated"),
         }
       : {
           id: "trainer",
           status: "fail",
           summary: `${options.python} -m ${options.trainerModule} doctor exited with status ${String(outcome.status)}: ${stderrTail}`,
-          fix: `run ${options.python} -m ${options.trainerModule} doctor to see the full error`,
+          fix: remedyText("doctor-trainer-error", {
+            python: options.python,
+            module: options.trainerModule,
+          }),
         };
   return withSkipped(
     pythonCheck,

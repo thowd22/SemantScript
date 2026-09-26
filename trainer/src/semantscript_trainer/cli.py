@@ -66,6 +66,7 @@ from semantscript_trainer.dataset import (
 )
 from semantscript_trainer.doctor import add_arguments as add_doctor_arguments
 from semantscript_trainer.doctor import run_from_arguments as run_doctor_from_arguments
+from semantscript_trainer.failures import FailureStage, failure_remedy, with_remedy
 from semantscript_trainer.lifecycle import (
     TrainingProvenanceCounts,
     VerifiedIrProvenance,
@@ -120,6 +121,10 @@ _TRAINING_KEY_KIND = "semantscript.training-key"
 
 class TrainBundleError(RuntimeError):
     """The bundle, the teacher or the configuration cannot produce an artifact."""
+
+
+class InvalidBundleError(TrainBundleError):
+    """The file passed as the bundle is not the compiler's IR bundle."""
 
 
 class TrainBundleFailure(TrainBundleError):
@@ -921,33 +926,33 @@ def _training_key_from_records(records: Sequence[CachedFunction]) -> str:
 
 def _bundle_functions(bundle: Mapping[str, Any]) -> list[NeuralFunctionIr]:
     if not isinstance(bundle, Mapping):
-        raise TrainBundleError("bundle must be a JSON object")
+        raise InvalidBundleError("bundle must be a JSON object")
     if bundle.get("kind") != BUNDLE_KIND or bundle.get("bundleVersion") != 1:
-        raise TrainBundleError(f"bundle must be a {BUNDLE_KIND} version 1 document")
+        raise InvalidBundleError(f"bundle must be a {BUNDLE_KIND} version 1 document")
     functions = bundle.get("functions")
     if not isinstance(functions, list) or not functions:
-        raise TrainBundleError("bundle must contain at least one neural function")
+        raise InvalidBundleError("bundle must contain at least one neural function")
     resolved: list[NeuralFunctionIr] = []
     seen: set[str] = set()
     for raw in functions:
         if not isinstance(raw, Mapping):
-            raise TrainBundleError("bundle functions must be objects")
+            raise InvalidBundleError("bundle functions must be objects")
         function_id = raw.get("id")
         if not isinstance(function_id, str) or function_id in seen:
-            raise TrainBundleError("bundle functions must have unique string ids")
+            raise InvalidBundleError("bundle functions must have unique string ids")
         seen.add(function_id)
         if raw.get("stage") != "source":
-            raise TrainBundleError(f"{function_id} is not a source-stage record")
+            raise InvalidBundleError(f"{function_id} is not a source-stage record")
         model = raw.get("model")
         if not isinstance(model, Mapping):
-            raise TrainBundleError(f"{function_id} has no model binding")
+            raise InvalidBundleError(f"{function_id} has no model binding")
         encoder_ref = model.get("encoder")
         adapter_ref = model.get("adapter")
         if not isinstance(encoder_ref, str) or not isinstance(adapter_ref, str):
-            raise TrainBundleError(f"{function_id} must bind encoder and adapter refs")
+            raise InvalidBundleError(f"{function_id} must bind encoder and adapter refs")
         definition = raw.get("definition")
         if not isinstance(definition, Mapping):
-            raise TrainBundleError(f"{function_id} has no definition")
+            raise InvalidBundleError(f"{function_id} has no definition")
         resolved.append(cast(NeuralFunctionIr, copy.deepcopy(dict(raw))))
     return resolved
 
@@ -1266,13 +1271,17 @@ def main(argv: list[str] | None = None) -> int:
     meter: SpendMeter | None = None
     journal: ResponseJournal | None = None
     model_config = None
+    stage: FailureStage = "run"
     try:
         if arguments.max_cost_usd is not None and not (
             arguments.max_cost_usd > 0 and arguments.max_cost_usd < float("inf")
         ):
             raise ValueError("--max-cost-usd must be a positive number")
+        stage = "bundle"
         bundle = json.loads(Path(arguments.bundle).read_text(encoding="utf-8"))
+        stage = "teacher-config"
         config = load_teacher_config(arguments.teacher)
+        stage = "run"
         model_config = language_model_config(config)
         price = None
         try:
@@ -1337,8 +1346,14 @@ def main(argv: list[str] | None = None) -> int:
         log(f"error: {error}")
         report = error.report
         code = 1
-    except (OSError, ValueError, RuntimeError, TypeError, BuildCacheError) as error:
-        log(f"error: {error}")
+    except (OSError, ValueError, RuntimeError, TypeError, ImportError, BuildCacheError) as error:
+        fix = failure_remedy(
+            error,
+            stage="bundle-shape" if isinstance(error, InvalidBundleError) else stage,
+            bundle=str(arguments.bundle),
+            teacher=str(arguments.teacher),
+        )
+        log(with_remedy(f"error: {error}", fix))
         code = 1
         if journal is not None and _rejected_teacher_answer(error):
             dropped = journal.discard_touched()
@@ -1386,9 +1401,14 @@ def _run_estimate(arguments: argparse.Namespace, log: Callable[[str], None]) -> 
 
     from semantscript_trainer.teacher_estimate import estimate_bundle
 
+    stage: FailureStage = "bundle"
     try:
         bundle = json.loads(Path(arguments.bundle).read_text(encoding="utf-8"))
+        stage = "bundle-shape"
         functions = _bundle_functions(bundle)
+        stage = "teacher-config"
+        config = load_teacher_config(arguments.teacher)
+        stage = "run"
         adversarial_config = (
             AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
             if arguments.counterfactual_ratio is not None
@@ -1396,14 +1416,17 @@ def _run_estimate(arguments: argparse.Namespace, log: Callable[[str], None]) -> 
         )
         estimate = estimate_bundle(
             functions,
-            load_teacher_config(arguments.teacher),
+            config,
             cache_directory=arguments.cache_dir,
             cases=arguments.cases,
             adversarial_config=adversarial_config,
             use_cache=not arguments.no_cache,
         )
-    except (OSError, ValueError, RuntimeError, TypeError) as error:
-        log(f"error: {error}")
+    except (OSError, ValueError, RuntimeError, TypeError, ImportError) as error:
+        fix = failure_remedy(
+            error, stage=stage, bundle=str(arguments.bundle), teacher=str(arguments.teacher)
+        )
+        log(with_remedy(f"error: {error}", fix))
         return 1
     if arguments.max_cost_usd is not None:
         estimate["maxCostUsd"] = arguments.max_cost_usd

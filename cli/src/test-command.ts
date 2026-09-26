@@ -60,14 +60,15 @@ export async function testCommand(
     examples.every((entry) => entry.present && entry.failures.length === 0);
   const ok = verified && replayed;
   const next: string[] = [];
+  if (!verified) next.push(remedyText("test-function-unverified"));
   if (examples?.some((entry) => !entry.present) === true) {
-    next.push(await remedyText("test-function-absent"));
+    next.push(remedyText("test-function-absent"));
   }
   if (
     examples?.some((entry) => entry.present && entry.failures.length > 0) ===
     true
   ) {
-    next.push(await remedyText("test-example-mismatch"));
+    next.push(remedyText("test-example-mismatch"));
   }
 
   if (values.json === true) {
@@ -131,7 +132,11 @@ export async function testCommand(
   return ok ? 0 : 1;
 }
 
-/** The artifact's summary; with no `current.json` at the root, the error names `semantscript train`. */
+/**
+ * The artifact's summary. With no `current.json` at the root the error names
+ * `semantscript train`; a pointer or release that does not read names
+ * `semantscript releases rollback`, as `run` does for the same artifact.
+ */
 async function readSummary(root: string): Promise<ArtifactSummary> {
   try {
     return await readArtifactSummary(root);
@@ -145,11 +150,14 @@ async function readSummary(root: string): Promise<ArtifactSummary> {
       error.path === join(root, "current.json")
     ) {
       throw new Error(
-        `no artifact at ${root} (current.json is missing); next: ${await remedyText("test-no-artifact", { root })}`,
+        `no artifact at ${root} (current.json is missing); next: ${remedyText("test-no-artifact", { root })}`,
         { cause: error },
       );
     }
-    throw error;
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; next: ${remedyText("test-artifact-unreadable")}`,
+      { cause: error },
+    );
   }
 }
 

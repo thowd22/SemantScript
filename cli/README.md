@@ -149,6 +149,18 @@ the command's. Every expression needs at least one gold example (verification
 checks the artifact against them); one with none stops the command before any
 generation, with the expression named.
 
+Every failure names the next command. Each verification failure in the report
+ends with a `next:` line derived from the failing cases (a constraint to add,
+an example to add, more `--cases` or `--epochs`, or the seed retry). A trainer
+that dies on an uncaught exception (a missing package, an interpreter too old,
+a crash) becomes one line, `semantscript train: the trainer stopped: <exception>;
+next: <fix>; full traceback in <artifact>.report.traceback.txt`, naming the
+`doctor` check to run with this run's `--python` and `--trainer-module`; a
+failure the trainer catches ends its `error:` line with `; next: <fix>`. A
+traceback the trainer goes on from is printed in place, and only a report this
+run wrote is rendered. The fix texts come from `diagnostics/remedies.json`
+(docs/diagnostics.md).
+
 Before the trainer starts, `train` runs the `doctor` Python and teacher checks
 as a preflight (about 5 seconds; no billed request) and exits 1 with the fix
 lines when any fails, instead of failing minutes into a run. `--no-preflight`
@@ -279,8 +291,11 @@ are not persisted, so this is the gate `train` already enforced; with
 `--bundle` the command also loads the artifact and replays every IR example
 through the runtime, comparing outputs by value (diagnostic functions by their
 `value`). Any function whose status is not `passed`, any bundle function absent
-from the artifact and any example mismatch make the command exit with status 1.
-`--json` prints the same as one document.
+from the artifact and any example mismatch make the command exit with status 1,
+each with a `next:` line naming the fix (retrain, rebuild then retrain, or
+`semantscript releases rollback`); an artifact whose pointer or release does not
+read fails the same way `run` does, naming `releases rollback`. `--json` prints
+the same as one document, with the `next:` lines as `next`.
 
 ## run
 

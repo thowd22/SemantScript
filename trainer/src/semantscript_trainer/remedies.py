@@ -37,7 +37,7 @@ def remedy(remedy_id: str, /, **params: object) -> str:
 
 
 def remedy_family(remedy_id: str, /) -> str:
-    """The family one remedy belongs to: verifier, trainer-process, runtime or cli."""
+    """The family one remedy belongs to: verifier, trainer-process, runtime, cli, doctor or editor."""
 
     entry = REMEDY_TEMPLATES.get(remedy_id)
     if entry is None:

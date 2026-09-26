@@ -89,13 +89,14 @@ REMEDY_TEMPLATES_JSON = r"""{
  },
  "python-missing": {
   "family": "trainer-process",
-  "fix": "run semantscript doctor and fix its python check: install Python 3.12 or later, or pass --python <exe> or set SEMANTSCRIPT_PYTHON",
+  "fix": "run semantscript doctor and fix its python check: install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON",
   "params": []
  },
  "module-missing": {
   "family": "trainer-process",
-  "fix": "run semantscript doctor and fix its {check} check: {python} cannot import {module}",
+  "fix": "run {doctor} and fix its {check} check: {python} cannot import {module}",
   "params": [
+   "doctor",
    "check",
    "python",
    "module"
@@ -103,15 +104,57 @@ REMEDY_TEMPLATES_JSON = r"""{
  },
  "python-too-old": {
   "family": "trainer-process",
-  "fix": "run semantscript doctor and fix its python check: {python} cannot parse the trainer, which needs Python 3.12 or later",
+  "fix": "run {doctor} and fix its python check: {python} cannot parse the trainer, which needs Python 3.12 or later",
   "params": [
+   "doctor",
    "python"
   ]
  },
  "trainer-crash": {
   "family": "trainer-process",
-  "fix": "run semantscript doctor to check the environment; if every check passes, rerun with --no-cache, and report a bug with the traceback if it fails again",
-  "params": []
+  "fix": "run {doctor} to check the environment; if every check passes, rerun with --no-cache, and report a bug with the traceback if it fails again",
+  "params": [
+   "doctor"
+  ]
+ },
+ "training-extra-missing": {
+  "family": "trainer-process",
+  "fix": "run {doctor} and fix its {check} check: {python} cannot import {module}",
+  "params": [
+   "doctor",
+   "check",
+   "python",
+   "module"
+  ]
+ },
+ "bundle-unreadable": {
+  "family": "trainer-process",
+  "fix": "run semantscript build to write the IR bundle, or pass --bundle the build's semantscript.ir.v1.json (now {bundle})",
+  "params": [
+   "bundle"
+  ]
+ },
+ "bundle-invalid": {
+  "family": "trainer-process",
+  "fix": "run semantscript build and pass its semantscript.ir.v1.json as --bundle (now {bundle}); never edit the bundle by hand",
+  "params": [
+   "bundle"
+  ]
+ },
+ "teacher-config-invalid": {
+  "family": "trainer-process",
+  "fix": "run {doctor} and fix its teacher-config check: {teacher} is not a valid teacher file (docs/teachers.md lists every key)",
+  "params": [
+   "doctor",
+   "teacher"
+  ]
+ },
+ "teacher-transport": {
+  "family": "trainer-process",
+  "fix": "run {doctor} --probe request to test the teacher, then rerun semantscript train: the datasets that finished stay cached",
+  "params": [
+   "doctor"
+  ]
  },
  "runtime-not-loaded": {
   "family": "runtime",
@@ -172,6 +215,16 @@ REMEDY_TEMPLATES_JSON = r"""{
   "fix": "run semantscript train on this bundle (semantscript build first if the source changed)",
   "params": []
  },
+ "test-function-unverified": {
+  "family": "cli",
+  "fix": "retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback",
+  "params": []
+ },
+ "test-artifact-unreadable": {
+  "family": "cli",
+  "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train",
+  "params": []
+ },
  "run-no-export": {
   "family": "cli",
   "fix": "pass --call one of the module's function exports: {exports}",
@@ -190,5 +243,214 @@ REMEDY_TEMPLATES_JSON = r"""{
   "params": [
    "config"
   ]
+ },
+ "doctor-node": {
+  "family": "doctor",
+  "fix": "install Node {minimum} or later (the repository's .nvmrc pins the tested release; nvm install)",
+  "params": [
+   "minimum"
+  ]
+ },
+ "doctor-runtime-unresolved": {
+  "family": "doctor",
+  "fix": "npm install in the project (the CLI loads the runtime from @semantscript/core)",
+  "params": []
+ },
+ "doctor-runtime-native": {
+  "family": "doctor",
+  "fix": "run npm install (or npm rebuild {packages}) on this machine; the native binaries are per platform, so a node_modules copied from another OS or architecture does not load",
+  "params": [
+   "packages"
+  ]
+ },
+ "doctor-python": {
+  "family": "doctor",
+  "fix": "install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON",
+  "params": []
+ },
+ "doctor-trainer-import": {
+  "family": "doctor",
+  "fix": "pip install -e \".[training]\" from the SemantScript checkout into {python}, or run the CLI from the checkout (it adds trainer/src and model/src to PYTHONPATH)",
+  "params": [
+   "python"
+  ]
+ },
+ "doctor-trainer-outdated": {
+  "family": "doctor",
+  "fix": "update the SemantScript trainer to the release that matches this CLI, or pass --no-preflight to train without the checks",
+  "params": []
+ },
+ "doctor-trainer-error": {
+  "family": "doctor",
+  "fix": "run {python} -m {module} doctor to see the full error",
+  "params": [
+   "python",
+   "module"
+  ]
+ },
+ "doctor-trainer-clients": {
+  "family": "doctor",
+  "fix": "pip install -e . from the SemantScript checkout (installs the teacher clients anthropic and openai)",
+  "params": []
+ },
+ "doctor-model": {
+  "family": "doctor",
+  "fix": "pip install -e . from the SemantScript checkout, or run the CLI from the checkout so model/src is on PYTHONPATH",
+  "params": []
+ },
+ "doctor-training-extra": {
+  "family": "doctor",
+  "fix": "install the training extra into this interpreter: pip install -e \".[training]\" from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first)",
+  "params": []
+ },
+ "doctor-reinstall": {
+  "family": "doctor",
+  "fix": "reinstall {name} into this interpreter (pip install --force-reinstall {name})",
+  "params": [
+   "name"
+  ]
+ },
+ "doctor-platform-env-import": {
+  "family": "doctor",
+  "fix": "{command} (see platform-env)",
+  "params": [
+   "command"
+  ]
+ },
+ "doctor-platform-env": {
+  "family": "doctor",
+  "fix": "{command}; {persist}",
+  "params": [
+   "command",
+   "persist"
+  ]
+ },
+ "doctor-device-invalid": {
+  "family": "doctor",
+  "fix": "pass --device auto, cpu or cuda (ROCm GPUs are cuda to PyTorch)",
+  "params": []
+ },
+ "doctor-device-query": {
+  "family": "doctor",
+  "fix": "check the GPU driver (nvidia-smi or rocminfo), or pass --device cpu",
+  "params": []
+ },
+ "doctor-device-missing": {
+  "family": "doctor",
+  "fix": "install the torch build for this GPU (https://pytorch.org/get-started/locally/), or drop --device cuda to train on the CPU",
+  "params": []
+ },
+ "doctor-device-mps": {
+  "family": "doctor",
+  "fix": "expect slower runs; lower --cases or --epochs for a first try",
+  "params": []
+ },
+ "doctor-device-cpu": {
+  "family": "doctor",
+  "fix": "if this machine has an NVIDIA or AMD GPU, install the matching torch build (https://pytorch.org/get-started/locally/); otherwise lower --cases or --epochs",
+  "params": []
+ },
+ "doctor-teacher-file-missing": {
+  "family": "doctor",
+  "fix": "write a [teacher] TOML there (docs/teachers.md), pass --teacher <file>, or pass --teacher constraints (lower case) to label with the expressions' own constraints",
+  "params": []
+ },
+ "doctor-teacher-file-invalid": {
+  "family": "doctor",
+  "fix": "fix the [teacher] table (docs/teachers.md lists every key)",
+  "params": []
+ },
+ "doctor-teacher-none": {
+  "family": "doctor",
+  "fix": "write a [teacher] TOML (docs/teachers.md; Ollama needs no key), set ANTHROPIC_API_KEY to use the default Anthropic teacher, or pass --teacher constraints when the constraints decide every input",
+  "params": []
+ },
+ "doctor-teacher-key-openrouter": {
+  "family": "doctor",
+  "fix": "{command} for this shell (base_url points at OpenRouter, which accepts its own key on the Anthropic route)",
+  "params": [
+   "command"
+  ]
+ },
+ "doctor-teacher-key": {
+  "family": "doctor",
+  "fix": "{command} (an OpenRouter key when base_url is OpenRouter), or switch to the ollama backend (docs/teachers.md)",
+  "params": [
+   "command"
+  ]
+ },
+ "doctor-teacher-pull": {
+  "family": "doctor",
+  "fix": "ollama pull {model}",
+  "params": [
+   "model"
+  ]
+ },
+ "doctor-teacher-refused": {
+  "family": "doctor",
+  "fix": "the key was refused: check ANTHROPIC_API_KEY (an OpenRouter key when base_url is OpenRouter)",
+  "params": []
+ },
+ "doctor-teacher-model-name": {
+  "family": "doctor",
+  "fix": "check the model name {model} in the teacher file",
+  "params": [
+   "model"
+  ]
+ },
+ "doctor-teacher-ollama-down": {
+  "family": "doctor",
+  "fix": "start the server (ollama serve) or fix base_url in the teacher file",
+  "params": []
+ },
+ "doctor-teacher-network": {
+  "family": "doctor",
+  "fix": "check the network and base_url in the teacher file",
+  "params": []
+ },
+ "doctor-teacher-other": {
+  "family": "doctor",
+  "fix": "see docs/teachers.md",
+  "params": []
+ },
+ "doctor-venv": {
+  "family": "doctor",
+  "fix": "if the packages are in {venv} rather than {python} (the default interpreter), pass --python {venv} or set the SEMANTSCRIPT_PYTHON environment variable to {venv}",
+  "params": [
+   "venv",
+   "python"
+  ]
+ },
+ "editor-no-artifact": {
+  "family": "editor",
+  "fix": "run semantscript train (or semantscript dev) to publish an artifact at {root}",
+  "params": [
+   "root"
+  ]
+ },
+ "editor-unreadable": {
+  "family": "editor",
+  "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train",
+  "params": []
+ },
+ "editor-not-in-artifact": {
+  "family": "editor",
+  "fix": "run semantscript train; the build cache retrains only the expressions that changed",
+  "params": []
+ },
+ "editor-no-examples": {
+  "family": "editor",
+  "fix": "add a few examples: [{ inputs, output }] entries to this sema call, the first thing to try",
+  "params": []
+ },
+ "editor-accuracy": {
+  "family": "editor",
+  "fix": "add examples for the cases it misses, or a constraint for the rule it breaks, then retrain (the train report's next: lines name them)",
+  "params": []
+ },
+ "editor-ece": {
+  "family": "editor",
+  "fix": "train with more cases (--cases), or set a confidence threshold with a fallback so low-confidence answers are caught",
+  "params": []
  }
 }"""

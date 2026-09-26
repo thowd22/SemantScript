@@ -119,7 +119,7 @@ export async function compileProject(
         ? formatDiagnostics(configDiagnostics, io.cwd)
         : `unable to read ${configPath}\n`,
     );
-    io.stderr(`next: ${await remedyText("build-no-tsconfig")}\n`);
+    io.stderr(`next: ${remedyText("build-no-tsconfig")}\n`);
     return failed();
   }
   if (parsed.errors.length > 0) {
@@ -130,7 +130,7 @@ export async function compileProject(
   const outDir = parsed.options.outDir;
   if (outDir === undefined) {
     io.stderr(
-      `${configPath} must set compilerOptions.outDir; next: ${await remedyText("build-no-outdir", { config: configPath })}\n`,
+      `${configPath} must set compilerOptions.outDir; next: ${remedyText("build-no-outdir", { config: configPath })}\n`,
     );
     return failed(sourceFiles);
   }

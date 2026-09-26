@@ -186,26 +186,30 @@ this cost: it needs a teacher and preferably a GPU, and is measured in the
 ## Generated remedies
 
 The fix a tool prints for a failure (the `next:` line under a failed
-verification gate, the one line `train` prints for a trainer or interpreter
-failure, the `next:` clause of a runtime, `test`, `run` or `build` error) is an
-entry in `diagnostics/remedies.json`: an id, a family, the failure and cause
-as the catalogue shows them, and the fix as a template whose `{name}`
-placeholders the tool fills from the evidence. After changing it, run
+verification gate, the line `train` prints for a trainer or interpreter
+failure, the `fix:` line under a failed `doctor` check, the `next:` clause of
+an editor warning or of a runtime, `test`, `run` or `build` error) is an entry
+in `diagnostics/remedies.json`: an id, a family, the failure and cause as the
+catalogue shows them, and the fix as a template whose `{name}` placeholders
+the tool fills from the evidence. After changing it, run
 
 ```sh
 node scripts/generate-remedies.mjs
 ```
 
 which rewrites `runtime/src/remedies.generated.ts` (read through `remedy()`
-from `@semantscript/core`, by the runtime and the CLI),
-`trainer/src/semantscript_trainer/remedies_generated.py` (read through
-`semantscript_trainer.remedies.remedy`) and the tables between the
-`<!-- remedies:<family>:begin -->` and `end` markers in
-[`docs/diagnostics.md`](diagnostics.md), already padded the way Prettier pads
-them. Never edit those three by hand: `node scripts/generate-remedies.mjs
---check` fails on any stale output, and `runtime/test/remedies.test.mjs` (the
-Node job) and `trainer/tests/test_remedies.py` (the Python jobs) run the
-check, so CI fails when they drift.
+from `@semantscript/core` by the runtime),
+`compiler/src/remedies.generated.ts` (the same module, read through `remedy()`
+from `@semantscript/compiler` by the editor plugin and the CLI, `doctor`
+included), `trainer/src/semantscript_trainer/remedies_generated.py` (read
+through `semantscript_trainer.remedies.remedy` by the trainer and its doctor)
+and the tables between the `<!-- remedies:<family>:begin -->` and `end`
+markers in [`docs/diagnostics.md`](diagnostics.md), already padded the way
+Prettier pads them. Never edit those four by hand: `node
+scripts/generate-remedies.mjs --check` fails on any stale output, and
+`runtime/test/remedies.test.mjs` (the Node job) and
+`trainer/tests/test_remedies.py` (the Python jobs) run the check, so CI fails
+when they drift.
 
 ## Work tracking
 

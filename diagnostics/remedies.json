@@ -5,7 +5,9 @@
     "verifier": "Verification gate failures: the train report's next: line under each failure",
     "trainer-process": "Trainer and interpreter failures: the one line semantscript train prints instead of a traceback",
     "runtime": "Runtime errors for a missing, stale or unloadable artifact: the next: clause of the error message and its remedy field",
-    "cli": "semantscript test, run and build failures: the next: clause of the message"
+    "cli": "semantscript test, run and build failures: the next: clause of the message",
+    "doctor": "semantscript doctor and the train preflight: the fix: line under each failed or warning check",
+    "editor": "Editor warnings from the language-service plugin: the next: clause of the warning"
   },
   "remedies": [
     {
@@ -83,28 +85,63 @@
       "family": "trainer-process",
       "failure": "`unable to run <python>: spawn <python> ENOENT`",
       "cause": "The interpreter the CLI starts does not exist.",
-      "fix": "run semantscript doctor and fix its python check: install Python 3.12 or later, or pass --python <exe> or set SEMANTSCRIPT_PYTHON"
+      "fix": "run semantscript doctor and fix its python check: install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON"
     },
     {
       "id": "module-missing",
       "family": "trainer-process",
       "failure": "`semantscript train: the trainer stopped: ModuleNotFoundError: No module named '<module>'`",
       "cause": "The interpreter lacks a package the trainer imports; the check is trainer, model, torch or onnxruntime depending on the module.",
-      "fix": "run semantscript doctor and fix its {check} check: {python} cannot import {module}"
+      "fix": "run {doctor} and fix its {check} check: {python} cannot import {module}"
     },
     {
       "id": "python-too-old",
       "family": "trainer-process",
       "failure": "`semantscript train: the trainer stopped: SyntaxError: …`",
-      "cause": "The interpreter is older than the trainer's syntax (Python 3.12).",
-      "fix": "run semantscript doctor and fix its python check: {python} cannot parse the trainer, which needs Python 3.12 or later"
+      "cause": "The interpreter is older than the trainer's syntax (Python 3.12); on 3.12 or later a SyntaxError is a trainer-crash.",
+      "fix": "run {doctor} and fix its python check: {python} cannot parse the trainer, which needs Python 3.12 or later"
     },
     {
       "id": "trainer-crash",
       "family": "trainer-process",
       "failure": "`semantscript train: the trainer stopped: <Exception>: <message>`",
       "cause": "Any other uncaught exception in the trainer.",
-      "fix": "run semantscript doctor to check the environment; if every check passes, rerun with --no-cache, and report a bug with the traceback if it fails again"
+      "fix": "run {doctor} to check the environment; if every check passes, rerun with --no-cache, and report a bug with the traceback if it fails again"
+    },
+    {
+      "id": "training-extra-missing",
+      "family": "trainer-process",
+      "failure": "`error: fine-tuning requires PyTorch; install the project training extra` and the other `… training extra` errors the trainer catches",
+      "cause": "A training package (PyTorch, Transformers, tokenizers, safetensors, ONNX) does not import in the trainer's interpreter.",
+      "fix": "run {doctor} and fix its {check} check: {python} cannot import {module}"
+    },
+    {
+      "id": "bundle-unreadable",
+      "family": "trainer-process",
+      "failure": "`error: [Errno 2] No such file or directory: '<bundle>'` or a bundle that is not JSON",
+      "cause": "No IR bundle at `--bundle`: `build` has not run, or the path points elsewhere.",
+      "fix": "run semantscript build to write the IR bundle, or pass --bundle the build's semantscript.ir.v1.json (now {bundle})"
+    },
+    {
+      "id": "bundle-invalid",
+      "family": "trainer-process",
+      "failure": "`error: bundle must be a semantscript.ir-bundle version 1 document` and the other bundle shape errors",
+      "cause": "The file at `--bundle` is not the compiler's IR bundle, or was edited.",
+      "fix": "run semantscript build and pass its semantscript.ir.v1.json as --bundle (now {bundle}); never edit the bundle by hand"
+    },
+    {
+      "id": "teacher-config-invalid",
+      "family": "trainer-process",
+      "failure": "`error: teacher config file must contain only a [teacher] table` and the other teacher-file errors",
+      "cause": "The teacher TOML is missing, malformed or has an unknown key.",
+      "fix": "run {doctor} and fix its teacher-config check: {teacher} is not a valid teacher file (docs/teachers.md lists every key)"
+    },
+    {
+      "id": "teacher-transport",
+      "family": "trainer-process",
+      "failure": "`error: <teacher transport error>` after the teacher stopped answering",
+      "cause": "The teacher's server was unreachable, refused the key or timed out.",
+      "fix": "run {doctor} --probe request to test the teacher, then rerun semantscript train: the datasets that finished stay cached"
     },
     {
       "id": "runtime-not-loaded",
@@ -184,6 +221,20 @@
       "fix": "run semantscript train on this bundle (semantscript build first if the source changed)"
     },
     {
+      "id": "test-function-unverified",
+      "family": "cli",
+      "failure": "`semantscript test`: a function whose verification status is not `passed`",
+      "cause": "The release carries a function that did not pass its verification gates.",
+      "fix": "retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback"
+    },
+    {
+      "id": "test-artifact-unreadable",
+      "family": "cli",
+      "failure": "`semantscript test`: `current.json.release must be a string`, a missing manifest or another unreadable release",
+      "cause": "The pointer or the release it names is malformed or missing.",
+      "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train"
+    },
+    {
       "id": "run-no-export",
       "family": "cli",
       "failure": "`semantscript run --call`: `<module> has no function export named <name>`",
@@ -203,6 +254,258 @@
       "failure": "`semantscript build`: `<tsconfig.json> must set compilerOptions.outDir`",
       "cause": "The build writes the compiled calls and the IR bundle under `outDir`.",
       "fix": "set compilerOptions.outDir in {config} (for example dist)"
+    },
+    {
+      "id": "doctor-node",
+      "family": "doctor",
+      "failure": "`node`: the running Node is older than the workspace's floor",
+      "cause": "The CLI runs on an older Node release.",
+      "fix": "install Node {minimum} or later (the repository's .nvmrc pins the tested release; nvm install)"
+    },
+    {
+      "id": "doctor-runtime-unresolved",
+      "family": "doctor",
+      "failure": "`runtime-bindings`: `@semantscript/core does not resolve`",
+      "cause": "The runtime package is not installed next to the CLI.",
+      "fix": "npm install in the project (the CLI loads the runtime from @semantscript/core)"
+    },
+    {
+      "id": "doctor-runtime-native",
+      "family": "doctor",
+      "failure": "`runtime-bindings`: `<package> does not load on <platform>`",
+      "cause": "The native ONNX Runtime or tokenizers binary is missing or built for another platform.",
+      "fix": "run npm install (or npm rebuild {packages}) on this machine; the native binaries are per platform, so a node_modules copied from another OS or architecture does not load"
+    },
+    {
+      "id": "doctor-python",
+      "family": "doctor",
+      "failure": "`python`: the interpreter does not run, or is older than 3.12",
+      "cause": "`python3` (`python` on Windows, or `--python`, `SEMANTSCRIPT_PYTHON`) is not on the path or is older than 3.12.",
+      "fix": "install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON"
+    },
+    {
+      "id": "doctor-trainer-import",
+      "family": "doctor",
+      "failure": "`trainer`: `<python> cannot import semantscript_trainer`",
+      "cause": "The CLI runs outside the checkout without the package installed.",
+      "fix": "pip install -e \".[training]\" from the SemantScript checkout into {python}, or run the CLI from the checkout (it adds trainer/src and model/src to PYTHONPATH)"
+    },
+    {
+      "id": "doctor-trainer-outdated",
+      "family": "doctor",
+      "failure": "`trainer`: `<module> has no doctor command`",
+      "cause": "The installed trainer predates this CLI.",
+      "fix": "update the SemantScript trainer to the release that matches this CLI, or pass --no-preflight to train without the checks"
+    },
+    {
+      "id": "doctor-trainer-error",
+      "family": "doctor",
+      "failure": "`trainer`: `<python> -m <module> doctor exited with status <n>`",
+      "cause": "The trainer's doctor itself failed.",
+      "fix": "run {python} -m {module} doctor to see the full error"
+    },
+    {
+      "id": "doctor-trainer-clients",
+      "family": "doctor",
+      "failure": "`trainer`: `missing anthropic, openai`",
+      "cause": "The teacher client packages are not installed.",
+      "fix": "pip install -e . from the SemantScript checkout (installs the teacher clients anthropic and openai)"
+    },
+    {
+      "id": "doctor-model",
+      "family": "doctor",
+      "failure": "`model`: `semantscript_model does not import`",
+      "cause": "The model package is not on the interpreter's path.",
+      "fix": "pip install -e . from the SemantScript checkout, or run the CLI from the checkout so model/src is on PYTHONPATH"
+    },
+    {
+      "id": "doctor-training-extra",
+      "family": "doctor",
+      "failure": "`torch` or `onnxruntime`: a package of the training extra is missing",
+      "cause": "The training extra is not installed into this interpreter.",
+      "fix": "install the training extra into this interpreter: pip install -e \".[training]\" from the SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first)"
+    },
+    {
+      "id": "doctor-reinstall",
+      "family": "doctor",
+      "failure": "`torch` or `onnxruntime`: a package is installed but fails to import",
+      "cause": "A broken or partial install, often packages in the user site (`numpy.long`); with `platform-env` failing too, the variable fixes it.",
+      "fix": "reinstall {name} into this interpreter (pip install --force-reinstall {name})"
+    },
+    {
+      "id": "doctor-platform-env-import",
+      "family": "doctor",
+      "failure": "`torch`, `device` or `onnxruntime` while `platform-env` fails",
+      "cause": "The import or the GPU works once the variable `platform-env` names is set.",
+      "fix": "{command} (see platform-env)"
+    },
+    {
+      "id": "doctor-platform-env",
+      "family": "doctor",
+      "failure": "`platform-env`: `<NAME>=1 needed: <why>`",
+      "cause": "An environment variable the imports or the GPU need is not set; doctor proved it by retrying with it.",
+      "fix": "{command}; {persist}"
+    },
+    {
+      "id": "doctor-device-invalid",
+      "family": "doctor",
+      "failure": "`device`: `--device <name> is not a trainer device`",
+      "cause": "An unknown `--device`.",
+      "fix": "pass --device auto, cpu or cuda (ROCm GPUs are cuda to PyTorch)"
+    },
+    {
+      "id": "doctor-device-query",
+      "family": "doctor",
+      "failure": "`device`: `querying it failed`",
+      "cause": "PyTorch sees a GPU but cannot query it.",
+      "fix": "check the GPU driver (nvidia-smi or rocminfo), or pass --device cpu"
+    },
+    {
+      "id": "doctor-device-missing",
+      "family": "doctor",
+      "failure": "`device`: `--device cuda requested but torch sees no CUDA or ROCm device`",
+      "cause": "A CPU-only torch build, or no GPU driver.",
+      "fix": "install the torch build for this GPU (https://pytorch.org/get-started/locally/), or drop --device cuda to train on the CPU"
+    },
+    {
+      "id": "doctor-device-mps",
+      "family": "doctor",
+      "failure": "`device` (warning): Apple MPS is available but unused",
+      "cause": "The trainer does not use MPS yet.",
+      "fix": "expect slower runs; lower --cases or --epochs for a first try"
+    },
+    {
+      "id": "doctor-device-cpu",
+      "family": "doctor",
+      "failure": "`device` (warning): no CUDA or ROCm device",
+      "cause": "Training runs on the CPU.",
+      "fix": "if this machine has an NVIDIA or AMD GPU, install the matching torch build (https://pytorch.org/get-started/locally/); otherwise lower --cases or --epochs"
+    },
+    {
+      "id": "doctor-teacher-file-missing",
+      "family": "doctor",
+      "failure": "`teacher-config`: `<file> does not exist`",
+      "cause": "`--teacher` names a file that does not exist.",
+      "fix": "write a [teacher] TOML there (docs/teachers.md), pass --teacher <file>, or pass --teacher constraints (lower case) to label with the expressions' own constraints"
+    },
+    {
+      "id": "doctor-teacher-file-invalid",
+      "family": "doctor",
+      "failure": "`teacher-config`: `<file> is not a valid teacher file`",
+      "cause": "An invalid `[teacher]` table.",
+      "fix": "fix the [teacher] table (docs/teachers.md lists every key)"
+    },
+    {
+      "id": "doctor-teacher-none",
+      "family": "doctor",
+      "failure": "`teacher-config`: no teacher file and `ANTHROPIC_API_KEY` is not set",
+      "cause": "No teacher is configured.",
+      "fix": "write a [teacher] TOML (docs/teachers.md; Ollama needs no key), set ANTHROPIC_API_KEY to use the default Anthropic teacher, or pass --teacher constraints when the constraints decide every input"
+    },
+    {
+      "id": "doctor-teacher-key-openrouter",
+      "family": "doctor",
+      "failure": "`teacher-key`: `ANTHROPIC_API_KEY is not set; OPENROUTER_API_KEY is`",
+      "cause": "The anthropic backend reads only `ANTHROPIC_API_KEY`, and `base_url` points at OpenRouter.",
+      "fix": "{command} for this shell (base_url points at OpenRouter, which accepts its own key on the Anthropic route)"
+    },
+    {
+      "id": "doctor-teacher-key",
+      "family": "doctor",
+      "failure": "`teacher-key`: `ANTHROPIC_API_KEY is not set`",
+      "cause": "An Anthropic teacher or `[teacher.fallback]` without a key (Ollama and the constraints teacher need none).",
+      "fix": "{command} (an OpenRouter key when base_url is OpenRouter), or switch to the ollama backend (docs/teachers.md)"
+    },
+    {
+      "id": "doctor-teacher-pull",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the Ollama server has no model `<model>`, or the backend answers 404",
+      "cause": "The model is not pulled into Ollama.",
+      "fix": "ollama pull {model}"
+    },
+    {
+      "id": "doctor-teacher-refused",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the probe got 401 or 403",
+      "cause": "The key was refused.",
+      "fix": "the key was refused: check ANTHROPIC_API_KEY (an OpenRouter key when base_url is OpenRouter)"
+    },
+    {
+      "id": "doctor-teacher-model-name",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the Anthropic model is not found",
+      "cause": "The model name in the teacher file does not exist.",
+      "fix": "check the model name {model} in the teacher file"
+    },
+    {
+      "id": "doctor-teacher-ollama-down",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the Ollama server does not answer",
+      "cause": "The Ollama server is down, or `base_url` is wrong.",
+      "fix": "start the server (ollama serve) or fix base_url in the teacher file"
+    },
+    {
+      "id": "doctor-teacher-network",
+      "family": "doctor",
+      "failure": "`teacher-probe`: a connection error or a timeout",
+      "cause": "The network or `base_url` is wrong.",
+      "fix": "check the network and base_url in the teacher file"
+    },
+    {
+      "id": "doctor-teacher-other",
+      "family": "doctor",
+      "failure": "`teacher-probe`: any other probe failure",
+      "cause": "The teacher refused the request for another reason.",
+      "fix": "see docs/teachers.md"
+    },
+    {
+      "id": "doctor-venv",
+      "family": "doctor",
+      "failure": "An interpreter-level check fails and a `.venv` interpreter exists",
+      "cause": "The packages are in the project's `.venv`, which the default interpreter is not.",
+      "fix": "if the packages are in {venv} rather than {python} (the default interpreter), pass --python {venv} or set the SEMANTSCRIPT_PYTHON environment variable to {venv}"
+    },
+    {
+      "id": "editor-no-artifact",
+      "family": "editor",
+      "failure": "`9150`: `sema expression is unverified: no trained artifact at <root>`",
+      "cause": "No trained artifact under `.semantscript/artifact` (or the `artifact` option).",
+      "fix": "run semantscript train (or semantscript dev) to publish an artifact at {root}"
+    },
+    {
+      "id": "editor-unreadable",
+      "family": "editor",
+      "failure": "`9150`: `the artifact at <root> cannot be read`",
+      "cause": "The pointer or manifest is malformed.",
+      "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train"
+    },
+    {
+      "id": "editor-not-in-artifact",
+      "family": "editor",
+      "failure": "`9151`: `not in the latest artifact`",
+      "cause": "The expression changed since training, so its id is not in the artifact.",
+      "fix": "run semantscript train; the build cache retrains only the expressions that changed"
+    },
+    {
+      "id": "editor-no-examples",
+      "family": "editor",
+      "failure": "`9150`, `9151` or `9152` on an expression without examples",
+      "cause": "The expression has no gold examples, which verification and training both need.",
+      "fix": "add a few examples: [{ inputs, output }] entries to this sema call, the first thing to try"
+    },
+    {
+      "id": "editor-accuracy",
+      "family": "editor",
+      "failure": "`9152`: `verified accuracy <a> is below <t>`",
+      "cause": "Verified accuracy below `accuracyThreshold` (default 0.95).",
+      "fix": "add examples for the cases it misses, or a constraint for the rule it breaks, then retrain (the train report's next: lines name them)"
+    },
+    {
+      "id": "editor-ece",
+      "family": "editor",
+      "failure": "`9153`: `expected calibration error <e> is above <t>`",
+      "cause": "Verified ECE above `eceThreshold` (default 0.1).",
+      "fix": "train with more cases (--cases), or set a confidence threshold with a fallback so low-confidence answers are caught"
     }
   ]
 }

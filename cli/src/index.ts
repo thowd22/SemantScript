@@ -109,6 +109,7 @@ export {
   renderEstimate,
   renderTrainReport,
   TrainerStderr,
+  trainerDoctorCommand,
   type TrainerFailure,
 } from "./train.js";
 export {

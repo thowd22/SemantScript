@@ -10,8 +10,11 @@ fails in seconds instead of minutes into a run. The
 When the trainer itself stops on a missing package or an interpreter problem
 (with `--no-preflight`, or a failure the preflight cannot see), `train` prints
 one line naming the check to fix instead of the Python traceback, for example
-`semantscript train: the trainer stopped: ModuleNotFoundError: No module named 'torch'; next: run semantscript doctor and fix its torch check: …`
-([diagnostics](diagnostics.md#trainer-and-interpreter-failures)).
+`semantscript train: the trainer stopped: ModuleNotFoundError: No module named 'torch'; next: run semantscript doctor and fix its torch check: …`;
+a missing package the trainer catches itself ends its `error:` line with the
+same `next:` clause ([diagnostics](diagnostics.md#trainer-and-interpreter-failures)).
+Every `fix:` line `doctor` prints is listed in the
+[diagnostics catalogue](diagnostics.md#trainer-and-verifier-failures).
 
 ```sh
 npx semantscript doctor                 # every check, one teacher request

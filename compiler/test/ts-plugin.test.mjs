@@ -78,7 +78,7 @@ test("the language-service plugin shows artifact numbers on hover and inline gui
   );
   assert.match(
     String(untrained[0].messageText),
-    /no trained artifact at .*\.semantscript\/artifact\. Run semantscript train\. This expression has no examples/u,
+    /no trained artifact at .*\.semantscript\/artifact; next: run semantscript train \(or semantscript dev\) to publish an artifact at .*; next: add a few examples/u,
   );
   assert.doesNotMatch(String(untrained[1].messageText), /no examples/u);
   assert.equal(untrained[0].category, ts.DiagnosticCategory.Warning);
@@ -106,11 +106,15 @@ test("the language-service plugin shows artifact numbers on hover and inline gui
   );
   assert.match(
     String(trained[0].messageText),
-    /verified accuracy 0\.910 is below 0\.950\. This expression has no examples/u,
+    /verified accuracy 0\.910 is below 0\.950; next: add a few examples/u,
   );
   assert.match(
     String(trained[1].messageText),
     /not in the latest artifact \(releases\/sha256-/u,
+  );
+  assert.match(
+    String(trained[1].messageText),
+    /; next: run semantscript train; the build cache retrains only the expressions that changed/u,
   );
 
   const position = source.indexOf('sema<"urgent"');

@@ -207,7 +207,16 @@ report (`<artifact>.report.traceback.txt` by default):
 semantscript train: the trainer stopped: ModuleNotFoundError: No module named 'torch'; next: run semantscript doctor and fix its torch check: python3 cannot import torch; full traceback in /srv/app/.semantscript/artifact.report.traceback.txt
 ```
 
-An interpreter that does not exist gives
+The printed `doctor` command carries this run's `--python` and
+`--trainer-module` when they were passed. A traceback the trainer goes on from
+(a logged warning, Python's shutdown noise) is printed in place, and only one
+that ends the run without a report becomes the line. A failure the trainer
+catches itself ends its `error:` line with `; next: <fix>` when the fix lies
+outside the trainer: a training package that does not import (its doctor
+check), a missing or malformed bundle (`semantscript build`), a broken teacher
+file (the `teacher-config` check) or an unreachable teacher. `train` renders
+only a report this run wrote, never one an earlier run left at the path. An
+interpreter that does not exist gives
 `unable to run <python>: … ENOENT; next: run semantscript doctor and fix its python check: …`.
 `--estimate` wraps its failures the same way.
 
@@ -370,9 +379,13 @@ built before the manifest recorded seeds.
 Exit 1 when any function's status is not `passed`, any bundle function is
 absent from the artifact, or any example mismatches. An absent function and a
 mismatch each add a `next:` line (retrain on this bundle; rebuild, retrain
-and rerun), which `--json` lists as `next`. With nothing published at the
-artifact root the command exits 1 with
-`no artifact at <root> (current.json is missing); next: run semantscript train …`.
+and rerun), and so does a function that did not pass (retrain, or roll back),
+which `--json` lists as `next`. With nothing published at the artifact root
+the command exits 1 with
+`no artifact at <root> (current.json is missing); next: run semantscript train …`;
+a pointer or release that does not read ends with
+`next: switch to an intact release with semantscript releases rollback, …`,
+the same fix `run` prints for that artifact.
 
 ## `run`
 

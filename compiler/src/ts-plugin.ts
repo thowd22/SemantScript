@@ -19,6 +19,7 @@ import {
   type PlanSemaCompilationResult,
   type PlannedSemaSite,
 } from "./compile.js";
+import { remedy } from "./remedies.generated.js";
 import { findMalformedSemaSites, findSemaSites } from "./sema-sites.js";
 
 export interface SemaPluginConfig {
@@ -197,25 +198,25 @@ export class SemaEditorState {
   ): { readonly code: number; readonly text: string } | undefined {
     const guidance =
       site.record.definition.examples.length === 0
-        ? " This expression has no examples; adding a few is the first thing to try."
+        ? `; next: ${remedy("editor-no-examples")}`
         : "";
     if (artifact.kind === "missing") {
       return {
         code: PLUGIN_DIAGNOSTICS.noArtifact,
-        text: `sema expression is unverified: no trained artifact at ${artifact.root}. Run semantscript train.${guidance}`,
+        text: `sema expression is unverified: no trained artifact at ${artifact.root}; next: ${remedy("editor-no-artifact", { root: artifact.root })}${guidance}`,
       };
     }
     if (artifact.kind === "unreadable") {
       return {
         code: PLUGIN_DIAGNOSTICS.noArtifact,
-        text: `sema expression is unverified: the artifact at ${artifact.root} cannot be read (${artifact.reason}).`,
+        text: `sema expression is unverified: the artifact at ${artifact.root} cannot be read (${artifact.reason}); next: ${remedy("editor-unreadable")}`,
       };
     }
     const record = artifact.snapshot.functions.get(site.functionId);
     if (record === undefined) {
       return {
         code: PLUGIN_DIAGNOSTICS.notInArtifact,
-        text: `sema expression is unverified: not in the latest artifact (${artifact.snapshot.release}). It changed since training or was never trained; run semantscript train.${guidance}`,
+        text: `sema expression is unverified: not in the latest artifact (${artifact.snapshot.release}); it changed since training or was never trained; next: ${remedy("editor-not-in-artifact")}${guidance}`,
       };
     }
     const accuracyThreshold =
@@ -224,13 +225,13 @@ export class SemaEditorState {
     if (record.accuracy < accuracyThreshold) {
       return {
         code: PLUGIN_DIAGNOSTICS.accuracyBelowThreshold,
-        text: `verified accuracy ${formatRatio(record.accuracy)} is below ${formatRatio(accuracyThreshold)}.${guidance || " Add examples for the cases it misses, or a constraint for the rule it breaks, then retrain."}`,
+        text: `verified accuracy ${formatRatio(record.accuracy)} is below ${formatRatio(accuracyThreshold)}${guidance || `; next: ${remedy("editor-accuracy")}`}`,
       };
     }
     if (record.ece > eceThreshold) {
       return {
         code: PLUGIN_DIAGNOSTICS.eceAboveThreshold,
-        text: `expected calibration error ${formatRatio(record.ece)} is above ${formatRatio(eceThreshold)}; its confidence is not trustworthy. More training cases or a confidence threshold with a fallback help.`,
+        text: `expected calibration error ${formatRatio(record.ece)} is above ${formatRatio(eceThreshold)}, so its confidence is not trustworthy; next: ${remedy("editor-ece")}`,
       };
     }
     return undefined;

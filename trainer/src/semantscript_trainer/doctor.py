@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+from semantscript_trainer.remedies import remedy
 from semantscript_trainer.teacher import TeacherConfigurationError
 from semantscript_trainer.teacher_config import (
     ConstraintsTeacherConfig,
@@ -56,11 +57,7 @@ CHECK_IDS = (
 )
 MINIMUM_PYTHON = (3, 12)
 DISTRIBUTION = "semantscript-python"
-TRAINING_EXTRA_FIX = (
-    'install the training extra into this interpreter: pip install -e ".[training]" from the '
-    "SemantScript checkout (for a GPU, install the CUDA or ROCm torch build from "
-    "https://pytorch.org/get-started/locally/ first)"
-)
+TRAINING_EXTRA_FIX = remedy("doctor-training-extra")
 PROBE_TIMEOUT_SECONDS = 60.0
 PROBE_PROMPT = "Reply with the single word ok."
 PROBE_MAX_TOKENS = 8
@@ -269,8 +266,7 @@ def _python_check() -> Check:
             "python",
             "fail",
             summary,
-            "SemantScript's trainer needs Python 3.12 or later: pass --python <exe> or set "
-            "SEMANTSCRIPT_PYTHON to a 3.12+ interpreter",
+            remedy("doctor-python"),
         )
     return Check("python", "pass", summary)
 
@@ -294,8 +290,7 @@ def _package_checks() -> list[Check]:
                 "trainer",
                 "fail",
                 f"{trainer_summary}; missing {', '.join(missing)}",
-                "pip install -e . from the SemantScript checkout (installs the teacher clients "
-                "anthropic and openai)",
+                remedy("doctor-trainer-clients"),
             )
         )
     else:
@@ -308,8 +303,7 @@ def _package_checks() -> list[Check]:
                 "model",
                 "fail",
                 f"semantscript_model does not import: {type(error).__name__}: {error}",
-                "pip install -e . from the SemantScript checkout, or run the CLI from the "
-                "checkout so model/src is on PYTHONPATH",
+                remedy("doctor-model"),
             )
         )
     else:
@@ -417,7 +411,11 @@ def _heavy_checks(
                 "platform-env",
                 "fail",
                 "; ".join(f"{name}=1 needed: {why}" for name, why in needed.items()),
-                f"{env_fix}; {_persist_advice(needed, 'add')}",
+                remedy(
+                    "doctor-platform-env",
+                    command=env_fix,
+                    persist=_persist_advice(needed, "add"),
+                ),
             )
         )
     else:
@@ -453,6 +451,11 @@ def _export_fix(needed: Mapping[str, str]) -> str | None:
     return "export " + " ".join(f"{name}=1" for name in needed)
 
 
+def _env_import_fix(env_fix: str | None) -> str | None:
+    """The export line for a check that passes once ``platform-env``'s variable is set."""
+    return None if env_fix is None else remedy("doctor-platform-env-import", command=env_fix)
+
+
 def _persist_advice(names: Mapping[str, str], verb: str) -> str:
     """How to keep the variables set for later terminals, train and dev."""
     if _on_windows():
@@ -475,11 +478,11 @@ def _failed_import(
 ) -> Check:
     error = entry.get("error", "failed")
     if env_fix is not None:
-        fix = f"{env_fix} (see platform-env)"  # the import works once the variable is set
+        fix = _env_import_fix(env_fix)  # the import works once the variable is set
     elif entry.get("missing"):
         fix = TRAINING_EXTRA_FIX
     else:
-        fix = f"reinstall {name} into this interpreter (pip install --force-reinstall {name})"
+        fix = remedy("doctor-reinstall", name=name)
     return Check(identifier, "fail", f"{name} does not import: {error}", fix)
 
 
@@ -517,7 +520,7 @@ def _device_check(base: Mapping[str, Any], device: DeviceRequest, env_fix: str |
             "device",
             "fail",
             f"--device {device} is not a trainer device",
-            "pass --device auto, cpu or cuda (ROCm GPUs are cuda to PyTorch)",
+            remedy("doctor-device-invalid"),
         )
     if not torch_entry.get("ok"):
         return Check("device", "skip", "torch does not import, so no device was checked")
@@ -536,8 +539,7 @@ def _device_check(base: Mapping[str, Any], device: DeviceRequest, env_fix: str |
             "fail",
             f"torch reports a CUDA or ROCm device but querying it failed: "
             f"{torch_entry['deviceError']}",
-            (env_fix and f"{env_fix} (see platform-env)")
-            or "check the GPU driver (nvidia-smi or rocminfo), or pass --device cpu",
+            _env_import_fix(env_fix) or remedy("doctor-device-query"),
         )
     memory = _system_memory()
     ram = f"{_gib(memory)} RAM" if memory is not None else "RAM unknown"
@@ -546,9 +548,7 @@ def _device_check(base: Mapping[str, Any], device: DeviceRequest, env_fix: str |
             "device",
             "fail",
             f"--device cuda requested but torch sees no CUDA or ROCm device ({ram})",
-            (env_fix and f"{env_fix} (see platform-env)")
-            or "install the torch build for this GPU (https://pytorch.org/get-started/locally/), "
-            "or drop --device cuda to train on the CPU",
+            _env_import_fix(env_fix) or remedy("doctor-device-missing"),
         )
     if device == "cpu":
         return Check("device", "pass", f"trains on the CPU (--device cpu, {ram})")
@@ -557,15 +557,13 @@ def _device_check(base: Mapping[str, Any], device: DeviceRequest, env_fix: str |
             "device",
             "warn",
             f"Apple MPS is available but the trainer does not use it yet: trains on the CPU ({ram})",
-            "expect slower runs; lower --cases or --epochs for a first try",
+            remedy("doctor-device-mps"),
         )
     return Check(
         "device",
         "warn",
         f"no CUDA or ROCm device: trains on the CPU ({ram}), expect a slow run",
-        (env_fix and f"{env_fix} (see platform-env)")
-        or "if this machine has an NVIDIA or AMD GPU, install the matching torch build "
-        "(https://pytorch.org/get-started/locally/); otherwise lower --cases or --epochs",
+        _env_import_fix(env_fix) or remedy("doctor-device-cpu"),
     )
 
 
@@ -579,7 +577,7 @@ def _onnxruntime_check(base: Mapping[str, Any], env_fix: str | None) -> Check:
             "onnxruntime",
             "fail",
             f"onnxruntime {entry['version']} imports but onnx does not: {entry.get('onnxError')}",
-            (env_fix and f"{env_fix} (see platform-env)") or TRAINING_EXTRA_FIX,
+            _env_import_fix(env_fix) or TRAINING_EXTRA_FIX,
         )
     return Check(
         "onnxruntime",
@@ -654,9 +652,7 @@ def _teacher_checks(
                     "teacher-config",
                     "fail",
                     f"{teacher_path} does not exist",
-                    "write a [teacher] TOML there (docs/teachers.md), pass --teacher <file>, "
-                    "or pass --teacher constraints (lower case) to label with the "
-                    "expressions' own constraints",
+                    remedy("doctor-teacher-file-missing"),
                 ),
                 *skipped,
             ]
@@ -666,7 +662,7 @@ def _teacher_checks(
                     "teacher-config",
                     "fail",
                     f"{teacher_path} is not a valid teacher file: {error}",
-                    "fix the [teacher] table (docs/teachers.md lists every key)",
+                    remedy("doctor-teacher-file-invalid"),
                 ),
                 *skipped,
             ]
@@ -687,9 +683,7 @@ def _teacher_checks(
                 "fail",
                 "no semantscript.teacher.toml, teacher.toml or .semantscript/teacher.toml, "
                 "and ANTHROPIC_API_KEY is not set",
-                "write a [teacher] TOML (docs/teachers.md; Ollama needs no key), set "
-                "ANTHROPIC_API_KEY to use the default Anthropic teacher, or pass --teacher "
-                "constraints when the constraints decide every input",
+                remedy("doctor-teacher-none"),
             ),
             *skipped,
         ]
@@ -811,15 +805,13 @@ def _key_check(config: TeacherConfig, env: Mapping[str, str]) -> Check:
             "fail",
             "ANTHROPIC_API_KEY is not set; OPENROUTER_API_KEY is, but the anthropic backend "
             "reads only ANTHROPIC_API_KEY",
-            f"{_copy_openrouter_key()} for this shell (base_url points at OpenRouter, which "
-            "accepts its own key on the Anthropic route)",
+            remedy("doctor-teacher-key-openrouter", command=_copy_openrouter_key()),
         )
     return Check(
         "teacher-key",
         "fail",
         "ANTHROPIC_API_KEY is not set",
-        f"{_set_key('<key>')} (an OpenRouter key when base_url is OpenRouter), or "
-        "switch to the ollama backend (docs/teachers.md)",
+        remedy("doctor-teacher-key", command=_set_key("<key>")),
     )
 
 
@@ -889,7 +881,7 @@ def probe_teacher(
                 return ProbeResult(
                     False,
                     f"the Ollama server answered in {elapsed:.1f} s but has no model {config.model}",
-                    f"ollama pull {config.model}",
+                    remedy("doctor-teacher-pull", model=config.model),
                     latency_seconds=elapsed,
                 )
             return ProbeResult(
@@ -919,7 +911,7 @@ def probe_teacher(
             input_tokens = getattr(usage, "input_tokens", None)
             output_tokens = getattr(usage, "output_tokens", None)
     except TeacherConfigurationError as error:
-        return ProbeResult(False, _scrub(str(error), config), "see docs/teachers.md")
+        return ProbeResult(False, _scrub(str(error), config), remedy("doctor-teacher-other"))
     except Exception as error:
         elapsed = clock() - started
         what = (
@@ -966,16 +958,16 @@ def _probe_fix(config: TeacherConfig, error: Exception) -> str:
     status = getattr(error, "status_code", None)
     name = type(error).__name__
     if status in (401, 403) or "Authentication" in name or "PermissionDenied" in name:
-        return "the key was refused: check ANTHROPIC_API_KEY (an OpenRouter key when base_url is OpenRouter)"
+        return remedy("doctor-teacher-refused")
     if status == 404 or "NotFound" in name:
         if config.backend == "ollama":
-            return f"ollama pull {config.model}"
-        return f"check the model name {config.model!r} in the teacher file"
+            return remedy("doctor-teacher-pull", model=config.model)
+        return remedy("doctor-teacher-model-name", model=repr(config.model))
     if "Connection" in name or "Timeout" in name:
         if config.backend == "ollama":
-            return "start the server (ollama serve) or fix base_url in the teacher file"
-        return "check the network and base_url in the teacher file"
-    return "see docs/teachers.md"
+            return remedy("doctor-teacher-ollama-down")
+        return remedy("doctor-teacher-network")
+    return remedy("doctor-teacher-other")
 
 
 # --- command line -------------------------------------------------------------

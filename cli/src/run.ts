@@ -57,7 +57,7 @@ export async function runCommand(
         .filter((name) => typeof namespace[name] === "function")
         .sort();
       io.stderr(
-        `${modulePath} has no function export named ${values.call}; next: ${await remedyText(
+        `${modulePath} has no function export named ${values.call}; next: ${remedyText(
           "run-no-export",
           {
             exports:

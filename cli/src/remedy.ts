@@ -1,16 +1,14 @@
-import type { RemedyId } from "@semantscript/core";
+import { remedy, type RemedyId } from "@semantscript/compiler";
 
 /**
  * The fix text for one failure, from `diagnostics/remedies.json` through the
- * runtime's generated table. Loaded on demand, like the rest of
- * `@semantscript/core`, so a CLI whose runtime package is broken still starts
- * (and `semantscript doctor` can say so).
+ * compiler's generated table (a pure module, so the CLI prints it even when
+ * the runtime's native bindings do not load).
  */
-export async function remedyText(
+export function remedyText(
   id: RemedyId,
   params: Readonly<Record<string, string | number>> = {},
-): Promise<string> {
-  const { remedy } = await import("@semantscript/core");
+): string {
   return (
     remedy as (
       id: RemedyId,

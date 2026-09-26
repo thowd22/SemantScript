@@ -23,7 +23,9 @@ failed attempts and a stop reason. A failed report's failure ends with a
 line and then fail the way a broken environment does: ``module:<name>`` raises
 ``ModuleNotFoundError`` for that module, ``syntax`` a ``SyntaxError``, ``crash``
 a ``RuntimeError``, all as uncaught tracebacks, and ``launch`` prints the
-interpreter's own ``No module named`` line and exits 1.
+interpreter's own ``No module named`` line and exits 1. ``FAKE_TRAINER_NOISE``
+prints a traceback a library logged and went on from before the report, and
+Python's ``Exception ignored in`` shutdown traceback after it.
 """
 
 from __future__ import annotations
@@ -314,9 +316,27 @@ def main(argv: list[str]) -> int:
             else "nf_" + "3" * 64 + ": violation rate 2.0305% (8 of 394) is outside the "
             "retry margin 2 x 0.01 = 2.0000%",
         }
+    noisy = bool(os.environ.get("FAKE_TRAINER_NOISE"))
+    if noisy:
+        # A library logging a handled exception with its traceback, then going on.
+        print(
+            'Traceback (most recent call last):\n  File "lib.py", line 3, in load\n'
+            "ValueError: optional backend unavailable\nprogress: continuing",
+            file=sys.stderr,
+            flush=True,
+        )
     report_path = Path(values["report"])
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if noisy:
+        # Python's shutdown noise: a traceback after the report, as the process ends.
+        print(
+            "Exception ignored in: <function Handle.__del__ at 0x1>\n"
+            'Traceback (most recent call last):\n  File "h.py", line 9, in __del__\n'
+            "OSError: handle closed",
+            file=sys.stderr,
+            flush=True,
+        )
     return exit_code
 
 

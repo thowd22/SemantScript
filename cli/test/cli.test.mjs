@@ -30,6 +30,7 @@ import {
   renderTrainReport,
   runCli,
   TrainerStderr,
+  trainerDoctorCommand,
   USAGE,
 } from "../dist/index.js";
 
@@ -372,7 +373,30 @@ test("test reports shipped verification and replays bundle examples through the 
   });
   const refused = capture(root);
   assert.equal(await runCli(["test", "--artifact", unverified], refused.io), 1);
-  assert.match(refused.stdout(), /failed/u);
+  assert.match(
+    refused.stdout(),
+    /\nnext: retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback\ntest failed\n$/u,
+  );
+
+  // A pointer or release that does not read names the same fix run prints.
+  const corrupt = join(root, "corrupt");
+  await createFixtureArtifact(corrupt);
+  await writeFile(join(corrupt, "current.json"), '{"x":1}\n');
+  const broken = capture(root);
+  assert.equal(await runCli(["test", "--artifact", corrupt], broken.io), 1);
+  assert.match(
+    broken.stderr(),
+    /; next: switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train\n$/u,
+  );
+  const dangling = join(root, "dangling");
+  await createFixtureArtifact(dangling);
+  await rm(join(dangling, "releases"), { recursive: true, force: true });
+  const gone = capture(root);
+  assert.equal(await runCli(["test", "--artifact", dangling], gone.io), 1);
+  assert.match(
+    gone.stderr(),
+    /ENOENT[^\n]*; next: switch to an intact release/u,
+  );
 });
 
 test("run loads the artifact, imports the module and calls an export with JSON input", async (t) => {
@@ -583,6 +607,42 @@ test("train spawns the Python driver with resolved paths and renders its report"
   );
   assert.match(failed.stdout(), /train failed\n$/u);
 
+  // A report the trainer did not rewrite is an earlier run's: never rendered.
+  const stale = capture(root, {
+    ...env,
+    FAKE_TRAINER_SKIP_REPORT: "1",
+    FAKE_TRAINER_EXIT: "1",
+  });
+  assert.equal(await runCli(args, stale.io), 1);
+  assert.equal(stale.stdout(), "", "the earlier run's report is not rendered");
+  const staleZero = capture(root, { ...env, FAKE_TRAINER_SKIP_REPORT: "1" });
+  assert.equal(await runCli(args, staleZero.io), 1);
+  assert.match(staleZero.stderr(), /wrote no report/u);
+  assert.equal(staleZero.stdout(), "");
+
+  // A traceback the trainer went on from is forwarded, not treated as fatal.
+  for (const exit of ["0", "3"]) {
+    const noisy = capture(root, {
+      ...env,
+      FAKE_TRAINER_NOISE: "1",
+      FAKE_TRAINER_EXIT: exit,
+    });
+    assert.equal(await runCli(args, noisy.io), Number(exit), exit);
+    assert.match(
+      noisy.stderr(),
+      /Traceback \(most recent call last\):\n {2}File "lib\.py", line 3, in load\nValueError: optional backend unavailable\nprogress: continuing\n/u,
+    );
+    assert.match(
+      noisy.stderr(),
+      /Exception ignored in: <function Handle\.__del__ at 0x1>\nTraceback \(most recent call last\):\n {2}File "h\.py", line 9, in __del__\nOSError: handle closed\n/u,
+    );
+    assert.doesNotMatch(noisy.stderr(), /the trainer stopped/u);
+    assert.match(
+      noisy.stdout(),
+      exit === "0" ? /train passed\n$/u : /next: rerun with --epochs 5/u,
+    );
+  }
+
   const silent = capture(root, { ...env, FAKE_TRAINER_SKIP_REPORT: "1" });
   await rm(join(root, "out"), { recursive: true, force: true });
   assert.equal(await runCli(args, silent.io), 1);
@@ -637,31 +697,33 @@ test("train wraps a trainer traceback into one line with the doctor check to run
     "--no-preflight",
   ];
   const traceback = join(root, "out", "artifact.report.traceback.txt");
+  const doctor = `semantscript doctor --python ${python} --trainer-module fake_trainer`;
   const cases = [
     [
       "module:torch",
       "ModuleNotFoundError: No module named 'torch'",
-      `run semantscript doctor and fix its torch check: ${python} cannot import torch`,
+      `run ${doctor} and fix its torch check: ${python} cannot import torch`,
     ],
     [
       "module:semantscript_model.heads",
       "ModuleNotFoundError: No module named 'semantscript_model.heads'",
-      `run semantscript doctor and fix its model check: ${python} cannot import semantscript_model.heads`,
+      `run ${doctor} and fix its model check: ${python} cannot import semantscript_model.heads`,
     ],
     [
       "module:onnx",
       "ModuleNotFoundError: No module named 'onnx'",
-      `run semantscript doctor and fix its onnxruntime check: ${python} cannot import onnx`,
+      `run ${doctor} and fix its onnxruntime check: ${python} cannot import onnx`,
     ],
     [
+      // This interpreter is 3.12 or later, so the trainer's own file is broken.
       "syntax",
       "SyntaxError: invalid syntax",
-      `run semantscript doctor and fix its python check: ${python} cannot parse the trainer`,
+      `run ${doctor} to check the environment; if every check passes, rerun with --no-cache`,
     ],
     [
       "crash",
       "RuntimeError: the fake trainer crashed",
-      "run semantscript doctor to check the environment; if every check passes, rerun with --no-cache",
+      `run ${doctor} to check the environment; if every check passes, rerun with --no-cache`,
     ],
   ];
   for (const [mode, exception, fix] of cases) {
@@ -697,7 +759,7 @@ test("train wraps a trainer traceback into one line with the doctor check to run
   assert.match(
     launch.stderr(),
     new RegExp(
-      `the trainer stopped: ModuleNotFoundError: No module named 'semantscript_trainer\\.cli'; next: run semantscript doctor and fix its trainer check: ${python} cannot import semantscript_trainer\\.cli`,
+      `the trainer stopped: ModuleNotFoundError: No module named 'semantscript_trainer\\.cli'; next: run semantscript doctor --python ${python} --trainer-module fake_trainer and fix its trainer check: ${python} cannot import semantscript_trainer\\.cli`,
       "u",
     ),
   );
@@ -711,7 +773,7 @@ test("train wraps a trainer traceback into one line with the doctor check to run
   assert.doesNotMatch(estimate.stderr(), /Traceback/u);
   assert.match(
     estimate.stderr(),
-    /the trainer stopped: ModuleNotFoundError: No module named 'onnxruntime'; next: run semantscript doctor and fix its onnxruntime check/u,
+    /the trainer stopped: ModuleNotFoundError: No module named 'onnxruntime'; next: run semantscript doctor --python \S+ --trainer-module fake_trainer and fix its onnxruntime check/u,
   );
 });
 
@@ -744,6 +806,60 @@ test("the trainer's stderr is forwarded line by line until a traceback starts", 
       "Traceback (most recent call last):\nModuleNotFoundError: No module named 'transformers.models'\n",
     ).check,
     "torch",
+  );
+});
+
+test("the trainer's stderr filter releases a traceback the trainer went on from", () => {
+  const forwarded = [];
+  const filter = new TrainerStderr((text) => forwarded.push(text));
+  // A progress bar redraws with carriage returns: each redraw goes out at once.
+  filter.push("Loading weights:   0%|\rLoading weights: 100%|");
+  assert.deepEqual(forwarded, ["Loading weights:   0%|\r"]);
+  filter.push("\r\n");
+  assert.deepEqual(forwarded.slice(1), ["Loading weights: 100%|\r\n"]);
+  forwarded.length = 0;
+  filter.push(
+    'Traceback (most recent call last):\n  File "a.py", line 1\nValueError: first\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File "b.py", line 2\nKeyError: second\n',
+  );
+  assert.deepEqual(forwarded, [], "a traceback is held");
+  filter.push("progress: step 2\n");
+  assert.equal(forwarded.length, 10, "an ordinary line releases it in place");
+  assert.equal(forwarded.at(-1), "progress: step 2\n");
+  assert.equal(filter.traceback, undefined);
+  // Released and no handled error followed: at a nonzero exit it still names the fix.
+  assert.match(filter.fatalTraceback(), /KeyError: second\n$/u);
+  filter.push(
+    "error: bundle must be an object; next: run semantscript build\n",
+  );
+  assert.equal(
+    filter.fatalTraceback(),
+    undefined,
+    "a handled error line after it is the failure",
+  );
+  assert.equal(
+    forwarded.at(-1),
+    "error: bundle must be an object; next: run semantscript build\n",
+  );
+  // The trainer's own error line naming a missing module is not a launch failure.
+  filter.push("error: tokenizers: No module named 'tokenizers'; next: x\n");
+  assert.equal(filter.traceback, undefined);
+  filter.push("/usr/bin/python3: No module named semantscript_trainer.cli\n");
+  assert.match(filter.traceback, /No module named semantscript_trainer\.cli/u);
+  filter.release();
+  assert.equal(
+    forwarded.at(-1),
+    "/usr/bin/python3: No module named semantscript_trainer.cli\n",
+  );
+});
+
+test("the doctor command carries the interpreter and module train used", () => {
+  assert.equal(
+    trainerDoctorCommand({}, "semantscript_trainer.cli"),
+    "semantscript doctor",
+  );
+  assert.equal(
+    trainerDoctorCommand({ python: "/opt/py 3/bin/python" }, "my_trainer.cli"),
+    'semantscript doctor --python "/opt/py 3/bin/python" --trainer-module my_trainer.cli',
   );
 });
 

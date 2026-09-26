@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { parseArgs } from "node:util";
@@ -132,6 +132,12 @@ export async function runTrain(
     }
   }
   const estimate = values["estimate"] === true;
+  const doctor = trainerDoctorCommand(values, trainerModule);
+  // The trainer names this command in the fixes it prints itself.
+  const trainerIo: CliIo = {
+    ...io,
+    env: { ...io.env, SEMANTSCRIPT_DOCTOR_COMMAND: doctor },
+  };
   if (
     !estimate &&
     values["no-preflight"] !== true &&
@@ -177,9 +183,9 @@ export async function runTrain(
   }
   if (estimate) {
     commandArgs.push("--estimate");
-    const outcome = await capture(python, commandArgs, io);
+    const outcome = await capture(python, commandArgs, trainerIo);
     if (outcome.error !== undefined) {
-      io.stderr(await unableToRun(python, outcome.error));
+      io.stderr(unableToRun(python, outcome.error));
       return 1;
     }
     if (outcome.status !== 0) {
@@ -188,13 +194,15 @@ export async function runTrain(
       });
       filter.push(outcome.stderr);
       filter.end();
-      if (filter.traceback !== undefined) {
+      const traceback = filter.fatalTraceback();
+      if (traceback !== undefined) {
         io.stderr(
-          await trainerFailureLine(
-            filter.traceback,
+          await trainerFailureLine(traceback, {
             python,
-            tracebackPath(report),
-          ),
+            doctor,
+            path: tracebackPath(report),
+            io,
+          }),
         );
       }
       return outcome.status;
@@ -214,27 +222,43 @@ export async function runTrain(
   }
 
   io.stderr(`semantscript train: ${python} ${commandArgs.join(" ")}\n`);
-  const outcome = await runProcess(python, commandArgs, io);
+  const before = await fileStamp(report);
+  const filter = new TrainerStderr((text) => {
+    io.stderr(text);
+  });
+  const outcome = await runProcess(python, commandArgs, trainerIo, filter);
   if (outcome.error !== undefined) {
-    io.stderr(await unableToRun(python, outcome.error));
+    io.stderr(unableToRun(python, outcome.error));
     return 1;
   }
   const status = outcome.status;
-  if (
-    status !== 0 &&
-    outcome.traceback !== undefined &&
-    io.signal?.aborted !== true
-  ) {
-    // The trainer died on an uncaught exception, so it wrote no report (a
-    // report at the path is from an earlier run): one line names the fix.
-    io.stderr(
-      await trainerFailureLine(
-        outcome.traceback,
-        python,
-        tracebackPath(report),
-      ),
-    );
+  // A report the trainer did not rewrite is an earlier run's: never render it.
+  const after = await fileStamp(report);
+  const fresh = after !== undefined && after !== before;
+  if (status !== 0 && !fresh && io.signal?.aborted !== true) {
+    // The trainer stopped before writing a report. A handled failure already
+    // printed its `error: …; next: …` line; an uncaught exception becomes one
+    // line that names the fix, with the traceback kept in a file.
+    const traceback = filter.fatalTraceback();
+    if (traceback !== undefined) {
+      io.stderr(
+        await trainerFailureLine(traceback, {
+          python,
+          doctor,
+          path: tracebackPath(report),
+          io,
+        }),
+      );
+    }
     return status;
+  }
+  filter.release();
+  if (!fresh) {
+    if (status === 0)
+      io.stderr(
+        `the trainer exited successfully but wrote no report at ${report}\n`,
+      );
+    return status === 0 ? 1 : status;
   }
   let document: unknown;
   try {
@@ -242,7 +266,7 @@ export async function runTrain(
   } catch {
     if (status === 0)
       io.stderr(
-        `the trainer exited successfully but wrote no report at ${report}\n`,
+        `the trainer exited successfully but wrote an unreadable report at ${report}\n`,
       );
     return status === 0 ? 1 : status;
   }
@@ -251,19 +275,15 @@ export async function runTrain(
 }
 
 /**
- * Runs the trainer with its stderr forwarded line by line as it arrives, so
- * progress shows per expression. A Python traceback (or the interpreter's own
- * `No module named` line) is held back and returned instead of printed.
+ * Runs the trainer with its stderr forwarded through `filter` as it arrives,
+ * so progress shows per expression.
  */
 function runProcess(
   command: string,
   args: readonly string[],
   io: CliIo,
-): Promise<{
-  readonly status: number;
-  readonly error?: Error;
-  readonly traceback?: string;
-}> {
+  filter: TrainerStderr,
+): Promise<{ readonly status: number; readonly error?: Error }> {
   return new Promise((resolvePromise) => {
     const child = spawn(command, args, {
       cwd: io.cwd,
@@ -273,9 +293,6 @@ function runProcess(
         PYTHONIOENCODING: "utf-8",
       },
       stdio: ["ignore", "ignore", "pipe"],
-    });
-    const filter = new TrainerStderr((text) => {
-      io.stderr(text);
     });
     const decoder = new StringDecoder("utf8");
     child.stderr.on("data", (chunk: Buffer) => {
@@ -293,12 +310,7 @@ function runProcess(
       io.signal?.removeEventListener("abort", abort);
       filter.push(decoder.end());
       filter.end();
-      resolvePromise({
-        status: code ?? 1,
-        ...(filter.traceback === undefined
-          ? {}
-          : { traceback: filter.traceback }),
-      });
+      resolvePromise({ status: code ?? 1 });
     });
   });
 }
@@ -306,33 +318,65 @@ function runProcess(
 const TRACEBACK_START = "Traceback (most recent call last):";
 /** `python3: No module named semantscript_trainer.cli` and `Error while finding module specification for ...`. */
 const MODULE_LAUNCH_FAILURE =
-  /(?:^|: )No module named |^Error while finding module specification for /u;
+  /^(?!(?:error|warning|note):).+?: (?:No module named |Error while finding module specification for )|^Error while finding module specification for /u;
+/** The lines that join two tracebacks of one chained exception. */
+const CHAINED_EXCEPTION =
+  /^(?:During handling of the above exception|The above exception was the direct cause)/u;
 
 /**
- * Splits the trainer's stderr into lines: every line before a traceback is
- * forwarded as soon as it is complete; the traceback, from its first line to
- * the end, is kept in `traceback` instead.
+ * Splits the trainer's stderr into lines (a carriage return ends one too, so
+ * progress bars redraw) and forwards each as soon as it is complete, except a
+ * Python traceback. A traceback is held back until the process shows whether it
+ * was fatal: when an ordinary line follows it, the trainer went on (a logged
+ * warning), so it is released in place; at exit, `fatalTraceback()` hands the
+ * caller a traceback that ended the run, and `release()` prints one that did not.
  */
 export class TrainerStderr {
   #pending = "";
-  #traceback: string[] | undefined;
+  /** The traceback being held, from its first line. */
+  #held: string[] | undefined;
+  /** Whether the held traceback's exception line has arrived. */
+  #complete = false;
+  /** The last traceback released in place, while no `error:` line followed it. */
+  #released: string | undefined;
   readonly #forward: (text: string) => void;
 
   constructor(forward: (text: string) => void) {
     this.#forward = forward;
   }
 
+  /** The traceback held at the end of the output, if any. */
   get traceback(): string | undefined {
-    return this.#traceback?.join("");
+    return this.#held?.join("");
+  }
+
+  /**
+   * The traceback that ended the run, for a process that exited nonzero
+   * without a report: the held one, or one already released in place that no
+   * handled `error:` line followed. The held text is not forwarded.
+   */
+  fatalTraceback(): string | undefined {
+    const held = this.traceback;
+    this.#held = undefined;
+    return held ?? this.#released;
+  }
+
+  /** Forward a held traceback: the run finished without dying on it. */
+  release(): void {
+    if (this.#held === undefined) return;
+    const held = this.#held;
+    this.#held = undefined;
+    this.#released = held.join("");
+    for (const line of held) this.#forward(line);
   }
 
   push(text: string): void {
     this.#pending += text;
-    let newline = this.#pending.indexOf("\n");
-    while (newline >= 0) {
-      this.#line(this.#pending.slice(0, newline + 1));
-      this.#pending = this.#pending.slice(newline + 1);
-      newline = this.#pending.indexOf("\n");
+    let end = this.#lineEnd();
+    while (end >= 0) {
+      this.#line(this.#pending.slice(0, end + 1));
+      this.#pending = this.#pending.slice(end + 1);
+      end = this.#lineEnd();
     }
   }
 
@@ -341,17 +385,50 @@ export class TrainerStderr {
     this.#pending = "";
   }
 
+  #lineEnd(): number {
+    const newline = this.#pending.indexOf("\n");
+    const carriage = this.#pending.indexOf("\r");
+    if (carriage < 0) return newline;
+    // Keep `\r\n` together; a lone `\r` (a progress bar redraw) ends a line.
+    if (carriage === this.#pending.length - 1) return newline;
+    if (this.#pending[carriage + 1] === "\n") {
+      return newline >= 0 && newline < carriage ? newline : carriage + 1;
+    }
+    return newline >= 0 && newline < carriage ? newline : carriage;
+  }
+
   #line(line: string): void {
-    if (this.#traceback !== undefined) {
-      this.#traceback.push(line);
-      return;
-    }
     const text = line.trimEnd();
+    if (this.#held !== undefined) {
+      if (this.#continues(text)) {
+        this.#held.push(line);
+        return;
+      }
+      // An ordinary line after the exception: the trainer went on.
+      this.release();
+    }
     if (text === TRACEBACK_START || MODULE_LAUNCH_FAILURE.test(text)) {
-      this.#traceback = [line];
+      this.#held = [line];
+      this.#complete = text !== TRACEBACK_START;
       return;
     }
+    if (text.startsWith("error:")) this.#released = undefined;
     this.#forward(line);
+  }
+
+  /** Whether `text` still belongs to the held traceback. */
+  #continues(text: string): boolean {
+    if (text === TRACEBACK_START) {
+      this.#complete = false;
+      return true;
+    }
+    if (!this.#complete) {
+      if (text.length > 0 && !/^\s/u.test(text)) this.#complete = true;
+      return true;
+    }
+    return (
+      text.length === 0 || /^\s/u.test(text) || CHAINED_EXCEPTION.test(text)
+    );
   }
 }
 
@@ -413,16 +490,61 @@ function tracebackPath(report: string): string {
   return `${report.replace(/\.json$/u, "")}.traceback.txt`;
 }
 
+/** Identifies one version of a file, or undefined when there is none. */
+async function fileStamp(path: string): Promise<string | undefined> {
+  try {
+    const stats = await stat(path, { bigint: true });
+    return `${String(stats.ino)}:${String(stats.size)}:${String(stats.mtimeNs)}:${String(stats.ctimeNs)}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `semantscript doctor`, with the `--python` and `--trainer-module` this run
+ * passed, so following the advice checks the same interpreter and module.
+ */
+export function trainerDoctorCommand(
+  values: OptionValues,
+  trainerModule: string,
+): string {
+  const parts = ["semantscript doctor"];
+  const python = stringOption(values, "python");
+  if (python !== undefined) parts.push(`--python ${shellWord(python)}`);
+  if (trainerModule !== DEFAULT_TRAINER_MODULE) {
+    parts.push(`--trainer-module ${shellWord(trainerModule)}`);
+  }
+  return parts.join(" ");
+}
+
+function shellWord(value: string): string {
+  return /^[\w@%+=:,./\\-]+$/u.test(value)
+    ? value
+    : `"${value.replaceAll('"', '\\"')}"`;
+}
+
 /**
  * The one line `train` prints in place of a trainer traceback, naming the
  * doctor check to run; the traceback itself goes to `path`.
  */
 async function trainerFailureLine(
   traceback: string,
-  python: string,
-  path: string,
+  options: {
+    readonly python: string;
+    readonly doctor: string;
+    readonly path: string;
+    readonly io: CliIo;
+  },
 ): Promise<string> {
-  const failure = classifyTrainerFailure(traceback);
+  const { python, doctor, path, io } = options;
+  let failure = classifyTrainerFailure(traceback);
+  if (
+    failure.remedy === "python-too-old" &&
+    (await pythonIsCurrent(python, io))
+  ) {
+    // A 3.12 interpreter parses the trainer: the broken file is the trainer's.
+    failure = { ...failure, remedy: "trainer-crash", check: "trainer" };
+  }
   let saved = false;
   try {
     await mkdir(dirname(path), { recursive: true });
@@ -433,20 +555,31 @@ async function trainerFailureLine(
   }
   const fix =
     failure.remedy === "module-missing"
-      ? await remedyText("module-missing", {
+      ? remedyText("module-missing", {
+          doctor,
           check: failure.check,
           python,
           module: failure.module ?? "",
         })
       : failure.remedy === "python-too-old"
-        ? await remedyText("python-too-old", { python })
-        : await remedyText("trainer-crash");
+        ? remedyText("python-too-old", { doctor, python })
+        : remedyText("trainer-crash", { doctor });
   return `semantscript train: the trainer stopped: ${failure.exception}; next: ${fix}${saved ? `; full traceback in ${path}` : ""}\n`;
 }
 
+/** Whether `python` is 3.12 or later (false when it cannot say). */
+async function pythonIsCurrent(python: string, io: CliIo): Promise<boolean> {
+  const outcome = await capture(
+    python,
+    ["-c", "import sys; print(sys.version_info >= (3, 12))"],
+    io,
+  );
+  return outcome.status === 0 && outcome.stdout.trim() === "True";
+}
+
 /** `unable to run <python>: spawn <python> ENOENT; next: ...` */
-async function unableToRun(python: string, error: Error): Promise<string> {
-  return `unable to run ${python}: ${error.message}; next: ${await remedyText("python-missing")}\n`;
+function unableToRun(python: string, error: Error): string {
+  return `unable to run ${python}: ${error.message}; next: ${remedyText("python-missing")}\n`;
 }
 
 /** Render the trainer's JSON report as the per-function table `semantscript train` prints. */

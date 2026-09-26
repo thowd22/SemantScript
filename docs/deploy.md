@@ -126,8 +126,9 @@ before packaging. The
 
 The Express example's trained release `217d386c` is the worked case (on the
 development machine only: `examples/*/.semantscript/` is git-ignored, so a
-clone has no trained release). It was trained at seed 5 (by its train report; the manifest has no seed
-field) and verified
+clone has no trained release). It was trained at seed 5 (inferred from the name of the report that
+records its manifest, `train-report-reduced-seed5.json`; neither the report
+nor the manifest has a seed field) and verified
 `decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus violations
 (`triage` 1.0000, ECE 0.0000); its held-out figure is not recorded, and
 `semantscript releases list` prints `217d386c9852`, `2/2 passed`, `0.9241`,

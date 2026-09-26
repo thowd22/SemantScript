@@ -107,9 +107,11 @@ npx semantscript explain dist/refunds.sem.js --call decideRefund \
 #    always "deny" when order.ageDays > 90: VIOLATED by the answer
 ```
 
-Its closing `verification passed` line and `semantscript test`'s
-`test passed` describe the corpus gate the release passed in 2026-09; the `-`
-in their `held-out` column means it was never checked on held-out inputs. Treat it as a wiring
+Its closing `verification passed` line (accuracy, ECE, Brier, pair
+consistency, attested cases and corpus constraint violations; it has no
+held-out field) and `semantscript test`'s `test passed` describe the corpus
+gate the release passed in 2026-09; the `-` in `test`'s (and `releases
+show`'s) `held-out` column means it was never checked on held-out inputs. Treat it as a wiring
 demonstration, not as the refund policy.
 
 ### No retrain from the cached datasets passes the held-out check
@@ -311,18 +313,26 @@ alone would (about 228 MiB), and so would an encoder whose graph is at most
 chain against the float32 one on the release's own records from the build
 cache: 586 records, 394 for `decideRefund` (192 training cases, 3 of them gold,
 and 202 adversarial ones) and 192 for `triage` (3 gold). On this release the
-strict default gate refuses both settings, so nothing is published:
+strict default gate refuses both settings; only the third run, which records
+a decision-change tolerance, publishes:
 
 | Settings                                          | Decisions changed | Attested changed | Worst int8 ECE (float32) | Encoder   | Time on CPU | Gate                                          |
 | ------------------------------------------------- | ----------------- | ---------------- | ------------------------ | --------- | ----------- | --------------------------------------------- |
 | default                                           | 6 of 586 (1.02%)  | 0 of 6           | 0.1049 (0.0391)          | 143.1 MiB | 2 min 25 s  | refused: decisions changed, ECE over 0.1      |
 | `--per-channel`                                   | 3 of 586 (0.51%)  | 0 of 6           | 0.0914 (0.0391)          | 143.8 MiB | 5 min 26 s  | refused: decisions changed                    |
-| `--per-channel --max-decision-change-rate 0.0052` | 3 of 586          | 0 of 6           | 0.0914                   | 143.8 MiB | 4 min 6 s   | published, with the tolerance in the manifest |
+| `--per-channel --max-decision-change-rate 0.0052` | 3 of 586          | 0 of 6           | 0.0914                   | 143.8 MiB | 56 s        | published, with the tolerance in the manifest |
 
 Times are wall clock on the development machine (Ryzen 9 9900X, WSL2, CPU
-only, about 3 GB resident); the second and third runs shared it with test
-runs. The int8 row in the size table is a derivation with those last settings
-(re-run 2026-09-26 in 57 s on an idle CPU, same figures). Publishing it means
+only, about 3 GB resident); the first two runs shared it with test runs,
+and the third is the 2026-09-26 derivation on an idle CPU that published
+`f8e22cae` (an earlier run with the same settings took 4 min 6 s on a busy CPU
+and gave the same figures). The int8 row in the size table is that release.
+`semantscript releases list` prints `0.0719` as its max ECE: the int8
+manifest carries the float32 release's verification figures, and the int8
+ECE (0.0914) is in the derive report
+(`.semantscript/artifact.derive-report.json`); `releases show`'s `derived`
+line prints the ECE threshold the derivation passed (0.1), not the measured
+value. Publishing it means
 accepting that 3 of the 586 records the release was trained and verified on
 (1 `decideRefund`, 2 `triage`; none of the gold examples) get a different
 answer than from the float32 release. That is a decision for the application

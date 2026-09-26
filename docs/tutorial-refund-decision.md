@@ -130,7 +130,7 @@ export function decideRefund(customer: Customer, order: Order): RefundDecision {
         },
         output: "approve",
       },
-      // two more gold examples: a stale-window deny and a fraudulent review
+      // two more gold examples: an enterprise order outside its 60-day window (deny) and a fraudulent review
     ],
     constraints: [
       always(() => order.ageDays > 90, "deny"),
@@ -235,8 +235,9 @@ retrain from its cached datasets passes that check today: seeds 1 to 10 broke
 variant 20 of 512 (3.9%), against a 1% tolerance
 ([example README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)).
 If your run fails there, the failure's `next:` line names one `examples`
-entry for one broken constraint, but the example's failures spread over
-several constraints, so one entry is unlikely to be enough; more gold examples
+entry for the most-broken constraint; that is the right first step, but on
+this expression the failures spread over several constraints, so expect to
+add entries for each of them; more gold examples
 across the broken constraints or a larger `--cases` are the routes, both call
 the teacher again, and neither is yet known to pass, so check `--estimate`
 and pass `--max-cost-usd`. To walk steps 4 and 5 without a key or a paid
@@ -274,11 +275,13 @@ npm start        # clone only: POST /refunds/:orderId decides over PGlite and co
 ```
 
 The server loads the artifact once at startup with `loadSemaArtifact()` and
-no path. The example's release `217d386c` packages to 653.9 MiB (570.9 MiB
+no path. The rest of this step is the development machine's output, not
+yours: a clone has no trained release, and your own `train` either published
+one that passed the held-out check or published nothing. The example's release `217d386c` packages to 653.9 MiB (570.9 MiB
 of it the float32 artifact, 82.7 MiB `node_modules`) with `semantscript
 package`, and `semantscript test` prints `-` in its `held-out` and `seed`
 columns because it was published before those fields. A paid order at 100
-days shows the answer the held-out check now refuses:
+days shows, on that machine, the answer the held-out check now refuses:
 
 ```sh
 npx semantscript run dist/refunds.sem.js --call decideRefund \
@@ -290,7 +293,9 @@ npx semantscript run dist/refunds.sem.js --call decideRefund \
 
 A compiled function whose behavior lives in a 275 to 600 MB artifact beside
 `dist/`, answers in milliseconds on a CPU with no network, and was verified
-against its example and constraints before it was published. Changing the
+against its example and constraints, on its training corpus and on a held-out
+sample of inputs it never trained on, before it was published (if `train`
+published nothing, you have the diagnosis of why instead). Changing the
 text, examples or constraints and running `train` again retrains only that
 expression's head through the [build cache](build-cache.md); `semantscript dev`
 does it on every save. The [architecture overview](architecture.md) shows

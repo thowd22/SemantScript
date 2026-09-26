@@ -49,8 +49,8 @@ DERIVE_REPORT_KIND = "semantscript.derive-report"
 DERIVE_REPORT_VERSION = 1
 HELD_OUT_PENDING = (
     "no held-out set is recorded for this release: the quantized graph is verified on the "
-    "release's training, gold and adversarial records; a held-out set joins the check once "
-    "the release gate records one"
+    "release's training, gold and adversarial records; derive does not re-check the "
+    "release gate's held-out inputs yet"
 )
 
 _DIGEST = re.compile(r"^[a-f0-9]{64}$")

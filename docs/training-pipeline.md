@@ -135,7 +135,8 @@ the same datasets found no passing run: the best broke 20 of 512 (3.9%); its
 [README](../examples/express-app/README.md#retrains-from-the-older-cached-datasets-failed-the-held-out-check)
 lists every run. A new dataset from the constraints teacher with a Sonnet 5
 fallback (`--cases 384 --epochs 16`, USD 0.96) passed at 4 of 512 on its first
-seed and published `0fd67142`, which denies orders past 90 days.
+seed and published `0fd67142`, which denies paid and fraudulent orders at
+100 to 200 days; its residual errors are listed in the example's README.
 
 When the active constraints require exactly one output for the first
 offending input, the fix is that input as an `examples` entry

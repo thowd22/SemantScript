@@ -188,7 +188,7 @@ Pick a teacher. All four routes produce the same artifact layout; the
 
 | Route                                    | Command                                                                                                                                                                                                                                              | What it needs            | Measured cost and time for this expression                                                                                                                                                                                                                                                              |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Anthropic API                            | `ANTHROPIC_API_KEY=… npx semantscript train`                                                                                                                                                                                                         | an Anthropic key         | run `semantscript train --estimate` for the figure; a minute of GPU training                                                                                                                                                                                                                            |
+| Anthropic API                            | `ANTHROPIC_API_KEY=… npx semantscript train`                                                                                                                                                                                                         | an Anthropic key         | run `semantscript train --estimate` for the figure; a few minutes of GPU training                                                                                                                                                                                                                       |
 | Sonnet 5 through OpenRouter              | `semantscript init --teacher openrouter` writes the `[teacher]` TOML with `backend = "anthropic"`, `model = "anthropic/claude-sonnet-5"`, `base_url = "https://openrouter.ai/api"`, `mode = "direct"`; `ANTHROPIC_API_KEY` set to the OpenRouter key | an OpenRouter key        | about USD 0.017 per request with the prompt of 2026-09-25 (the Express example's two expressions at 192 cases cost about USD 10 including adversarial cases); the compact, cached prompt now costs USD 0.0017 to 0.0071 per request, and `semantscript train --estimate` prints the figure for your run |
 | Claude Code CLI on a subscription        | the refund benchmark's `claude_cli_teacher.py` path (`benchmarks/refund/program/CLAUDE_CLI_TRAINING.md`)                                                                                                                                             | a logged-in `claude` CLI | subscription quota, about 4 to 6 s per request                                                                                                                                                                                                                                                          |
 | No language model (complete constraints) | `npx semantscript train --teacher constraints` (as `npm run train` does in `examples/refund-service`)                                                                                                                                                | nothing                  | free; nine expressions in about 8 minutes on the GPU                                                                                                                                                                                                                                                    |
@@ -210,6 +210,7 @@ below). Write `.semantscript/teacher-constraints.toml`:
 ```toml
 [teacher]
 backend = "constraints"
+seed = 1
 
 [teacher.ranges]
 "order.ageDays" = { low = 0, high = 240 }
@@ -219,17 +220,19 @@ backend = "anthropic"
 model = "anthropic/claude-sonnet-5"      # "claude-sonnet-5" with an Anthropic key
 base_url = "https://openrouter.ai/api"   # leave out with an Anthropic key
 mode = "direct"
+max_tokens = 4096
 ```
 
-Then, with the key in `ANTHROPIC_API_KEY`, price the run and train:
+Then, with the key in `ANTHROPIC_API_KEY` (the OpenRouter key while
+`base_url` points at OpenRouter), price the run and train:
 
 ```sh
 npx semantscript train --teacher .semantscript/teacher-constraints.toml --cases 384 --epochs 16 \
   --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 \
-  --device cuda --estimate
+  --seed 1 --seed-attempts 3 --device cuda --estimate
 npx semantscript train --teacher .semantscript/teacher-constraints.toml --cases 384 --epochs 16 \
   --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 \
-  --device cuda --max-cost-usd 2
+  --seed 1 --seed-attempts 3 --device cuda --max-cost-usd 2
 ```
 
 `npx semantscript doctor` in the same directory checks the teacher you
@@ -258,7 +261,7 @@ retrains on the same cached dataset.
 
 What the Express example's own release shows (it exists on the development
 machine only: `examples/*/.semantscript/` is git-ignored): `0fd67142`
-(2026-09-26, that command at `--seed 1` on an RX 9070 XT, with Sonnet 5
+(2026-09-26, that TOML and command, with `--max-cost-usd 12`, on an RX 9070 XT, with Sonnet 5
 through OpenRouter as the fallback; 478 requests, USD 0.96, about 30
 minutes), verified `decideRefund` at accuracy 0.9872, ECE 0.0087, 0 of 778
 corpus violations and 4 of 512 held-out inputs (0.78%, against a 1%

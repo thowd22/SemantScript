@@ -28,7 +28,9 @@ npm run build               # tspc: dist/*.js, dist/*.js.map and dist/semantscri
 npm test                    # the bundle and both routes over a fixture artifact, no training needed
 npm run fixture-artifact    # optional: a fixture artifact in .semantscript/artifact, to run without training
 npx semantscript train      # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
-                            # (calls a paid teacher; the recipe that passed the held-out check is below)
+                            # (calls a paid teacher; bare, it fails the held-out check here: the passing
+                            #  recipe, --teacher .semantscript/teacher-constraints.toml with
+                            #  --max-constraint-violation-rate 0.01, is below)
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
 
@@ -136,6 +138,18 @@ npx semantscript explain dist/refunds.sem.js --call decideRefund \
 #    always "deny" when order.ageDays > 90: satisfied
 #    never "approve" when order.status === "fraudulent": satisfied
 ```
+
+The release is not rule-exact. The held-out check tolerates 1% (it broke 4
+of 512), and its inputs, like the training range, stop at 180 and 240 days.
+Known misses a developer can reproduce with the command above:
+`enterprise`, `fraudulent`, 95 days and a total of 100 answers `review`, and
+`enterprise`, `paid`, 365 days and a total of 5 answers `approve`, both
+against the 90-day rule. A reviewer's probe over both tiers, the three
+statuses, 0 to 365 days and a spread of `priorRefunds` and totals found 18
+wrong answers in 2,556 inputs up to 240 days (0.7%) and 47 more in 216
+inputs at 300 and 365 days. Where a wrong answer costs money, check the rule in the route
+before committing, or retrain with a wider `[teacher.ranges]` for
+`order.ageDays`.
 
 `npm start` then serves it: `POST /refunds/o1` (a standard customer's
 12-day-old paid order) commits an `approve`, `POST /refunds/o2` (an

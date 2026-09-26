@@ -356,7 +356,7 @@ with the new prompt (USD 0.99), and 27 training runs on them verified
 `decideRefund` at accuracy 0.9000 to 0.9875, but none passes the
 [held-out constraint check](training-pipeline.md#held-out-constraint-check)
 ([example README](../examples/express-app/README.md#retrains-from-the-older-cached-datasets-failed-the-held-out-check));
-the example's release now comes from the mixed constraints teacher (below).
+the example's release now comes from the mixed constraints teacher (above).
 
 A language-model teacher's configuration digest includes the prompt layout
 version, so datasets cached with the old prompt are regenerated once for the

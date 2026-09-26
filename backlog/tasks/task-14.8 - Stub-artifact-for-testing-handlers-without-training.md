@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 02:13'
+updated_date: '2026-09-26 02:31'
 labels:
   - dx
   - debug
@@ -63,4 +63,14 @@ Commit 4ab6e0f pushed to task-14.8; CI run 36209813510 green on all six jobs (No
 Fix round 1 (review findings). Blocking: (1) a given directory is now refused with SemaStubError reason occupied-directory unless it is missing, empty or marked by an earlier stub (.semantscript-stub marker), so a trained root such as .semantscript/artifact is never touched (probe: fake trained current.json unchanged after the refused create); dispose() on a given directory removes the stub's release, its current.json while it still names that release, and the directory once only stub files remain. (2) Stub errors name the function by source position and id, e.g. 'the stub artifact has no answer for the semantic function at src/refunds.sem.ts:143:10 (nf_f5a0...)' (checked through handle() in the refund-service guide example). Advisory fixes: a bundle without a declared canonical input uses v2 (the trainer default), so maximumInputBytes behaves as after training (decideRefund o1 under a 200-byte limit now answers); bundle source may be a file URL and the guide example resolves it with new URL(..., import.meta.url) (still 17 lines, runs green in the example); missing options, misspelled answer forms and non-compiled keys give typed, accurate SemaStubErrors; diagnostics row lists causes and fixes for invalid-bundle and occupied-directory; runtime README documents the directory rules and that a loaded stub is the process-wide active artifact; framework README points to the stub and the guide. Not changed: SemaStubError stays exported from ./testing only; no CommonJS require condition. Checks: npm run build ok; lint:node clean; test:node 89/116/22/9/85 pass 0 fail; runtime/test/testing.test.mjs 10/10; refund-service npm test 2 pass 1 skipped; prettier --check clean.
 
 Fix round 1 commit 4b66c9a pushed; CI run 36210758944 green on all six jobs.
+
+Fix round 2 (commit 9df0b29, CI run 36211784784 green on all 6 jobs).
+- Blocking (confirmed): keying by a compiled function that calls several sema expressions gave no ids or positions. Now loadSemaStubArtifact/createSemaStubArtifact list each expression's source position and id (refund-service screenOrder: src/orders.sem.ts:36:16, 103:16, 122:22 with nf_ ids), and semaFunctionId lists the ids. runtime/README.md, docs/framework-guide.md and docs/diagnostics.md explain finding ids via functions[].id and functions[].source in the IR bundle.
+- Advisory: the occupied-directory guard now also refuses a stub-marked directory holding any release whose manifest lacks stub provenance (crashed stub + later trained publish); test added.
+- Advisory: an async compute gets 'compute() returned a Promise; compute must be synchronous'; compute inputs typed Readonly<Record<string, any>> so the README example typechecks under --strict nodenext.
+- Advisory: object keyed by name hints to use a Map or pairs; an id missing from the bundle hints to run semantscript build.
+- Advisory: docs note that nested stubs leave no artifact active once the later one closes.
+- Checks: npm run build ok; npm run lint:node clean; runtime/test/testing.test.mjs 12/12; npm run test:node 89/117/22/9/85 pass 0 fail; refund-service npm test 2 pass 1 skipped; guide example (17 lines) passes; prettier check on docs clean.
+
+Correction to the fix round 2 note: runtime/test/testing.test.mjs is 11/11 pass (10 earlier tests plus the new async-compute test; the multi-expression and crashed-stub checks extend existing tests).
 <!-- SECTION:NOTES:END -->

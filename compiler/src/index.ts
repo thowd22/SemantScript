@@ -112,3 +112,9 @@ export {
   type SemaProjectBuild,
   type SemaProjectBuildDefaults,
 } from "./build-tools.js";
+export {
+  remedy,
+  remedyFamily,
+  type RemedyId,
+  type RemedyParams,
+} from "./remedies.generated.js";

@@ -1,0 +1,694 @@
+{
+  "kind": "semantscript.remedies",
+  "version": 1,
+  "families": {
+    "verifier": "Verification gate failures: the train report's next: line under each failure",
+    "trainer-process": "Trainer and interpreter failures: the one line semantscript train prints instead of a traceback",
+    "teacher": "Teacher and training-data failures: the next: clause of the trainer's error or warning line about an expression's constraints, examples or teacher spend",
+    "runtime": "Runtime errors for a missing, stale or unloadable artifact: the next: clause of the error message and its remedy field",
+    "cli": "semantscript test, run and build failures: the next: clause of the message",
+    "doctor": "semantscript doctor and the train preflight: the fix: line under each failed or warning check",
+    "editor": "Editor warnings from the language-service plugin: the next: clause of the warning"
+  },
+  "remedies": [
+    {
+      "id": "gold-rule-constraint",
+      "family": "verifier",
+      "failure": "`N gold/human example prediction(s) failed`, and two or more misses share a one-field rule",
+      "cause": "The misses expect the same output and share one input field value or bound, every teacher-labelled case with that field agrees, and no constraint states the rule: the model is missing a rule the data implies.",
+      "fix": "add the constraint always(() => {predicate}, {output}): the {count} missed examples all have {predicate} and expect {output}, and every teacher-labelled case where it holds agrees"
+    },
+    {
+      "id": "gold-repeated-miss-example",
+      "family": "verifier",
+      "failure": "`N gold/human example prediction(s) failed`, and teacher-labelled cases are mispredicted the same way",
+      "cause": "The model has not learned a region the teacher labelled; the misses repeat on generated cases.",
+      "fix": "add the examples entry {example}: {count} teacher-labelled case(s) that expect {expected} are also predicted {predicted}"
+    },
+    {
+      "id": "gold-check-example",
+      "family": "verifier",
+      "failure": "`N gold/human example prediction(s) failed`, and no teacher-labelled case repeats the miss",
+      "cause": "The example disagrees with what the model learned from the teacher's labels: the example, the labels or a constraint is wrong.",
+      "fix": "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}): if it is right, add examples near it or a constraint for its rule; if not, correct it"
+    },
+    {
+      "id": "violation-example",
+      "family": "verifier",
+      "failure": "`N adversarial constraint check(s) failed (…)`, and one constraint is broken by two or more records",
+      "cause": "Raw predictions break the same always/never on several records: the region the constraint covers is thin in the training data.",
+      "fix": "add the examples entry {example}: constraint {index} ({source}) is broken by {count} records"
+    },
+    {
+      "id": "underfit-more-training",
+      "family": "verifier",
+      "failure": "a gold miss or a constraint violation while the head gets more than 5% of its own teacher-labelled training cases wrong (at least 3), or predicts one output for all of them",
+      "cause": "The head underfits (too few epochs or cases, or a lowered learning rate), so one more example would only move the error elsewhere.",
+      "fix": "rerun with --epochs {epochs} (now {currentEpochs}) and --cases {cases} (now {currentCases}), and the default --learning-rate if you lowered it: the head gets {missed} of {total} teacher-labelled training cases wrong ({detail}), which more training fixes before any example does"
+    },
+    {
+      "id": "violation-denser-data",
+      "family": "verifier",
+      "failure": "`N adversarial constraint check(s) failed (…)`, and no constraint is broken twice",
+      "cause": "Isolated violations, usually numbers close to a constraint's boundary.",
+      "fix": "sample the boundaries more densely: rerun with --cases {cases} (now {current}), or accept isolated misses by recording a tolerance with --max-constraint-violation-rate"
+    },
+    {
+      "id": "calibration-more-cases",
+      "family": "verifier",
+      "failure": "`ECE x exceeds configured threshold t`, with fewer than 200 calibration rows or a head that already fits",
+      "cause": "Calibration error after temperature scaling is above the gate, measured on few held-out rows.",
+      "fix": "rerun with --cases {cases} (now {current}): ECE {ece} is measured on {rows} calibration rows, and more cases give more of them"
+    },
+    {
+      "id": "calibration-more-epochs",
+      "family": "verifier",
+      "failure": "`ECE x exceeds configured threshold t`, with 200 or more calibration rows and accuracy below 0.95",
+      "cause": "Calibration error after temperature scaling is above the gate, and the head underfits.",
+      "fix": "rerun with --epochs {epochs} (now {current}): accuracy {accuracy} shows an underfit head, which calibrates poorly"
+    },
+    {
+      "id": "seed-retry-attempts",
+      "family": "verifier",
+      "failure": "A violation-rate or ECE failure within the retry margin while the seed retry is off (`--seed-attempts 1`)",
+      "cause": "The failure was narrow, the kind another seed usually fixes, but the retry was turned off.",
+      "fix": "rerun with --seed-attempts {attempts}: the failure was narrow, and the retry trains the next seeds on the cached datasets without a teacher request"
+    },
+    {
+      "id": "seed-retry-next-seed",
+      "family": "verifier",
+      "failure": "A violation-rate or ECE failure within the retry margin after every seed attempt failed",
+      "cause": "Every seed tried failed narrowly.",
+      "fix": "rerun with --seed {seed}: seeds {first} to {last} failed narrowly, and the retry continues from the next untried seed on the cached datasets"
+    },
+    {
+      "id": "type-no-cache",
+      "family": "verifier",
+      "failure": "`N output type check(s) failed`",
+      "cause": "A decoded prediction was outside the support; only possible with a corrupted head.",
+      "fix": "rerun with --no-cache to retrain the head from scratch"
+    },
+    {
+      "id": "python-missing",
+      "family": "trainer-process",
+      "failure": "`unable to run <python>: spawn <python> ENOENT`",
+      "cause": "The interpreter the CLI starts does not exist.",
+      "fix": "run {doctor} and fix its python check: install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON"
+    },
+    {
+      "id": "module-missing",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer stopped: ModuleNotFoundError: No module named '<module>'`",
+      "cause": "The interpreter lacks a package the trainer imports; the check is trainer, model, torch or onnxruntime depending on the module.",
+      "fix": "run {doctor} and fix its {check} check: {python} cannot import {module}"
+    },
+    {
+      "id": "python-too-old",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer stopped: SyntaxError: …`",
+      "cause": "The interpreter is older than the trainer's syntax (Python 3.12); on 3.12 or later a SyntaxError is a trainer-crash.",
+      "fix": "run {doctor} and fix its python check: {python} cannot parse the trainer, which needs Python 3.12 or later"
+    },
+    {
+      "id": "trainer-crash",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer stopped: <Exception>: <message>`",
+      "cause": "Any other uncaught exception in the trainer.",
+      "fix": "run {doctor} to check the environment; if every check passes, rerun with --no-cache, and report a bug with the traceback if it fails again"
+    },
+    {
+      "id": "training-extra-missing",
+      "family": "trainer-process",
+      "failure": "`error: fine-tuning requires PyTorch; install the project training extra` and the other `… training extra` errors the trainer catches",
+      "cause": "A training package (PyTorch, Transformers, tokenizers, safetensors, ONNX) does not import in the trainer's interpreter.",
+      "fix": "run {doctor} and fix its {check} check: {python} cannot import {module}"
+    },
+    {
+      "id": "bundle-unreadable",
+      "family": "trainer-process",
+      "failure": "`error: [Errno 2] No such file or directory: '<bundle>'` or a bundle that is not JSON",
+      "cause": "No IR bundle at `--bundle`: `build` has not run, or the path points elsewhere.",
+      "fix": "run semantscript build to write the IR bundle, or pass --bundle the build's semantscript.ir.v1.json (now {bundle})"
+    },
+    {
+      "id": "bundle-invalid",
+      "family": "trainer-process",
+      "failure": "`error: bundle must be a semantscript.ir-bundle version 1 document` and the other bundle shape errors",
+      "cause": "The file at `--bundle` is not the compiler's IR bundle, or was edited.",
+      "fix": "run semantscript build and pass its semantscript.ir.v1.json as --bundle (now {bundle}); never edit the bundle by hand"
+    },
+    {
+      "id": "teacher-config-invalid",
+      "family": "trainer-process",
+      "failure": "`error: teacher config file must contain only a [teacher] table` and the other teacher-file errors",
+      "cause": "The teacher TOML is missing, malformed or has an unknown key.",
+      "fix": "run {doctor} and fix its teacher-config check: {teacher} is not a valid teacher file (docs/teachers.md lists every key)"
+    },
+    {
+      "id": "teacher-transport",
+      "family": "trainer-process",
+      "failure": "`error: <teacher transport error>` after the teacher stopped answering",
+      "cause": "The teacher's server was unreachable, refused the key or timed out.",
+      "fix": "run {doctor} --probe request to test the teacher, then rerun semantscript train: the datasets that finished stay cached"
+    },
+    {
+      "id": "trainer-killed",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer was killed by <signal>`",
+      "cause": "The operating system stopped the trainer: SIGKILL is usually the out-of-memory killer, SIGSEGV, SIGBUS or SIGABRT a native crash in PyTorch, ONNX Runtime or the GPU driver.",
+      "fix": "run {doctor} and fix its torch and device checks, then rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached, so the rerun asks the teacher only for the rest"
+    },
+    {
+      "id": "train-out-of-memory",
+      "family": "trainer-process",
+      "failure": "`error: … out of memory …` (a PyTorch OutOfMemoryError or a MemoryError)",
+      "cause": "The device or the host ran out of memory while training or exporting.",
+      "fix": "rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached"
+    },
+    {
+      "id": "encoder-download-failed",
+      "family": "trainer-process",
+      "failure": "`error: could not load the configured tokenizer: We couldn't connect to 'https://huggingface.co' …` and the other failed encoder downloads",
+      "cause": "The pinned encoder (or the one --encoder-name and --encoder-revision name) is not in the Hugging Face cache and could not be downloaded: no network, a proxy, a hub outage, offline mode, or a model or revision that does not exist.",
+      "fix": "check that this machine can reach https://huggingface.co (or the HF_ENDPOINT mirror, through HTTPS_PROXY if one is needed), unset HF_HUB_OFFLINE and TRANSFORMERS_OFFLINE, or copy a Hugging Face cache that holds the encoder into HF_HOME; if you passed --encoder-name or --encoder-revision, check that the model and revision exist; then rerun semantscript train"
+    },
+    {
+      "id": "train-path-unwritable",
+      "family": "trainer-process",
+      "failure": "`error: could not create dataset cache directory: …` and the other file-system errors",
+      "cause": "A path the trainer writes (the dataset cache, the artifact root, the report) is not a writable directory, or the disk is full.",
+      "fix": "check that {path} can be written (a directory, with write permission and free space), or pass --cache-dir or --artifact another path, then rerun semantscript train"
+    },
+    {
+      "id": "artifact-export-failed",
+      "family": "trainer-process",
+      "failure": "`error: artifact export failed: …`",
+      "cause": "The verified model could not be exported: ONNX Runtime failed, or the ONNX output differs from PyTorch beyond the parity tolerance.",
+      "fix": "run {doctor} and fix its onnxruntime check; if every check passes, rerun with --no-cache, and report a bug with this message if the export fails again"
+    },
+    {
+      "id": "train-option-invalid",
+      "family": "trainer-process",
+      "failure": "`error: counterfactual_ratio must be a finite number from 0 through 1` and the other option range errors",
+      "cause": "A training option is outside the range the trainer accepts.",
+      "fix": "correct the option the message names and rerun semantscript train (docs/cli-reference.md lists each option and its range)"
+    },
+    {
+      "id": "teacher-rejected",
+      "family": "trainer-process",
+      "failure": "`error: <teacher response or generation error>` after the teacher's answers were rejected",
+      "cause": "The teacher answered, but a case broke the contract (outside the declared types, a boundary pair that is not two-sided, a twin that breaks a constraint) on every attempt.",
+      "fix": "rerun semantscript train: rejected answers are not replayed, so the teacher is asked again; if it fails the same way, use a stronger teacher model or a lower --counterfactual-ratio (0.5), and check that a single-field edit can cross the predicate of the constraint the message names"
+    },
+    {
+      "id": "train-failed",
+      "family": "trainer-process",
+      "failure": "`error: <message>` for any other failure the trainer catches",
+      "cause": "A failure no other remedy classifies.",
+      "fix": "if the message names a setting or a file, correct it and rerun semantscript train; otherwise run {doctor} to check the environment, and report a bug with this message if every check passes"
+    },
+    {
+      "id": "train-no-gold-examples",
+      "family": "teacher",
+      "failure": "`<source>:<line> (<id>) has no gold examples: verification needs at least one attested example per expression, whatever the teacher`",
+      "cause": "Verification checks the artifact against the gold examples, so every expression needs one, checked before any generation.",
+      "fix": "add an examples: [{ inputs, output }] entry to the sema call, then run semantscript build and semantscript train"
+    },
+    {
+      "id": "train-gold-example-invalid",
+      "family": "teacher",
+      "failure": "`<source>:<line> (<id>): IR gold example <i> is invalid: case output violates …`",
+      "cause": "A gold example contradicts the expression's own constraints or declared types.",
+      "fix": "correct the example or the constraint it breaks in the sema call, then run semantscript build and semantscript train"
+    },
+    {
+      "id": "constraint-constant",
+      "family": "teacher",
+      "failure": "`constraint <i> is constant true (or false) and has no opposite predicate side` (`UnsynthesizableConstraintError`)",
+      "cause": "The constraint's predicate has the same value for every input the teacher can build, so it has no two-sided boundary to verify.",
+      "fix": "rewrite the predicate of that constraint over the inputs so that it holds for some inputs and not for others, then run semantscript build and semantscript train"
+    },
+    {
+      "id": "teacher-constraints-undecided",
+      "family": "teacher",
+      "failure": "`the constraints do not decide every input, so the constraints teacher cannot label it alone. For the input {…} the constraints admit \"a\", \"b\"`",
+      "cause": "The constraints leave that input open: more than one output is admissible.",
+      "fix": "add always/never constraints until exactly one output is admissible for every input, or label the inputs they leave open with a language-model teacher: write a teacher TOML with [teacher] backend = \"constraints\" and a [teacher.fallback] table (backend = \"anthropic\" or \"ollama\" and its model), and pass it with --teacher <file> (docs/teachers.md)"
+    },
+    {
+      "id": "teacher-constraints-contradict",
+      "family": "teacher",
+      "failure": "`the constraints contradict each other on an input … admit no output`",
+      "cause": "Two active constraints require different outputs, or forbid every one, for the input shown.",
+      "fix": "correct the predicates or outputs of the constraints active on that input so that exactly one output is admissible, then run semantscript build and semantscript train"
+    },
+    {
+      "id": "teacher-constraints-none",
+      "family": "teacher",
+      "failure": "`it declares no constraints, so the constraints teacher cannot label it`",
+      "cause": "The constraints teacher labels an expression only from its always/never constraints.",
+      "fix": "add always/never constraints that decide every input, or let a language-model teacher label it: write a teacher TOML with [teacher] backend = \"constraints\" and a [teacher.fallback] table (backend = \"anthropic\" or \"ollama\" and its model), and pass it with --teacher <file> (docs/teachers.md)"
+    },
+    {
+      "id": "teacher-constraints-object",
+      "family": "teacher",
+      "failure": "`its output is an object, and the constraints label scalar outputs`",
+      "cause": "Constraints on a flat-interface output are not supported, so the constraints teacher cannot label it.",
+      "fix": "let a language-model teacher label it: write a teacher TOML with [teacher] backend = \"constraints\" and a [teacher.fallback] table (backend = \"anthropic\" or \"ollama\" and its model), and pass it with --teacher <file> (docs/teachers.md)"
+    },
+    {
+      "id": "teacher-constraints-sampling",
+      "family": "teacher",
+      "failure": "`found <k> of <n> distinct inputs the constraints decide in <m> draws`",
+      "cause": "The sampled inputs are too narrow to reach --cases distinct inputs.",
+      "fix": "write a teacher TOML with [teacher] backend = \"constraints\" and a [teacher.ranges] table that widens the sampling ranges, pass it with --teacher <file> (docs/teachers.md), or request fewer --cases"
+    },
+    {
+      "id": "teacher-constraints-twins",
+      "family": "teacher",
+      "failure": "`found <k> of <n> distinct inputs that the constraints decide and that one field edit moves to another output …`",
+      "cause": "Too few sampled inputs have a single-field twin with another label, as for an expression that always answers the same.",
+      "fix": "write a teacher TOML with [teacher] backend = \"constraints\" and a [teacher.ranges] table that widens the sampling ranges, or twin_filter = false when the constraints always give one output, and pass it with --teacher <file> (docs/teachers.md)"
+    },
+    {
+      "id": "training-single-group",
+      "family": "teacher",
+      "failure": "`<source>:<line> (<id>) needs at least two independent row groups, but its <n> training rows (<k> distinct inputs) form one`",
+      "cause": "Identical inputs, and each case with its counterfactual twin, stay on one side of the held-out split; in a small input space they link every row.",
+      "fix": "lower --counterfactual-ratio (0.5, or 0 when the inputs are a few booleans or enum values), request fewer --cases, or, with the constraints teacher, widen the number ranges in [teacher.ranges] (docs/teachers.md)"
+    },
+    {
+      "id": "teacher-few-distinct",
+      "family": "teacher",
+      "failure": "`warning: <source>:<line> (<id>): only <k> distinct inputs among <n> cases`",
+      "cause": "Not an error: the teacher repeated inputs to reach --cases because the input space is small, so held-out accuracy covers fewer inputs than the count suggests.",
+      "fix": "widen the input space the teacher samples (a [teacher.ranges] table for the constraints teacher, docs/teachers.md), or request fewer --cases"
+    },
+    {
+      "id": "teacher-spend-cap",
+      "family": "teacher",
+      "failure": "`error: spend cap USD <cap> reached: the next request (about USD <x>) would take the run from USD <y> past it after <n> paid request(s)`",
+      "cause": "TeacherBudgetExceeded: the run stopped before the request that would pass --max-cost-usd.",
+      "fix": "rerun with a higher --max-cost-usd, or without it, to resume: every dataset finished before the stop stays cached in {cache}"
+    },
+    {
+      "id": "teacher-spend-cap-journal",
+      "family": "teacher",
+      "failure": "`error: spend cap USD <cap> reached: …` with the Anthropic backend",
+      "cause": "As teacher-spend-cap; the Anthropic backend also journals every paid response.",
+      "fix": "rerun with a higher --max-cost-usd, or without it, to resume: every dataset finished before the stop stays cached in {cache}, and the {count} paid teacher response(s) kept in {journal} replay at no cost"
+    },
+    {
+      "id": "teacher-price-unknown",
+      "family": "teacher",
+      "failure": "`no price is known for teacher model '<model>'`, or OpenRouter's price list was unreachable or does not list the model",
+      "cause": "TeacherPriceUnknown: the model is not in the pinned Anthropic table and not on OpenRouter's list. Without --max-cost-usd or --estimate it is a warning, and the run counts requests and tokens but not USD.",
+      "fix": "check the teacher model name, or add a [teacher.pricing] table with input_usd_per_million and output_usd_per_million to the teacher file (docs/teachers.md)"
+    },
+    {
+      "id": "runtime-not-loaded",
+      "family": "runtime",
+      "failure": "`SemaRuntimeNotLoadedError` (`SEMA_RUNTIME_NOT_LOADED`)",
+      "cause": "A `sema` call before `loadSemaArtifact()` resolved.",
+      "fix": "await loadSemaArtifact() once at startup, before the first sema call (semantscript run does this for a script); if no artifact exists yet, run semantscript train"
+    },
+    {
+      "id": "artifact-missing",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_PATH`): nothing at the path, or a directory without `current.json`",
+      "cause": "No artifact was published at the path: `train` has not run, or the path points elsewhere.",
+      "fix": "run semantscript train to publish an artifact at {path}, or point loadSemaArtifact(), --artifact or SEMANTSCRIPT_ARTIFACT at the root train published"
+    },
+    {
+      "id": "artifact-path",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_PATH`): a symlink, an unreadable entry or a path outside the release",
+      "cause": "The artifact root or a release inside it was changed by hand.",
+      "fix": "point at the artifact root semantscript train published (the directory that holds current.json); never edit or symlink a release by hand"
+    },
+    {
+      "id": "artifact-corrupt",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_INVALID_JSON`, `_INVALID_POINTER`, `_INVALID_MANIFEST`, `_INTEGRITY`)",
+      "cause": "The pointer or manifest is malformed, or a file fails its digest.",
+      "fix": "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train"
+    },
+    {
+      "id": "artifact-incompatible",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_INCOMPATIBLE`)",
+      "cause": "The artifact was built for another runtime ABI, capability set or ONNX opset.",
+      "fix": "retrain with semantscript train so the artifact matches this runtime (run semantscript build first after a compiler upgrade)"
+    },
+    {
+      "id": "artifact-quota",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_QUOTA`)",
+      "cause": "A pointer, manifest or resource is larger than the load limits.",
+      "fix": "raise the matching maximum*Bytes option of loadSemaArtifact() if the artifact is expected to be this large"
+    },
+    {
+      "id": "artifact-resource",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_RESOURCE`)",
+      "cause": "A resource's tensors, opset or chain are wrong, or the native backend refused it.",
+      "fix": "run semantscript doctor --runtime to check the native bindings, then retrain with semantscript train if they pass"
+    },
+    {
+      "id": "unknown-function",
+      "family": "runtime",
+      "failure": "`SemaUnknownFunctionError` (`unknown-function`)",
+      "cause": "The compiled call's id is not in the loaded artifact: the program was rebuilt after training, or the wrong artifact is loaded.",
+      "fix": "the program changed after the artifact was trained: run semantscript build, then semantscript train, and reload; or load the artifact trained from this bundle"
+    },
+    {
+      "id": "test-no-artifact",
+      "family": "cli",
+      "failure": "`semantscript test`: `no artifact at <root> (current.json is missing)`",
+      "cause": "Nothing was published at the artifact root.",
+      "fix": "run semantscript train to publish an artifact at {root}, or pass --artifact for one published elsewhere"
+    },
+    {
+      "id": "test-example-mismatch",
+      "family": "cli",
+      "failure": "`semantscript test --bundle`: `<id> example <n>: expected …, got …`",
+      "cause": "The loaded artifact answers a bundle example differently: it was trained before the example changed, or from another bundle.",
+      "fix": "run semantscript build, then semantscript train, and rerun semantscript test; if it still fails, the train report's next: lines say what to change"
+    },
+    {
+      "id": "test-function-absent",
+      "family": "cli",
+      "failure": "`semantscript test --bundle`: `<id>: absent from the artifact`",
+      "cause": "The bundle has an expression the artifact was not trained on.",
+      "fix": "run semantscript train on this bundle (semantscript build first if the source changed)"
+    },
+    {
+      "id": "test-function-unverified",
+      "family": "cli",
+      "failure": "`semantscript test`: a function whose verification status is not `passed`",
+      "cause": "The release carries a function that did not pass its verification gates.",
+      "fix": "retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback <release> (semantscript releases list shows which releases pass)"
+    },
+    {
+      "id": "test-artifact-unreadable",
+      "family": "cli",
+      "failure": "`semantscript test`: `current.json.release must be a string`, a missing manifest or another unreadable release",
+      "cause": "The pointer or the release it names is malformed or missing.",
+      "fix": "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train"
+    },
+    {
+      "id": "run-no-export",
+      "family": "cli",
+      "failure": "`semantscript run --call`: `<module> has no function export named <name>`",
+      "cause": "The name passed to `--call` is not a function the module exports.",
+      "fix": "pass --call one of the module's function exports: {exports}"
+    },
+    {
+      "id": "build-no-tsconfig",
+      "family": "cli",
+      "failure": "`semantscript build`: `unable to read <tsconfig.json>` or TS5058 / TS5083",
+      "cause": "No TypeScript project at the path; semantscript init wires an existing tsconfig.json but does not create one.",
+      "fix": "create {config} with npx -p typescript tsc --init --rootDir . --outDir dist, then run semantscript init to add the SemantScript plugins, or pass --project <tsconfig.json>"
+    },
+    {
+      "id": "build-tsconfig-invalid",
+      "family": "cli",
+      "failure": "`semantscript build`: TS5092, TS18003 or another error in <tsconfig.json> itself",
+      "cause": "The tsconfig.json parses badly or selects no input files.",
+      "fix": "correct {config} as the errors above say (it must be one JSON object whose include or files select the .sem.ts sources), then rerun semantscript build"
+    },
+    {
+      "id": "build-no-outdir",
+      "family": "cli",
+      "failure": "`semantscript build`: `<tsconfig.json> must set compilerOptions.outDir`",
+      "cause": "The build writes the compiled calls and the IR bundle under `outDir`.",
+      "fix": "set compilerOptions.outDir in {config} (for example dist)"
+    },
+    {
+      "id": "train-no-teacher",
+      "family": "cli",
+      "failure": "`semantscript train`: `--teacher is required: no semantscript.teacher.toml, teacher.toml or .semantscript/teacher.toml found and ANTHROPIC_API_KEY is not set`",
+      "cause": "No teacher file and no key for the default Anthropic teacher.",
+      "fix": "run semantscript init --teacher anthropic, openrouter, ollama or constraints to write a teacher file, set ANTHROPIC_API_KEY to use the default Anthropic teacher, or pass --teacher constraints when the constraints decide every input"
+    },
+    {
+      "id": "teacher-probe-none",
+      "family": "cli",
+      "failure": "`semantscript teacher probe`: `no teacher to probe`",
+      "cause": "No teacher file and no --teacher.",
+      "fix": "run semantscript init --teacher anthropic, openrouter, ollama or constraints to write .semantscript/teacher.toml, or pass --teacher <teacher.toml>"
+    },
+    {
+      "id": "doctor-node",
+      "family": "doctor",
+      "failure": "`node`: the running Node is older than the workspace's floor",
+      "cause": "The CLI runs on an older Node release.",
+      "fix": "install Node {minimum} or later (the repository's .nvmrc pins the tested release; nvm install)"
+    },
+    {
+      "id": "doctor-runtime-unresolved",
+      "family": "doctor",
+      "failure": "`runtime-bindings`: `@semantscript/core does not resolve`",
+      "cause": "The runtime package is not installed next to the CLI.",
+      "fix": "npm install in the project (the CLI loads the runtime from @semantscript/core)"
+    },
+    {
+      "id": "doctor-runtime-native",
+      "family": "doctor",
+      "failure": "`runtime-bindings`: `<package> does not load on <platform>`",
+      "cause": "The native ONNX Runtime or tokenizers binary is missing or built for another platform.",
+      "fix": "run npm install (or npm rebuild {packages}) on this machine; the native binaries are per platform, so a node_modules copied from another OS or architecture does not load"
+    },
+    {
+      "id": "doctor-python",
+      "family": "doctor",
+      "failure": "`python`: the interpreter does not run, or is older than 3.12",
+      "cause": "`python3` (`python` on Windows, or `--python`, `SEMANTSCRIPT_PYTHON`) is not on the path or is older than 3.12.",
+      "fix": "install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON"
+    },
+    {
+      "id": "doctor-trainer-import",
+      "family": "doctor",
+      "failure": "`trainer`: `<python> cannot import semantscript_trainer`",
+      "cause": "The CLI runs outside the checkout without the package installed.",
+      "fix": "install the trainer into {python}: pip install \"semantscript-trainer[training]\" (in a SemantScript checkout: pip install -e \".[training]\", or run the CLI from the checkout, which adds trainer/src and model/src to PYTHONPATH)"
+    },
+    {
+      "id": "doctor-trainer-outdated",
+      "family": "doctor",
+      "failure": "`trainer`: `<module> has no doctor command`",
+      "cause": "The installed trainer predates this CLI.",
+      "fix": "update the SemantScript trainer to the release that matches this CLI, or pass --no-preflight to train without the checks"
+    },
+    {
+      "id": "doctor-trainer-error",
+      "family": "doctor",
+      "failure": "`trainer`: `<python> -m <module> doctor exited with status <n>`",
+      "cause": "The trainer's doctor itself failed.",
+      "fix": "run {python} -m {module} doctor to see the full error"
+    },
+    {
+      "id": "doctor-trainer-clients",
+      "family": "doctor",
+      "failure": "`trainer`: `missing anthropic, openai`",
+      "cause": "The teacher client packages are not installed.",
+      "fix": "pip install semantscript-trainer (installs the teacher clients anthropic and openai; in a SemantScript checkout: pip install -e .)"
+    },
+    {
+      "id": "doctor-model",
+      "family": "doctor",
+      "failure": "`model`: `semantscript_model does not import`",
+      "cause": "The model package is not on the interpreter's path.",
+      "fix": "pip install semantscript-trainer (in a SemantScript checkout: pip install -e ., or run the CLI from the checkout so model/src is on PYTHONPATH)"
+    },
+    {
+      "id": "doctor-training-extra",
+      "family": "doctor",
+      "failure": "`torch` or `onnxruntime`: a package of the training extra is missing",
+      "cause": "The training extra is not installed into this interpreter.",
+      "fix": "install the training extra into this interpreter: pip install \"semantscript-trainer[training]\" (in a SemantScript checkout: pip install -e \".[training]\"; for a GPU, install the CUDA or ROCm torch build from https://pytorch.org/get-started/locally/ first)"
+    },
+    {
+      "id": "doctor-reinstall",
+      "family": "doctor",
+      "failure": "`torch` or `onnxruntime`: a package is installed but fails to import",
+      "cause": "A broken or partial install, often packages in the user site (`numpy.long`); with `platform-env` failing too, the variable fixes it.",
+      "fix": "reinstall {name} into this interpreter (pip install --force-reinstall {name})"
+    },
+    {
+      "id": "doctor-platform-env-import",
+      "family": "doctor",
+      "failure": "`torch`, `device` or `onnxruntime` while `platform-env` fails",
+      "cause": "The import or the GPU works once the variable `platform-env` names is set.",
+      "fix": "{command} (see platform-env)"
+    },
+    {
+      "id": "doctor-platform-env",
+      "family": "doctor",
+      "failure": "`platform-env`: `<NAME>=1 needed: <why>`",
+      "cause": "An environment variable the imports or the GPU need is not set; doctor proved it by retrying with it.",
+      "fix": "{command}; {persist}"
+    },
+    {
+      "id": "doctor-device-invalid",
+      "family": "doctor",
+      "failure": "`device`: `--device <name> is not a trainer device`",
+      "cause": "An unknown `--device`.",
+      "fix": "pass --device auto, cpu or cuda (ROCm GPUs are cuda to PyTorch)"
+    },
+    {
+      "id": "doctor-device-query",
+      "family": "doctor",
+      "failure": "`device`: `querying it failed`",
+      "cause": "PyTorch sees a GPU but cannot query it.",
+      "fix": "check the GPU driver (nvidia-smi or rocminfo), or pass --device cpu"
+    },
+    {
+      "id": "doctor-device-missing",
+      "family": "doctor",
+      "failure": "`device`: `--device cuda requested but torch sees no CUDA or ROCm device`",
+      "cause": "A CPU-only torch build, or no GPU driver.",
+      "fix": "install the torch build for this GPU (https://pytorch.org/get-started/locally/), or drop --device cuda to train on the CPU"
+    },
+    {
+      "id": "doctor-device-mps",
+      "family": "doctor",
+      "failure": "`device` (warning): Apple MPS is available but unused",
+      "cause": "The trainer does not use MPS yet.",
+      "fix": "expect slower runs; lower --cases or --epochs for a first try"
+    },
+    {
+      "id": "doctor-device-cpu",
+      "family": "doctor",
+      "failure": "`device` (warning): no CUDA or ROCm device",
+      "cause": "Training runs on the CPU.",
+      "fix": "if this machine has an NVIDIA or AMD GPU, install the matching torch build (https://pytorch.org/get-started/locally/); otherwise lower --cases or --epochs"
+    },
+    {
+      "id": "doctor-teacher-file-missing",
+      "family": "doctor",
+      "failure": "`teacher-config`: `<file> does not exist`",
+      "cause": "`--teacher` names a file that does not exist.",
+      "fix": "write a [teacher] TOML there (docs/teachers.md), pass --teacher <file>, or pass --teacher constraints (lower case) to label with the expressions' own constraints"
+    },
+    {
+      "id": "doctor-teacher-file-invalid",
+      "family": "doctor",
+      "failure": "`teacher-config`: `<file> is not a valid teacher file`",
+      "cause": "An invalid `[teacher]` table.",
+      "fix": "fix the [teacher] table (docs/teachers.md lists every key)"
+    },
+    {
+      "id": "doctor-teacher-none",
+      "family": "doctor",
+      "failure": "`teacher-config`: no teacher file and `ANTHROPIC_API_KEY` is not set",
+      "cause": "No teacher is configured.",
+      "fix": "write a [teacher] TOML (docs/teachers.md; Ollama needs no key), set ANTHROPIC_API_KEY to use the default Anthropic teacher, or pass --teacher constraints when the constraints decide every input"
+    },
+    {
+      "id": "doctor-teacher-key-openrouter",
+      "family": "doctor",
+      "failure": "`teacher-key`: `ANTHROPIC_API_KEY is not set; OPENROUTER_API_KEY is`",
+      "cause": "The anthropic backend reads only `ANTHROPIC_API_KEY`, and `base_url` points at OpenRouter.",
+      "fix": "{command} for this shell (base_url points at OpenRouter, which accepts its own key on the Anthropic route)"
+    },
+    {
+      "id": "doctor-teacher-key",
+      "family": "doctor",
+      "failure": "`teacher-key`: `ANTHROPIC_API_KEY is not set`",
+      "cause": "An Anthropic teacher or `[teacher.fallback]` without a key (Ollama and the constraints teacher need none).",
+      "fix": "{command} (an OpenRouter key when base_url is OpenRouter), or switch to the ollama backend (docs/teachers.md)"
+    },
+    {
+      "id": "doctor-teacher-pull",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the Ollama server has no model `<model>`, or the backend answers 404",
+      "cause": "The model is not pulled into Ollama.",
+      "fix": "ollama pull {model}"
+    },
+    {
+      "id": "doctor-teacher-refused",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the probe got 401 or 403",
+      "cause": "The key was refused.",
+      "fix": "the key was refused: check ANTHROPIC_API_KEY (an OpenRouter key when base_url is OpenRouter)"
+    },
+    {
+      "id": "doctor-teacher-model-name",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the Anthropic model is not found",
+      "cause": "The model name in the teacher file does not exist.",
+      "fix": "check the model name {model} in the teacher file"
+    },
+    {
+      "id": "doctor-teacher-ollama-down",
+      "family": "doctor",
+      "failure": "`teacher-probe`: the Ollama server does not answer",
+      "cause": "The Ollama server is down, or `base_url` is wrong.",
+      "fix": "start the server (ollama serve) or fix base_url in the teacher file"
+    },
+    {
+      "id": "doctor-teacher-network",
+      "family": "doctor",
+      "failure": "`teacher-probe`: a connection error or a timeout",
+      "cause": "The network or `base_url` is wrong.",
+      "fix": "check the network and base_url in the teacher file"
+    },
+    {
+      "id": "doctor-teacher-other",
+      "family": "doctor",
+      "failure": "`teacher-probe`: any other probe failure",
+      "cause": "The teacher refused the request for another reason.",
+      "fix": "see docs/teachers.md"
+    },
+    {
+      "id": "doctor-venv",
+      "family": "doctor",
+      "failure": "An interpreter-level check fails and a `.venv` interpreter exists",
+      "cause": "The packages are in the project's `.venv`, which the default interpreter is not.",
+      "fix": "if the packages are in {venv} rather than {python} (the default interpreter), pass --python {venv} or set the SEMANTSCRIPT_PYTHON environment variable to {venv}"
+    },
+    {
+      "id": "editor-no-artifact",
+      "family": "editor",
+      "failure": "`9150`: `sema expression is unverified: no trained artifact at <root>`",
+      "cause": "No trained artifact under `.semantscript/artifact` (or the `artifact` option).",
+      "fix": "run semantscript train (or semantscript dev) to publish an artifact at {root}"
+    },
+    {
+      "id": "editor-unreadable",
+      "family": "editor",
+      "failure": "`9150`: `the artifact at <root> cannot be read`",
+      "cause": "The pointer or manifest is malformed.",
+      "fix": "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train"
+    },
+    {
+      "id": "editor-not-in-artifact",
+      "family": "editor",
+      "failure": "`9151`: `not in the latest artifact`",
+      "cause": "The expression changed since training, so its id is not in the artifact.",
+      "fix": "run semantscript train; the build cache retrains only the expressions that changed"
+    },
+    {
+      "id": "editor-no-examples",
+      "family": "editor",
+      "failure": "`9150`, `9151` or `9152` on an expression without examples",
+      "cause": "The expression has no gold examples, which verification and training both need.",
+      "fix": "add a few examples: [{ inputs, output }] entries to this sema call, the first thing to try"
+    },
+    {
+      "id": "editor-accuracy",
+      "family": "editor",
+      "failure": "`9152`: `verified accuracy <a> is below <t>`",
+      "cause": "Verified accuracy below `accuracyThreshold` (default 0.95).",
+      "fix": "add examples for the cases it misses, or a constraint for the rule it breaks, then retrain (the train report's next: lines name them)"
+    },
+    {
+      "id": "editor-ece",
+      "family": "editor",
+      "failure": "`9153`: `expected calibration error <e> is above <t>`",
+      "cause": "Verified ECE above `eceThreshold` (default 0.1).",
+      "fix": "train with more cases (--cases), or set a confidence threshold with a fallback so low-confidence answers are caught"
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import {
   workerErrorCodeName,
 } from "./inference-protocol.js";
 import { parseStrictJson } from "./strict-json.js";
+import { remedy } from "./remedies.js";
 
 const DEFAULT_INITIALIZATION_TIMEOUT_MILLISECONDS = 30_000;
 const DEFAULT_INFERENCE_TIMEOUT_MILLISECONDS = 30_000;
@@ -120,17 +121,21 @@ export class SemaInferenceTimeoutError extends SemaInferenceError {
   }
 }
 
-/** The called function id is not in the loaded artifact. */
+/** The called function id is not in the loaded artifact (usually a program rebuilt after training); the message and `remedy` name the fix. */
 export class SemaUnknownFunctionError extends SemaInferenceError {
   readonly functionId: string;
+  /** The fix, from `diagnostics/remedies.json`. */
+  readonly remedy: string;
 
   constructor(functionId: string) {
+    const fix = remedy("unknown-function");
     super(
       "unknown-function",
-      `unknown semantic function ${JSON.stringify(functionId)}`,
+      `unknown semantic function ${JSON.stringify(functionId)}; next: ${fix}`,
     );
     this.name = "SemaUnknownFunctionError";
     this.functionId = functionId;
+    this.remedy = fix;
   }
 }
 

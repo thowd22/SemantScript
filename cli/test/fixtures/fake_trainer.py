@@ -16,7 +16,18 @@ probe result (``FAKE_PROBE_FAIL`` makes it a failed one). ``FAKE_TRAINER_SPEND``
 adds a ``teacher.spend`` object to the report. ``FAKE_TRAINER_RETRY`` adds the
 seed retry's ``seed``, ``attempts`` and ``retry`` fields: three attempts from
 ``--seed`` (default 1), the last passing, or with ``FAKE_TRAINER_EXIT`` set, two
-failed attempts and a stop reason.
+failed attempts and a stop reason. A failed report's failure ends with a
+``next:`` line, as the real driver's do.
+
+``FAKE_TRAINER_RAISE`` makes ``train`` (and ``train --estimate``) print a progress
+line and then fail the way a broken environment does: ``module:<name>`` raises
+``ModuleNotFoundError`` for that module, ``syntax`` a ``SyntaxError``, ``crash``
+a ``RuntimeError``, all as uncaught tracebacks, and ``launch`` prints the
+interpreter's own ``No module named`` line and exits 1. ``signal:<NAME>`` kills
+the process with that signal, as the out-of-memory killer or a native crash
+does; ``signal:<NAME>:after-warning`` first logs a traceback it goes on from. ``FAKE_TRAINER_NOISE``
+prints a traceback a library logged and went on from before the report, and
+Python's ``Exception ignored in`` shutdown traceback after it.
 """
 
 from __future__ import annotations
@@ -89,9 +100,7 @@ def estimate(values: dict[str, str | bool]) -> int:
         "maximumSeconds": 1200.0,
     }
     if os.environ.get("FAKE_ESTIMATE_BATCH"):
-        row.update(
-            batchRequests=60, seconds=3720.0, batchSeconds=3600.0, maximumSeconds=350000.0
-        )
+        row.update(batchRequests=60, seconds=3720.0, batchSeconds=3600.0, maximumSeconds=350000.0)
     cached = {
         **row,
         "id": "nf_" + "4" * 64,
@@ -186,6 +195,30 @@ def main(argv: list[str]) -> int:
             json.dumps({"argv": argv, "pythonpath": os.environ.get("PYTHONPATH", "")}),
             encoding="utf-8",
         )
+    failure = os.environ.get("FAKE_TRAINER_RAISE")
+    if failure:
+        print("generating 64 cases (1 gold)", file=sys.stderr, flush=True)
+        if failure == "launch":
+            print(f"{sys.executable}: No module named semantscript_trainer.cli", file=sys.stderr)
+            return 1
+        if failure.startswith("module:"):
+            name = failure.split(":", 1)[1]
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+        if failure == "syntax":
+            raise SyntaxError("invalid syntax")
+        if failure.startswith("signal:"):
+            import signal
+            import traceback
+
+            if failure.endswith(":after-warning"):
+                try:
+                    raise ValueError("optional backend unavailable")
+                except ValueError:
+                    traceback.print_exc()
+                print("continuing without it", file=sys.stderr, flush=True)
+            name = failure.split(":")[1]
+            os.kill(os.getpid(), getattr(signal, name))
+        raise RuntimeError("the fake trainer crashed")
     if values.get("estimate") is True:
         return estimate(values)
     exit_code = int(os.environ.get("FAKE_TRAINER_EXIT", "0"))
@@ -229,7 +262,10 @@ def main(argv: list[str]) -> int:
                 },
                 "verification": {
                     "status": "passed" if exit_code == 0 else "failed",
-                    "failures": [] if exit_code == 0 else ["injected failure"],
+                    "failures": []
+                    if exit_code == 0
+                    else ["injected failure\n  next: rerun with --epochs 5 (now 3)"],
+                    "suggestions": [] if exit_code == 0 else ["rerun with --epochs 5 (now 3)"],
                     "attestedCases": 1,
                     "pairCount": 2,
                     "metrics": {
@@ -294,9 +330,27 @@ def main(argv: list[str]) -> int:
             else "nf_" + "3" * 64 + ": violation rate 2.0305% (8 of 394) is outside the "
             "retry margin 2 x 0.01 = 2.0000%",
         }
+    noisy = bool(os.environ.get("FAKE_TRAINER_NOISE"))
+    if noisy:
+        # A library logging a handled exception with its traceback, then going on.
+        print(
+            'Traceback (most recent call last):\n  File "lib.py", line 3, in load\n'
+            "ValueError: optional backend unavailable\nprogress: continuing",
+            file=sys.stderr,
+            flush=True,
+        )
     report_path = Path(values["report"])
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if noisy:
+        # Python's shutdown noise: a traceback after the report, as the process ends.
+        print(
+            "Exception ignored in: <function Handle.__del__ at 0x1>\n"
+            'Traceback (most recent call last):\n  File "h.py", line 9, in __del__\n'
+            "OSError: handle closed",
+            file=sys.stderr,
+            flush=True,
+        )
     return exit_code
 
 

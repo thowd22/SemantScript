@@ -27,6 +27,7 @@ from semantscript_trainer.cli import (  # noqa: E402
     TrainBundleFailure,
     train_bundle,
 )
+from semantscript_trainer.remedies import remedy  # noqa: E402
 from semantscript_trainer.teacher import (  # noqa: E402
     BoundaryPairProposal,
     CounterfactualProposal,
@@ -522,6 +523,14 @@ def test_verification_failure_keeps_the_report_and_publishes_nothing(tmp_path: P
     assert report["status"] == "failed" and report["artifact"] is None
     assert report["functions"][0]["verification"]["status"] == "failed"
     assert report["functions"][0]["verification"]["failures"]
+    # Every failure ends with the next step derived from its evidence.
+    verification = report["functions"][0]["verification"]
+    assert len(verification["suggestions"]) == len(verification["failures"])
+    for failure, suggestion in zip(
+        verification["failures"], verification["suggestions"], strict=True
+    ):
+        assert failure.endswith("\n  next: " + suggestion)
+    assert "; next: " in str(raised.value)
     assert not (tmp_path / "artifact").exists()
 
 
@@ -1228,7 +1237,7 @@ def test_spend_cap_stops_the_run_keeps_paid_responses_and_a_rerun_replays_them(
     paid = len(sent)
     assert 0 < paid < 6
     assert "error: spend cap USD 0.006 reached" in stopped
-    assert f"{paid} paid teacher response(s) are kept" in stopped
+    assert f"the {paid} paid teacher response(s) kept in" in stopped
     assert "rerun with a higher --max-cost-usd" in stopped
     assert f"teacher: {paid} request(s), {400 * paid:,} in / {60 * paid} out tokens" in stopped
     assert not (tmp_path / "report.json").exists()
@@ -1539,7 +1548,9 @@ def test_retries_stop_after_the_configured_attempts_or_when_turned_off(
     narrow = {"violation_rate": 0.012}
     seen = force_gate_by_seed(monkeypatch, {3: narrow, 4: narrow, 5: narrow})
 
-    with pytest.raises(TrainBundleFailure, match=r"all 2 seed attempts failed \(seeds 3 to 4\)"):
+    with pytest.raises(
+        TrainBundleFailure, match=r"all 2 seed attempts failed \(seeds 3 to 4\)"
+    ) as exhausted:
         train_cached(
             bundle,
             tmp_path,
@@ -1547,6 +1558,16 @@ def test_retries_stop_after_the_configured_attempts_or_when_turned_off(
             seed_retry=SeedRetryConfig(attempts=2),
         )
     assert seen == [3, 4]
+    # The next untried seed is the next step, under the failure and in the error.
+    next_seed = "rerun with --seed 5: seeds 3 to 4 failed narrowly"
+    assert exhausted.value.report["functions"][0]["verification"]["failures"] == [
+        "forced gate failure\n  next: " + remedy("seed-retry-next-seed", seed=5, first=3, last=4)
+    ]
+    assert exhausted.value.report["attempts"][-1]["functions"][0]["suggestions"][0].startswith(
+        next_seed
+    )
+    assert exhausted.value.report["attempts"][0]["functions"][0]["suggestions"] == []
+    assert "; next: " + next_seed in str(exhausted.value)
 
     seen.clear()
     with pytest.raises(TrainBundleFailure, match=r"seed retry is off \(--seed-attempts 1\)") as off:
@@ -1558,6 +1579,9 @@ def test_retries_stop_after_the_configured_attempts_or_when_turned_off(
         )
     assert seen == [3]
     assert off.value.report["retry"]["attempts"] == 1
+    assert off.value.report["functions"][0]["verification"]["suggestions"] == [
+        remedy("seed-retry-attempts", attempts=3)
+    ]
     with pytest.raises(TrainBundleError, match="SeedRetryConfig"):
         train_cached(bundle, tmp_path, seed_retry=3)
 

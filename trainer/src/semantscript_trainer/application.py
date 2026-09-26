@@ -20,6 +20,7 @@ from typing import Any, cast
 
 from semantscript_trainer.adversarial import AdversarialDataset
 from semantscript_trainer.dataset import TrainingDataset
+from semantscript_trainer.remedies import remedy
 from semantscript_trainer.teacher import NeuralFunctionIr
 from semantscript_trainer.training import (
     _MAXIMUM_BATCH_PASSES,
@@ -611,8 +612,6 @@ def _single_group_message(function: FunctionCorpus) -> str:
         f"independent row groups, but its {len(rows)} training rows ({distinct} distinct "
         "inputs) form one: identical inputs, and each case with its counterfactual twin, "
         "must stay on the same side of the held-out split, and in a small input space they "
-        "link every row, the gold examples included. Lower --counterfactual-ratio (0.5, or "
-        "0 when the inputs are a few booleans or enum values), request fewer --cases, or, "
-        "with the constraints teacher, widen the number ranges in [teacher.ranges] "
-        "(docs/diagnostics.md)"
+        "link every row, the gold examples included; "
+        f"next: {remedy('training-single-group')}"
     )

@@ -5,6 +5,7 @@ import { compileSemantScriptProgram } from "@semantscript/compiler";
 import ts from "typescript";
 
 import { CliUsageError, type CliIo } from "./io.js";
+import { remedyText } from "./remedy.js";
 
 const APPLICATION_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
 
@@ -118,16 +119,24 @@ export async function compileProject(
         ? formatDiagnostics(configDiagnostics, io.cwd)
         : `unable to read ${configPath}\n`,
     );
+    io.stderr(
+      `next: ${remedyText("build-no-tsconfig", { config: configPath })}\n`,
+    );
     return failed();
   }
   if (parsed.errors.length > 0) {
     io.stderr(formatDiagnostics(parsed.errors, io.cwd));
+    io.stderr(
+      `next: ${remedyText("build-tsconfig-invalid", { config: configPath })}\n`,
+    );
     return failed();
   }
   const sourceFiles = parsed.fileNames.map((fileName) => resolve(fileName));
   const outDir = parsed.options.outDir;
   if (outDir === undefined) {
-    io.stderr(`${configPath} must set compilerOptions.outDir\n`);
+    io.stderr(
+      `${configPath} must set compilerOptions.outDir; next: ${remedyText("build-no-outdir", { config: configPath })}\n`,
+    );
     return failed(sourceFiles);
   }
   // Without the tsconfig `plugins`: once `ts-patch install` has patched the

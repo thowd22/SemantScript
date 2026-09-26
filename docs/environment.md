@@ -7,6 +7,14 @@ and prints one line per check with the fix; `init` runs it at the end and
 `train` runs its Python and teacher checks before it starts, so a missing piece
 fails in seconds instead of minutes into a run. The
 [CLI reference](cli-reference.md#doctor) lists the flags and the report format.
+When the trainer itself stops on a missing package or an interpreter problem
+(with `--no-preflight`, or a failure the preflight cannot see), `train` prints
+one line naming the check to fix instead of the Python traceback, for example
+`semantscript train: the trainer stopped: ModuleNotFoundError: No module named 'torch'; next: run semantscript doctor and fix its torch check: …`;
+a missing package the trainer catches itself ends its `error:` line with the
+same `next:` clause ([diagnostics](diagnostics.md#trainer-and-interpreter-failures)).
+Every `fix:` line `doctor` prints is listed in the
+[diagnostics catalogue](diagnostics.md#trainer-and-verifier-failures).
 
 ```sh
 npx semantscript doctor                 # every check, one teacher request

@@ -141,7 +141,8 @@ test("rejects invalid relational metadata", async (context) => {
         loadArtifact(artifact.root),
         (error) =>
           error.code === "SEMA_ARTIFACT_INCOMPATIBLE" &&
-          error.message === `artifact requires runtime 999.0.0; current is ${VERSION}`,
+          error.detail === `artifact requires runtime 999.0.0; current is ${VERSION}` &&
+          error.message.startsWith(`${error.detail}; next: `),
       );
     });
     await withArtifact(async (artifact) => {

@@ -19,6 +19,7 @@ from semantscript_trainer.canonical_input import (  # noqa: E402
     serialize_canonical_inputs_string,
 )
 from semantscript_trainer.dataset import DatasetCase, TrainingDataset  # noqa: E402
+from semantscript_trainer.remedies import remedy  # noqa: E402
 from semantscript_trainer.teacher import TeacherDescriptor  # noqa: E402
 from semantscript_trainer.training import (  # noqa: E402
     EpochMetrics,
@@ -201,6 +202,11 @@ def test_gold_miss_fails_build_and_retains_typed_report() -> None:
     assert result.failures == (
         "1 gold/human example prediction(s) failed:\n"
         '  - gold example base:0: inputs {"score":0} expected false, predicted true',
+    )
+    # The next step comes from the evidence: no teacher-labelled row is
+    # mispredicted like the gold miss, so the example itself is to be checked.
+    assert result.suggestions == (
+        remedy("gold-check-example", case="base:0", expected="false", predicted="true"),
     )
     with pytest.raises(VerificationGateError) as caught:
         verify_training_result(

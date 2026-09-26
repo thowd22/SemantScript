@@ -57,8 +57,9 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   happens, where the caches live (including the teacher response journal) and
   how to clear them, and how the cache interacts with a release rollback.
 - [Diagnostics catalogue](diagnostics.md): every compiler diagnostic, editor
-  warning, trainer and verifier failure and runtime error, with cause and fix,
-  and the [wrong-answer workflow](diagnostics.md#wrong-answer-workflow) from
+  warning, trainer and verifier failure, CLI failure and runtime error, with
+  cause and fix, how the `next:` line under each failure is derived, and the
+  [wrong-answer workflow](diagnostics.md#wrong-answer-workflow) from
   `semantscript explain` to the example or constraint to add.
 - [Language reference](language-reference.md): `sema<T>` syntax, inputs,
   examples, constraints, every v1 output type, `@confidence`,

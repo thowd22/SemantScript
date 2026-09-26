@@ -67,12 +67,15 @@ from semantscript_trainer.dataset import (
 )
 from semantscript_trainer.doctor import add_arguments as add_doctor_arguments
 from semantscript_trainer.doctor import run_from_arguments as run_doctor_from_arguments
+from semantscript_trainer.failures import FailureStage, failure_remedy, with_remedy
 from semantscript_trainer.lifecycle import (
     TrainingProvenanceCounts,
     VerifiedIrProvenance,
     build_verified_ir,
 )
+from semantscript_trainer.remedies import remedy
 from semantscript_trainer.semantic_json import semantic_json_sha256
+from semantscript_trainer.suggestions import seed_retry_suggestion
 from semantscript_trainer.teacher import (
     AdversarialTeacher,
     JsonValue,
@@ -140,6 +143,10 @@ _TRAINING_KEY_KIND = "semantscript.training-key"
 
 class TrainBundleError(RuntimeError):
     """The bundle, the teacher or the configuration cannot produce an artifact."""
+
+
+class InvalidBundleError(TrainBundleError):
+    """The file passed as the bundle is not the compiler's IR bundle."""
 
 
 class TrainBundleFailure(TrainBundleError):
@@ -331,9 +338,8 @@ def train_bundle(
             say(
                 f"warning: {describe_expression(ir)}: only {distinct} distinct inputs among "
                 f"{len(base.cases)} cases; the teacher repeated inputs because the input space "
-                "is small, so held-out accuracy says less than the count suggests (a "
-                "[teacher.ranges] table widens a constraints teacher's number ranges; "
-                "docs/teachers.md)"
+                "is small, so held-out accuracy says less than the count suggests; "
+                f"next: {remedy('teacher-few-distinct')}"
             )
         adversarial: AdversarialDataset | None = None
         if cast(list[Any], definition.get("constraints", [])):
@@ -477,9 +483,9 @@ def train_bundle(
             )
             trained.append(TrainedFunction(ir, base, adversarial, training, verification))
         failed = [entry for entry in trained if entry.verification.status != "passed"]
-        if any(not entry.reused for entry in trained):
-            attempts.append(_attempt_report(attempt, seed, trained))
         if not failed:
+            if any(not entry.reused for entry in trained):
+                attempts.append(_attempt_report(attempt, seed, trained))
             break
         decision = seed_retry_decision(
             [entry.verification for entry in trained if not entry.reused],
@@ -500,6 +506,20 @@ def train_bundle(
             )
         elif seed + 1 > MAXIMUM_SPLIT_SEED:
             stop_reason = f"seed {seed} is the largest seed a split accepts"
+        if decision.retry and stop_reason is not None:
+            # Every failed gate was narrow, so the retry is the next step: it
+            # replaces the data or calibration suggestion under each failure.
+            next_step = seed_retry_suggestion(
+                attempts=retry.attempts,
+                first_seed=first_seed,
+                last_seed=seed,
+                maximum_seed=MAXIMUM_SPLIT_SEED,
+            )
+            if next_step is not None:
+                trained = [_with_suggestion(entry, next_step) for entry in trained]
+                failed = [entry for entry in trained if entry.verification.status != "passed"]
+        if any(not entry.reused for entry in trained):
+            attempts.append(_attempt_report(attempt, seed, trained))
         if stop_reason is not None:
             say(f"not retrying: {stop_reason}")
             break
@@ -518,9 +538,18 @@ def train_bundle(
     if failed:
         report["status"] = "failed"
         names = ", ".join(cast(str, entry.ir["id"]) for entry in failed)
+        first_step = next(
+            (
+                entry.verification.suggestions[0]
+                for entry in failed
+                if entry.verification.suggestions
+            ),
+            None,
+        )
         raise TrainBundleFailure(
             f"verification failed for {names}"
-            + ("" if stop_reason is None else f"; not retrying: {stop_reason}"),
+            + ("" if stop_reason is None else f"; not retrying: {stop_reason}")
+            + ("" if first_step is None else f"; next: {first_step}"),
             report,
         )
     # Every trained function used this attempt's seed; a build that only
@@ -795,6 +824,31 @@ def _violation_note(verification: VerificationResult) -> str:
     return f", constraint violations {violations} of {records} ({violations / records:.2%})"
 
 
+def _with_suggestion(entry: TrainedFunction, suggestion: str) -> TrainedFunction:
+    """``entry`` with ``suggestion`` as the next step under every one of its failures."""
+
+    verification = entry.verification
+    if entry.reused or verification.status == "passed":
+        return entry
+    return replace(
+        entry,
+        verification=replace(
+            verification, suggestions=tuple(suggestion for _ in verification.failures)
+        ),
+    )
+
+
+def _report_failures(verification: VerificationResult) -> list[str]:
+    """Each failure with its ``next:`` line, as the report and the CLI print it."""
+
+    if not verification.suggestions:
+        return list(verification.failures)
+    return [
+        f"{failure}\n  next: {suggestion}"
+        for failure, suggestion in zip(verification.failures, verification.suggestions, strict=True)
+    ]
+
+
 def _attempt_report(attempt: int, seed: int, trained: Sequence[TrainedFunction]) -> dict[str, Any]:
     """One training attempt's seed and gate metrics for every function it trained."""
 
@@ -816,7 +870,8 @@ def _attempt_report(attempt: int, seed: int, trained: Sequence[TrainedFunction])
                 "violationRate": (
                     None if records is None else metrics.constraint_violations / records
                 ),
-                "failures": list(verification.failures),
+                "failures": _report_failures(verification),
+                "suggestions": list(verification.suggestions),
             }
         )
     return {
@@ -892,33 +947,33 @@ def _training_key_from_records(records: Sequence[CachedFunction]) -> str:
 
 def _bundle_functions(bundle: Mapping[str, Any]) -> list[NeuralFunctionIr]:
     if not isinstance(bundle, Mapping):
-        raise TrainBundleError("bundle must be a JSON object")
+        raise InvalidBundleError("bundle must be a JSON object")
     if bundle.get("kind") != BUNDLE_KIND or bundle.get("bundleVersion") != 1:
-        raise TrainBundleError(f"bundle must be a {BUNDLE_KIND} version 1 document")
+        raise InvalidBundleError(f"bundle must be a {BUNDLE_KIND} version 1 document")
     functions = bundle.get("functions")
     if not isinstance(functions, list) or not functions:
-        raise TrainBundleError("bundle must contain at least one neural function")
+        raise InvalidBundleError("bundle must contain at least one neural function")
     resolved: list[NeuralFunctionIr] = []
     seen: set[str] = set()
     for raw in functions:
         if not isinstance(raw, Mapping):
-            raise TrainBundleError("bundle functions must be objects")
+            raise InvalidBundleError("bundle functions must be objects")
         function_id = raw.get("id")
         if not isinstance(function_id, str) or function_id in seen:
-            raise TrainBundleError("bundle functions must have unique string ids")
+            raise InvalidBundleError("bundle functions must have unique string ids")
         seen.add(function_id)
         if raw.get("stage") != "source":
-            raise TrainBundleError(f"{function_id} is not a source-stage record")
+            raise InvalidBundleError(f"{function_id} is not a source-stage record")
         model = raw.get("model")
         if not isinstance(model, Mapping):
-            raise TrainBundleError(f"{function_id} has no model binding")
+            raise InvalidBundleError(f"{function_id} has no model binding")
         encoder_ref = model.get("encoder")
         adapter_ref = model.get("adapter")
         if not isinstance(encoder_ref, str) or not isinstance(adapter_ref, str):
-            raise TrainBundleError(f"{function_id} must bind encoder and adapter refs")
+            raise InvalidBundleError(f"{function_id} must bind encoder and adapter refs")
         definition = raw.get("definition")
         if not isinstance(definition, Mapping):
-            raise TrainBundleError(f"{function_id} has no definition")
+            raise InvalidBundleError(f"{function_id} has no definition")
         resolved.append(cast(NeuralFunctionIr, copy.deepcopy(dict(raw))))
     return resolved
 
@@ -942,8 +997,8 @@ def _require_gold_examples(functions: Sequence[NeuralFunctionIr]) -> None:
     names = ", ".join(describe_expression(ir) for ir in missing)
     raise TrainBundleError(
         f"{names} {'has' if len(missing) == 1 else 'have'} no gold examples: verification "
-        "needs at least one attested example per expression, whatever the teacher. Add an "
-        "examples: [{ inputs, output }] entry to the sema call"
+        "needs at least one attested example per expression, whatever the teacher; "
+        f"next: {remedy('train-no-gold-examples')}"
     )
 
 
@@ -1011,7 +1066,8 @@ def _function_report(entry: TrainedFunction) -> dict[str, Any]:
         },
         "verification": {
             "status": verification.status,
-            "failures": list(verification.failures),
+            "failures": _report_failures(verification),
+            "suggestions": list(verification.suggestions),
             "attestedCases": verification.attested_cases,
             "pairCount": verification.pair_count,
             "metrics": verification.to_ir_document()["metrics"],
@@ -1251,7 +1307,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         seed_retry = _seed_retry_config(arguments)
     except ValueError as error:
-        log(f"error: {error}")
+        fix = failure_remedy(
+            error, stage="options", bundle=str(arguments.bundle), teacher=str(arguments.teacher)
+        )
+        log(with_remedy(f"error: {error}", fix))
         return 1
 
     if arguments.estimate:
@@ -1262,13 +1321,24 @@ def main(argv: list[str] | None = None) -> int:
     meter: SpendMeter | None = None
     journal: ResponseJournal | None = None
     model_config = None
+    stage: FailureStage = "options"
     try:
         if arguments.max_cost_usd is not None and not (
             arguments.max_cost_usd > 0 and arguments.max_cost_usd < float("inf")
         ):
             raise ValueError("--max-cost-usd must be a positive number")
+        adversarial_config = (
+            AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
+            if arguments.counterfactual_ratio is not None
+            else None
+        )
+        training_config = _training_config(arguments)
+        verification_config = _verification_config(arguments)
+        stage = "bundle"
         bundle = json.loads(Path(arguments.bundle).read_text(encoding="utf-8"))
+        stage = "teacher-config"
         config = load_teacher_config(arguments.teacher)
+        stage = "run"
         model_config = language_model_config(config)
         price = None
         try:
@@ -1276,7 +1346,7 @@ def main(argv: list[str] | None = None) -> int:
         except TeacherPriceUnknown as error:
             if arguments.max_cost_usd is not None:
                 raise
-            log(f"warning: {error}; the run counts requests and tokens but not USD")
+            log(f"warning: the run counts requests and tokens but not USD: {error}")
         meter = SpendMeter(price, max_cost_usd=arguments.max_cost_usd, log=log)
         if model_config is None:
             teacher = create_teacher(config)
@@ -1286,19 +1356,14 @@ def main(argv: list[str] | None = None) -> int:
             if not arguments.no_cache and model_config.backend == "anthropic":
                 journal = ResponseJournal(arguments.cache_dir, model_config.configuration_sha256)
             teacher = create_teacher(config, meter=meter, journal=journal)
-        adversarial_config = (
-            AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
-            if arguments.counterfactual_ratio is not None
-            else None
-        )
         result = train_bundle(
             bundle,
             arguments.artifact,
             teacher=teacher,
             cache_directory=arguments.cache_dir,
             cases=arguments.cases,
-            training_config=_training_config(arguments),
-            verification_config=_verification_config(arguments),
+            training_config=training_config,
+            verification_config=verification_config,
             adversarial_config=adversarial_config,
             application_id=arguments.application_id,
             application_version=arguments.application_version,
@@ -1316,25 +1381,32 @@ def main(argv: list[str] | None = None) -> int:
         )
         report = result.report
     except TeacherBudgetExceeded as error:
-        journaled = "no" if journal is None else str(journal.count())
-        log(
-            f"error: {error}. Every dataset finished before the stop stays cached in "
-            f"{arguments.cache_dir}"
-            + (
-                "; rerun with a higher --max-cost-usd (or without it) to resume"
-                if journal is None
-                else f", and {journaled} paid teacher response(s) are kept in "
-                f"{journal.directory}; rerun with a higher --max-cost-usd (or without it) "
-                "to resume: journaled responses replay at no cost"
+        fix = (
+            remedy("teacher-spend-cap", cache=arguments.cache_dir)
+            if journal is None
+            else remedy(
+                "teacher-spend-cap-journal",
+                cache=arguments.cache_dir,
+                count=journal.count(),
+                journal=journal.directory,
             )
         )
+        log(f"error: {error}; next: {fix}")
         code = 1
     except TrainBundleFailure as error:
         log(f"error: {error}")
         report = error.report
         code = 1
-    except (OSError, ValueError, RuntimeError, TypeError, BuildCacheError) as error:
-        log(f"error: {error}")
+    except (OSError, ValueError, RuntimeError, TypeError, ImportError, BuildCacheError) as error:
+        fix = failure_remedy(
+            error,
+            stage="bundle-shape" if isinstance(error, InvalidBundleError) else stage,
+            bundle=str(arguments.bundle),
+            teacher=str(arguments.teacher),
+            cache=str(arguments.cache_dir),
+            artifact=str(arguments.artifact),
+        )
+        log(with_remedy(f"error: {error}", fix))
         code = 1
         if journal is not None and _rejected_teacher_answer(error):
             dropped = journal.discard_touched()
@@ -1382,24 +1454,38 @@ def _run_estimate(arguments: argparse.Namespace, log: Callable[[str], None]) -> 
 
     from semantscript_trainer.teacher_estimate import estimate_bundle
 
+    stage: FailureStage = "bundle"
     try:
         bundle = json.loads(Path(arguments.bundle).read_text(encoding="utf-8"))
+        stage = "bundle-shape"
         functions = _bundle_functions(bundle)
+        stage = "teacher-config"
+        config = load_teacher_config(arguments.teacher)
+        stage = "options"
         adversarial_config = (
             AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
             if arguments.counterfactual_ratio is not None
             else None
         )
+        stage = "run"
         estimate = estimate_bundle(
             functions,
-            load_teacher_config(arguments.teacher),
+            config,
             cache_directory=arguments.cache_dir,
             cases=arguments.cases,
             adversarial_config=adversarial_config,
             use_cache=not arguments.no_cache,
         )
-    except (OSError, ValueError, RuntimeError, TypeError) as error:
-        log(f"error: {error}")
+    except (OSError, ValueError, RuntimeError, TypeError, ImportError) as error:
+        fix = failure_remedy(
+            error,
+            stage=stage,
+            bundle=str(arguments.bundle),
+            teacher=str(arguments.teacher),
+            cache=str(arguments.cache_dir),
+            artifact=str(arguments.artifact),
+        )
+        log(with_remedy(f"error: {error}", fix))
         return 1
     if arguments.max_cost_usd is not None:
         estimate["maxCostUsd"] = arguments.max_cost_usd

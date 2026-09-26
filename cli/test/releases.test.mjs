@@ -394,6 +394,9 @@ test("releases rollback and promote refuse a release the runtime's loader would 
       "u",
     ),
   );
+  // The runtime error's detail, without its remedy (which would name
+  // releases rollback, the command that just refused).
+  assert.doesNotMatch(rollback.stderr, /next:/u);
   assert.equal(await currentDigest(root), newest);
 
   const promote = await run(root, ["promote", middle]);

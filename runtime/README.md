@@ -52,6 +52,16 @@ execution remain in-process, local, and free of Python or network access. A call
 made before a successful load, an unknown function ID, malformed inputs, and an
 inference failure each throw a distinct typed runtime error.
 
+The errors a missing, stale or unloadable artifact raises name the fix:
+`SemaRuntimeNotLoadedError`, `SemaUnknownFunctionError` and `ArtifactLoadError`
+end their message with `; next: <fix>` (for example
+`cannot inspect artifact directory; next: run semantscript train to publish an artifact at …`)
+and carry it as `remedy`; `ArtifactLoadError.detail` is the message without it.
+The texts come from `diagnostics/remedies.json` through the generated
+`remedies.generated.ts`; `remedy(id, params)` (exported) fills one, which is
+how the CLI prints the same fixes
+([diagnostics](../docs/diagnostics.md#runtime-errors)).
+
 ## Confidence results and fallbacks
 
 `sema.withConfidence<T>` returns the diagnostic shape declared by

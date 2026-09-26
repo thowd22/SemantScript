@@ -74,6 +74,16 @@ gh workflow run release.yml --ref main                   # dry_run defaults to t
 gh workflow run release.yml --ref v0.1.0 -f dry_run=false   # publish an existing tag again
 ```
 
+The first dry run, run 36215282093 on 2026-09-26 for 0.1.0, took 4.3
+minutes: `test` 3.8 minutes, `pack` 33 s (`twine check --strict` passed for
+the wheel and the sdist), `smoke` 3.4 minutes on the hosted runner's CPU
+(`pip install` of the wheel with its `training` extra into a fresh venv, then
+`init`, `build`, `train` of 96 cases with 3 epochs at accuracy 1.0, `test`,
+`run` answering `true` and `false`, and a manifest with `compilerVersion` and
+`trainerVersion` 0.1.0), and `npm publish --dry-run` of the four tarballs in
+order (core 214 kB and 50 files, compiler 166 kB and 70, framework 16 kB and
+17, the CLI 156 kB).
+
 The smoke script also runs locally, against tarballs or a registry:
 
 ```sh

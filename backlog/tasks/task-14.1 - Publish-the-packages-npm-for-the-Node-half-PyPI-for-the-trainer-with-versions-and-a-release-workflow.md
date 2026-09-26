@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 03:30'
+updated_date: '2026-09-26 03:40'
 labels:
   - dx
   - install
@@ -69,4 +69,6 @@ IMPLEMENT (2026-09-25):
 - Local proof (AC1/AC2 mechanism, no public registry): verdaccio 6.10.4 on 127.0.0.1:4873 with the 4 packs of 0.1.0 published; wheel semantscript_trainer-0.1.0 installed with pip --no-deps --target (host has no venv; torch etc. from .python-packages minus its old semantscript copies). node scripts/release-smoke.mjs --registry http://127.0.0.1:4873/ --version 0.1.0 --device cuda --train-arg=--local-files-only in /tmp (no git checkout): npm install of the 4 packages, init --tool tsc --no-example --teacher constraints, build, train (96 cases, 3 epochs; accuracy 1.0, ece 0.0, 0 violations; USD 0), test passed, run -> true / false; manifest build compilerVersion 0.1.0, trainerVersion 0.1.0. Tutorial published route (npm pkg set, tsconfig, init, npm install, refunds.sem.ts, npm run build, semantscript build, train --estimate) also ran against verdaccio.
 - Docs: getting-started (new step 2 Install + first-publish-pending note), tutorial (npm/PyPI route and clone route, file: links explained), new docs/releasing.md (linked from index and CONTRIBUTING), README Status, cli-reference/diagnostics/environment fix text, CONTRIBUTING python project name, trainer + package READMEs.
 - Checks: npm run build ok; lint:node ok; test:node 345 pass; ruff check/format ok; pytest 709 passed 4 skipped; prettier --check docs README.md ok.
+
+CI on task-14.1: CI run 36215282158 success (all jobs). Release dry run 36214993058 failed only in publish-npm (npm read release/x.tgz as a GitHub shorthand); fixed with ./release paths. Release dry run 36215282093 success in 4.3 min: verify, test (3.8 min), pack (twine check --strict PASSED wheel+sdist), smoke 3.4 min on hosted CPU (clean venv pip install of the wheel [training] from PyPI deps, npm install of the 4 tarballs in /tmp, init/build/train 96 cases acc 1.0/test/run true,false; manifest compilerVersion+trainerVersion 0.1.0), npm publish --dry-run of core/compiler/framework/cli OK, PyPI dry run OK; publish-pypi and github-release skipped as designed. Recorded in docs/releasing.md.
 <!-- SECTION:NOTES:END -->

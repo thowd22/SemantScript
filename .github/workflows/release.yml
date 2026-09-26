@@ -215,7 +215,8 @@ jobs:
           fi
           case "$VERSION" in *-*) tag=next ;; *) tag=latest ;; esac
           for name in @semantscript/core @semantscript/compiler @semantscript/framework semantscript; do
-            file="release/$(echo "$name" | sed 's|^@||; s|/|-|')-$VERSION.tgz"
+            # "./": a bare release/x.tgz reads as a GitHub owner/repo shorthand.
+            file="./release/$(echo "$name" | sed 's|^@||; s|/|-|')-$VERSION.tgz"
             if [ "$REAL" = true ]; then
               # A rerun after a partial publish skips what is already there.
               if npm view "$name@$VERSION" version >/dev/null 2>&1; then

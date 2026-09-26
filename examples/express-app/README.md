@@ -186,7 +186,8 @@ targets and the [deploy guide](../../docs/deploy.md) the size levers.
   it copies the directory, runs as the `node` user and starts
   `dist/server.js`. CI packages this example with the fixture artifact on
   every push, builds this image from the bundle, sends one `POST /tickets`
-  and invokes the packaged Lambda handler once
+  and invokes the packaged Lambda handler once; that image is 314 MB and
+  builds in 6 s from the bundle
   ([measured](../../docs/CONTRIBUTING.md#continuous-integration)).
 - [`deploy/Dockerfile`](deploy/Dockerfile): the older two-stage image built
   from the repository root (`docker build -f examples/express-app/deploy/Dockerfile .`),

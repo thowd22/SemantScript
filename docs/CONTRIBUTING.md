@@ -183,6 +183,17 @@ this cost: it needs a teacher and preferably a GPU, and is measured in the
 [tutorial](tutorial-refund-decision.md) and the
 [teachers page](teachers.md).
 
+The `package` job, run
+[36214034260](https://github.com/thowd22/SemantScript/actions/runs/36214034260)
+(2026-09-26, npm cache on), takes 41 s from start to finish: `npm ci` and the
+build 11 s, the example build and fixture artifact 5 s,
+`semantscript package` 6 s (a bundle of 86,641,760 bytes, 82.6 MiB, 167.4 MiB
+under `lambda-zip`, after pruning 296.6 MiB of other platforms' and GPU
+providers' binaries), the Lambda handler invocation under 1 s, `docker build`
+from the bundle 6 s and the request 3 s. The image built from the bundle is
+314 MB, against 624 MB for the two-stage `deploy/Dockerfile` image, whose
+`node_modules` keeps every platform's native binaries.
+
 ## Work tracking
 
 Tasks, plans, notes and decisions live in Backlog.md under `backlog/`. Use the

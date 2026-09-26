@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 03:11'
+updated_date: '2026-09-26 03:16'
 labels:
   - dx
   - deploy
@@ -52,4 +52,6 @@ Deploying is copying dist/, production node_modules and a 275 to 600 MB artifact
 
 <!-- SECTION:NOTES:BEGIN -->
 IMPLEMENT: cli/src/package.ts adds semantscript package (bundle layout dist without IR bundle, production node_modules via npm install --omit=dev --install-links or npm ci, current release only checked with the exported verifyRelease, --include, semantscript-package.json with sha256+size per file; onnxruntime-node/tokenizers pruned to the target platform, CUDA/TensorRT providers dropped, pruned bindings loaded in a child node on the host). Targets lambda-zip 262,144,000 B, lambda-image 10 GiB, cloud-run-functions 500,000,000 B (provider quota pages read 2026-09-25) or --max-bytes; over target exits 1 PACKAGE_OVER_TARGET with depth/int8/depth+int8/smaller-encoder levers from exact measured bytes (depth sweep results.json, int8 quantization-report.json). Local measurements: fixture bundle 86,641,399 B (82.6 MiB) fits lambda-zip; trained release 217d386c bundle 685,309,329 B (653.6 MiB) over by 403.6 MiB, int8 ~227.6 MiB and depth6/4+int8 ~150.6/140.9 MiB fit, depth alone does not. Packaged server and lambda handler answered urgent locally. Tests cli/test/package.test.mjs (8), docs: docs/deploy.md (new, indexed), cli-reference package section, diagnostics, cli/README, CONTRIBUTING CI row, express README deploy section, Dockerfile.package, CI package job.
+
+CI run 36214034260 on task-14.9 green (all 7 jobs). package job 41 s: package step 6 s, bundle 86,641,760 B fits lambda-zip, packaged Lambda handler -> 201 urgent, docker build from bundle 6 s, POST /tickets -> urgent, image 314 MB (vs 624 MB two-stage). Recorded in docs/CONTRIBUTING.md and the example README.
 <!-- SECTION:NOTES:END -->

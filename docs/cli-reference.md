@@ -569,7 +569,11 @@ if the bundle has the id, the expression changed since the artifact was
 trained; if neither has it, the build or the artifact is stale. It still shows
 the bundle's constraints and examples, lists the artifact functions the bundle
 no longer has (the likely earlier version), and exits 1; retrain with
-`semantscript train`. Exit 0 when every call was explained, even when an
+`semantscript train`. When the training cache already holds a dataset for the
+new id, a train already labelled the changed expression; if that train failed
+verification, the `missing` line says to apply the example or constraint its
+`next:` line names first, because training the same expression again reuses
+the dataset and misses the same way. Exit 0 when every call was explained, even when an
 answer violates a constraint or falls below its threshold; exit 1 for a
 missing export, a missing function id or any other error from the call.
 

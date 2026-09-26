@@ -12,7 +12,7 @@ export const REMEDY_TEMPLATES = {
   },
   "gold-check-example": {
     family: "verifier",
-    fix: "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}); when a release is already published, semantscript explain <module.js> --call <export> with the example's inputs lists it beside the nearest teacher-labelled cases from this run's cached dataset. If the example is right, add examples near it or a constraint for its rule; if not, correct it",
+    fix: "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}); when a release is already published, semantscript explain <module.js> --call <export> with the example's inputs lists it beside the nearest cached teacher-labelled cases (this run's when the expression changed since that release; a --no-cache run caches none). If the example is right, add examples near it or a constraint for its rule; if not, correct it",
     params: ["case", "expected", "predicted"],
   },
   "violation-example": {

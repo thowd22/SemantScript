@@ -385,7 +385,7 @@ def compile_project(
 
 def run_cli_test(artifact_root: Path) -> dict[str, Any]:
     completed = subprocess.run(
-        ["node", str(CLI_ENTRY), "test", "--artifact", str(artifact_root), "--json"],
+        ["node", str(CLI_ENTRY), "test", "--artifact", str(artifact_root), "--no-bundle", "--json"],
         cwd=ROOT,
         capture_output=True,
         text=True,

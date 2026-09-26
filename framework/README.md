@@ -55,7 +55,11 @@ export class TicketController {
 The runtime's `semaScopePasses()` reports the passes performed so far in the
 current request. `test/framework.test.mjs` covers the decorators, guard
 ordering (a failing pre-guard performs no pass; a post-guard reads the neural
-value), the Express round trip over HTTP, the middleware and the Next handlers.
+value), the Express round trip over HTTP, the middleware and the Next handlers,
+and a controller driven through `handle()` over a stub artifact from
+`@semantscript/core/testing`. To test your own handlers without a trained
+model, see "Testing handlers" in the
+[framework guide](../docs/framework-guide.md#testing-handlers).
 
 ## Persistence and transactions
 

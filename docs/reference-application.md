@@ -215,8 +215,9 @@ next to a threshold), the verifier's ECE is at most 0.0014, and p50
 latency per call is about 3.8 to 5.4 ms on the CPU at depth 6. The README has the per-expression table, the
 verification story (four strict-gate failures on near-threshold amounts
 before a recorded 0.5% tolerance, and a release that then recorded one raw
-violation, within it) and the tests: bundle shape, the framework path over the runtime's
-fixture artifact, and every controller over the trained artifact.
+violation, within it) and the tests: bundle shape, the refund controller over a
+stub artifact from `@semantscript/core/testing` (a reviewed order rolls back,
+an approved one writes its row), and every controller over the trained artifact.
 
 Run it:
 

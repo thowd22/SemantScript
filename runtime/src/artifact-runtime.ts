@@ -30,6 +30,7 @@ import {
   type SemaFallback,
 } from "./confidence-policy.js";
 import {
+  type InferenceHeadPlan,
   type InferenceSupportValue,
   type StagedHeadPlan,
   type StagedInferencePlan,
@@ -42,6 +43,7 @@ import {
   SemaUnknownFunctionError,
 } from "./inference-runtime.js";
 import { inspectOnnxContainer } from "./onnx-model.js";
+import { type StubAnswerer, stubAnswererFor } from "./stub-registry.js";
 
 interface ActiveArtifact {
   readonly token: symbol;
@@ -50,11 +52,15 @@ interface ActiveArtifact {
   readonly runtime: InferenceRuntime;
   readonly functions: ReadonlyMap<string, ActiveFunction>;
   readonly fallbackInvocationStack: Set<string>;
+  /** A test stub's answers (TASK-14.8): replace the worker's value after it ran. */
+  readonly stub: StubAnswerer | undefined;
 }
 
 interface ActiveFunction {
   readonly artifact: ArtifactFunctionV1;
   readonly fallback: SemaFallback | undefined;
+  readonly diagnosticsRequired: boolean;
+  readonly heads: readonly InferenceHeadPlan[];
 }
 
 const DEFAULT_RESPONSE_BUFFER_BYTES = 65_536;
@@ -338,6 +344,7 @@ function activateArtifact(
 
   return enqueueLifecycle(async () => {
     const staged = await loadArtifact(artifactPath, artifactOptions);
+    const stub = stubAnswererFor(staged.manifest, staged.manifestSha256);
     const functions = bindFunctions(staged.functions, fallbackSnapshot);
     const plan = buildInferencePlan(staged);
     const runtime = await createInferenceRuntime(
@@ -355,6 +362,7 @@ function activateArtifact(
       runtime,
       functions,
       fallbackInvocationStack: new Set(),
+      stub,
     };
     const previous = activeArtifact;
     activeArtifact = next;
@@ -606,7 +614,13 @@ function dispatchArtifactStage(
         artifact,
         entry.activeFunction,
         entry.inputs,
-        stage.results[index],
+        stubbedResult(
+          artifact,
+          entry.activeFunction,
+          entry.inputs,
+          entry.canonicalInput,
+          stage.results[index],
+        ),
       ),
     ),
     passes: stage.passes,
@@ -651,8 +665,36 @@ function dispatchArtifactCall(
     artifact,
     activeFunction,
     inputs,
-    inferenceResult,
+    stubbedResult(
+      artifact,
+      activeFunction,
+      inputs,
+      canonicalInput,
+      inferenceResult,
+    ),
   );
+}
+
+/** The worker's result, or a test stub's answer in the same decoded shape. */
+function stubbedResult(
+  artifact: ActiveArtifact,
+  activeFunction: ActiveFunction,
+  inputs: Readonly<Record<string, unknown>>,
+  canonicalInput: Uint8Array,
+  inferenceResult: unknown,
+): unknown {
+  if (artifact.stub === undefined) {
+    return inferenceResult;
+  }
+  return artifact.stub({
+    functionId: activeFunction.artifact.id,
+    inputs,
+    canonicalInput,
+    plan: {
+      diagnosticsRequired: activeFunction.diagnosticsRequired,
+      heads: activeFunction.heads,
+    },
+  });
 }
 
 function applyConfidencePolicy(
@@ -813,9 +855,7 @@ function buildInferencePlan(
     entry.encoderRef === staged.manifest.model.encoderRef
       ? {}
       : { encoderRef: entry.encoderRef }),
-    diagnosticsRequired:
-      entry.runtime.resultMode === "diagnostic" ||
-      entry.runtime.confidenceThreshold !== null,
+    diagnosticsRequired: diagnosticsRequired(entry),
     heads: entry.heads.map((head) => buildHeadPlan(resources, head)),
   }));
 
@@ -844,16 +884,29 @@ function buildHeadPlan(
     throw invalidResourceRole(head.headRef, "head");
   }
   return {
-    outputPath: head.outputPath,
-    parameterization: head.parameterization,
-    support: headSupport(head),
-    temperature: head.calibration.temperature,
-    expectedValueMode: expectedValueMode(head),
+    ...inferenceHeadPlan(head),
     model: validatedModel({
       metadata: resource.metadata,
       prepared: resource.prepared,
     }),
     abi: resource.metadata.onnx,
+  };
+}
+
+function diagnosticsRequired(entry: ArtifactFunctionV1): boolean {
+  return (
+    entry.runtime.resultMode === "diagnostic" ||
+    entry.runtime.confidenceThreshold !== null
+  );
+}
+
+function inferenceHeadPlan(head: HeadBindingV1): InferenceHeadPlan {
+  return {
+    outputPath: head.outputPath,
+    parameterization: head.parameterization,
+    support: headSupport(head),
+    temperature: head.calibration.temperature,
+    expectedValueMode: expectedValueMode(head),
   };
 }
 
@@ -1012,7 +1065,15 @@ function bindFunctions(
           `semantic function ${JSON.stringify(artifact.id)} requires unregistered fallback ${JSON.stringify(fallbackRef)}`,
         );
       }
-      return [artifact.id, Object.freeze({ artifact, fallback })];
+      return [
+        artifact.id,
+        Object.freeze({
+          artifact,
+          fallback,
+          diagnosticsRequired: diagnosticsRequired(artifact),
+          heads: artifact.heads.map(inferenceHeadPlan),
+        }),
+      ];
     }),
   );
 }

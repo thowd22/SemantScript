@@ -18,6 +18,7 @@ import {
   loadSemaArtifact,
   semaScopePasses,
 } from "@semantscript/core";
+import { loadSemaStubArtifact } from "@semantscript/core/testing";
 import {
   Controller,
   Get,
@@ -260,4 +261,119 @@ test("a controller becomes Next.js App Router handlers over web requests", async
     query: { expand: "yes" },
     agent: null,
   });
+});
+
+// The same controller over a stub artifact built from an IR bundle: the two
+// sites answer what the test says, and the second is thresholded with a
+// fallback, so a low-confidence answer takes the fallback path.
+function stubBundle() {
+  const facts = {
+    name: "facts",
+    index: 0,
+    tsType: "Facts",
+    type: {
+      kind: "object",
+      name: "Facts",
+      fields: [
+        { name: "a", optional: false, type: { kind: "number" } },
+        { name: "b", optional: false, type: { kind: "number" } },
+      ],
+    },
+  };
+  const site = (id, threshold, fallbackRef) => ({
+    id,
+    semanticSha256: id.slice(3),
+    inputs: [facts],
+    output: {
+      kind: "scalar",
+      tsType: "Decision",
+      head: {
+        kind: "nominal",
+        sourceKind: "string-union",
+        support: ["approve", "deny", "review"],
+      },
+    },
+    model: {
+      adapter: "adapter.tickets",
+      encoder: "encoder.tickets",
+      heads: [{ outputPath: "", ref: `head.${id.slice(3, 9)}` }],
+    },
+    runtime: {
+      resultMode: "value",
+      confidenceThreshold: threshold,
+      fallbackRef,
+      synchronous: true,
+    },
+    trainingProvenance: { status: "pending" },
+  });
+  return {
+    kind: "semantscript.ir-bundle",
+    bundleVersion: 1,
+    functions: [
+      site(fixtureFunctionId, null, null),
+      site(siblingId, 0.8, "route-by-hand"),
+    ],
+  };
+}
+
+test("a handler tested over a stub artifact keeps its scope, passes and fallbacks", async (t) => {
+  const stub = await loadSemaStubArtifact(stubBundle(), {
+    answers: {
+      [fixtureFunctionId]: {
+        compute: ({ facts }) => (facts.a > 5 ? "deny" : "approve"),
+      },
+      [siblingId]: {
+        compute: ({ facts }) => ({
+          value: "approve",
+          confidence: facts.b === 0 ? 0.5 : 0.9,
+        }),
+      },
+    },
+    fallbacks: new Map([["route-by-hand", () => "review"]]),
+  });
+  t.after(() => stub.close());
+  const [triage] = routesOf(new TicketController());
+  const request = (body) => ({
+    method: "POST",
+    path: "/tickets/triage",
+    params: {},
+    query: {},
+    headers: {},
+    body,
+  });
+
+  const ok = await handle(triage, request({ subject: "site down", amount: 3 }));
+  assert.equal(ok.status, 200);
+  assert.deepEqual([ok.body.priority, ok.body.route], ["approve", "approve"]);
+  assert.deepEqual(ok.passes, { encoder: 1, adapter: 1, head: 2 });
+
+  // Confidence 0.5 is below the site's 0.8: the registered fallback answers.
+  const fallback = await handle(
+    triage,
+    request({ subject: "0123456789", amount: 3 }),
+  );
+  assert.deepEqual(
+    [fallback.body.priority, fallback.body.route],
+    ["approve", "review"],
+  );
+
+  // The post-guard sees the stubbed "deny".
+  const denied = await handle(
+    triage,
+    request({ subject: "refund", amount: 5000 }),
+  );
+  assert.equal(denied.status, 409);
+  assert.equal(denied.body.error, "large denied amounts need a human");
+  assert.deepEqual(denied.passes, { encoder: 1, adapter: 1, head: 2 });
+
+  const handlers = nextRouteHandlers(new TicketController());
+  const posted = await handlers.POST(
+    new Request("http://localhost/api/tickets/triage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ subject: "invoice", amount: 1 }),
+    }),
+  );
+  assert.equal(posted.status, 200);
+  assert.equal(posted.headers.get("x-sema-passes"), "1/1/2");
 });

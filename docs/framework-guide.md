@@ -187,8 +187,56 @@ export class RefundController {
 Handlers are ordinary functions of a `RequestContext`, so they test without a
 server: call `handle(route, context)` for one of `routesOf(controller)`, or
 mount on Express and use `fetch` against an ephemeral port. For the model,
-either load the trained artifact (the reference application's tests do, and
-skip when it is absent) or the runtime's fixture artifact under
-`runtime/test/fixtures`, re-keyed to the app's function ids and input shapes,
-which answers a fixed value and exercises every framework path with no
-training: the [reference application](reference-application.md) has both.
+load either the trained artifact or a stub artifact from
+`@semantscript/core/testing`, which needs no training and no model files: it
+is built from the IR bundle `semantscript build` writes, and each expression
+answers what the test says.
+
+```js
+import test from "node:test";
+import { loadSemaStubArtifact } from "@semantscript/core/testing";
+import { handle, routesOf } from "@semantscript/framework";
+import { decideRefund, migrate, refundRisk } from "../dist/app.js";
+import { RefundController } from "../dist/refunds.js";
+const bundle = new URL("../dist/semantscript.ir.v1.json", import.meta.url);
+
+test("a reviewed refund rolls back", async (t) => {
+  const answers = new Map().set(decideRefund, "review").set(refundRisk, "high");
+  const stub = await loadSemaStubArtifact(bundle, { answers });
+  t.after(() => stub.close());
+  await migrate();
+  const [route] = routesOf(new RefundController());
+  const response = await handle(route, { params: { orderId: "o1" } });
+  t.assert.match(response.body.reason, /^decision review \(risk high\)/);
+  t.assert.deepEqual(response.passes, { encoder: 1, adapter: 1, head: 2 });
+});
+```
+
+- The context carries what the handler reads (here the route parameter).
+- An answer is keyed by the compiled function (or by its `nf_...` id) and is
+  a fixed value, `{ value, confidence }`, `{ byInput: [{ inputs, value }],
+otherwise }` matched on the canonical input, or `{ compute: (inputs) =>
+value }` (synchronous). A flat object output answers
+  `{ value: { ...fields } }`, with one confidence or one per field.
+  Confidence defaults to 1 and must stay above one over the number of
+  possible values, so the answer is the top value.
+- A compiled function that calls several expressions (the staged
+  `screenOrder` asks three) has no single id, so answer each expression by
+  its `nf_...` id. Keying by that function throws `SemaStubError`
+  (`unresolved-function`) listing every expression's source position and
+  id; the IR bundle has the same pairs under `functions[].id` and
+  `functions[].source`.
+- The stub loads through `loadSemaArtifact`, so the real worker runs every
+  call: request scopes, `x-sema-passes`, input validation, `@confidence`
+  thresholds and the `fallbacks` you pass behave as with a trained artifact.
+  A low confidence answer takes the fallback path.
+- The bundle is the one `semantscript build` writes; a `URL` resolves it
+  against the test file, a plain path against the working directory.
+- A call to an expression without an answer throws `SemaStubError`
+  (`unanswered`), whose message names the expression's source position and
+  id; `close()` removes the stub. A loaded stub is the process's active
+  artifact, like a trained one, so load one stub at a time (node:test runs a
+  file's tests in order) and do not nest them: closing a later stub leaves
+  no artifact active. The
+  [reference application](reference-application.md) tests its refund
+  controller this way and its other controllers over the trained artifact.

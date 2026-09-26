@@ -1,11 +1,11 @@
 ---
 id: TASK-14.11
 title: 'Actionable failures: every train, test and run failure names the next command'
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 05:03'
+updated_date: '2026-09-26 05:19'
 labels:
   - dx
   - debug
@@ -23,9 +23,9 @@ The diagnostics catalogue lists every error with a cause and a fix, but the tool
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every verification failure line in the train report ends with a specific suggestion derived from the evidence: the constraint to add for a rule the misses share, an example for a repeated miss, more cases or epochs for a calibration failure, or the seed retry
-- [ ] #2 Runtime errors for a missing or stale artifact name the command that fixes them, and the CLI wraps trainer and interpreter failures into one line with the doctor check to run
-- [ ] #3 The diagnostics catalogue's fix column and the tools' messages are generated from one source so they cannot drift
+- [x] #1 Every verification failure line in the train report ends with a specific suggestion derived from the evidence: the constraint to add for a rule the misses share, an example for a repeated miss, more cases or epochs for a calibration failure, or the seed retry
+- [x] #2 Runtime errors for a missing or stale artifact name the command that fixes them, and the CLI wraps trainer and interpreter failures into one line with the doctor check to run
+- [x] #3 The diagnostics catalogue's fix column and the tools' messages are generated from one source so they cannot drift
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -59,4 +59,14 @@ Fix round 2 (review findings, all 8 blocking verified before fixing): (1) a trai
 Fix round 2 committed as 126f0e5 on task-14.11 and pushed; CI run 36218187922 green on all six jobs. Acceptance criteria still unchecked (finalization stage).
 
 Fix round 3: (1) a failed Hugging Face encoder/tokenizer download (offline, proxy, outage, bad model id) is no longer sent to train-path-unwritable: failures.py detects huggingface_hub errors and the hub's download text and prints the new encoder-download-failed remedy; network OSErrors (requests/urllib3/httpx, ConnectionError, TimeoutError) are no longer treated as unwritable paths. Probe: HF_HOME=<empty> HF_HUB_OFFLINE=1 train --teacher constraints --cases 20 --epochs 1 --no-preflight printed the tokenizer error and 'next: check that this machine can reach https://huggingface.co ...'. (2) artifact-corrupt, test-artifact-unreadable and editor-unreadable now say 'run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release> ...'; test-function-unverified names rollback <release> too. Probe: corrupt current.json -> run printed the new line; releases list, then releases rollback d642b9dab4b1 --artifact art4 succeeded and run returned "high". (3) New underfit-more-training remedy: when the head misses more than 5% (at least 3) of its teacher-labelled training rows or predicts one output for all of them, the gold-miss and constraint gates name --epochs doubled (at least 3) and --cases doubled (at least 64) instead of one more example. Probe on the tier program: --cases 8 --epochs 1 printed 'rerun with --epochs 3 (now 1) and --cases 64 (now 8) ...: the head gets 7 of 19 teacher-labelled training cases wrong (it predicts "high" for every one)'; following it (--cases 64 --epochs 3) passed with accuracy 1.0000. Also: --cases suggestions never go below the default 64; train --estimate killed by a signal exits 128+N; docs/diagnostics.md documents the underfit rule and its sample uses base:N ids. Checks: npm run build, lint:node, test:node (89/110/36/8/85), generate-remedies --check, ruff check/format, pytest 672 passed 4 skipped, prettier clean.
+
+Fix round 3 committed as c1368d2 and b4771ca (the hub test no longer imports huggingface_hub, which the dev-only CI job lacks; first CI run 36219685806 failed on that). CI run 36219904056 on b4771ca green on all six jobs.
+
+Finalization validation (on b4771ca): npm run build ok; npm run lint:node clean; npm run test:node compiler 89/89, runtime 110/110, cli 36/36, framework 8/8, benchmarks 85/85; full pytest 672 passed 4 skipped; ruff check + format --check clean; node scripts/generate-remedies.mjs --check exit 0; prettier docs README.md cli/README.md diagnostics/remedies.json clean. AC1 probe (tier program, constraints teacher, USD 0): train --cases 8 --epochs 1 failed with a next: line under each of the gold-miss, constraint and ECE blocks (--epochs 3/--cases 64 underfit advice, --cases 64 for ECE); following it (--cases 64 --epochs 3) passed with accuracy 1.0000. AC2 probes: run with a missing root -> next: semantscript train; current.json {kind:x} -> releases list then rollback <release>, which then ran and returned high; program changed after training -> SemaUnknownFunctionError names build then train; test --bundle on the changed program -> absent function with next: train; --trainer-module semantscript_missing.cli -> one-line 'the trainer stopped: ModuleNotFoundError ...; next: run semantscript doctor ... trainer check; full traceback in ...traceback.txt' (rc 1); --python /nonexistent -> python-missing remedy with the doctor check; HF_HUB_OFFLINE with an empty HF_HOME -> encoder-download-failed remedy. AC3 probe: edited one generated row in docs/diagnostics.md and one in runtime/src/remedies.generated.ts -> generate-remedies --check exit 1 naming both files; restored -> exit 0.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Every train, test and run failure now names the next command. One source, diagnostics/remedies.json, feeds generated modules for the runtime, compiler and trainer and the fix tables in docs/diagnostics.md; scripts/generate-remedies.mjs --check plus node and pytest drift tests catch drift. Train reports end each verification failure with a next: line derived from the evidence: a shared one-field rule becomes a constraint, a repeated miss becomes an example, an underfit head gets more --epochs/--cases, ECE gets --cases or --epochs, and narrow stops get seed-retry flags. The CLI turns trainer tracebacks, missing modules, a missing interpreter and signals into one line naming the doctor check, and the trainer's own errors (missing extra, bad bundle/teacher, OOM, unwritable paths, hub download, option ranges) name a fix. Runtime load errors, stale functions and CLI test/run/build failures name the fixing command. Verified with build, lint, test:node, pytest 672 passed, ruff, prettier, generate --check, and real USD 0 probes of each path (see notes).
+<!-- SECTION:FINAL_SUMMARY:END -->

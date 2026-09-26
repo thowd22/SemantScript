@@ -79,6 +79,15 @@ def test_record_count_is_validated_and_not_part_of_equality() -> None:
         result(records=0)
 
 
+def test_suggestions_are_one_per_failure_and_not_part_of_equality() -> None:
+    failed = result(violations=4)
+    assert failed.suggestions == ()
+    assert replace(failed, suggestions=("rerun with --no-cache",)) == failed
+    for suggestions in (("a", "b"), ("",)):
+        with pytest.raises(VerificationConfigurationError, match="one non-empty string"):
+            replace(failed, suggestions=suggestions)
+
+
 def test_rate_within_the_margin_retries() -> None:
     # The Express example's seeds 1 to 3: 4, 6 and 5 of 394 against 1%.
     for violations in (4, 6, 5):

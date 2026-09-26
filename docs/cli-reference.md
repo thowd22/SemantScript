@@ -158,7 +158,9 @@ bundle with the execution plan.
 
 Compile diagnostics exit 1 and nothing is written; a successful build emits the
 JavaScript through TypeScript, then the bundle last. Exit 2 for a malformed
-`--domain-depth` value.
+`--domain-depth` value. A missing `tsconfig.json` ends with
+`next: run semantscript init to set up the project, or pass --project <tsconfig.json>`,
+and a project without `compilerOptions.outDir` with the setting to add.
 
 ## `train`
 
@@ -181,6 +183,33 @@ expression) and names it by source line; with `--teacher constraints` it also
 stops on the first sampled input the expression's constraints do not decide,
 printing that input and the outputs the constraints admit (see
 [teachers](teachers.md)).
+
+Every verification failure in the report ends with a `next:` line: the
+constraint to add when the missed gold examples share a one-field rule, an
+example to add for a repeated miss, more `--cases` or `--epochs` for a
+calibration failure, or the seed retry to run (`--seed-attempts`, or the next
+untried `--seed`). The suggestion is derived from the failing cases; the
+[diagnostics catalogue](diagnostics.md#verification-failures) says how.
+
+```text
+nf_2c6b0e41… verification failures:
+  ECE 0.242017778048 exceeds configured threshold 0.1
+    next: rerun with --cases 96 (now 48): ECE 0.2420 is measured on 30 calibration rows, and more cases give more of them
+```
+
+When the trainer process or its interpreter fails (a package the trainer
+imports is missing, the interpreter is too old, any uncaught exception),
+`train` prints the lines the trainer wrote before the traceback, then one line
+naming the `doctor` check that fixes it, and writes the traceback next to the
+report (`<artifact>.report.traceback.txt` by default):
+
+```text
+semantscript train: the trainer stopped: ModuleNotFoundError: No module named 'torch'; next: run semantscript doctor and fix its torch check: python3 cannot import torch; full traceback in /srv/app/.semantscript/artifact.report.traceback.txt
+```
+
+An interpreter that does not exist gives
+`unable to run <python>: … ENOENT; next: run semantscript doctor and fix its python check: …`.
+`--estimate` wraps its failures the same way.
 
 | Flag               | Value  | Effect                                                                                                                                                                                                                                                           |
 | ------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -339,7 +368,11 @@ built before the manifest recorded seeds.
 | `--json`     |       | Print one JSON document instead of the table.                                                                                 |
 
 Exit 1 when any function's status is not `passed`, any bundle function is
-absent from the artifact, or any example mismatches.
+absent from the artifact, or any example mismatches. An absent function and a
+mismatch each add a `next:` line (retrain on this bundle; rebuild, retrain
+and rerun), which `--json` lists as `next`. With nothing published at the
+artifact root the command exits 1 with
+`no artifact at <root> (current.json is missing); next: run semantscript train …`.
 
 ## `run`
 
@@ -357,7 +390,10 @@ the artifact.
 Exactly one module path is required. The module resolves `@semantscript/core`
 from its own location, and that must be the installation the CLI uses. Exit 1
 when the export is missing or not a function; exit 2 for a missing module
-path, both input flags, or input that is not JSON.
+path, both input flags, or input that is not JSON. A missing export's message
+ends with `next:` and the module's function exports; an artifact that does not
+load ends with the runtime's `next:` clause
+([runtime errors](diagnostics.md#runtime-errors)).
 
 ## `releases`
 

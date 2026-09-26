@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { parseArgs } from "node:util";
 
 import {
@@ -22,6 +24,7 @@ import {
   type OptionValues,
 } from "./io.js";
 import { readJson } from "./manifest.js";
+import { remedyText } from "./remedy.js";
 import { formatRatio, renderTable, shortId } from "./table.js";
 
 /** Options handed through to the Python driver unchanged. */
@@ -176,11 +179,27 @@ export async function runTrain(
     commandArgs.push("--estimate");
     const outcome = await capture(python, commandArgs, io);
     if (outcome.error !== undefined) {
-      io.stderr(`unable to run ${python}: ${outcome.error.message}\n`);
+      io.stderr(await unableToRun(python, outcome.error));
       return 1;
     }
+    if (outcome.status !== 0) {
+      const filter = new TrainerStderr((text) => {
+        io.stderr(text);
+      });
+      filter.push(outcome.stderr);
+      filter.end();
+      if (filter.traceback !== undefined) {
+        io.stderr(
+          await trainerFailureLine(
+            filter.traceback,
+            python,
+            tracebackPath(report),
+          ),
+        );
+      }
+      return outcome.status;
+    }
     if (outcome.stderr.length > 0) io.stderr(outcome.stderr);
-    if (outcome.status !== 0) return outcome.status;
     let document: unknown;
     try {
       document = JSON.parse(outcome.stdout);
@@ -197,10 +216,26 @@ export async function runTrain(
   io.stderr(`semantscript train: ${python} ${commandArgs.join(" ")}\n`);
   const outcome = await runProcess(python, commandArgs, io);
   if (outcome.error !== undefined) {
-    io.stderr(`unable to run ${python}: ${outcome.error.message}\n`);
+    io.stderr(await unableToRun(python, outcome.error));
     return 1;
   }
   const status = outcome.status;
+  if (
+    status !== 0 &&
+    outcome.traceback !== undefined &&
+    io.signal?.aborted !== true
+  ) {
+    // The trainer died on an uncaught exception, so it wrote no report (a
+    // report at the path is from an earlier run): one line names the fix.
+    io.stderr(
+      await trainerFailureLine(
+        outcome.traceback,
+        python,
+        tracebackPath(report),
+      ),
+    );
+    return status;
+  }
   let document: unknown;
   try {
     document = await readJson(report);
@@ -215,17 +250,36 @@ export async function runTrain(
   return status;
 }
 
-/** Runs the trainer with its stderr streamed to the terminal so progress shows per expression. */
+/**
+ * Runs the trainer with its stderr forwarded line by line as it arrives, so
+ * progress shows per expression. A Python traceback (or the interpreter's own
+ * `No module named` line) is held back and returned instead of printed.
+ */
 function runProcess(
   command: string,
   args: readonly string[],
   io: CliIo,
-): Promise<{ readonly status: number; readonly error?: Error }> {
+): Promise<{
+  readonly status: number;
+  readonly error?: Error;
+  readonly traceback?: string;
+}> {
   return new Promise((resolvePromise) => {
     const child = spawn(command, args, {
       cwd: io.cwd,
-      env: { ...io.env, PYTHONPATH: pythonPath(io.env["PYTHONPATH"]) },
-      stdio: ["ignore", "ignore", "inherit"],
+      env: {
+        ...io.env,
+        PYTHONPATH: pythonPath(io.env["PYTHONPATH"]),
+        PYTHONIOENCODING: "utf-8",
+      },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    const filter = new TrainerStderr((text) => {
+      io.stderr(text);
+    });
+    const decoder = new StringDecoder("utf8");
+    child.stderr.on("data", (chunk: Buffer) => {
+      filter.push(decoder.write(chunk));
     });
     const abort = (): void => {
       child.kill();
@@ -237,9 +291,162 @@ function runProcess(
     });
     child.once("close", (code) => {
       io.signal?.removeEventListener("abort", abort);
-      resolvePromise({ status: code ?? 1 });
+      filter.push(decoder.end());
+      filter.end();
+      resolvePromise({
+        status: code ?? 1,
+        ...(filter.traceback === undefined
+          ? {}
+          : { traceback: filter.traceback }),
+      });
     });
   });
+}
+
+const TRACEBACK_START = "Traceback (most recent call last):";
+/** `python3: No module named semantscript_trainer.cli` and `Error while finding module specification for ...`. */
+const MODULE_LAUNCH_FAILURE =
+  /(?:^|: )No module named |^Error while finding module specification for /u;
+
+/**
+ * Splits the trainer's stderr into lines: every line before a traceback is
+ * forwarded as soon as it is complete; the traceback, from its first line to
+ * the end, is kept in `traceback` instead.
+ */
+export class TrainerStderr {
+  #pending = "";
+  #traceback: string[] | undefined;
+  readonly #forward: (text: string) => void;
+
+  constructor(forward: (text: string) => void) {
+    this.#forward = forward;
+  }
+
+  get traceback(): string | undefined {
+    return this.#traceback?.join("");
+  }
+
+  push(text: string): void {
+    this.#pending += text;
+    let newline = this.#pending.indexOf("\n");
+    while (newline >= 0) {
+      this.#line(this.#pending.slice(0, newline + 1));
+      this.#pending = this.#pending.slice(newline + 1);
+      newline = this.#pending.indexOf("\n");
+    }
+  }
+
+  end(): void {
+    if (this.#pending.length > 0) this.#line(`${this.#pending}\n`);
+    this.#pending = "";
+  }
+
+  #line(line: string): void {
+    if (this.#traceback !== undefined) {
+      this.#traceback.push(line);
+      return;
+    }
+    const text = line.trimEnd();
+    if (text === TRACEBACK_START || MODULE_LAUNCH_FAILURE.test(text)) {
+      this.#traceback = [line];
+      return;
+    }
+    this.#forward(line);
+  }
+}
+
+/** The doctor check that installs each module the trainer imports; anything else is the trainer's. */
+const MODULE_CHECKS: Readonly<Record<string, string>> = {
+  semantscript_model: "model",
+  torch: "torch",
+  transformers: "torch",
+  tokenizers: "torch",
+  safetensors: "torch",
+  numpy: "torch",
+  huggingface_hub: "torch",
+  onnx: "onnxruntime",
+  onnxruntime: "onnxruntime",
+  onnxscript: "onnxruntime",
+};
+
+export interface TrainerFailure {
+  /** `ModuleNotFoundError: No module named 'torch'`, the exception line. */
+  readonly exception: string;
+  readonly remedy: "module-missing" | "python-too-old" | "trainer-crash";
+  /** The module that did not import (module-missing only). */
+  readonly module?: string;
+  /** The `semantscript doctor` check that covers it. */
+  readonly check: string;
+}
+
+/** Classify a trainer traceback (or launch failure) by its final exception line. */
+export function classifyTrainerFailure(traceback: string): TrainerFailure {
+  const lines = traceback
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0);
+  let exception =
+    [...lines].reverse().find((line) => !/^\s/u.test(line)) ?? "unknown error";
+  const specification = /\((ModuleNotFoundError: .*)\)$/u.exec(exception);
+  if (specification?.[1] !== undefined) exception = specification[1];
+  const missing =
+    /No module named '?([A-Za-z0-9_.]+)'?/u.exec(exception)?.[1] ?? undefined;
+  if (missing !== undefined) {
+    if (!exception.startsWith("ModuleNotFoundError")) {
+      exception = `ModuleNotFoundError: No module named '${missing}'`;
+    }
+    return {
+      exception,
+      remedy: "module-missing",
+      module: missing,
+      check: MODULE_CHECKS[missing.split(".")[0] ?? missing] ?? "trainer",
+    };
+  }
+  if (exception.startsWith("SyntaxError")) {
+    return { exception, remedy: "python-too-old", check: "python" };
+  }
+  return { exception, remedy: "trainer-crash", check: "trainer" };
+}
+
+/** `<report without .json>.traceback.txt`, next to the report. */
+function tracebackPath(report: string): string {
+  return `${report.replace(/\.json$/u, "")}.traceback.txt`;
+}
+
+/**
+ * The one line `train` prints in place of a trainer traceback, naming the
+ * doctor check to run; the traceback itself goes to `path`.
+ */
+async function trainerFailureLine(
+  traceback: string,
+  python: string,
+  path: string,
+): Promise<string> {
+  const failure = classifyTrainerFailure(traceback);
+  let saved = false;
+  try {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, traceback);
+    saved = true;
+  } catch {
+    // The line below still names the fix; only the file is missing.
+  }
+  const fix =
+    failure.remedy === "module-missing"
+      ? await remedyText("module-missing", {
+          check: failure.check,
+          python,
+          module: failure.module ?? "",
+        })
+      : failure.remedy === "python-too-old"
+        ? await remedyText("python-too-old", { python })
+        : await remedyText("trainer-crash");
+  return `semantscript train: the trainer stopped: ${failure.exception}; next: ${fix}${saved ? `; full traceback in ${path}` : ""}\n`;
+}
+
+/** `unable to run <python>: spawn <python> ENOENT; next: ...` */
+async function unableToRun(python: string, error: Error): Promise<string> {
+  return `unable to run ${python}: ${error.message}; next: ${await remedyText("python-missing")}\n`;
 }
 
 /** Render the trainer's JSON report as the per-function table `semantscript train` prints. */

@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 
 import { resolveArtifactRoot } from "./defaults.js";
 import { CliUsageError, type CliIo } from "./io.js";
+import { remedyText } from "./remedy.js";
 
 /**
  * `semantscript run`: load the artifact so compiled `__sema` calls resolve,
@@ -52,7 +53,18 @@ export async function runCommand(
         : {};
     const target = namespace[values.call];
     if (typeof target !== "function") {
-      io.stderr(`${modulePath} has no function export named ${values.call}\n`);
+      const exports = Object.keys(namespace)
+        .filter((name) => typeof namespace[name] === "function")
+        .sort();
+      io.stderr(
+        `${modulePath} has no function export named ${values.call}; next: ${await remedyText(
+          "run-no-export",
+          {
+            exports:
+              exports.length === 0 ? "(it exports none)" : exports.join(", "),
+          },
+        )}\n`,
+      );
       return 1;
     }
     const result: unknown = await Promise.resolve(

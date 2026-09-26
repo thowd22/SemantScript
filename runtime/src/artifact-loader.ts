@@ -24,6 +24,7 @@ import type {
   TensorDescriptorV1,
 } from "./artifact-types.js";
 import { parseStrictJson, StrictJsonError } from "./strict-json.js";
+import { remedy } from "./remedies.js";
 
 const SHA256 = /^[a-f0-9]{64}$/u;
 const RELEASE = /^sha256-([a-f0-9]{64})$/u;
@@ -48,10 +49,19 @@ export type ArtifactLoadErrorCode =
   | "SEMA_ARTIFACT_QUOTA"
   | "SEMA_ARTIFACT_RESOURCE";
 
-/** An artifact could not be loaded: invalid pointer or manifest, incompatible ABI, failed digest, unsafe path, quota or resource (`code` names which). */
+/**
+ * An artifact could not be loaded: invalid pointer or manifest, incompatible
+ * ABI, failed digest, unsafe path, quota or resource (`code` names which).
+ * The message ends with `; next: <remedy>`, the command or setting that fixes
+ * it; `detail` is the message without it.
+ */
 export class ArtifactLoadError extends Error {
   readonly code: ArtifactLoadErrorCode;
   readonly artifactPath: string | undefined;
+  /** What went wrong, without the remedy. */
+  readonly detail: string;
+  /** The fix, from `diagnostics/remedies.json`. */
+  readonly remedy: string;
 
   constructor(
     code: ArtifactLoadErrorCode,
@@ -59,10 +69,52 @@ export class ArtifactLoadError extends Error {
     artifactPath?: string,
     cause?: unknown,
   ) {
-    super(message, cause === undefined ? undefined : { cause });
+    const fix = artifactLoadRemedy(code, message, artifactPath, cause);
+    super(
+      `${message}; next: ${fix}`,
+      cause === undefined ? undefined : { cause },
+    );
     this.name = "ArtifactLoadError";
     this.code = code;
     this.artifactPath = artifactPath;
+    this.detail = message;
+    this.remedy = fix;
+  }
+}
+
+/** The remedy for one load failure: a missing artifact, a hand-edited path, a corrupt release, an ABI or quota mismatch, or a bad resource. */
+function artifactLoadRemedy(
+  code: ArtifactLoadErrorCode,
+  message: string,
+  artifactPath: string | undefined,
+  cause: unknown,
+): string {
+  switch (code) {
+    case "SEMA_ARTIFACT_PATH": {
+      const missing =
+        message === "path is neither an artifact root nor sha256 release" ||
+        (message === "cannot inspect artifact directory" &&
+          typeof cause === "object" &&
+          cause !== null &&
+          "code" in cause &&
+          (cause.code === "ENOENT" || cause.code === "ENOTDIR"));
+      return missing
+        ? remedy("artifact-missing", {
+            path: artifactPath ?? "the artifact root",
+          })
+        : remedy("artifact-path");
+    }
+    case "SEMA_ARTIFACT_INCOMPATIBLE":
+      return remedy("artifact-incompatible");
+    case "SEMA_ARTIFACT_QUOTA":
+      return remedy("artifact-quota");
+    case "SEMA_ARTIFACT_RESOURCE":
+      return remedy("artifact-resource");
+    case "SEMA_ARTIFACT_INVALID_JSON":
+    case "SEMA_ARTIFACT_INVALID_POINTER":
+    case "SEMA_ARTIFACT_INVALID_MANIFEST":
+    case "SEMA_ARTIFACT_INTEGRITY":
+      return remedy("artifact-corrupt");
   }
 }
 

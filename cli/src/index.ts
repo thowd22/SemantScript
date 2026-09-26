@@ -104,7 +104,13 @@ export {
   type DoctorCheck,
 } from "./doctor.js";
 export { canonical } from "./test-command.js";
-export { renderEstimate, renderTrainReport } from "./train.js";
+export {
+  classifyTrainerFailure,
+  renderEstimate,
+  renderTrainReport,
+  TrainerStderr,
+  type TrainerFailure,
+} from "./train.js";
 export {
   parseTeacherProbe,
   renderTeacherProbe,

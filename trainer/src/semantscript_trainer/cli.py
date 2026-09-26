@@ -72,6 +72,7 @@ from semantscript_trainer.lifecycle import (
     build_verified_ir,
 )
 from semantscript_trainer.semantic_json import semantic_json_sha256
+from semantscript_trainer.suggestions import seed_retry_suggestion
 from semantscript_trainer.teacher import (
     AdversarialTeacher,
     JsonValue,
@@ -456,9 +457,9 @@ def train_bundle(
             )
             trained.append(TrainedFunction(ir, base, adversarial, training, verification))
         failed = [entry for entry in trained if entry.verification.status != "passed"]
-        if any(not entry.reused for entry in trained):
-            attempts.append(_attempt_report(attempt, seed, trained))
         if not failed:
+            if any(not entry.reused for entry in trained):
+                attempts.append(_attempt_report(attempt, seed, trained))
             break
         decision = seed_retry_decision(
             [entry.verification for entry in trained if not entry.reused],
@@ -479,6 +480,20 @@ def train_bundle(
             )
         elif seed + 1 > MAXIMUM_SPLIT_SEED:
             stop_reason = f"seed {seed} is the largest seed a split accepts"
+        if decision.retry and stop_reason is not None:
+            # Every failed gate was narrow, so the retry is the next step: it
+            # replaces the data or calibration suggestion under each failure.
+            next_step = seed_retry_suggestion(
+                attempts=retry.attempts,
+                first_seed=first_seed,
+                last_seed=seed,
+                maximum_seed=MAXIMUM_SPLIT_SEED,
+            )
+            if next_step is not None:
+                trained = [_with_suggestion(entry, next_step) for entry in trained]
+                failed = [entry for entry in trained if entry.verification.status != "passed"]
+        if any(not entry.reused for entry in trained):
+            attempts.append(_attempt_report(attempt, seed, trained))
         if stop_reason is not None:
             say(f"not retrying: {stop_reason}")
             break
@@ -497,9 +512,18 @@ def train_bundle(
     if failed:
         report["status"] = "failed"
         names = ", ".join(cast(str, entry.ir["id"]) for entry in failed)
+        first_step = next(
+            (
+                entry.verification.suggestions[0]
+                for entry in failed
+                if entry.verification.suggestions
+            ),
+            None,
+        )
         raise TrainBundleFailure(
             f"verification failed for {names}"
-            + ("" if stop_reason is None else f"; not retrying: {stop_reason}"),
+            + ("" if stop_reason is None else f"; not retrying: {stop_reason}")
+            + ("" if first_step is None else f"; next: {first_step}"),
             report,
         )
     # Every trained function used this attempt's seed; a build that only
@@ -774,6 +798,31 @@ def _violation_note(verification: VerificationResult) -> str:
     return f", constraint violations {violations} of {records} ({violations / records:.2%})"
 
 
+def _with_suggestion(entry: TrainedFunction, suggestion: str) -> TrainedFunction:
+    """``entry`` with ``suggestion`` as the next step under every one of its failures."""
+
+    verification = entry.verification
+    if entry.reused or verification.status == "passed":
+        return entry
+    return replace(
+        entry,
+        verification=replace(
+            verification, suggestions=tuple(suggestion for _ in verification.failures)
+        ),
+    )
+
+
+def _report_failures(verification: VerificationResult) -> list[str]:
+    """Each failure with its ``next:`` line, as the report and the CLI print it."""
+
+    if not verification.suggestions:
+        return list(verification.failures)
+    return [
+        f"{failure}\n  next: {suggestion}"
+        for failure, suggestion in zip(verification.failures, verification.suggestions, strict=True)
+    ]
+
+
 def _attempt_report(attempt: int, seed: int, trained: Sequence[TrainedFunction]) -> dict[str, Any]:
     """One training attempt's seed and gate metrics for every function it trained."""
 
@@ -795,7 +844,8 @@ def _attempt_report(attempt: int, seed: int, trained: Sequence[TrainedFunction])
                 "violationRate": (
                     None if records is None else metrics.constraint_violations / records
                 ),
-                "failures": list(verification.failures),
+                "failures": _report_failures(verification),
+                "suggestions": list(verification.suggestions),
             }
         )
     return {
@@ -990,7 +1040,8 @@ def _function_report(entry: TrainedFunction) -> dict[str, Any]:
         },
         "verification": {
             "status": verification.status,
-            "failures": list(verification.failures),
+            "failures": _report_failures(verification),
+            "suggestions": list(verification.suggestions),
             "attestedCases": verification.attested_cases,
             "pairCount": verification.pair_count,
             "metrics": verification.to_ir_document()["metrics"],

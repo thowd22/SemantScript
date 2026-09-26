@@ -50,7 +50,8 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   happens, where the caches live (including the teacher response journal) and
   how to clear them, and how the cache interacts with a release rollback.
 - [Diagnostics catalogue](diagnostics.md): every compiler diagnostic, editor
-  warning, trainer and verifier failure and runtime error, with cause and fix.
+  warning, trainer and verifier failure, CLI failure and runtime error, with
+  cause and fix, and how the `next:` line under each failure is derived.
 - [Language reference](language-reference.md): `sema<T>` syntax, inputs,
   examples, constraints, every v1 output type, `@confidence`,
   `sema.withConfidence`, runtime behavior and compile errors, with runnable

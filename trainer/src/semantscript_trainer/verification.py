@@ -24,6 +24,14 @@ from semantscript_trainer.constraints import (
 )
 from semantscript_trainer.dataset import TrainingDataset
 from semantscript_trainer.strict_json import StrictJsonError, StrictJsonLimits, loads_strict_json
+from semantscript_trainer.suggestions import (
+    LabelledCase,
+    Violation,
+    calibration_suggestion,
+    gold_miss_suggestion,
+    type_error_suggestion,
+    violation_suggestion,
+)
 from semantscript_trainer.teacher import GeneratedCase, JsonValue, NeuralFunctionIr
 from semantscript_trainer.training import (
     MAXIMUM_BATCH_SIZE,
@@ -438,6 +446,10 @@ class VerificationResult:
     # constraint-violation rate is measured over. Measured evidence only: it is
     # not serialized, so a result restored from IR or the build cache has None.
     record_count: int | None = field(default=None, compare=False)
+    # One `next:` suggestion per failure, in the same order (diagnostics/remedies.json):
+    # derived from the evidence when verification ran, and like record_count not
+    # serialized, so a result restored from IR or the build cache has none.
+    suggestions: tuple[str, ...] = field(default=(), compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -499,6 +511,14 @@ class VerificationResult:
         if self.status == "passed" and (self.metrics.example_failures or self.metrics.type_errors):
             raise VerificationConfigurationError(
                 "passing verification cannot contain example or type failures"
+            )
+        if (
+            not isinstance(self.suggestions, tuple)
+            or any(not isinstance(item, str) or not item for item in self.suggestions)
+            or len(self.suggestions) not in (0, len(self.failures))
+        ):
+            raise VerificationConfigurationError(
+                "verification suggestions must be empty or one non-empty string per failure"
             )
 
     def to_ir_document(self) -> dict[str, JsonValue]:
@@ -626,7 +646,7 @@ def evaluate_training_result(
     example_failures, example_details = _example_failures(
         gold_rows, external_human, predictions, heads
     )
-    constraint_violations, constraint_details = _constraint_violations(
+    constraint_violations, constraint_details, violation_evidence = _constraint_violations(
         ir,
         corpus,
         adversarial,
@@ -688,7 +708,23 @@ def evaluate_training_result(
         raise VerificationExecutionError("classifier state changed during verification")
     if hashlib.sha256(tokenizer_json_bytes(resolved_tokenizer)).hexdigest() != tokenizer_sha256:
         raise VerificationExecutionError("tokenizer JSON changed during verification")
-    failures = _gate_failures(metrics, resolved, len(records), example_details, constraint_details)
+    gates = _failed_gates(metrics, resolved, len(records), example_details, constraint_details)
+    failures = tuple(text for _gate, text in gates)
+    suggestions: tuple[str, ...] = ()
+    if gates:
+        suggestions = _gate_suggestions(
+            [gate for gate, _text in gates],
+            ir=ir,
+            heads=heads,
+            corpus=corpus,
+            external_human=external_human,
+            predictions=predictions,
+            violations=violation_evidence,
+            metrics=metrics,
+            calibration_rows=len(calibration_rows),
+            current_cases=len(base.cases),
+            epochs=training.config.epochs,
+        )
     return VerificationResult(
         function_id=training.function_id,
         semantic_sha256=training.semantic_sha256,
@@ -701,6 +737,7 @@ def evaluate_training_result(
         pair_count=pair_count,
         failures=failures,
         record_count=len(records),
+        suggestions=suggestions,
     )
 
 
@@ -1359,7 +1396,7 @@ def _constraint_violations(
     adversarial: AdversarialDataset | None,
     records: tuple[_CaseRecord, ...],
     predictions: Mapping[str, tuple[int, ...]],
-) -> tuple[int, tuple[str, ...]]:
+) -> tuple[int, tuple[str, ...], tuple[Violation, ...]]:
     """Count constraint violations under the raw model and describe each one."""
 
     try:
@@ -1367,7 +1404,7 @@ def _constraint_violations(
     except (RuntimeError, TypeError, ValueError) as error:
         raise VerificationConfigurationError(f"IR constraints are invalid: {error}") from error
     if len(constraints) == 0:
-        return 0, ()
+        return 0, (), ()
     definition = ir.get("definition")
     raw_constraints = definition.get("constraints") if isinstance(definition, Mapping) else None
     sources = [
@@ -1375,6 +1412,7 @@ def _constraint_violations(
         for item in (raw_constraints if isinstance(raw_constraints, list) else [])
     ]
     details: list[str] = []
+    evidence: list[Violation] = []
     try:
         constraints.ensure_evaluation_budget(len(records))
     except ConstraintConfigurationError as error:
@@ -1413,7 +1451,20 @@ def _constraint_violations(
                 f"{record.case_id}: inputs {_brief_json(record.inputs)} predicted "
                 f"{_brief_json(predicted_output)}"
             )
-    return violations, tuple(details)
+            evidence.append(
+                Violation(
+                    index,
+                    source,
+                    LabelledCase(
+                        record.case_id,
+                        record.inputs,
+                        predicted_output_value(corpus.output_heads, record.label_indices),
+                        predicted_output,
+                        not record.human_authored,
+                    ),
+                )
+            )
+    return violations, tuple(details), tuple(evidence)
 
 
 def _pair_consistency(
@@ -1454,6 +1505,9 @@ def predicted_output_value(heads: Sequence[OutputHead], indices: Sequence[int]) 
     return value
 
 
+type _Gate = Literal["examples", "constraints", "types", "ece"]
+
+
 def _gate_failures(
     metrics: VerificationMetricsV1,
     config: VerificationConfig,
@@ -1461,28 +1515,119 @@ def _gate_failures(
     example_details: Sequence[str] = (),
     constraint_details: Sequence[str] = (),
 ) -> tuple[str, ...]:
-    failures: list[str] = []
+    return tuple(
+        text
+        for _gate, text in _failed_gates(
+            metrics, config, record_count, example_details, constraint_details
+        )
+    )
+
+
+def _failed_gates(
+    metrics: VerificationMetricsV1,
+    config: VerificationConfig,
+    record_count: int,
+    example_details: Sequence[str] = (),
+    constraint_details: Sequence[str] = (),
+) -> list[tuple[_Gate, str]]:
+    failures: list[tuple[_Gate, str]] = []
     if metrics.example_failures:
         failures.append(
-            f"{metrics.example_failures} gold/human example prediction(s) failed"
-            + _detail_suffix(example_details)
+            (
+                "examples",
+                f"{metrics.example_failures} gold/human example prediction(s) failed"
+                + _detail_suffix(example_details),
+            )
         )
     if metrics.constraint_violations:
         rate = metrics.constraint_violations / max(record_count, 1)
         if rate > config.maximum_constraint_violation_rate:
             failures.append(
-                f"{metrics.constraint_violations} adversarial constraint check(s) failed "
-                f"({rate:.6g} of {record_count} records exceeds the configured tolerance "
-                f"{config.maximum_constraint_violation_rate:.6g})"
-                + _detail_suffix(constraint_details)
+                (
+                    "constraints",
+                    f"{metrics.constraint_violations} adversarial constraint check(s) failed "
+                    f"({rate:.6g} of {record_count} records exceeds the configured tolerance "
+                    f"{config.maximum_constraint_violation_rate:.6g})"
+                    + _detail_suffix(constraint_details),
+                )
             )
     if metrics.type_errors:
-        failures.append(f"{metrics.type_errors} output type check(s) failed")
+        failures.append(("types", f"{metrics.type_errors} output type check(s) failed"))
     if metrics.ece > config.ece_threshold:
         failures.append(
-            f"ECE {metrics.ece:.12g} exceeds configured threshold {config.ece_threshold:.12g}"
+            (
+                "ece",
+                f"ECE {metrics.ece:.12g} exceeds configured threshold {config.ece_threshold:.12g}",
+            )
         )
-    return tuple(failures)
+    return failures
+
+
+def _gate_suggestions(
+    gates: Sequence[_Gate],
+    *,
+    ir: NeuralFunctionIr,
+    heads: Sequence[OutputHead],
+    corpus: TrainingCorpus,
+    external_human: Sequence[_CaseRecord],
+    predictions: Mapping[str, tuple[int, ...]],
+    violations: Sequence[Violation],
+    metrics: VerificationMetricsV1,
+    calibration_rows: int,
+    current_cases: int,
+    epochs: int,
+) -> tuple[str, ...]:
+    """One `next:` suggestion per failed gate, derived from the measured evidence."""
+
+    def labelled(case_id: str, inputs: Any, labels: Sequence[int], teacher: bool) -> LabelledCase:
+        return LabelledCase(
+            case_id,
+            inputs,
+            predicted_output_value(heads, labels),
+            predicted_output_value(heads, predictions[case_id]),
+            teacher,
+        )
+
+    suggestions: list[str] = []
+    for gate in gates:
+        if gate == "examples":
+            rows = [
+                labelled(row.row_id, row.inputs, row.label_indices, row.origin != "gold")
+                for row in corpus.rows
+            ]
+            misses = [
+                row
+                for row, source in zip(rows, corpus.rows, strict=True)
+                if source.origin == "gold" and predictions[source.row_id] != source.label_indices
+            ] + [
+                labelled(record.case_id, record.inputs, record.label_indices, False)
+                for record in external_human
+                if predictions[record.case_id] != record.label_indices
+            ]
+            definition = ir.get("definition")
+            constraints = definition.get("constraints") if isinstance(definition, Mapping) else None
+            suggestions.append(
+                gold_miss_suggestion(
+                    misses,
+                    rows,
+                    [item for item in constraints or [] if isinstance(item, Mapping)],
+                )
+            )
+        elif gate == "constraints":
+            suggestions.append(violation_suggestion(violations, current_cases))
+        elif gate == "types":
+            suggestions.append(type_error_suggestion())
+        else:
+            suggestions.append(
+                calibration_suggestion(
+                    ece=metrics.ece,
+                    rows=calibration_rows,
+                    accuracy=metrics.accuracy,
+                    current_cases=current_cases,
+                    epochs=epochs,
+                )
+            )
+    return tuple(suggestions)
 
 
 def _detail_suffix(details: Sequence[str]) -> str:

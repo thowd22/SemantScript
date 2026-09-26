@@ -288,6 +288,18 @@ disjoint from training inputs. Failed results can be serialized as IR verificati
 diagnostics but cannot be projected into artifact-manifest metadata; TASK-5.8
 consumes the two passing projections during export.
 
+`evaluate_training_result` also derives one `next:` suggestion per failure
+(`VerificationResult.suggestions`, in `failures` order; like `record_count`
+it is not part of equality and never serialized). `semantscript_trainer.suggestions`
+holds the torch-free derivations: the one-field `always(...)` constraint that
+two or more gold misses share and every corpus label agrees with, else a
+teacher-labelled row mispredicted like a miss as an `examples` entry, else a
+check of the example; for violations an example for the constraint broken
+most often, or denser boundary data; for ECE more `--cases` or `--epochs`.
+The texts are `semantscript_trainer.remedies.remedy(id, **params)` over the
+templates `scripts/generate-remedies.mjs` generates from
+`diagnostics/remedies.json` ([diagnostics](../docs/diagnostics.md#verification-failures)).
+
 Verification also fingerprints the exact model state and tokenizer JSON before
 inference and checks both again afterward. These internal digests are intentionally
 absent from IR and manifest projections; `export_application_artifact` recomputes
@@ -462,8 +474,16 @@ attempt's seed; the release manifest copies it into each function's
 function rebuilds its split from its recorded seed. The report gains `seed`
 (the published seed), `attempts` (per attempt: `attempt`, `seed`, `status` and
 per function `id`, `status`, `accuracy`, `ece`, `constraintViolations`,
-`records`, `violationRate`, `failures`), `retry` (`attempts`, `margin`,
+`records`, `violationRate`, `failures`, `suggestions`), `retry` (`attempts`, `margin`,
 `stopReason`) and a per-function `training.seed`; `reportVersion` stays 1.
+
+Every failure string in the report (`functions[].verification.failures` and
+`attempts[].functions[].failures`) ends with `\n  next: <suggestion>`, and
+`functions[].verification.suggestions` lists the suggestions alone. A narrow
+failure that stopped because the retry was off, or after every attempt, gets
+the seed retry instead (`--seed-attempts 3`, or the next untried `--seed`).
+The `error: verification failed for <id>` line ends with the first
+suggestion.
 
 `--estimate` writes a `semantscript.train-estimate` (`estimateVersion` 1) JSON
 document to stdout and exits 0 without creating a teacher client, loading

@@ -5,6 +5,7 @@ import { compileSemantScriptProgram } from "@semantscript/compiler";
 import ts from "typescript";
 
 import { CliUsageError, type CliIo } from "./io.js";
+import { remedyText } from "./remedy.js";
 
 const APPLICATION_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
 
@@ -118,6 +119,7 @@ export async function compileProject(
         ? formatDiagnostics(configDiagnostics, io.cwd)
         : `unable to read ${configPath}\n`,
     );
+    io.stderr(`next: ${await remedyText("build-no-tsconfig")}\n`);
     return failed();
   }
   if (parsed.errors.length > 0) {
@@ -127,7 +129,9 @@ export async function compileProject(
   const sourceFiles = parsed.fileNames.map((fileName) => resolve(fileName));
   const outDir = parsed.options.outDir;
   if (outDir === undefined) {
-    io.stderr(`${configPath} must set compilerOptions.outDir\n`);
+    io.stderr(
+      `${configPath} must set compilerOptions.outDir; next: ${await remedyText("build-no-outdir", { config: configPath })}\n`,
+    );
     return failed(sourceFiles);
   }
   const program = ts.createProgram({

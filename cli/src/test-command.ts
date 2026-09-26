@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { resolveArtifactRoot } from "./defaults.js";
@@ -8,6 +8,7 @@ import {
   readJson,
   type ArtifactSummary,
 } from "./manifest.js";
+import { remedyText } from "./remedy.js";
 import {
   renderTable,
   shortId,
@@ -48,7 +49,7 @@ export async function testCommand(
     allowPositionals: false,
   });
   const root = resolveArtifactRoot(values, io);
-  const summary = await readArtifactSummary(root);
+  const summary = await readSummary(root);
   const examples =
     values.bundle === undefined
       ? undefined
@@ -58,6 +59,16 @@ export async function testCommand(
     examples === undefined ||
     examples.every((entry) => entry.present && entry.failures.length === 0);
   const ok = verified && replayed;
+  const next: string[] = [];
+  if (examples?.some((entry) => !entry.present) === true) {
+    next.push(await remedyText("test-function-absent"));
+  }
+  if (
+    examples?.some((entry) => entry.present && entry.failures.length > 0) ===
+    true
+  ) {
+    next.push(await remedyText("test-example-mismatch"));
+  }
 
   if (values.json === true) {
     io.stdout(
@@ -77,6 +88,7 @@ export async function testCommand(
             .filter((entry) => !entry.present)
             .map((entry) => entry.functionId),
           ok,
+          next,
         },
         null,
         2,
@@ -113,9 +125,32 @@ export async function testCommand(
       );
     }
   }
+  for (const step of next) lines.push(`next: ${step}`);
   lines.push(`test ${ok ? "passed" : "failed"}`);
   io.stdout(`${lines.join("\n")}\n`);
   return ok ? 0 : 1;
+}
+
+/** The artifact's summary; with no `current.json` at the root, the error names `semantscript train`. */
+async function readSummary(root: string): Promise<ArtifactSummary> {
+  try {
+    return await readArtifactSummary(root);
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ENOENT" &&
+      "path" in error &&
+      error.path === join(root, "current.json")
+    ) {
+      throw new Error(
+        `no artifact at ${root} (current.json is missing); next: ${await remedyText("test-no-artifact", { root })}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 async function replayExamples(

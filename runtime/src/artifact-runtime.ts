@@ -42,6 +42,7 @@ import {
   SemaUnknownFunctionError,
 } from "./inference-runtime.js";
 import { inspectOnnxContainer } from "./onnx-model.js";
+import { remedy } from "./remedies.js";
 
 interface ActiveArtifact {
   readonly token: symbol;
@@ -132,13 +133,17 @@ export interface SemaArtifactHandle {
   close(): Promise<void>;
 }
 
-/** A sema call was made before `loadSemaArtifact()` resolved. */
+/** A sema call was made before `loadSemaArtifact()` resolved; the message and `remedy` say how to load one. */
 export class SemaRuntimeNotLoadedError extends Error {
   readonly code = "SEMA_RUNTIME_NOT_LOADED";
+  /** The fix, from `diagnostics/remedies.json`. */
+  readonly remedy: string;
 
   constructor() {
-    super("no SemantScript artifact is loaded");
+    const fix = remedy("runtime-not-loaded");
+    super(`no SemantScript artifact is loaded; next: ${fix}`);
     this.name = "SemaRuntimeNotLoadedError";
+    this.remedy = fix;
   }
 }
 

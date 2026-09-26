@@ -16,7 +16,14 @@ probe result (``FAKE_PROBE_FAIL`` makes it a failed one). ``FAKE_TRAINER_SPEND``
 adds a ``teacher.spend`` object to the report. ``FAKE_TRAINER_RETRY`` adds the
 seed retry's ``seed``, ``attempts`` and ``retry`` fields: three attempts from
 ``--seed`` (default 1), the last passing, or with ``FAKE_TRAINER_EXIT`` set, two
-failed attempts and a stop reason.
+failed attempts and a stop reason. A failed report's failure ends with a
+``next:`` line, as the real driver's do.
+
+``FAKE_TRAINER_RAISE`` makes ``train`` (and ``train --estimate``) print a progress
+line and then fail the way a broken environment does: ``module:<name>`` raises
+``ModuleNotFoundError`` for that module, ``syntax`` a ``SyntaxError``, ``crash``
+a ``RuntimeError``, all as uncaught tracebacks, and ``launch`` prints the
+interpreter's own ``No module named`` line and exits 1.
 """
 
 from __future__ import annotations
@@ -89,9 +96,7 @@ def estimate(values: dict[str, str | bool]) -> int:
         "maximumSeconds": 1200.0,
     }
     if os.environ.get("FAKE_ESTIMATE_BATCH"):
-        row.update(
-            batchRequests=60, seconds=3720.0, batchSeconds=3600.0, maximumSeconds=350000.0
-        )
+        row.update(batchRequests=60, seconds=3720.0, batchSeconds=3600.0, maximumSeconds=350000.0)
     cached = {
         **row,
         "id": "nf_" + "4" * 64,
@@ -186,6 +191,18 @@ def main(argv: list[str]) -> int:
             json.dumps({"argv": argv, "pythonpath": os.environ.get("PYTHONPATH", "")}),
             encoding="utf-8",
         )
+    failure = os.environ.get("FAKE_TRAINER_RAISE")
+    if failure:
+        print("generating 64 cases (1 gold)", file=sys.stderr, flush=True)
+        if failure == "launch":
+            print(f"{sys.executable}: No module named semantscript_trainer.cli", file=sys.stderr)
+            return 1
+        if failure.startswith("module:"):
+            name = failure.split(":", 1)[1]
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+        if failure == "syntax":
+            raise SyntaxError("invalid syntax")
+        raise RuntimeError("the fake trainer crashed")
     if values.get("estimate") is True:
         return estimate(values)
     exit_code = int(os.environ.get("FAKE_TRAINER_EXIT", "0"))
@@ -229,7 +246,10 @@ def main(argv: list[str]) -> int:
                 },
                 "verification": {
                     "status": "passed" if exit_code == 0 else "failed",
-                    "failures": [] if exit_code == 0 else ["injected failure"],
+                    "failures": []
+                    if exit_code == 0
+                    else ["injected failure\n  next: rerun with --epochs 5 (now 3)"],
+                    "suggestions": [] if exit_code == 0 else ["rerun with --epochs 5 (now 3)"],
                     "attestedCases": 1,
                     "pairCount": 2,
                     "metrics": {

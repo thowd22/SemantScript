@@ -32,6 +32,12 @@ export {
   type ArtifactLoadOptions,
 } from "./artifact-loader.js";
 export {
+  remedy,
+  remedyFamily,
+  type RemedyId,
+  type RemedyParams,
+} from "./remedies.js";
+export {
   SemaInputError,
   type SemaInputErrorReason,
   type SemaInputPath,

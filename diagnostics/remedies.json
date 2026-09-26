@@ -1,0 +1,208 @@
+{
+  "kind": "semantscript.remedies",
+  "version": 1,
+  "families": {
+    "verifier": "Verification gate failures: the train report's next: line under each failure",
+    "trainer-process": "Trainer and interpreter failures: the one line semantscript train prints instead of a traceback",
+    "runtime": "Runtime errors for a missing, stale or unloadable artifact: the next: clause of the error message and its remedy field",
+    "cli": "semantscript test, run and build failures: the next: clause of the message"
+  },
+  "remedies": [
+    {
+      "id": "gold-rule-constraint",
+      "family": "verifier",
+      "failure": "`N gold/human example prediction(s) failed`, and two or more misses share a one-field rule",
+      "cause": "The misses expect the same output and share one input field value or bound, every teacher-labelled case with that field agrees, and no constraint states the rule: the model is missing a rule the data implies.",
+      "fix": "add the constraint always(() => {predicate}, {output}): the {count} missed examples all have {predicate} and expect {output}, and every teacher-labelled case where it holds agrees"
+    },
+    {
+      "id": "gold-repeated-miss-example",
+      "family": "verifier",
+      "failure": "`N gold/human example prediction(s) failed`, and teacher-labelled cases are mispredicted the same way",
+      "cause": "The model has not learned a region the teacher labelled; the misses repeat on generated cases.",
+      "fix": "add the examples entry {example}: {count} teacher-labelled case(s) that expect {expected} are also predicted {predicted}"
+    },
+    {
+      "id": "gold-check-example",
+      "family": "verifier",
+      "failure": "`N gold/human example prediction(s) failed`, and no teacher-labelled case repeats the miss",
+      "cause": "The example disagrees with what the model learned from the teacher's labels: the example, the labels or a constraint is wrong.",
+      "fix": "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}): if it is right, add examples near it or a constraint for its rule; if not, correct it"
+    },
+    {
+      "id": "violation-example",
+      "family": "verifier",
+      "failure": "`N adversarial constraint check(s) failed (…)`, and one constraint is broken by two or more records",
+      "cause": "Raw predictions break the same always/never on several records: the region the constraint covers is thin in the training data.",
+      "fix": "add the examples entry {example}: constraint {index} ({source}) is broken by {count} records"
+    },
+    {
+      "id": "violation-denser-data",
+      "family": "verifier",
+      "failure": "`N adversarial constraint check(s) failed (…)`, and no constraint is broken twice",
+      "cause": "Isolated violations, usually numbers close to a constraint's boundary.",
+      "fix": "sample the boundaries more densely: rerun with --cases {cases} (now {current}) or a higher --counterfactual-ratio, or record a tolerance with --max-constraint-violation-rate (decision-8)"
+    },
+    {
+      "id": "calibration-more-cases",
+      "family": "verifier",
+      "failure": "`ECE x exceeds configured threshold t`, with fewer than 200 calibration rows or a head that already fits",
+      "cause": "Calibration error after temperature scaling is above the gate, measured on few held-out rows.",
+      "fix": "rerun with --cases {cases} (now {current}): ECE {ece} is measured on {rows} calibration rows, and more cases give more of them"
+    },
+    {
+      "id": "calibration-more-epochs",
+      "family": "verifier",
+      "failure": "`ECE x exceeds configured threshold t`, with 200 or more calibration rows and accuracy below 0.95",
+      "cause": "Calibration error after temperature scaling is above the gate, and the head underfits.",
+      "fix": "rerun with --epochs {epochs} (now {current}): accuracy {accuracy} shows an underfit head, which calibrates poorly"
+    },
+    {
+      "id": "seed-retry-attempts",
+      "family": "verifier",
+      "failure": "A violation-rate or ECE failure within the retry margin while the seed retry is off (`--seed-attempts 1`)",
+      "cause": "The failure was narrow, the kind another seed usually fixes, but the retry was turned off.",
+      "fix": "rerun with --seed-attempts {attempts}: the failure was narrow, and the retry trains the next seeds on the cached datasets without a teacher request"
+    },
+    {
+      "id": "seed-retry-next-seed",
+      "family": "verifier",
+      "failure": "A violation-rate or ECE failure within the retry margin after every seed attempt failed",
+      "cause": "Every seed tried failed narrowly.",
+      "fix": "rerun with --seed {seed}: seeds {first} to {last} failed narrowly, and the retry continues from the next untried seed on the cached datasets"
+    },
+    {
+      "id": "type-no-cache",
+      "family": "verifier",
+      "failure": "`N output type check(s) failed`",
+      "cause": "A decoded prediction was outside the support; only possible with a corrupted head.",
+      "fix": "rerun with --no-cache to retrain the head from scratch"
+    },
+    {
+      "id": "python-missing",
+      "family": "trainer-process",
+      "failure": "`unable to run <python>: spawn <python> ENOENT`",
+      "cause": "The interpreter the CLI starts does not exist.",
+      "fix": "run semantscript doctor and fix its python check: install Python 3.12 or later, or pass --python <exe> or set SEMANTSCRIPT_PYTHON"
+    },
+    {
+      "id": "module-missing",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer stopped: ModuleNotFoundError: No module named '<module>'`",
+      "cause": "The interpreter lacks a package the trainer imports; the check is trainer, model, torch or onnxruntime depending on the module.",
+      "fix": "run semantscript doctor and fix its {check} check: {python} cannot import {module}"
+    },
+    {
+      "id": "python-too-old",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer stopped: SyntaxError: …`",
+      "cause": "The interpreter is older than the trainer's syntax (Python 3.12).",
+      "fix": "run semantscript doctor and fix its python check: {python} cannot parse the trainer, which needs Python 3.12 or later"
+    },
+    {
+      "id": "trainer-crash",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer stopped: <Exception>: <message>`",
+      "cause": "Any other uncaught exception in the trainer.",
+      "fix": "run semantscript doctor to check the environment; if every check passes, rerun with --no-cache, and report a bug with the traceback if it fails again"
+    },
+    {
+      "id": "runtime-not-loaded",
+      "family": "runtime",
+      "failure": "`SemaRuntimeNotLoadedError` (`SEMA_RUNTIME_NOT_LOADED`)",
+      "cause": "A `sema` call before `loadSemaArtifact()` resolved.",
+      "fix": "await loadSemaArtifact() once at startup, before the first sema call (semantscript run does this for a script); if no artifact exists yet, run semantscript train"
+    },
+    {
+      "id": "artifact-missing",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_PATH`): nothing at the path, or a directory without `current.json`",
+      "cause": "No artifact was published at the path: `train` has not run, or the path points elsewhere.",
+      "fix": "run semantscript train to publish an artifact at {path}, or point loadSemaArtifact(), --artifact or SEMANTSCRIPT_ARTIFACT at the root train published"
+    },
+    {
+      "id": "artifact-path",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_PATH`): a symlink, an unreadable entry or a path outside the release",
+      "cause": "The artifact root or a release inside it was changed by hand.",
+      "fix": "point at the artifact root semantscript train published (the directory that holds current.json); never edit or symlink a release by hand"
+    },
+    {
+      "id": "artifact-corrupt",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_INVALID_JSON`, `_INVALID_POINTER`, `_INVALID_MANIFEST`, `_INTEGRITY`)",
+      "cause": "The pointer or manifest is malformed, or a file fails its digest.",
+      "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train"
+    },
+    {
+      "id": "artifact-incompatible",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_INCOMPATIBLE`)",
+      "cause": "The artifact was built for another runtime ABI, capability set or ONNX opset.",
+      "fix": "retrain with semantscript train so the artifact matches this runtime (run semantscript build first after a compiler upgrade)"
+    },
+    {
+      "id": "artifact-quota",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_QUOTA`)",
+      "cause": "A pointer, manifest or resource is larger than the load limits.",
+      "fix": "raise the matching maximum*Bytes option of loadSemaArtifact() if the artifact is expected to be this large"
+    },
+    {
+      "id": "artifact-resource",
+      "family": "runtime",
+      "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_RESOURCE`)",
+      "cause": "A resource's tensors, opset or chain are wrong, or the native backend refused it.",
+      "fix": "run semantscript doctor --runtime to check the native bindings, then retrain with semantscript train if they pass"
+    },
+    {
+      "id": "unknown-function",
+      "family": "runtime",
+      "failure": "`SemaUnknownFunctionError` (`unknown-function`)",
+      "cause": "The compiled call's id is not in the loaded artifact: the program was rebuilt after training, or the wrong artifact is loaded.",
+      "fix": "the program changed after the artifact was trained: run semantscript build, then semantscript train, and reload; or load the artifact trained from this bundle"
+    },
+    {
+      "id": "test-no-artifact",
+      "family": "cli",
+      "failure": "`semantscript test`: `no artifact at <root> (current.json is missing)`",
+      "cause": "Nothing was published at the artifact root.",
+      "fix": "run semantscript train to publish an artifact at {root}, or pass --artifact for one published elsewhere"
+    },
+    {
+      "id": "test-example-mismatch",
+      "family": "cli",
+      "failure": "`semantscript test --bundle`: `<id> example <n>: expected …, got …`",
+      "cause": "The loaded artifact answers a bundle example differently: it was trained before the example changed, or from another bundle.",
+      "fix": "run semantscript build, then semantscript train, and rerun semantscript test; if it still fails, the train report's next: lines say what to change"
+    },
+    {
+      "id": "test-function-absent",
+      "family": "cli",
+      "failure": "`semantscript test --bundle`: `<id>: absent from the artifact`",
+      "cause": "The bundle has an expression the artifact was not trained on.",
+      "fix": "run semantscript train on this bundle (semantscript build first if the source changed)"
+    },
+    {
+      "id": "run-no-export",
+      "family": "cli",
+      "failure": "`semantscript run --call`: `<module> has no function export named <name>`",
+      "cause": "The name passed to `--call` is not a function the module exports.",
+      "fix": "pass --call one of the module's function exports: {exports}"
+    },
+    {
+      "id": "build-no-tsconfig",
+      "family": "cli",
+      "failure": "`semantscript build`: `unable to read <tsconfig.json>` or TS5058 / TS5083",
+      "cause": "No TypeScript project at the path.",
+      "fix": "run semantscript init to set up the project, or pass --project <tsconfig.json>"
+    },
+    {
+      "id": "build-no-outdir",
+      "family": "cli",
+      "failure": "`semantscript build`: `<tsconfig.json> must set compilerOptions.outDir`",
+      "cause": "The build writes the compiled calls and the IR bundle under `outDir`.",
+      "fix": "set compilerOptions.outDir in {config} (for example dist)"
+    }
+  ]
+}

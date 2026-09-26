@@ -772,7 +772,17 @@ async function verifyRelease(entry: ReleaseEntry): Promise<void> {
       typeof error === "object" && error !== null && "code" in error
         ? String(error.code)
         : undefined;
-    const detail = error instanceof Error ? error.message : String(error);
+    // An ArtifactLoadError's detail leaves out its remedy, which names this
+    // very command (releases rollback) for a corrupt release.
+    const detail =
+      typeof error === "object" &&
+      error !== null &&
+      "detail" in error &&
+      typeof error.detail === "string"
+        ? error.detail
+        : error instanceof Error
+          ? error.message
+          : String(error);
     throw new ReleaseError(
       "RELEASE_REJECTED",
       `${entry.name}: the runtime refuses to load it (${code === undefined ? detail : `${code}: ${detail}`})`,

@@ -8,7 +8,7 @@ import math
 import re
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
@@ -63,6 +63,10 @@ MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT = (
 )
 MAXIMUM_VERIFICATION_CASE_COUNT = MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT
 MAXIMUM_CALIBRATION_LOGIT_VALUES = 4_000_000
+DEFAULT_SEED_ATTEMPTS = 3
+MAXIMUM_SEED_ATTEMPTS = 20
+DEFAULT_SEED_RETRY_MARGIN = 2.0
+MAXIMUM_SEED_RETRY_MARGIN = 10.0
 
 _CALIBRATION_SPLIT_DOMAIN = b"semantscript.calibration-split/v1\0"
 _MODEL_STATE_DOMAIN = b"semantscript.model-state/v1\0"
@@ -141,6 +145,124 @@ class VerificationConfig:
             minimum=1,
             maximum=MAXIMUM_TEMPERATURE_ITERATIONS,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class SeedRetryConfig:
+    """When a narrowly failed release gate retrains with the next seed.
+
+    ``attempts`` counts every training run, the first included, so 1 turns the
+    retry off. ``margin`` bounds "narrowly": a failure retries only when the
+    constraint-violation rate is at most ``margin`` times the configured
+    tolerance and the ECE at most ``margin`` times the configured threshold, and
+    nothing else failed. The retry settings are not part of the build-cache
+    recipe: they decide how many seeds a build may try, not what a head is.
+    """
+
+    attempts: int = DEFAULT_SEED_ATTEMPTS
+    margin: float = DEFAULT_SEED_RETRY_MARGIN
+
+    def __post_init__(self) -> None:
+        _bounded_integer("seed attempts", self.attempts, minimum=1, maximum=MAXIMUM_SEED_ATTEMPTS)
+        if (
+            isinstance(self.margin, bool)
+            or not isinstance(self.margin, (int, float))
+            or not math.isfinite(float(self.margin))
+            or not 1 <= float(self.margin) <= MAXIMUM_SEED_RETRY_MARGIN
+        ):
+            raise VerificationConfigurationError(
+                "seed retry margin must be a finite number from 1 through "
+                f"{MAXIMUM_SEED_RETRY_MARGIN:g}"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class SeedRetryDecision:
+    """Whether a failed attempt may retrain with the next seed, and why."""
+
+    retry: bool
+    reason: str
+
+
+def seed_retry_decision(
+    results: Sequence[VerificationResult],
+    config: VerificationConfig,
+    retry: SeedRetryConfig,
+    /,
+) -> SeedRetryDecision:
+    """Classify one attempt's failed gates as narrow (retry) or not (stop).
+
+    Only the constraint-violation-rate and ECE gates are seed-sensitive in a way a
+    retry can fix: a gold or human example miss, an output type error, a rate
+    beyond ``margin`` times the tolerance (any violation under a zero tolerance)
+    or an ECE beyond ``margin`` times the threshold stops the build.
+    """
+
+    if not isinstance(config, VerificationConfig):
+        raise VerificationConfigurationError("config must be a VerificationConfig")
+    if not isinstance(retry, SeedRetryConfig):
+        raise VerificationConfigurationError("retry must be a SeedRetryConfig")
+    failed = [result for result in results if result.status != "passed"]
+    if not failed:
+        return SeedRetryDecision(False, "verification passed")
+    tolerance = config.maximum_constraint_violation_rate
+    threshold = config.ece_threshold
+    narrow: list[str] = []
+    for result in failed:
+        metrics = result.metrics
+        name = result.function_id
+        if metrics.example_failures:
+            return SeedRetryDecision(
+                False,
+                f"{name}: {metrics.example_failures} gold/human example prediction(s) "
+                "failed; a gold miss is not a seed effect (check the example against "
+                "the teacher's labels and the constraints)",
+            )
+        if metrics.type_errors:
+            return SeedRetryDecision(
+                False, f"{name}: {metrics.type_errors} output type check(s) failed"
+            )
+        seen = False
+        if metrics.constraint_violations:
+            if result.record_count is None:
+                return SeedRetryDecision(
+                    False, f"{name}: the violation rate's record count is unknown"
+                )
+            rate = metrics.constraint_violations / result.record_count
+            if rate > tolerance:
+                seen = True
+                if tolerance == 0:
+                    return SeedRetryDecision(
+                        False,
+                        f"{name}: {metrics.constraint_violations} constraint violation(s) "
+                        "under a zero tolerance; the margin only widens a nonzero "
+                        "--max-constraint-violation-rate",
+                    )
+                if rate > retry.margin * tolerance:
+                    return SeedRetryDecision(
+                        False,
+                        f"{name}: violation rate {rate:.4%} ({metrics.constraint_violations} "
+                        f"of {result.record_count}) is outside the retry margin "
+                        f"{retry.margin:g} x {tolerance:.4g} = {retry.margin * tolerance:.4%}",
+                    )
+                narrow.append(
+                    f"{name}: violation rate {rate:.4%} ({metrics.constraint_violations} of "
+                    f"{result.record_count}) within {retry.margin:g} x tolerance {tolerance:.4g}"
+                )
+        if metrics.ece > threshold:
+            seen = True
+            if metrics.ece > retry.margin * threshold:
+                return SeedRetryDecision(
+                    False,
+                    f"{name}: ECE {metrics.ece:.4f} is outside the retry margin "
+                    f"{retry.margin:g} x {threshold:.4g} = {retry.margin * threshold:.4f}",
+                )
+            narrow.append(
+                f"{name}: ECE {metrics.ece:.4f} within {retry.margin:g} x threshold {threshold:.4g}"
+            )
+        if not seen:
+            return SeedRetryDecision(False, f"{name}: failed a gate the retry does not classify")
+    return SeedRetryDecision(True, "; ".join(narrow))
 
 
 @dataclass(frozen=True, slots=True)
@@ -312,6 +434,10 @@ class VerificationResult:
     attested_cases: int
     pair_count: int
     failures: tuple[str, ...]
+    # Verification records (corpus rows plus external attested cases) the
+    # constraint-violation rate is measured over. Measured evidence only: it is
+    # not serialized, so a result restored from IR or the build cache has None.
+    record_count: int | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -354,6 +480,13 @@ class VerificationResult:
         ):
             raise VerificationConfigurationError(
                 "pair consistency must be a realizable fraction of pair_count"
+            )
+        if self.record_count is not None:
+            _bounded_integer(
+                "record_count",
+                self.record_count,
+                minimum=1,
+                maximum=MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT,
             )
         if not isinstance(self.failures, tuple) or any(
             not isinstance(failure, str) or not failure for failure in self.failures
@@ -567,6 +700,7 @@ def evaluate_training_result(
         attested_cases=human_count,
         pair_count=pair_count,
         failures=failures,
+        record_count=len(records),
     )
 
 
@@ -1464,6 +1598,8 @@ __all__ = [
     "MAXIMUM_VERIFICATION_CASE_COUNT",
     "CalibrationRecordV1",
     "HeadVerificationV1",
+    "SeedRetryConfig",
+    "SeedRetryDecision",
     "VerificationConfig",
     "VerificationConfigurationError",
     "VerificationError",
@@ -1476,6 +1612,7 @@ __all__ = [
     "evaluate_training_result",
     "model_state_sha256",
     "require_passing_verification",
+    "seed_retry_decision",
     "tokenizer_json_bytes",
     "verify_training_result",
 ]

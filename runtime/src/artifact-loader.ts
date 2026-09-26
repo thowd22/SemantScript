@@ -682,7 +682,16 @@ function validateFunction(value: unknown, path: string): void {
     provenance,
     ["datasetSha256", "trainingKeySha256", "teacher", "baseModel"],
     `${path}.trainingProvenance`,
+    "SEMA_ARTIFACT_INVALID_MANIFEST",
+    ["seed"],
   );
+  // The trainer's seed may exceed 2^53, so this informational field only has to
+  // be a non-negative integer, not a safe one.
+  if (Object.prototype.hasOwnProperty.call(provenance, "seed")) {
+    const seed = get(provenance, "seed");
+    if (!Number.isInteger(seed) || (seed as number) < 0)
+      invalid(`${path}.trainingProvenance.seed must be a non-negative integer`);
+  }
   matches(
     get(provenance, "datasetSha256"),
     SHA256,

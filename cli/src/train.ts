@@ -45,6 +45,8 @@ const PASSTHROUGH_STRING = [
   "counterfactual-ratio",
   "adapter-bottleneck-size",
   "max-cost-usd",
+  "seed-attempts",
+  "seed-retry-margin",
 ] as const;
 const PASSTHROUGH_BOOLEAN = [
   "local-files-only",
@@ -331,6 +333,7 @@ export function renderTrainReport(document: unknown): string {
       );
     }
   }
+  lines.push(...renderSeedRetry(report));
   const cache = report["cache"];
   if (cache !== null && cache !== undefined) {
     const summary = objectOf(cache, "report.cache");
@@ -366,6 +369,75 @@ export function renderTrainReport(document: unknown): string {
       : `train ${status}\n`,
   );
   return lines.join("");
+}
+
+/**
+ * The seed retry: one row per function per training attempt when the build
+ * retrained with another seed, the seed the release published, and why the
+ * retry stopped when it did. Reports from before the retry carry none of it.
+ */
+function renderSeedRetry(report: Readonly<Record<string, unknown>>): string[] {
+  const lines: string[] = [];
+  const attempts = Array.isArray(report["attempts"])
+    ? listOf(report["attempts"], "report.attempts")
+    : [];
+  if (attempts.length > 1) {
+    const rows: string[][] = [];
+    for (const [index, entry] of attempts.entries()) {
+      const path = `report.attempts[${String(index)}]`;
+      const attempt = objectOf(entry, path);
+      const functions = listOf(attempt["functions"], `${path}.functions`);
+      for (const [position, item] of functions.entries()) {
+        const fnPath = `${path}.functions[${String(position)}]`;
+        const fn = objectOf(item, fnPath);
+        const violations = numberOf(
+          fn["constraintViolations"],
+          `${fnPath}.constraintViolations`,
+        );
+        const records = fn["records"];
+        const rate = fn["violationRate"];
+        rows.push([
+          String(numberOf(attempt["attempt"], `${path}.attempt`)),
+          String(numberOf(attempt["seed"], `${path}.seed`)),
+          shortId(stringOf(fn["id"], `${fnPath}.id`)),
+          stringOf(fn["status"], `${fnPath}.status`),
+          formatRatio(numberOf(fn["accuracy"], `${fnPath}.accuracy`)),
+          typeof records === "number" && typeof rate === "number"
+            ? `${String(violations)}/${String(records)} (${(rate * 100).toFixed(2)}%)`
+            : String(violations),
+          formatRatio(numberOf(fn["ece"], `${fnPath}.ece`)),
+        ]);
+      }
+    }
+    lines.push(
+      "training attempts:\n",
+      renderTable(
+        [
+          "attempt",
+          "seed",
+          "function",
+          "status",
+          "accuracy",
+          "violations",
+          "ece",
+        ],
+        rows,
+      ),
+    );
+    if (report["status"] === "passed" && typeof report["seed"] === "number") {
+      lines.push(
+        `seed retry: published seed ${String(report["seed"])} after ${String(attempts.length)} attempts\n`,
+      );
+    }
+  }
+  const retry = report["retry"];
+  if (retry !== null && typeof retry === "object" && !Array.isArray(retry)) {
+    const reason = (retry as Record<string, unknown>)["stopReason"];
+    if (typeof reason === "string") {
+      lines.push(`seed retry stopped: ${reason}\n`);
+    }
+  }
+  return lines;
 }
 
 /** `teacher: 596 requests (12 replayed), USD 1.0213 of the USD 5 cap`. */

@@ -56,7 +56,8 @@ batch size, learning rate, sequence length, evaluation ratio, seed, device,
 head architecture, best-epoch selection, canonical input version),
 `VerificationConfig` (ECE threshold, constraint-violation tolerance,
 calibration bins), `AdversarialGenerationConfig` (counterfactual ratio,
-attempts), `--cases`, `--adapter-bottleneck-size`, `--cache-dir`, `--full`,
+attempts), `SeedRetryConfig` (`--seed-attempts`, `--seed-retry-margin`: how
+many seeds a narrow gate miss may try, and how narrow), `--cases`, `--adapter-bottleneck-size`, `--cache-dir`, `--full`,
 `--no-cache`. The CLI reference lists every flag.
 
 **Run it alone.**

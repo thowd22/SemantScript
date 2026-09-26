@@ -217,7 +217,10 @@ calibration temperature, verifies, and publishes a release under
 `.semantscript/artifact`. It prints one line per step and a report table:
 accuracy, ECE, Brier score, pair consistency, attested cases, constraint
 violations. A function that fails verification is not published and the
-command exits 1 with the failing cases named.
+command exits 1 with the failing cases named. A narrow miss on the violation
+rate or the ECE first retrains with the next seed, up to three runs in all
+([seed retry](cli-reference.md#seed-retry)), so a failing build can take up
+to three times as long.
 
 Expect about two minutes end to end on a desktop GPU for one expression: most
 of it is the teacher requests and the encoder download the first time. Every

@@ -21,6 +21,8 @@ export interface ManifestFunctionSummary {
   readonly attestedCases: number;
   readonly exampleFailures: number;
   readonly constraintViolations: number;
+  /** The training seed the release was published at; null before seeds were recorded. */
+  readonly seed: number | null;
   readonly heads: readonly ManifestHeadSummary[];
 }
 
@@ -82,6 +84,14 @@ function summarizeFunction(
   const fn = objectOf(value, path);
   const runtime = objectOf(fn["runtime"], `${path}.runtime`);
   const verification = objectOf(fn["verification"], `${path}.verification`);
+  const provenance =
+    fn["trainingProvenance"] === undefined
+      ? {}
+      : objectOf(fn["trainingProvenance"], `${path}.trainingProvenance`);
+  const seed =
+    provenance["seed"] === undefined
+      ? null
+      : numberOf(provenance["seed"], `${path}.trainingProvenance.seed`);
   const heads = listOf(fn["heads"], `${path}.heads`).map((entry, index) => {
     const headPath = `${path}.heads[${String(index)}]`;
     const head = objectOf(entry, headPath);
@@ -135,6 +145,7 @@ function summarizeFunction(
       verification["constraintViolations"],
       `${path}.verification.constraintViolations`,
     ),
+    seed,
     heads,
   };
 }

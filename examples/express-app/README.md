@@ -89,6 +89,25 @@ prompt buys the same accuracy at a tenth of the cost, and the near-threshold
 gate stays a seed lottery on this corpus size either way; the release the
 table above describes remains the stronger one.
 
+`train` now draws that lottery itself
+([seed retry](../../docs/cli-reference.md#seed-retry)): a failure only on
+the violation rate or the ECE, within `--seed-retry-margin` times the gate
+(default 2), retrains on the cached datasets with the next seed, up to
+`--seed-attempts` runs (default 3). On the reduced-prompt datasets
+(2026-09-25, RX 9070 XT, the command above with `--seed 2 --seed-attempts 5
+--seed-retry-margin 3`), seed 2 failed at 6 of 394 (1.52%), seed 3 at 5 of
+394 (1.27%), and seed 4 passed at 2 of 394 and published; the report listed
+all three attempts, both verified IRs and the release manifest recorded seed
+4 (`semantscript test` prints it in its `seed` column), the teacher sent no
+request (USD 0), and the rebuild with the same flags reused that release. The
+first seed to pass publishes: seed 4 passed at accuracy 0.9367, where the
+failed seeds 2 and 3 had reached 0.9750 and 0.9873, and the attempts table
+shows that tradeoff.
+With `--seed-retry-margin 1.2`, seed 2's 1.52% was outside the margin and
+the build stopped at once, saying so. GPU training is not bit-for-bit
+repeatable, so a seed's violation count can move by a few records between
+runs (seed 4 had failed at 8 of 394 the day before).
+
 Generation cost about USD 10 through OpenRouter for the two expressions
 (about 600 requests at roughly 8,000 prompt tokens each, plus three attempts
 for each of five counterfactual anchors the teacher could not twin); the

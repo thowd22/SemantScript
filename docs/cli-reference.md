@@ -217,24 +217,68 @@ each expression, and the report table ends with
 
 Options handed to the trainer unchanged:
 
-| Flag                                                              | Value    | Meaning                                                                                                   |
-| ----------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `--cases`                                                         | integer  | Synthetic cases generated per expression (gold examples count toward it).                                 |
-| `--epochs`, `--batch-size`, `--learning-rate`, `--seed`           | numbers  | The fine-tuning recipe.                                                                                   |
-| `--max-sequence-length`                                           | integer  | Tokens per canonical input (default 512).                                                                 |
-| `--evaluation-ratio`                                              | fraction | Held-out calibration split (default 0.2).                                                                 |
-| `--device`                                                        | name     | `auto`, `cpu`, `cuda`, …                                                                                  |
-| `--head-architecture`                                             | name     | `linear` (default) or `mlp`.                                                                              |
-| `--select-best-epoch`                                             |          | Keep the epoch with the best held-out accuracy instead of the last.                                       |
-| `--encoder-name`, `--encoder-revision`                            | strings  | The Hugging Face checkpoint and pinned commit every function of the application fine-tunes from.          |
-| `--local-files-only`                                              |          | Never download; fail if the checkpoint is not cached.                                                     |
-| `--ece-threshold`                                                 | fraction | Verification gate on calibration error (default 0.1).                                                     |
-| `--max-constraint-violation-rate`                                 | fraction | Share of raw predictions allowed to violate an active constraint (default 0; the value used is recorded). |
-| `--counterfactual-ratio`                                          | fraction | Share of synthetic cases that get a counterfactual twin (default 1).                                      |
-| `--adapter-bottleneck-size`                                       | integer  | Width of the per-domain adapter.                                                                          |
-| `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest.                                                                                 |
-| `--no-cache`                                                      |          | Ignore the build cache and write nothing to it.                                                           |
-| `--full`                                                          |          | Retrain every function jointly, discarding cached function records.                                       |
+| Flag                                                              | Value    | Meaning                                                                                                                                                       |
+| ----------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--cases`                                                         | integer  | Synthetic cases generated per expression (gold examples count toward it).                                                                                     |
+| `--epochs`, `--batch-size`, `--learning-rate`, `--seed`           | numbers  | The fine-tuning recipe.                                                                                                                                       |
+| `--max-sequence-length`                                           | integer  | Tokens per canonical input (default 512).                                                                                                                     |
+| `--evaluation-ratio`                                              | fraction | Held-out calibration split (default 0.2).                                                                                                                     |
+| `--device`                                                        | name     | `auto`, `cpu`, `cuda`, …                                                                                                                                      |
+| `--head-architecture`                                             | name     | `linear` (default) or `mlp`.                                                                                                                                  |
+| `--select-best-epoch`                                             |          | Keep the epoch with the best held-out accuracy instead of the last.                                                                                           |
+| `--encoder-name`, `--encoder-revision`                            | strings  | The Hugging Face checkpoint and pinned commit every function of the application fine-tunes from.                                                              |
+| `--local-files-only`                                              |          | Never download; fail if the checkpoint is not cached.                                                                                                         |
+| `--ece-threshold`                                                 | fraction | Verification gate on calibration error (default 0.1).                                                                                                         |
+| `--max-constraint-violation-rate`                                 | fraction | Share of raw predictions allowed to violate an active constraint (default 0; the value used is recorded).                                                     |
+| `--seed-attempts`                                                 | integer  | Training runs a narrowly failed release gate may use, the first included (default 3, at most 20; 1 turns the seed retry off).                                 |
+| `--seed-retry-margin`                                             | factor   | How far past its gate a failure may be and still retry: the violation rate and the ECE each within this many times their gate (default 2, from 1 through 10). |
+| `--counterfactual-ratio`                                          | fraction | Share of synthetic cases that get a counterfactual twin (default 1).                                                                                          |
+| `--adapter-bottleneck-size`                                       | integer  | Width of the per-domain adapter.                                                                                                                              |
+| `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest.                                                                                                                                     |
+| `--no-cache`                                                      |          | Ignore the build cache and write nothing to it.                                                                                                               |
+| `--full`                                                          |          | Retrain every function jointly, discarding cached function records.                                                                                           |
+
+### Seed retry
+
+A training seed can decide a near-threshold release gate: the same datasets
+can fail at one seed and pass at the next. The seed drives training noise
+(initialisation and batch order) and also draws the held-out calibration and
+evaluation split, so each attempt's accuracy and ECE are measured on its own
+split; the violation rate is measured over every record and does not depend
+on the split. When verification fails only on
+the constraint-violation rate or the ECE, and by no more than the margin,
+`train` retrains with the next seed (`--seed`, then `--seed` + 1, …) up to
+`--seed-attempts` runs in all. "By no more than the margin" means the
+violation rate is at most `--seed-retry-margin` times
+`--max-constraint-violation-rate` and the ECE at most that many times
+`--ece-threshold`. The datasets are generated once, before the first attempt,
+so a retry calls no teacher and costs training time only. A retry that
+passes publishes as usual. The release manifest records the seed that passed
+for each expression (`functions[].trainingProvenance.seed`, which
+`semantscript test` prints in its `seed` column), as does the verified IR in
+the build cache and the report (`seed`, `functions[].training.seed`), so a
+`--no-cache` build keeps it too. The first seed that passes publishes, even
+when an earlier attempt that failed was more accurate: compare the
+`accuracy` column of the attempts table. Each retry is logged as
+`verification failed narrowly at seed <n> (<why>); retrying with seed <n+1> (attempt <k> of <K>) …`.
+
+The build does not retry, and says why on a `not retrying: <reason>` line
+and in the report's `retry.stopReason`, when a gold or human example is
+missed (a gold miss is not a seed effect), when an output type check fails,
+when the rate or the ECE is outside the margin, or when the attempts run
+out. Under the default zero violation tolerance any violation is outside
+the margin (twice zero is zero), so only a narrow ECE miss retries there. A
+build that relaxes the tolerance, like the
+[Express example](../examples/express-app/README.md) at 1%, retries a rate
+up to 2%. With several expressions, one expression that fails outside the
+margin stops the build; on an incremental build only the changed
+expressions retrain, and the reused ones keep their recorded seeds.
+
+The report lists every attempt (`attempts[]`: attempt number, seed, status
+and, per expression, accuracy, ECE, violations, records, violation rate and
+failures), the published seed (`seed`) and the retry settings
+(`retry.attempts`, `retry.margin`, `retry.stopReason`); the rendered report
+prints the attempts as a table when more than one ran.
 
 ## `teacher probe`
 
@@ -261,7 +305,9 @@ environment and is scrubbed from any error. Exit 1 when the request fails
 
 `build` then `train`, then watch the project's TypeScript sources and repeat
 both on every save. The `train` preflight runs until one training succeeds,
-not on every save. Takes every `build` and `train` option plus:
+not on every save. Each cycle's `train` applies the [seed retry](#seed-retry)
+too, so a narrow miss can retrain up to `--seed-attempts` times before the
+cycle ends. Takes every `build` and `train` option plus:
 
 | Flag         | Value        | Effect                                                                  |
 | ------------ | ------------ | ----------------------------------------------------------------------- |
@@ -277,7 +323,9 @@ cycle; exit 0 on interruption, 1 when a `--once` cycle fails.
 
 Reads the artifact pointer and manifest and reports every function's shipped
 verification (status, accuracy, ECE, Brier, pair consistency, attested cases,
-constraint violations, each head's accuracy).
+constraint violations, the training seed the release passed at, each head's
+accuracy). The seed is `-` in the table and `null` in `--json` for a release
+built before the manifest recorded seeds.
 
 | Flag         | Value | Effect                                                                                                                        |
 | ------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------- |

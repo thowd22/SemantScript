@@ -13,7 +13,10 @@ teacher-config summary (as a non-ASCII checkout or user name would appear).
 
 ``train --estimate`` prints an estimate document; ``teacher probe`` prints a
 probe result (``FAKE_PROBE_FAIL`` makes it a failed one). ``FAKE_TRAINER_SPEND``
-adds a ``teacher.spend`` object to the report.
+adds a ``teacher.spend`` object to the report. ``FAKE_TRAINER_RETRY`` adds the
+seed retry's ``seed``, ``attempts`` and ``retry`` fields: three attempts from
+``--seed`` (default 1), the last passing, or with ``FAKE_TRAINER_EXIT`` set, two
+failed attempts and a stop reason.
 """
 
 from __future__ import annotations
@@ -255,6 +258,41 @@ def main(argv: list[str]) -> int:
             "maxCostUsd": float(values["max-cost-usd"]) if "max-cost-usd" in values else None,
             "priceSource": "pinned Anthropic list price 2026-09-25",
             "seconds": 150.0,
+        }
+    if os.environ.get("FAKE_TRAINER_RETRY"):
+        first = int(values.get("seed", 1))
+        count = 3 if exit_code == 0 else 2
+
+        def attempt(index: int) -> dict[str, object]:
+            passed = exit_code == 0 and index == count - 1
+            violations = 2 if passed else (4 + 4 * index if exit_code else 4 + index)
+            return {
+                "attempt": index + 1,
+                "seed": first + index,
+                "status": "passed" if passed else "failed",
+                "functions": [
+                    {
+                        "id": "nf_" + "3" * 64,
+                        "status": "passed" if passed else "failed",
+                        "accuracy": 0.97,
+                        "ece": 0.04,
+                        "constraintViolations": violations,
+                        "records": 394,
+                        "violationRate": violations / 394,
+                        "failures": [] if passed else ["violation rate over tolerance"],
+                    }
+                ],
+            }
+
+        report["seed"] = first + count - 1 if exit_code == 0 else None
+        report["attempts"] = [attempt(index) for index in range(count)]
+        report["retry"] = {
+            "attempts": int(values.get("seed-attempts", 3)),
+            "margin": float(values.get("seed-retry-margin", 2)),
+            "stopReason": None
+            if exit_code == 0
+            else "nf_" + "3" * 64 + ": violation rate 2.0305% (8 of 394) is outside the "
+            "retry margin 2 x 0.01 = 2.0000%",
         }
     report_path = Path(values["report"])
     report_path.parent.mkdir(parents=True, exist_ok=True)

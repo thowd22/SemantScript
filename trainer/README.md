@@ -446,6 +446,25 @@ verification and adversarial settings map to `TrainingConfig`,
 flags keep the library defaults. The Node CLI (`cli/`) spawns this module and
 renders the report.
 
+A narrowly failed gate retrains with the next seed (`seed_retry`, a
+`verification.SeedRetryConfig`; flags `--seed-attempts`, default 3, and
+`--seed-retry-margin`, default 2). `verification.seed_retry_decision` retries
+only when every failed gate is the constraint-violation rate or the ECE, with
+the rate at most margin times `maximum_constraint_violation_rate` (measured over
+`VerificationResult.record_count`, which is never serialized) and the ECE at
+most margin times `ece_threshold`; a gold or human miss, a type error or
+anything past the margin stops with a reason. The datasets are generated once
+before the first attempt, the joint path trains each attempt from a pristine
+copy of an injected encoder, the incremental path restores the cached
+application again, and the verified IR's `trainingProvenance.seed` is the
+attempt's seed; the release manifest copies it into each function's
+`trainingProvenance.seed`. The cache recipe keeps the configured seed, and a restored
+function rebuilds its split from its recorded seed. The report gains `seed`
+(the published seed), `attempts` (per attempt: `attempt`, `seed`, `status` and
+per function `id`, `status`, `accuracy`, `ece`, `constraintViolations`,
+`records`, `violationRate`, `failures`), `retry` (`attempts`, `margin`,
+`stopReason`) and a per-function `training.seed`; `reportVersion` stays 1.
+
 `--estimate` writes a `semantscript.train-estimate` (`estimateVersion` 1) JSON
 document to stdout and exits 0 without creating a teacher client, loading
 PyTorch or training: per function the planned, expected and maximum requests,

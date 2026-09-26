@@ -635,3 +635,43 @@ test("stages fuse identical inputs and execution plans feed later stages", async
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("accepts the optional training seed and rejects an invalid one", async () => {
+  const runtime = await import("../dist/index.js");
+  const seededRoot = await mkdtemp(
+    join(tmpdir(), "semantscript-runtime-seeded-"),
+  );
+  const badSeedRoot = await mkdtemp(
+    join(tmpdir(), "semantscript-runtime-bad-seed-"),
+  );
+  try {
+    await createFixtureArtifact(seededRoot, {
+      transformManifest(manifest) {
+        manifest.functions[0].trainingProvenance.seed = 4;
+      },
+    });
+    const handle = await runtime.loadSemaArtifact(seededRoot);
+    assert.equal(
+      handle.call(fixtureFunctionId, { facts: { a: 1, b: 2 } }),
+      "review",
+    );
+    await handle.close();
+
+    await createFixtureArtifact(badSeedRoot, {
+      transformManifest(manifest) {
+        manifest.functions[0].trainingProvenance.seed = -1;
+      },
+    });
+    await assert.rejects(
+      runtime.loadSemaArtifact(badSeedRoot),
+      (error) =>
+        error instanceof runtime.ArtifactLoadError &&
+        error.code === "SEMA_ARTIFACT_INVALID_MANIFEST" &&
+        /trainingProvenance\.seed/.test(error.message),
+    );
+  } finally {
+    await runtime.closeSemaArtifact();
+    await rm(seededRoot, { recursive: true, force: true });
+    await rm(badSeedRoot, { recursive: true, force: true });
+  }
+});

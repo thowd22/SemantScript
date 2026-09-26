@@ -71,7 +71,7 @@ current run:
 | Function id          | Derived by the compiler from the expression's semantic identity: template text, input and output types, examples, constraints and runtime policy, plus its file and duplicate ordinal.                                                                                                                                                                                                                                                                                     |
 | Semantic digest      | The same identity without the file, so a moved expression whose text is unchanged still matches when its id is preserved.                                                                                                                                                                                                                                                                                                                                                  |
 | Model binding digest | The function's `model` block: its adapter ref, encoder ref and depth. Changing a domain's depth or routing changes it.                                                                                                                                                                                                                                                                                                                                                     |
-| Recipe digest        | Encoder name and revision, canonical input version, adapter size, every training, verification and adversarial setting, and the teacher's provider, model and configuration digest.                                                                                                                                                                                                                                                                                        |
+| Recipe digest        | Encoder name and revision, canonical input version, adapter size, every training, verification and adversarial setting (with the configured `--seed`), and the teacher's provider, model and configuration digest. The seed retry settings are not part of it (below).                                                                                                                                                                                                     |
 | Shared-state digest  | The combined digest of the encoder weights and the function's adapter weights the head was trained on; a retrained encoder or adapter invalidates every head on it.                                                                                                                                                                                                                                                                                                        |
 | Dataset digests      | The synthetic and adversarial datasets the function trained on. The datasets are cached by content too, so an unchanged expression regenerates nothing; a teacher change regenerates both. A language-model teacher's digest includes its prompt layout version, so the compact prompt of 2026-09-25 (version 4) regenerates Anthropic and Ollama datasets once; the constraints teacher's datasets are unaffected. A `[teacher.pricing]` table is never part of a digest. |
 | File digests         | Every cache file is hashed on read; a corrupted or truncated file is a miss for that function, and a damaged shared file is a miss for the whole application.                                                                                                                                                                                                                                                                                                              |
@@ -96,6 +96,26 @@ Heads trained incrementally sit on an encoder that was fine-tuned for the
 application's earlier expressions. That is by design (it is what keeps a save
 cheap in `semantscript dev`), and the reason to run `--full` before a release
 that matters.
+
+## Seed retries
+
+When verification fails narrowly, `train` retrains with the next seed
+([seed retry](cli-reference.md#seed-retry)). The datasets are generated (or
+read from this cache) once, before the first attempt, so every retry reuses
+them: a retry calls no teacher, adds nothing to the spend line and costs
+training time only. On an incremental build each attempt restores the shared
+encoder and the unchanged heads from the cache again and retrains only the
+changed heads.
+
+The recipe digest keeps the configured `--seed`, not the seed that passed, so
+rebuilding with the same flags reuses a release a retry published instead of
+training it again. The seed a function actually trained with is in its
+verified IR (`trainingProvenance.seed`), in the published release's manifest
+(`functions[].trainingProvenance.seed`) and in the report
+(`functions[].training.seed`); when the cache restores a function it rebuilds
+that function's held-out split from the recorded seed. `--seed-attempts` and
+`--seed-retry-margin` change how many seeds a build may try, not what a head
+is, so changing them never invalidates the cache.
 
 ## What the cache never does
 

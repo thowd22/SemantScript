@@ -265,9 +265,26 @@ test("test reports shipped verification and replays bundle examples through the 
   assert.equal(await runCli(["test", "--artifact", artifactRoot], stats.io), 0);
   assert.match(
     stats.stdout(),
-    /nf_11111111…\s+passed\s+1\.0000\s+0\.0000\s+0\.0000\s+1\.0000\s+1\s+0\s+1\.0000\s+-/u,
+    /nf_11111111…\s+passed\s+1\.0000\s+0\.0000\s+0\.0000\s+1\.0000\s+1\s+0\s+-\s+1\.0000\s+-/u,
   );
   assert.match(stats.stdout(), /test passed\n$/u);
+
+  const seededRoot = join(root, "seeded");
+  await createFixtureArtifact(seededRoot, {
+    transformManifest: (manifest) => {
+      manifest.functions[0].trainingProvenance.seed = 4;
+    },
+  });
+  const seeded = capture(root);
+  assert.equal(await runCli(["test", "--artifact", seededRoot], seeded.io), 0);
+  assert.match(seeded.stdout(), /\s+seed\s+/u);
+  assert.match(seeded.stdout(), /\s1\s+0\s+4\s+1\.0000\s+-/u);
+  const seededJson = capture(root);
+  assert.equal(
+    await runCli(["test", "--artifact", seededRoot, "--json"], seededJson.io),
+    0,
+  );
+  assert.equal(JSON.parse(seededJson.stdout()).functions[0].seed, 4);
 
   const replay = capture(root);
   assert.equal(
@@ -307,6 +324,7 @@ test("test reports shipped verification and replays bundle examples through the 
   assert.equal(document.ok, false);
   assert.equal(document.functions[0].status, "passed");
   assert.equal(document.functions[0].examples.passed, 1);
+  assert.equal(document.functions[0].seed, null);
   assert.deepEqual(document.missingFunctions, [`nf_${"9".repeat(64)}`]);
 
   const unverified = join(root, "unverified");
@@ -1453,6 +1471,70 @@ test("train passes --max-cost-usd through and prints the teacher's running cost"
     run.stdout(),
     /teacher: 40 requests \(12 replayed\), USD 0\.0931 of the USD 2\.5 cap\n/u,
   );
+});
+
+test("train passes the seed retry flags through and prints every attempt", async (t) => {
+  const root = await scratch(t, "semantscript-cli-retry-");
+  await writeFile(join(root, "bundle.json"), "{}");
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const argvPath = join(root, "argv.json");
+  const env = {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_ARGV_PATH: argvPath,
+    FAKE_TRAINER_RETRY: "1",
+  };
+  const args = [
+    "train",
+    "--bundle",
+    "bundle.json",
+    "--teacher",
+    "teacher.toml",
+    "--python",
+    process.platform === "win32" ? "python" : "python3",
+    "--trainer-module",
+    "fake_trainer",
+    "--no-preflight",
+    "--seed",
+    "3",
+    "--seed-attempts",
+    "5",
+    "--seed-retry-margin",
+    "2.5",
+  ];
+  const run = capture(root, env);
+  assert.equal(await runCli(args, run.io), 0, run.stderr());
+  const recorded = JSON.parse(await readFile(argvPath, "utf8")).argv;
+  assert.equal(recorded[recorded.indexOf("--seed-attempts") + 1], "5");
+  assert.equal(recorded[recorded.indexOf("--seed-retry-margin") + 1], "2.5");
+  const out = run.stdout();
+  assert.match(out, /training attempts:\n/u);
+  assert.match(
+    out,
+    /attempt\s+seed\s+function\s+status\s+accuracy\s+violations\s+ece\n/u,
+  );
+  assert.match(
+    out,
+    /1\s+3\s+nf_33333333…\s+failed\s+0\.9700\s+4\/394 \(1\.02%\)\s+0\.0400\n/u,
+  );
+  assert.match(
+    out,
+    /3\s+5\s+nf_33333333…\s+passed\s+0\.9700\s+2\/394 \(0\.51%\)/u,
+  );
+  assert.match(out, /seed retry: published seed 5 after 3 attempts\n/u);
+  assert.doesNotMatch(out, /seed retry stopped/u);
+
+  const stopped = capture(root, { ...env, FAKE_TRAINER_EXIT: "1" });
+  assert.equal(await runCli(args, stopped.io), 1);
+  assert.match(
+    stopped.stdout(),
+    /2\s+4\s+nf_33333333…\s+failed\s+0\.9700\s+8\/394 \(2\.03%\)/u,
+  );
+  assert.doesNotMatch(stopped.stdout(), /published seed/u);
+  assert.match(
+    stopped.stdout(),
+    /seed retry stopped: nf_3{64}: violation rate 2\.0305% \(8 of 394\) is outside the retry margin 2 x 0\.01 = 2\.0000%\n/u,
+  );
+  assert.match(stopped.stdout(), /train failed\n$/u);
 });
 
 test("teacher probe reports the model, latency, tokens and cost of one request", async (t) => {

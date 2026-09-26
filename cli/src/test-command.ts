@@ -91,6 +91,7 @@ export async function testCommand(
       formatRatio(fn.pairConsistency),
       String(fn.attestedCases),
       String(fn.constraintViolations),
+      fn.seed === null ? "-" : String(fn.seed),
       fn.heads.map((head) => formatRatio(head.accuracy)).join("/"),
       replay === undefined
         ? "-"
@@ -109,6 +110,7 @@ export async function testCommand(
         "pairs",
         "attested",
         "violations",
+        "seed",
         "heads",
         "examples",
       ],

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -35,7 +37,7 @@ from semantscript_trainer.teacher_config import ConstraintsTeacherConfig  # noqa
 from semantscript_trainer.teacher_spend import SpendMeter, free_price  # noqa: E402
 from semantscript_trainer.teachers import ConstraintsTeacher  # noqa: E402
 from semantscript_trainer.training import TrainingConfig  # noqa: E402
-from semantscript_trainer.verification import VerificationConfig  # noqa: E402
+from semantscript_trainer.verification import SeedRetryConfig, VerificationConfig  # noqa: E402
 
 ROOT = Path(__file__).parents[2]
 TOKENIZER_JSON = (ROOT / "runtime" / "test" / "fixtures" / "tokenizer.json").read_bytes()
@@ -711,7 +713,7 @@ def test_main_accepts_the_constraints_keyword(
 
 
 def test_main_maps_flags_into_configs_and_writes_the_report(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     bundle_path = tmp_path / "bundle.json"
     bundle_path.write_text(json.dumps({"kind": "semantscript.ir-bundle", "bundleVersion": 1}))
@@ -758,6 +760,10 @@ def test_main_maps_flags_into_configs_and_writes_the_report(
             "0.2",
             "--counterfactual-ratio",
             "0.5",
+            "--seed-attempts",
+            "5",
+            "--seed-retry-margin",
+            "3",
             "--application-id",
             "demo",
         ]
@@ -773,6 +779,34 @@ def test_main_maps_flags_into_configs_and_writes_the_report(
     assert config.learning_rate == TrainingConfig().learning_rate
     assert captured["verification_config"].ece_threshold == 0.2
     assert captured["adversarial_config"].counterfactual_ratio == 0.5
+    assert captured["seed_retry"] == SeedRetryConfig(attempts=5, margin=3.0)
+    base_arguments = [
+        "train",
+        "--bundle",
+        str(bundle_path),
+        "--artifact",
+        str(tmp_path / "artifact"),
+        "--teacher",
+        str(teacher_path),
+        "--cache-dir",
+        str(tmp_path / "cache"),
+    ]
+    assert cli_module.main(base_arguments) == 0
+    assert captured["seed_retry"] == SeedRetryConfig()
+    # An out-of-range retry setting is refused before any training.
+    captured.clear()
+    assert cli_module.main([*base_arguments, "--seed-retry-margin", "0.5"]) == 1
+    assert "error: --seed-retry-margin: seed retry margin" in capsys.readouterr().err
+    assert cli_module.main([*base_arguments, "--seed-attempts", "0"]) == 1
+    assert "error: --seed-attempts: seed attempts" in capsys.readouterr().err
+    assert captured == {}
+    # The flag is checked first: a missing bundle does not hide it, and
+    # --estimate refuses it too.
+    missing = ["train", "--bundle", str(tmp_path / "absent.json"), *base_arguments[3:]]
+    assert cli_module.main([*missing, "--seed-attempts", "0"]) == 1
+    assert "--seed-attempts" in capsys.readouterr().err
+    assert cli_module.main([*base_arguments, "--estimate", "--seed-attempts", "0"]) == 1
+    assert "--seed-attempts" in capsys.readouterr().err
 
     def failing_train_bundle(bundle: Any, artifact_root: Any, **kwargs: Any) -> Any:
         raise TrainBundleFailure("verification failed for x", {"status": "failed"})
@@ -1041,6 +1075,8 @@ def test_missing_artifact_is_re_exported_from_cache_without_training(
     assert exported.report["status"] == "passed"
     assert exported.report["cache"]["reused"] == 1 and exported.report["cache"]["trained"] == 0
     assert exported.report["functions"][0]["cache"] == "reused"
+    # Nothing trained: no attempt is listed, and the seed is the recorded one.
+    assert exported.report["attempts"] == [] and exported.report["seed"] == 3
     assert (tmp_path / "artifact" / "current.json").is_file()
     assert run_cli_test(tmp_path / "artifact")["ok"] is True
 
@@ -1337,3 +1373,270 @@ def test_a_run_failing_on_rejected_teacher_answers_drops_its_journal_entries(
     # The rerun asks the teacher again instead of replaying the rejected answers.
     assert cli_module.main(arguments) == 1
     assert len(sent) == 6
+
+
+# The seed retry: a narrowly failed release gate retrains with the next seed.
+
+NARROW_TOLERANCE = VerificationConfig(maximum_constraint_violation_rate=0.01)
+
+
+def force_gate_by_seed(
+    monkeypatch: pytest.MonkeyPatch,
+    outcomes: dict[int, dict[str, float]],
+) -> list[int]:
+    """Fail verification at the given seeds with the given metric overrides.
+
+    Every forced failure keeps the real measured evidence (and its record count)
+    and only overrides the gate metrics, so the retry decision sees what a real
+    seed-sensitive near miss looks like; a ``violation_rate`` override becomes
+    the violation count that reaches that rate. Returns the seeds verification ran at.
+    """
+
+    real = cli_module.evaluate_training_result
+    seen: list[int] = []
+
+    def evaluate(ir: Any, training: Any, *args: Any, **kwargs: Any) -> Any:
+        result = real(ir, training, *args, **kwargs)
+        seen.append(training.config.seed)
+        change = outcomes.get(training.config.seed)
+        if change is None:
+            return result
+        overrides: dict[str, Any] = dict(change)
+        rate = overrides.pop("violation_rate", None)
+        if rate is not None:
+            overrides["constraint_violations"] = math.ceil(rate * result.record_count)
+        return replace(
+            result,
+            status="failed",
+            metrics=replace(result.metrics, **overrides),
+            failures=("forced gate failure",),
+        )
+
+    monkeypatch.setattr(cli_module, "evaluate_training_result", evaluate)
+    return seen
+
+
+def cached_verified_ir(tmp_path: Path, application: str, function_id: str) -> bytes:
+    return (
+        (tmp_path / "cache" / "applications" / application / "functions" / function_id)
+        .joinpath("verified-ir.json")
+        .read_bytes()
+    )
+
+
+def test_a_narrow_failure_retries_with_the_next_seed_and_publishes_the_passing_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "retry")
+    function_id = bundle["functions"][0]["id"]
+    # A 1.2% violation rate is over the 1% tolerance and inside twice it. Seeds 3
+    # and 4 fail that way; seed 5 passes.
+    seen = force_gate_by_seed(
+        monkeypatch, {3: {"violation_rate": 0.012}, 4: {"violation_rate": 0.012}}
+    )
+    teacher = CountingTeacher()
+    messages: list[str] = []
+
+    result = train_cached(
+        bundle,
+        tmp_path,
+        teacher=teacher,
+        verification_config=NARROW_TOLERANCE,
+        log=messages.append,
+    )
+
+    assert seen == [3, 4, 5]
+    # The datasets were generated once, before the first attempt.
+    assert teacher.calls == 1
+    report = result.report
+    assert report["status"] == "passed" and report["seed"] == 5
+    assert report["retry"] == {"attempts": 3, "margin": 2.0, "stopReason": None}
+    assert [(a["attempt"], a["seed"], a["status"]) for a in report["attempts"]] == [
+        (1, 3, "failed"),
+        (2, 4, "failed"),
+        (3, 5, "passed"),
+    ]
+    first = report["attempts"][0]["functions"][0]
+    assert first["id"] == function_id and first["constraintViolations"] > 0
+    assert 0.01 < first["violationRate"] <= 0.02
+    assert first["violationRate"] == first["constraintViolations"] / first["records"]
+    assert first["failures"] == ["forced gate failure"]
+    assert {"accuracy", "ece"} <= set(first)
+    assert report["attempts"][2]["functions"][0]["failures"] == []
+    assert report["functions"][0]["training"]["seed"] == 5
+    assert any(
+        m.startswith("verification failed narrowly at seed 3 (")
+        and "retrying with seed 4 (attempt 2 of 3)" in m
+        for m in messages
+    )
+    assert any(m.endswith(", seed 5") and "verification passed" in m for m in messages)
+    # The published release binds the verified IR that records the passing seed.
+    verified = cached_verified_ir(tmp_path, "retry", function_id)
+    assert json.loads(verified)["trainingProvenance"]["seed"] == 5
+    assert result.exported.manifest["build"]["sourceIrSha256"] == (
+        hashlib.sha256(verified).hexdigest()
+    )
+    # The release manifest itself records the passing seed as well.
+    assert result.exported.manifest["functions"][0]["trainingProvenance"]["seed"] == 5
+
+    # The cache recipe keeps the configured seed: an unchanged rebuild reuses the
+    # retried release without training and reports the seed it was published with.
+    def no_training(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("a rebuild without changes must not train")
+
+    monkeypatch.setattr(cli_module, "train_application", no_training)
+    again = train_cached(bundle, tmp_path, verification_config=NARROW_TOLERANCE)
+    assert again.report["status"] == "reused" and again.report["seed"] == 5
+    assert again.report["functions"][0]["training"]["seed"] == 5
+    assert again.report["attempts"] == []
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"violation_rate": 0.05}, "outside the retry margin 2 x 0.01"),
+        ({"example_failures": 1}, "a gold miss is not a seed effect"),
+        ({"type_errors": 1}, "1 output type check(s) failed"),
+    ],
+)
+def test_a_failure_outside_the_margin_or_a_gold_miss_does_not_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: dict[str, float], reason: str
+) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "no-retry")
+    seen = force_gate_by_seed(monkeypatch, {3: change})
+    messages: list[str] = []
+
+    with pytest.raises(TrainBundleFailure, match="not retrying: .*" + re.escape(reason)) as raised:
+        train_cached(bundle, tmp_path, verification_config=NARROW_TOLERANCE, log=messages.append)
+
+    assert seen == [3]
+    report = raised.value.report
+    assert report["status"] == "failed" and report["seed"] is None
+    assert [a["seed"] for a in report["attempts"]] == [3]
+    assert reason in report["retry"]["stopReason"]
+    assert any(m.startswith("not retrying: ") and reason in m for m in messages)
+    assert not (tmp_path / "artifact").exists()
+
+
+def test_a_real_gold_miss_does_not_retry(tmp_path: Path) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "gold")
+
+    with pytest.raises(TrainBundleFailure, match="not a seed effect") as raised:
+        train_cached(bundle, tmp_path, teacher=ContradictingTeacher())
+
+    assert len(raised.value.report["attempts"]) == 1
+
+
+def test_retries_stop_after_the_configured_attempts_or_when_turned_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = cached_fixture(tmp_path, {"refund.sem.ts": REFUND_SOURCE.read_text()}, "exhaust")
+    narrow = {"violation_rate": 0.012}
+    seen = force_gate_by_seed(monkeypatch, {3: narrow, 4: narrow, 5: narrow})
+
+    with pytest.raises(TrainBundleFailure, match=r"all 2 seed attempts failed \(seeds 3 to 4\)"):
+        train_cached(
+            bundle,
+            tmp_path,
+            verification_config=NARROW_TOLERANCE,
+            seed_retry=SeedRetryConfig(attempts=2),
+        )
+    assert seen == [3, 4]
+
+    seen.clear()
+    with pytest.raises(TrainBundleFailure, match=r"seed retry is off \(--seed-attempts 1\)") as off:
+        train_cached(
+            bundle,
+            tmp_path,
+            verification_config=NARROW_TOLERANCE,
+            seed_retry=SeedRetryConfig(attempts=1),
+        )
+    assert seen == [3]
+    assert off.value.report["retry"]["attempts"] == 1
+    with pytest.raises(TrainBundleError, match="SeedRetryConfig"):
+        train_cached(bundle, tmp_path, seed_retry=3)
+
+
+def test_an_incremental_build_retries_only_the_changed_head_and_keeps_its_seed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sources = {"refund.sem.ts": REFUND_SOURCE.read_text(), "risk.sem.ts": RISK_SOURCE}
+    bundle = cached_fixture(tmp_path, sources, "retry-app")
+    train_cached(bundle, tmp_path, verification_config=NARROW_TOLERANCE)
+    edited = cached_fixture(
+        tmp_path / "edited",
+        {**sources, "risk.sem.ts": RISK_SOURCE.replace("refund risk.", "refund risk now.")},
+        "retry-app",
+    )
+    risk_id = next(
+        fn["id"] for fn in edited["functions"] if fn["source"]["path"].endswith("risk.sem.ts")
+    )
+    refund_id = next(fn["id"] for fn in edited["functions"] if fn["id"] != risk_id)
+    # The risk expression has no constraints, so a narrow ECE miss stands in.
+    real = cli_module.evaluate_training_result
+
+    def ece_miss(ir: Any, training: Any, *args: Any, **kwargs: Any) -> Any:
+        result = real(ir, training, *args, **kwargs)
+        if ir["id"] != risk_id or training.config.seed != 3:
+            return result
+        return replace(
+            result,
+            status="failed",
+            metrics=replace(
+                result.metrics,
+                ece=0.15,
+                heads=tuple(
+                    replace(head, calibration=replace(head.calibration, ece=0.15))
+                    for head in result.metrics.heads
+                ),
+            ),
+            failures=("ECE 0.15 exceeds configured threshold 0.1",),
+        )
+
+    monkeypatch.setattr(cli_module, "evaluate_training_result", ece_miss)
+    incremental = cli_module.add_function_head
+    heads: list[int] = []
+    monkeypatch.setattr(
+        cli_module,
+        "add_function_head",
+        lambda *a, **k: heads.append(k["config"].seed) or incremental(*a, **k),
+    )
+
+    second = train_cached(edited, tmp_path, verification_config=NARROW_TOLERANCE)
+
+    assert heads == [3, 4]
+    report = second.report
+    assert report["status"] == "passed" and report["seed"] == 4
+    assert [a["seed"] for a in report["attempts"]] == [3, 4]
+    assert [fn["id"] for fn in report["attempts"][0]["functions"]] == [risk_id]
+    by_id = {fn["id"]: fn for fn in report["functions"]}
+    assert by_id[refund_id]["cache"] == "reused" and by_id[refund_id]["training"]["seed"] == 3
+    assert by_id[risk_id]["cache"] == "trained" and by_id[risk_id]["training"]["seed"] == 4
+    assert (
+        json.loads(cached_verified_ir(tmp_path, "retry-app", risk_id))["trainingProvenance"]["seed"]
+        == 4
+    )
+    assert run_cli_test(tmp_path / "artifact")["ok"] is True
+    seeds = {
+        fn["id"]: fn["trainingProvenance"]["seed"] for fn in second.exported.manifest["functions"]
+    }
+    assert seeds == {refund_id: 3, risk_id: 4}
+
+    # Editing the other expression restores the retried head from the cache on the
+    # seed its verified IR records, so its split matches what it trained on.
+    third_bundle = cached_fixture(
+        tmp_path / "third",
+        {
+            "refund.sem.ts": REFUND_SOURCE.read_text().replace(
+                "Apply our refund policy.", "Apply our refund policy exactly."
+            ),
+            "risk.sem.ts": sources["risk.sem.ts"].replace("refund risk.", "refund risk now."),
+        },
+        "retry-app",
+    )
+    third = train_cached(third_bundle, tmp_path, verification_config=NARROW_TOLERANCE)
+    assert heads == [3, 4, 3]
+    third_by_path = {fn["sourcePath"]: fn for fn in third.report["functions"]}
+    assert third_by_path["src/risk.sem.ts"]["cache"] == "reused"
+    assert third_by_path["src/risk.sem.ts"]["training"]["seed"] == 4
+    assert third_by_path["src/refund.sem.ts"]["training"]["seed"] == 3

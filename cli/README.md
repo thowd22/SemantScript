@@ -161,6 +161,15 @@ the next run replays them free. Every run prints a running
 `teacher: … USD …` line, and the report table ends with the run's requests,
 replays and cost (docs/teachers.md).
 
+When verification fails only on the constraint-violation rate or the ECE, and
+by no more than `--seed-retry-margin` times the gate (default 2), `train`
+retrains on the cached datasets with the next seed, up to `--seed-attempts`
+runs (default 3; 1 turns it off). A gold-example miss, a type error or a
+failure outside the margin stops at once and says why. The report lists every
+attempt with its seed and gate metrics, and the published release's manifest
+records the seed that passed (`functions[].trainingProvenance.seed`, shown by
+`semantscript test`; docs/cli-reference.md#seed-retry).
+
 ### Build cache
 
 Retraining every function on every build is unacceptable, so `train` keeps a
@@ -222,9 +231,10 @@ Training options pass through unchanged: `--cases`, `--epochs`, `--batch-size`,
 `--learning-rate`, `--max-sequence-length`, `--evaluation-ratio`, `--seed`,
 `--device`, `--head-architecture`, `--select-best-epoch`, `--encoder-name`,
 `--encoder-revision`, `--local-files-only`, `--ece-threshold`,
-`--max-constraint-violation-rate`, `--counterfactual-ratio`,
-`--adapter-bottleneck-size`, `--no-cache`, `--full`, `--application-id`,
-`--application-version`, `--compiler-version` and `--cache-dir` (default
+`--max-constraint-violation-rate`, `--seed-attempts`, `--seed-retry-margin`,
+`--counterfactual-ratio`, `--adapter-bottleneck-size`, `--no-cache`, `--full`,
+`--application-id`, `--application-version`, `--compiler-version` and
+`--cache-dir` (default
 `.semantscript/cache`). The interpreter is `--python`,
 then `SEMANTSCRIPT_PYTHON`, then `python3` (`python` on Windows); inside this repository the trainer
 and model sources (and `.python-packages` when present) are put on `PYTHONPATH`
@@ -260,7 +270,8 @@ Ctrl-C stops the loop after the current cycle.
 
 Reads the artifact pointer and manifest and reports, per function, the
 verification it shipped with: status, accuracy, ECE, Brier, pair consistency,
-attested cases, constraint violations and each head's accuracy. Trained models
+attested cases, constraint violations, the training seed the release passed at
+(`-` for releases from before seeds were recorded) and each head's accuracy. Trained models
 are not persisted, so this is the gate `train` already enforced; with
 `--bundle` the command also loads the artifact and replays every IR example
 through the runtime, comparing outputs by value (diagnostic functions by their

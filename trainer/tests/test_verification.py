@@ -35,6 +35,7 @@ from semantscript_trainer.training_contract import (  # noqa: E402
     split_training_corpus,
 )
 from semantscript_trainer.verification import (  # noqa: E402
+    SeedRetryConfig,
     VerificationConfig,
     VerificationConfigurationError,
     VerificationExecutionError,
@@ -42,6 +43,7 @@ from semantscript_trainer.verification import (  # noqa: E402
     calibration_split_sha256,
     evaluate_training_result,
     model_state_sha256,
+    seed_retry_decision,
     tokenizer_json_bytes,
     verify_training_result,
 )
@@ -387,6 +389,26 @@ def test_constraint_violation_and_counterfactual_pair_failure_are_measured() -> 
         "predicted false\n"
     )
     assert constraint_failure.count("\n  - ") == 3
+    # The seed retry reads the rate from the measured record count (3 of 7).
+    assert result.record_count == 7
+    zero = seed_retry_decision([result], VerificationConfig(), SeedRetryConfig())
+    assert not zero.retry and "zero tolerance" in zero.reason
+    # ECE also failed on this fixture, so give it room and look at the rate alone.
+    loose_ece = {"ece_threshold": 1.0}
+    within = seed_retry_decision(
+        [result],
+        VerificationConfig(maximum_constraint_violation_rate=0.25, **loose_ece),
+        SeedRetryConfig(margin=2),
+    )
+    assert within.retry and "violation rate 42.8571% (3 of 7) within 2 x tolerance 0.25" in (
+        within.reason
+    )
+    outside = seed_retry_decision(
+        [result],
+        VerificationConfig(maximum_constraint_violation_rate=0.2, **loose_ece),
+        SeedRetryConfig(margin=2),
+    )
+    assert not outside.retry and "outside the retry margin 2 x 0.2 = 40.0000%" in outside.reason
 
     tolerated = evaluate_training_result(
         contract,
@@ -426,6 +448,15 @@ def test_ece_above_configured_gate_fails_even_without_gold_miss() -> None:
     assert result.metrics.ece == pytest.approx(0.5)
     assert result.metrics.brier == pytest.approx(0.25)
     assert result.failures == ("ECE 0.5 exceeds configured threshold 0.1",)
+    outside = seed_retry_decision(
+        [result], VerificationConfig(ece_threshold=0.1, ece_bins=2), SeedRetryConfig()
+    )
+    assert not outside.retry
+    assert outside.reason.endswith("ECE 0.5000 is outside the retry margin 2 x 0.1 = 0.2000")
+    within = seed_retry_decision(
+        [result], VerificationConfig(ece_threshold=0.3, ece_bins=2), SeedRetryConfig()
+    )
+    assert within.retry and within.reason.endswith("ECE 0.5000 within 2 x threshold 0.3")
 
 
 def test_calibration_split_digest_changes_on_bound_row_or_provenance_mutation() -> None:

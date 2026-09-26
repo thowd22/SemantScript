@@ -168,6 +168,8 @@ export interface ArtifactFunctionV1 {
   readonly trainingProvenance: {
     readonly datasetSha256: string;
     readonly trainingKeySha256: string;
+    /** The training seed of the attempt that passed; absent in older releases. */
+    readonly seed?: number;
     readonly teacher: string;
     readonly baseModel: string;
   };

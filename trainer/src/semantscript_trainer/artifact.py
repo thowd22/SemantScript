@@ -1191,9 +1191,13 @@ def _training_provenance(
         raise ArtifactConfigurationError(
             "IR base model does not match the trained encoder revision"
         )
+    seed = raw.get("seed")
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed != training.config.seed:
+        raise ArtifactConfigurationError("IR training seed differs from the trained seed")
     return {
         "datasetSha256": cast(str, dataset),
         "trainingKeySha256": export.training_key_sha256,
+        "seed": seed,
         "teacher": f"{provider}/{teacher_model}@sha256:{teacher_config}",
         "baseModel": f"{base_name}@{base_revision}#sha256:{weights_sha256}",
     }

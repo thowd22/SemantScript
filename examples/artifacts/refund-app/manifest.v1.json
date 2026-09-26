@@ -237,6 +237,7 @@
       "trainingProvenance": {
         "datasetSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         "trainingKeySha256": "9999999999999999999999999999999999999999999999999999999999999999",
+        "seed": 1,
         "teacher": "anthropic/claude-sonnet-5",
         "baseModel": "answerdotai/ModernBERT-base@main"
       }

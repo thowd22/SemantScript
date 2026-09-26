@@ -73,7 +73,9 @@ flowchart LR
    with one adapter per domain and one head per expression, summing losses.
    Verification fits a temperature per head on the held-out split and gates
    on gold example misses, constraint violations, type errors and ECE; a
-   function that fails is not published.
+   function that fails is not published. A narrow miss on the violation rate
+   or the ECE retrains with the next seed on the same datasets, up to
+   `--seed-attempts` runs, and the manifest records the seed that passed.
 5. Export writes ONNX graphs (encoder or prefix, adapters, heads), the
    tokenizer and a manifest into a release directory named by the manifest's
    digest, and flips the artifact pointer atomically.

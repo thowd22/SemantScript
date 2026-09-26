@@ -23,7 +23,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -95,11 +95,17 @@ from semantscript_trainer.training import (
     TrainingResult,
     _load_tokenizer,
 )
+from semantscript_trainer.training_contract import MAXIMUM_SPLIT_SEED
 from semantscript_trainer.verification import (
+    DEFAULT_SEED_ATTEMPTS,
+    DEFAULT_SEED_RETRY_MARGIN,
+    SeedRetryConfig,
     VerificationConfig,
+    VerificationConfigurationError,
     VerificationResult,
     evaluate_training_result,
     model_state_sha256,
+    seed_retry_decision,
     tokenizer_json_bytes,
 )
 
@@ -167,6 +173,7 @@ def train_bundle(
     full: bool = False,
     log: Callable[[str], None] | None = None,
     meter: SpendMeter | None = None,
+    seed_retry: SeedRetryConfig | None = None,
 ) -> TrainBundleResult:
     """Train, verify and export every function of ``bundle`` into ``artifact_root``.
 
@@ -180,6 +187,9 @@ def train_bundle(
     pinned Hugging Face encoder of ``training_config``; tests inject fakes.
     ``meter`` (the spend meter the teacher charges) adds a running cost line after
     each expression's datasets and the ``teacher.spend`` object to the report.
+    ``seed_retry`` (default three attempts, margin 2) retrains with the next seed
+    when verification fails only narrowly on the constraint-violation rate or the
+    ECE; the datasets are generated once, so a retry never calls the teacher.
     """
 
     say = log if log is not None else (lambda _message: None)
@@ -194,6 +204,9 @@ def train_bundle(
     resolved_adversarial = (
         adversarial_config if adversarial_config is not None else AdversarialGenerationConfig()
     )
+    if seed_retry is not None and not isinstance(seed_retry, SeedRetryConfig):
+        raise TrainBundleError("seed_retry must be a SeedRetryConfig")
+    retry = seed_retry if seed_retry is not None else SeedRetryConfig()
     descriptor = getattr(teacher, "descriptor", None)
     if not isinstance(descriptor, TeacherDescriptor):
         raise TrainBundleError("teacher must expose a TeacherDescriptor")
@@ -251,6 +264,11 @@ def train_bundle(
             },
             "trainingKeySha256": None,
             "artifact": None,
+            # The seed the published release trained with (null until one passes),
+            # every training attempt this run made, and the seed retry settings.
+            "seed": None,
+            "attempts": [],
+            "retry": {"attempts": retry.attempts, "margin": retry.margin, "stopReason": None},
             "functions": [],
         }
 
@@ -265,6 +283,8 @@ def train_bundle(
             report["functions"] = [
                 _cached_function_report(ir, reused[cast(str, ir["id"])]) for ir in functions
             ]
+            seeds = {entry["training"]["seed"] for entry in report["functions"]}
+            report["seed"] = seeds.pop() if len(seeds) == 1 else None
             report["artifact"] = {
                 "root": str(existing.artifact_root),
                 "releaseDirectory": str(existing.release_directory),
@@ -320,100 +340,174 @@ def train_bundle(
         datasets.append((ir, base, adversarial))
     by_id = {cast(str, ir["id"]): (ir, base, adversarial) for ir, base, adversarial in datasets}
 
-    trained_at = _utc_now()
     shared_changed = not reused
-    restored_adapter_refs: tuple[str, ...] = ()
-    if reused:
-        say(f"build cache: restoring the shared encoder and {len(reused)} head(s)")
-        application = _rehydrate_application(
-            cast(ApplicationCache, cache),
-            [
-                (reused[function_id], application_function(*by_id[function_id]))
-                for function_id in reused
-            ],
-            resolved_training,
-            encoder,
-            adapter_bottleneck_size,
+    first_seed = resolved_training.seed
+    # Training moves an injected encoder's weights in place, so every joint attempt
+    # after the first starts from a copy taken before the first one ran.
+    pristine_encoder = (
+        copy.deepcopy(encoder)
+        if encoder is not None and not reused and retry.attempts > 1
+        else None
+    )
+    attempts: list[dict[str, Any]] = []
+    stop_reason: str | None = None
+    attempt = 0
+    while True:
+        attempt += 1
+        seed = first_seed + attempt - 1
+        attempt_training = (
+            resolved_training if attempt == 1 else replace(resolved_training, seed=seed)
         )
-        restored_adapter_refs = application.model.adapter_refs
-        for ir in to_train:
-            function_id = cast(str, ir["id"])
-            adapter_ref = cast(str, cast(dict[str, Any], ir["model"])["adapter"])
+        trained_at = _utc_now()
+        restored_adapter_refs: tuple[str, ...] = ()
+        if reused:
+            # Adding a head changes the restored model in place, so every attempt
+            # restores the cached application again.
+            if attempt == 1:
+                say(f"build cache: restoring the shared encoder and {len(reused)} head(s)")
+            application = _rehydrate_application(
+                cast(ApplicationCache, cache),
+                [
+                    (reused[function_id], application_function(*by_id[function_id]))
+                    for function_id in reused
+                ],
+                resolved_training,
+                encoder,
+                adapter_bottleneck_size,
+            )
+            restored_adapter_refs = application.model.adapter_refs
+            for ir in to_train:
+                function_id = cast(str, ir["id"])
+                adapter_ref = cast(str, cast(dict[str, Any], ir["model"])["adapter"])
+                say(
+                    f"{function_id}: training its head on the frozen shared encoder"
+                    + (
+                        ""
+                        if adapter_ref in application.model.adapter_refs
+                        else f" with a new adapter for domain {adapter_ref}"
+                    )
+                    + ("" if attempt == 1 else f" (seed {seed})")
+                )
+                application = add_function_head(
+                    application,
+                    application_function(*by_id[function_id]),
+                    config=attempt_training,
+                    tokenizer=resolved_tokenizer,
+                )
+        else:
+            domains = domain_depths(
+                [application_function(ir, base, adversarial) for ir, base, adversarial in datasets]
+            )
             say(
-                f"{function_id}: training its head on the frozen shared encoder"
+                f"training {len(datasets)} function(s) over one shared encoder and "
+                f"{len(domains)} adapter(s)"
                 + (
                     ""
-                    if adapter_ref in application.model.adapter_refs
-                    else f" with a new adapter for domain {adapter_ref}"
+                    if all(depth is None for depth in domains.values())
+                    else " with depth routing "
+                    + ", ".join(
+                        f"{ref}@{'full' if depth is None else depth}"
+                        for ref, depth in domains.items()
+                    )
                 )
+                + ("" if attempt == 1 else f" (seed {seed})")
             )
-            application = add_function_head(
-                application,
-                application_function(*by_id[function_id]),
-                config=resolved_training,
+            application = train_application(
+                [application_function(ir, base, adversarial) for ir, base, adversarial in datasets],
+                config=attempt_training,
                 tokenizer=resolved_tokenizer,
+                encoder=(
+                    encoder
+                    if attempt == 1 or pristine_encoder is None
+                    else copy.deepcopy(pristine_encoder)
+                ),
+                adapter_bottleneck_size=adapter_bottleneck_size,
             )
-    else:
-        domains = domain_depths(
-            [application_function(ir, base, adversarial) for ir, base, adversarial in datasets]
-        )
-        say(
-            f"training {len(datasets)} function(s) over one shared encoder and "
-            f"{len(domains)} adapter(s)"
-            + (
-                ""
-                if all(depth is None for depth in domains.values())
-                else " with depth routing "
-                + ", ".join(
-                    f"{ref}@{'full' if depth is None else depth}" for ref, depth in domains.items()
-                )
-            )
-        )
-        application = train_application(
-            [application_function(ir, base, adversarial) for ir, base, adversarial in datasets],
-            config=resolved_training,
-            tokenizer=resolved_tokenizer,
-            encoder=encoder,
-            adapter_bottleneck_size=adapter_bottleneck_size,
-        )
-    trainings = dict(application.functions)
-    shared_model = application.model
+        trainings = dict(application.functions)
+        shared_model = application.model
 
-    trained: list[TrainedFunction] = []
-    for ir, base, adversarial in datasets:
-        function_id = cast(str, ir["id"])
-        training = trainings[function_id]
-        record = reused.get(function_id)
-        if record is not None:
-            trained.append(
-                TrainedFunction(ir, base, adversarial, training, record.verification, reused=True)
+        trained: list[TrainedFunction] = []
+        for ir, base, adversarial in datasets:
+            function_id = cast(str, ir["id"])
+            training = trainings[function_id]
+            record = reused.get(function_id)
+            if record is not None:
+                trained.append(
+                    TrainedFunction(
+                        ir, base, adversarial, training, record.verification, reused=True
+                    )
+                )
+                continue
+            verification = evaluate_training_result(
+                ir,
+                training,
+                base,
+                adversarial,
+                tokenizer=resolved_tokenizer,
+                config=resolved_verification,
+                verified_at=trained_at,
             )
-            continue
-        verification = evaluate_training_result(
-            ir,
-            training,
-            base,
-            adversarial,
-            tokenizer=resolved_tokenizer,
-            config=resolved_verification,
-            verified_at=trained_at,
+            say(
+                f"{function_id}: verification {verification.status}, accuracy "
+                f"{verification.metrics.accuracy:.4f}, ece {verification.metrics.ece:.4f}, "
+                f"held-out accuracy {training.held_out_accuracy:.4f}"
+                + _violation_note(verification)
+                + f", seed {training.config.seed}"
+            )
+            trained.append(TrainedFunction(ir, base, adversarial, training, verification))
+        failed = [entry for entry in trained if entry.verification.status != "passed"]
+        if any(not entry.reused for entry in trained):
+            attempts.append(_attempt_report(attempt, seed, trained))
+        if not failed:
+            break
+        decision = seed_retry_decision(
+            [entry.verification for entry in trained if not entry.reused],
+            resolved_verification,
+            retry,
         )
+        if not decision.retry:
+            stop_reason = decision.reason
+        elif retry.attempts == 1:
+            stop_reason = (
+                f"seed retry is off (--seed-attempts 1), though the failure was narrow: "
+                f"{decision.reason}"
+            )
+        elif attempt >= retry.attempts:
+            stop_reason = (
+                f"all {retry.attempts} seed attempts failed (seeds {first_seed} to {seed}); "
+                f"the last failure was narrow: {decision.reason}"
+            )
+        elif seed + 1 > MAXIMUM_SPLIT_SEED:
+            stop_reason = f"seed {seed} is the largest seed a split accepts"
+        if stop_reason is not None:
+            say(f"not retrying: {stop_reason}")
+            break
         say(
-            f"{function_id}: verification {verification.status}, accuracy "
-            f"{verification.metrics.accuracy:.4f}, ece {verification.metrics.ece:.4f}, "
-            f"held-out accuracy {training.held_out_accuracy:.4f}"
+            f"verification failed narrowly at seed {seed} ({decision.reason}); retrying "
+            f"with seed {seed + 1} (attempt {attempt + 1} of {retry.attempts}) on the "
+            "cached datasets, so the retry costs training time only"
         )
-        trained.append(TrainedFunction(ir, base, adversarial, training, verification))
 
     training_key = _training_key_sha256(trained)
     report = report_skeleton("passed", trained_at)
     report["trainingKeySha256"] = training_key
     report["functions"] = [_function_report(entry) for entry in trained]
-    failed = [entry for entry in trained if entry.verification.status != "passed"]
+    report["attempts"] = attempts
+    report["retry"]["stopReason"] = stop_reason
     if failed:
         report["status"] = "failed"
         names = ", ".join(cast(str, entry.ir["id"]) for entry in failed)
-        raise TrainBundleFailure(f"verification failed for {names}", report)
+        raise TrainBundleFailure(
+            f"verification failed for {names}"
+            + ("" if stop_reason is None else f"; not retrying: {stop_reason}"),
+            report,
+        )
+    # Every trained function used this attempt's seed; a build that only
+    # re-exported cached functions reports the seed they share, if one.
+    seeds = {entry.training.config.seed for entry in trained if not entry.reused} or {
+        entry.training.config.seed for entry in trained
+    }
+    report["seed"] = seeds.pop() if len(seeds) == 1 else None
 
     weights_sha256 = (
         base_model_weights_sha256
@@ -437,7 +531,7 @@ def train_bundle(
                 base_model_weights_sha256=weights_sha256,
                 dataset_sha256=entry.base.dataset_sha256,
                 counts=_provenance_counts(entry),
-                seed=resolved_training.seed,
+                seed=entry.training.config.seed,
                 trainer_version=trainer_version,
                 trainer_commit=commit,
                 trained_at=trained_at,
@@ -617,14 +711,22 @@ def _rehydrate_application(
         raise BuildCacheError(
             f"cached weights do not fit the configured modules: {error}"
         ) from error
-    states = _function_states([function for _, function in entries], config)
     results: dict[str, TrainingResult] = {}
-    for (record, function), state in zip(entries, states, strict=True):
+    for record, function in entries:
+        # A function a seed retry published trained on its own seed's split; the
+        # verified IR records that seed, and the split must match it.
+        recorded = _recorded_seed(record.verified_ir_bytes)
+        function_config = (
+            config
+            if recorded is None or recorded == config.seed
+            else replace(config, seed=recorded)
+        )
+        (state,) = _function_states([function], function_config)
         training = TrainingResult(
             model=model.function_model(function.function_id),
             head=function.corpus.head,
             split=state.split,
-            config=config,
+            config=function_config,
             device=record.device,
             metrics=record.metrics,
             function_id=function.function_id,
@@ -651,6 +753,61 @@ def _rehydrate_application(
     )
 
 
+def _recorded_seed(verified_ir_bytes: bytes) -> int | None:
+    """The training seed a cached function's verified IR records, when it names one."""
+
+    try:
+        document = json.loads(verified_ir_bytes)
+        seed = document["trainingProvenance"]["seed"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    return seed if isinstance(seed, int) and not isinstance(seed, bool) and seed >= 0 else None
+
+
+def _violation_note(verification: VerificationResult) -> str:
+    """`, constraint violations 4 of 394 (1.02%)` for a result that has any."""
+
+    violations = verification.metrics.constraint_violations
+    records = verification.record_count
+    if not violations or records is None:
+        return ""
+    return f", constraint violations {violations} of {records} ({violations / records:.2%})"
+
+
+def _attempt_report(attempt: int, seed: int, trained: Sequence[TrainedFunction]) -> dict[str, Any]:
+    """One training attempt's seed and gate metrics for every function it trained."""
+
+    functions: list[dict[str, Any]] = []
+    for entry in trained:
+        if entry.reused:
+            continue
+        verification = entry.verification
+        metrics = verification.metrics
+        records = verification.record_count
+        functions.append(
+            {
+                "id": entry.ir["id"],
+                "status": verification.status,
+                "accuracy": metrics.accuracy,
+                "ece": metrics.ece,
+                "constraintViolations": metrics.constraint_violations,
+                "records": records,
+                "violationRate": (
+                    None if records is None else metrics.constraint_violations / records
+                ),
+                "failures": list(verification.failures),
+            }
+        )
+    return {
+        "attempt": attempt,
+        "seed": seed,
+        "status": (
+            "passed" if all(entry["status"] == "passed" for entry in functions) else "failed"
+        ),
+        "functions": functions,
+    }
+
+
 def _cached_function_report(ir: NeuralFunctionIr, record: CachedFunction) -> dict[str, Any]:
     epoch_index = (
         record.selected_epoch - 1 if record.selected_epoch is not None else len(record.metrics) - 1
@@ -673,6 +830,7 @@ def _cached_function_report(ir: NeuralFunctionIr, record: CachedFunction) -> dic
             else {"sha256": record.adversarial_dataset_sha256, "cases": record.adversarial_cases}
         ),
         "training": {
+            "seed": _recorded_seed(record.verified_ir_bytes),
             "trainingRows": None,
             "heldOutRows": None,
             "epochs": len(record.metrics),
@@ -822,6 +980,7 @@ def _function_report(entry: TrainedFunction) -> dict[str, Any]:
         },
         "adversarial": adversarial,
         "training": {
+            "seed": training.config.seed,
             "trainingRows": training.training_row_count,
             "heldOutRows": training.held_out_row_count,
             "epochs": len(training.metrics),
@@ -933,6 +1092,18 @@ def _build_parser() -> argparse.ArgumentParser:
     train.add_argument("--ece-threshold", type=float)
     train.add_argument("--max-constraint-violation-rate", type=float)
     train.add_argument("--counterfactual-ratio", type=float)
+    train.add_argument(
+        "--seed-attempts",
+        type=int,
+        help="training runs a narrowly failed release gate may use, the first included "
+        f"(default {DEFAULT_SEED_ATTEMPTS}; 1 turns the seed retry off)",
+    )
+    train.add_argument(
+        "--seed-retry-margin",
+        type=float,
+        help="retry only when the violation rate and the ECE are within this many times "
+        f"their gate (default {DEFAULT_SEED_RETRY_MARGIN:g})",
+    )
     train.add_argument("--adapter-bottleneck-size", type=int)
     train.add_argument(
         "--no-cache", action="store_true", help="ignore and do not write the build cache"
@@ -996,6 +1167,24 @@ def _verification_config(arguments: argparse.Namespace) -> VerificationConfig:
     return VerificationConfig(**kwargs)
 
 
+def _seed_retry_config(arguments: argparse.Namespace) -> SeedRetryConfig:
+    """The seed retry settings, with an out-of-range value reported by its flag."""
+
+    kwargs: dict[str, Any] = {}
+    for flag, key, value in (
+        ("--seed-attempts", "attempts", arguments.seed_attempts),
+        ("--seed-retry-margin", "margin", arguments.seed_retry_margin),
+    ):
+        if value is None:
+            continue
+        try:
+            SeedRetryConfig(**{key: value})
+        except VerificationConfigurationError as error:
+            raise ValueError(f"{flag}: {error}") from error
+        kwargs[key] = value
+    return SeedRetryConfig(**kwargs)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run ``semantscript_trainer.cli train`` (or ``doctor``) from ``argv`` and return the
     process exit status."""
@@ -1009,6 +1198,14 @@ def main(argv: list[str] | None = None) -> int:
 
     def log(message: str) -> None:
         print(message, file=sys.stderr, flush=True)
+
+    # Checked before anything is read or any teacher is built, so a bad retry flag
+    # is the error the developer sees, and --estimate rejects it too.
+    try:
+        seed_retry = _seed_retry_config(arguments)
+    except ValueError as error:
+        log(f"error: {error}")
+        return 1
 
     if arguments.estimate:
         return _run_estimate(arguments, log)
@@ -1063,6 +1260,7 @@ def main(argv: list[str] | None = None) -> int:
             full=arguments.full,
             log=log,
             meter=meter,
+            seed_retry=seed_retry,
             **(
                 {"adapter_bottleneck_size": arguments.adapter_bottleneck_size}
                 if arguments.adapter_bottleneck_size is not None

@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 18:11'
+updated_date: '2026-09-26 18:16'
 labels:
   - dx
   - example
@@ -90,6 +90,8 @@ Run (c), 2026-09-26: train --teacher .semantscript/teacher-constraints.toml --ca
 Release checks (2026-09-26): semantscript test passed (decideRefund 0.9872/0.0087, held-out 4/512, seed 1; triage 1.0000/0.0000, seed 1; examples 3/3 each); releases list marks 0fd67142d16f current, 2/2 passed, 0.9872, 0.0087, 0. Float32 bundle (package --target lambda-zip): 685,637,515 B (653.9 MiB; node_modules 82.7 MiB, artifact 570.9 MiB), over by 403.9 MiB. releases derive --int8 --per-channel passed the strict default gate: 0 of 1162 decisions changed (778 decideRefund, 384 triage), 0 of 6 attested, worst int8 ECE 0.0047 (float32 0.0039), encoder 569.0 -> 143.8 MiB, 1 min 23 s wall; published c7534774c40f beside it (report .semantscript/derive-report-15.2-c7534774.json). Promoted it, packaged with --include deploy/lambda.mjs: 239,712,504 B (228.6 MiB), lambda-zip fits with 21.4 MiB; packaged Lambda handler answered 201 urgent; explain on the int8 release: 16 of 16 deny on the AC1 grid; promoted 0fd67142 back to current. Express smoke on 0fd67142: POST /refunds/o1 approve committed, /refunds/o2 deny not committed, POST /tickets 201 urgent. npm test in examples/express-app: 3/3.
 
 Docs (AC2), 2026-09-26: examples/express-app/README.md now describes 0fd67142 as the release on disk (teacher-constraints.toml contents, recipe, estimate vs actual cost, rows 384+394 (3 gold), accuracy 0.9872, ECE 0.0087, pair 0.995, 0/778 corpus, 4/512 held-out, seed 1, epoch 10 of 16, 7 fallback-labelled refund cases, releases list/test/explain output, Express route smoke); the 27-run sweep kept as 'Retrains from the older cached datasets failed the held-out check' with the priced routes condensed; 217d386c and 5c755d08 moved to Earlier releases; sizes table and int8 section rewritten for 0fd67142 (685,637,515 B) and c7534774 (239,712,504 B, strict gate, 0 of 1162 changed). docs/tutorial-refund-decision.md step 4 recommends the mixed teacher with its TOML (validated with train --estimate) and the passing recipe, step 4 release paragraph and step 5 quote 0fd67142 (run at 100 days now 'deny'); docs/deploy.md worked case is 0fd67142 with a combined int8 table; docs/teachers.md records the first Anthropic fallback run in mixed mode; docs/training-pipeline.md and docs/diagnostics.md mark 217d386c as the earlier release. Checks: prettier --check docs README.md examples/express-app/README.md clean; lint:node clean; cli 66/66; compiler 89/89 (docs-examples); relative link/anchor scan of touched docs 0 bad.
+
+Commit d208ae3 pushed on task-15.2; CI run 36261677194 green (all 7 jobs). Spend this task: USD 0.9642 (one training run) + USD 0.000072 (probe), total about USD 0.96 of the approved budget; no gold examples or --cases 768 needed. Not in git (git-ignored), to copy back into the main checkout: examples/express-app/.semantscript/artifact (current 0fd67142, int8 c7534774 beside it), .semantscript/cache (new datasets f44bb408/2abb3b15/e85dcfca, teacher-stats, prices), .semantscript/teacher-constraints.toml, .semantscript/train-report-15.2-c384-seed1.json, .semantscript/derive-report-15.2-c7534774.json, .semantscript/derive-report-f8e22cae.json and .semantscript/artifact.derive-report.json. AC1 note: the release comes from a newly generated (paid, approved) dataset, not the cached datasets named in AC1's wording.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

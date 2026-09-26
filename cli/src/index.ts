@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { buildCommand } from "./build.js";
 import { devCommand } from "./dev.js";
 import { doctorCommand } from "./doctor.js";
+import { explainCommand } from "./explain.js";
 import { initCommand } from "./init.js";
 import { CliUsageError, processIo, type CliIo } from "./io.js";
 import { runCommand } from "./run.js";
@@ -46,6 +47,11 @@ export const USAGE = `usage: semantscript <command> [options]
          report each function's verification and replay the bundle's examples
   run    [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
          load the artifact, import the compiled module and call an export
+  explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json]
+         <module.js> --call <export> [--input <json> | --input-file <path>]
+         call an export and show, for each sema call, the answer's calibrated
+         distribution, the constraints active for the input, the nearest gold
+         examples and training cases, and the release and verification it came from
 
   defaults: the bundle is the build's semantscript.ir.v1.json, the artifact is
   .semantscript/artifact (or SEMANTSCRIPT_ARTIFACT), the teacher is teacher.toml
@@ -59,6 +65,7 @@ export {
   buildCommand,
   devCommand,
   doctorCommand,
+  explainCommand,
   initCommand,
   runCommand,
   teacherCommand,
@@ -94,7 +101,12 @@ export {
   renderTeacherProbe,
   type TeacherProbeResult,
 } from "./teacher.js";
-export { readArtifactSummary } from "./manifest.js";
+export { readArtifactRelease, readArtifactSummary } from "./manifest.js";
+export {
+  ConstraintEvaluationError,
+  evaluatePredicate,
+} from "./constraint-eval.js";
+export { DISTANCE_DESCRIPTION, nearest } from "./nearest.js";
 export type { CliIo } from "./io.js";
 
 const COMMANDS: Readonly<
@@ -107,6 +119,7 @@ const COMMANDS: Readonly<
   dev: devCommand,
   test: testCommand,
   run: runCommand,
+  explain: explainCommand,
   teacher: teacherCommand,
 };
 

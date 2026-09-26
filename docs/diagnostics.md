@@ -5,7 +5,9 @@ diagnostics at a `sema` site, editor warnings from the language-service
 plugin, trainer and verifier failures during `semantscript train` (including
 its environment preflight), and runtime
 errors thrown by compiled calls. This page lists each with its cause and the
-fix.
+fix. A trained expression that answers wrongly raises no error at all; the
+[wrong-answer workflow](#wrong-answer-workflow) at the end takes one from
+`semantscript explain` to the example or constraint to add.
 
 ## Compiler diagnostics (`TS9100` to `TS9131`)
 
@@ -169,10 +171,93 @@ program's perspective except artifact loading.
 | `SemaRuntimeNotLoadedError`         | `SEMA_RUNTIME_NOT_LOADED`                                                                                                                      | A `sema` call before `loadSemaArtifact()` resolved.                                                                                                                                                            | Load once at startup and await it before serving; `semantscript run` does this for scripts.                                                                                                              |
 | `ArtifactLoadError`                 | `SEMA_ARTIFACT_INVALID_JSON`, `_INVALID_POINTER`, `_INVALID_MANIFEST`, `_INCOMPATIBLE`, `_INTEGRITY`, `_PATH`, `_QUOTA`, `_RESOURCE`           | The artifact root has no valid pointer or manifest, was built for another ABI, fails a digest, contains a symlink or an outside path, exceeds a size quota, or a resource's tensors, opset or chain are wrong. | Point at the root `train` published (`current.json` inside it); never edit a release by hand; retrain after a runtime upgrade that changes the ABI. A failed reload leaves the previous artifact active. |
 | `SemaArtifactInactiveError`         | `SEMA_ARTIFACT_INACTIVE`                                                                                                                       | A handle used after `close()` or after a reload replaced it.                                                                                                                                                   | Hold the handle from `loadSemaArtifact` or use `onReload`.                                                                                                                                               |
-| `SemaUnknownFunctionError`          | `unknown-function`                                                                                                                             | The compiled call's id is not in the loaded artifact: the program was rebuilt after training, or the wrong artifact is loaded.                                                                                 | Train again (the plugin's 9151 warns before this happens), or load the artifact built from this bundle.                                                                                                  |
+| `SemaUnknownFunctionError`          | `unknown-function`                                                                                                                             | The compiled call's id is not in the loaded artifact: the program was rebuilt after training, or the wrong artifact is loaded.                                                                                 | Train again (the plugin's 9151 warns before this happens), or load the artifact built from this bundle. `semantscript explain` names the call and whether the bundle still has the id.                   |
 | `SemaInputError`                    | `SEMA_INPUT_INVALID`                                                                                                                           | An input does not match the function's declared type (a missing field, a wrong primitive, `NaN`, a cycle) or exceeds the byte limit.                                                                           | Pass exactly the declared inputs; validate request bodies with `require` before the expression.                                                                                                          |
 | `SemaInferenceError` and subclasses | `initialization`, `invalid-input`, `timeout`, `closed`, `protocol`, `worker-failed`, `backend`, `invalid-result`, `busy`, `response-too-large` | The inference worker could not start (missing native `onnxruntime-node` for the platform), timed out, was closed, or returned malformed output.                                                                | Install the runtime's native dependencies on the target platform (`npm ci` there); raise the timeout through the `inference` options of `loadSemaArtifact` for large encoders; check memory.             |
 | `SemaConfidenceError`               | `SEMA_CONFIDENCE_BELOW_THRESHOLD`                                                                                                              | A `@confidence(q)` expression answered below `q` and no fallback is configured.                                                                                                                                | Catch it and decide, use `sema.withConfidence` to see the distribution, or register a fallback in the `fallbacks` map passed to `loadSemaArtifact`.                                                      |
 | `SemaFallbackError`                 | `SEMA_FALLBACK_INVALID`                                                                                                                        | The fallback returned a value outside the declared type, or re-entered the same expression (reason `cycle`).                                                                                                   | Return a support value from the fallback and never call the expression it guards.                                                                                                                        |
 | `RequirementError` (framework)      | `SEMA_REQUIREMENT_FAILED`                                                                                                                      | A `require(condition, message, status)` guard failed; answered as its status with `{ error, code }`.                                                                                                           | Expected behavior: the guard did its job.                                                                                                                                                                |
 | `StrictJsonError`                   |                                                                                                                                                | A JSON document the runtime or CLI parses strictly (`--input`, the artifact's pointer and manifest) has duplicate keys or non-finite numbers.                                                                  | Fix the JSON; never edit a release by hand.                                                                                                                                                              |
+
+## Wrong-answer workflow
+
+A wrong answer from a trained expression is not an error: the call returns a
+valid value from the output type, and the release passed its gates. Start
+from the input that answered wrongly and let `semantscript explain` show why:
+
+```sh
+semantscript explain dist/refunds.sem.js --call decideRefund \
+  --input '[{"tier":"standard","priorRefunds":0},{"ageDays":120,"status":"fraudulent","total":80}]'
+```
+
+Against the Express example's release, this printed (abridged):
+
+```text
+call 1: nf_957c2b2b… (src/refunds.sem.ts:21)
+  value        "review"
+  confidence   0.9532, uncertainty 0.1957
+  distribution "review" 0.9532 | "deny" 0.0355 | "approve" 0.0114
+  constraints  2 active of 6 (4 inactive)
+    always "deny" when order.ageDays > 90: VIOLATED by the answer
+    never "approve" when order.status === "fraudulent": satisfied
+  gold examples nearest the input (3 of 3)
+    0.209  "review"  {"customer":{…},"order":{"ageDays":3,"status":"fraudulent","total":40}}
+    0.437  "approve"  {"customer":{…},"order":{"ageDays":12,"status":"paid","total":88.5}}
+    0.876  "deny"  {"customer":{…},"order":{"ageDays":70,"status":"paid","total":900}}
+  training cases nearest the input (5 of 394; the release's dataset caa8e8954f69… plus its adversarial sidecar, 2 other cached datasets for this id)
+    0.025  "deny"  adversarial constraint-boundary  {… "ageDays":95,"status":"fraudulent" …}
+    0.029  "deny"  synthetic (anthropic/claude-sonnet-5)  {… "ageDays":132,"status":"fraudulent" …}
+    0.029  "deny"  adversarial counterfactual  {… "ageDays":132,"status":"fraudulent" …}
+    0.029  "review"  adversarial constraint-boundary  {… "ageDays":90,"status":"fraudulent" …}
+    0.033  "deny"  synthetic (anthropic/claude-sonnet-5)  {… "ageDays":91,"status":"fraudulent" …}
+  verification passed: accuracy 0.9241, ECE 0.0719, … 0 constraint violations
+```
+
+Read it top to bottom:
+
+1. **Is this the release you think it is?** The `release` line names the
+   release directory, build time and manifest digest, and each call its
+   dataset, teacher and base model. A `missing` line means the compiled id is
+   not in the loaded artifact: the expression changed since training (or the
+   wrong artifact is loaded), so the answer you saw came from nowhere you can
+   fix by editing examples. Run `semantscript build` and `semantscript train`,
+   then explain again.
+2. **Did an active constraint lose?** A `VIOLATED` constraint is a rule you
+   already wrote that the model has not learned for this input. The training
+   cases near the input show whether it had evidence: in the output above
+   every nearest case past 90 days is labelled `deny` (the one `review` is the
+   boundary case at exactly 90 days, where the constraint is inactive), so the
+   data was right and the model generalised badly past the gold example at
+   distance 0.209 that says `review` for a fraudulent order. Add this input as a gold example with the
+   output the constraint requires, so verification must reproduce it; train
+   with more cases or epochs; and read the verifier's constraint-violation
+   rate for the function in the train report.
+3. **No constraint covers the input?** When the answer is wrong under a rule
+   that decides the input on its own (an amount, a status, a date), write the
+   rule down: `always(() => …, output)` or `never(() => …, output)` in the
+   `sema` options. The trainer rejects every teacher label that contradicts an
+   active constraint and adds boundary cases on both sides of it, so the rule
+   reaches the data, not just the prompt. The `could not be evaluated` lines
+   name predicates that fail for this input (a missing field, a non-number in
+   arithmetic); fix those first.
+4. **Are the nearest labels wrong?** Training cases near the input with the
+   label you did not expect mean the teacher reads the prompt differently from
+   you there: `synthetic (<teacher>)` names who labelled them, and an
+   `adversarial counterfactual` pair shows which single field edit flipped the
+   label. Add a gold example at this input (and one on the other side of the
+   boundary you mean), tighten the prompt text, or add the constraint from step 3. A large
+   distance to every gold example says the input is outside what you
+   attested; a gold example here is the cheapest fix.
+5. **Is the answer just uncertain?** A low confidence with a spread
+   distribution is the model saying it does not know. Beyond more examples,
+   `@confidence(q)` with a fallback lets the application decide such inputs
+   itself; explain reports whether the answer met the threshold.
+6. **Retrain and check.** `semantscript train` (the cache reuses every
+   unchanged dataset), then run the same `explain` again, and
+   `semantscript test --bundle …` to replay every gold example, including the
+   one you just added, through the new release.
+
+"Nearest" in explain is a typed distance over the JSON inputs (numbers scaled
+by each field's spread, word overlap for strings, exact match otherwise), not
+the model's own similarity, so it finds the labelled cases that look most like
+the input rather than the ones the model thinks are alike.

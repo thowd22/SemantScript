@@ -20,15 +20,17 @@ semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
+semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json]
+                     <module.js> --call <export> [--input <json> | --input-file <path>]
 ```
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                                                                                                                                                                           |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                              |
-| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, or any other error while working. |
-| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).                                                                                                                                  |
+| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                                                                                                                                                                         |
+| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, an `explain` whose call reached a function id the artifact lacks or failed with anything but a missing id or a below-threshold confidence, or any other error while working. |
+| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`), and `explain` without `--call`.                                                                                                                                                                                                                                             |
 
 Usage errors print the message and the usage text to stderr. Every other
 failure prints its message to stderr; compile diagnostics carry the file, line,
@@ -305,3 +307,73 @@ Exactly one module path is required. The module resolves `@semantscript/core`
 from its own location, and that must be the installation the CLI uses. Exit 1
 when the export is missing or not a function; exit 2 for a missing module
 path, both input flags, or input that is not JSON.
+
+## `explain`
+
+Calls one export the way `run` does, with every sema call's calibrated
+distribution recorded, and reports why each call answered as it did. The
+artifact is loaded with the runtime's `diagnostics: "always"` and `observe`
+options, so program code receives what it would in production (the plain
+value from a `sema` site, the diagnostic result from a `sema.withConfidence`
+site). The one exception is a `@confidence` answer below its threshold on a
+function with a fallback: explain never runs the application's fallbacks, so
+the program receives the model's top answer there, and later code in the same
+export may take a different path than production would.
+
+| Flag                       | Value  | Effect                                                                                                                                                                                                    |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--artifact`               | path   | The artifact root (default above).                                                                                                                                                                        |
+| `--bundle`                 | path   | The IR bundle for constraints, gold examples and source locations. Default: the build's bundle as above when one exists; without one, explain still shows the answer, the training cases and the release. |
+| `--cache-dir`              | path   | The training cache holding the datasets (default `.semantscript/cache`, as for `train`).                                                                                                                  |
+| `--neighbors`              | n      | How many nearest gold examples and training cases to list (default 5; 0 lists none).                                                                                                                      |
+| `--call`                   | export | Required: the function export to call.                                                                                                                                                                    |
+| `--input` / `--input-file` | JSON   | The arguments, as for `run`.                                                                                                                                                                              |
+| `--json`                   |        | Print one JSON document (`module`, `export`, `arguments`, `artifact`, `bundle`, `cacheDir`, `distance`, `calls[]`, `staleArtifactFunctions`, `result`, `error`, `ok`) instead of the text.                |
+
+For every sema call the export makes, in order, it prints:
+
+- the function id and its source line (from the bundle) and the inputs;
+- the value, confidence, uncertainty and the calibrated distribution (per field
+  for an object output), and for a `@confidence` threshold whether the answer
+  met it (below it the program gets `SemaConfidenceError`, or the
+  application's fallback decides; explain never runs fallbacks and shows the
+  model's answer instead; a `sema.withConfidence` site receives the diagnostic
+  result whether or not the threshold is met);
+- every constraint whose predicate holds for the input, with its source text
+  and whether the answer satisfies it, the count of inactive ones and any that
+  could not be evaluated (the predicate is evaluated exactly as the trainer
+  does; [`examples/constraints/predicate-vectors.v1.json`](../examples/constraints/predicate-vectors.v1.json)
+  pins both evaluators);
+- the gold examples nearest the input, with their outputs;
+- the training cases nearest the input with their labels and origins (`gold`,
+  `synthetic (<teacher>)`, `adversarial constraint-boundary` or
+  `adversarial counterfactual`), from the dataset the release was trained on:
+  the cached `datasets/v1` file whose SHA-256 is the manifest's
+  `trainingProvenance.datasetSha256`, plus the adversarial sidecar built from
+  it. When that dataset is no longer cached, the newest cached dataset for the
+  function is shown and marked as not the release's;
+- the function's shipped verification (status, accuracy, ECE, Brier, pair
+  consistency, attested cases, constraint violations, per-field accuracy) and
+  its teacher, base model and dataset digest.
+
+Above the calls it prints the release directory, application, build time and
+manifest digest the answers came from. "Nearest" is a typed distance over the
+JSON inputs, not the model's similarity: the mean over leaf fields of `|a-b|`
+scaled by the field's spread for numbers, one minus the word-set Jaccard
+overlap for strings, and 0 or 1 for everything else (a field on one side only
+counts 1).
+
+When a call reaches a function id the loaded artifact lacks, explain says so:
+if the bundle has the id, the expression changed since the artifact was
+trained; if neither has it, the build or the artifact is stale. It still shows
+the bundle's constraints and examples, lists the artifact functions the bundle
+no longer has (the likely earlier version), and exits 1; retrain with
+`semantscript train`. Exit 0 when every call was explained, even when an
+answer violates a constraint or falls below its threshold; exit 1 for a
+missing export, a missing function id or any other error from the call.
+
+As with `run`, the module must resolve the same `@semantscript/core` the CLI
+uses; when it reaches another copy, the call fails with "no SemantScript
+artifact is loaded" and explain says to run the application's own CLI. The
+[diagnostics catalogue](diagnostics.md#wrong-answer-workflow) walks from an
+explain report to the example or constraint to add.

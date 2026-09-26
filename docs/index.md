@@ -43,12 +43,15 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 ## Reader-facing references
 
 - [CLI reference](cli-reference.md): every command, flag, default,
-  environment variable and exit code of `semantscript`.
+  environment variable and exit code of `semantscript`, including `explain`,
+  which shows for one input why an expression answered as it did.
 - [Build cache](build-cache.md): what is content-addressed, when retraining
   happens, where the caches live (including the teacher response journal) and
   how to clear them.
 - [Diagnostics catalogue](diagnostics.md): every compiler diagnostic, editor
-  warning, trainer and verifier failure and runtime error, with cause and fix.
+  warning, trainer and verifier failure and runtime error, with cause and fix,
+  and the [wrong-answer workflow](diagnostics.md#wrong-answer-workflow) from
+  `semantscript explain` to the example or constraint to add.
 - [Language reference](language-reference.md): `sema<T>` syntax, inputs,
   examples, constraints, every v1 output type, `@confidence`,
   `sema.withConfidence`, runtime behavior and compile errors, with runnable
@@ -119,14 +122,14 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   sites).
 - [Runtime](../runtime/README.md): artifact loading, canonical input
   serialization, inference, confidence policy, fallbacks, stages and execution
-  plans.
+  plans, and the `diagnostics`/`observe` tracing options.
 - [Trainer](../trainer/README.md): synthetic and adversarial datasets, training,
   calibration and verification, verified IR, artifact export, the bundle driver
   and build cache, quantization, teacher backends.
 - [Model](../model/README.md): the encoder, adapter and head modules and the
   ONNX export with parity checks.
 - [CLI](../cli/README.md): `semantscript init | doctor | build | train | dev |
-test | run`, the zero-config defaults, the environment checks, the dev loop
+test | run | explain`, the zero-config defaults, the environment checks, the dev loop
   and the build cache rules.
 - [Framework](../framework/README.md): decorated controllers for Express, Nest
   and Next.js handlers, one sema request scope per request, and deterministic

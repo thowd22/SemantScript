@@ -239,7 +239,11 @@ npx semantscript run dist/triage.sem.js --call triage --input '["Checkout is dow
 ```
 
 `run` loads the artifact, imports the module, spreads the JSON array as the
-arguments and prints the result.
+arguments and prints the result. When an answer looks wrong, `semantscript
+explain` takes the same arguments and shows why: the calibrated distribution,
+the constraints active for the input, the nearest gold examples and training
+cases, and the release it came from (see the
+[wrong-answer workflow](diagnostics.md#wrong-answer-workflow)).
 
 ## 7. Load the artifact at startup
 

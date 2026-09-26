@@ -142,3 +142,64 @@ function summarizeFunction(
 export async function readJson(file: string): Promise<unknown> {
   return JSON.parse(await readFile(file, "utf8")) as unknown;
 }
+
+/** What a release records about how one function was trained and when it gives way. */
+export interface ManifestFunctionProvenance {
+  readonly confidenceThreshold: number | null;
+  readonly fallbackRef: string | null;
+  readonly datasetSha256: string | null;
+  readonly teacher: string | null;
+  readonly baseModel: string | null;
+}
+
+export interface ArtifactRelease extends ArtifactSummary {
+  readonly createdAt: string | null;
+  readonly provenance: ReadonlyMap<string, ManifestFunctionProvenance>;
+}
+
+/**
+ * The summary plus the release's build time and each function's training
+ * provenance and confidence policy: which dataset, teacher and base model an
+ * answer came from (`semantscript explain`).
+ */
+export async function readArtifactRelease(
+  root: string,
+): Promise<ArtifactRelease> {
+  const summary = await readArtifactSummary(root);
+  const manifest = objectOf(
+    await readJson(join(root, summary.release, "manifest.json")),
+    "manifest",
+  );
+  const build = optionalObject(manifest["build"]);
+  const provenance = new Map<string, ManifestFunctionProvenance>();
+  for (const entry of listOf(manifest["functions"], "manifest.functions")) {
+    const fn = objectOf(entry, "manifest function");
+    const runtime = optionalObject(fn["runtime"]);
+    const training = optionalObject(fn["trainingProvenance"]);
+    provenance.set(stringOf(fn["id"], "manifest function id"), {
+      confidenceThreshold:
+        typeof runtime["confidenceThreshold"] === "number"
+          ? runtime["confidenceThreshold"]
+          : null,
+      fallbackRef: optionalString(runtime["fallbackRef"]),
+      datasetSha256: optionalString(training["datasetSha256"]),
+      teacher: optionalString(training["teacher"]),
+      baseModel: optionalString(training["baseModel"]),
+    });
+  }
+  return {
+    ...summary,
+    createdAt: optionalString(build["createdAt"]),
+    provenance,
+  };
+}
+
+function optionalObject(value: unknown): Readonly<Record<string, unknown>> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : {};
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}

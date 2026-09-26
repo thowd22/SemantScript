@@ -1,0 +1,2034 @@
+{
+  "kind": "semantscript.predicate-vectors",
+  "vectorsVersion": 1,
+  "description": "Constraint predicates evaluated by both the trainer (Python) and semantscript explain (TypeScript); expect is true, false or \"error\" (the predicate cannot be evaluated for these inputs).",
+  "vectors": [
+    {
+      "name": "number greater than",
+      "predicate": {
+        "node": "binary",
+        "operator": ">",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        },
+        "right": {
+          "node": "literal",
+          "value": 90
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "number not greater",
+      "predicate": {
+        "node": "binary",
+        "operator": ">",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        },
+        "right": {
+          "node": "literal",
+          "value": 95
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "number at least",
+      "predicate": {
+        "node": "binary",
+        "operator": ">=",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        },
+        "right": {
+          "node": "literal",
+          "value": 95
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "integer equals float",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        },
+        "right": {
+          "node": "literal",
+          "value": 95.0
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "string equality",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "status"
+        },
+        "right": {
+          "node": "literal",
+          "value": "delivered"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "string inequality",
+      "predicate": {
+        "node": "binary",
+        "operator": "!==",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "status"
+        },
+        "right": {
+          "node": "literal",
+          "value": "fraudulent"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "strings compare by UTF-16 units",
+      "predicate": {
+        "node": "binary",
+        "operator": "<",
+        "left": {
+          "node": "literal",
+          "value": "￿"
+        },
+        "right": {
+          "node": "literal",
+          "value": "🚀"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "strings compare lexicographically",
+      "predicate": {
+        "node": "binary",
+        "operator": "<",
+        "left": {
+          "node": "literal",
+          "value": "apple"
+        },
+        "right": {
+          "node": "literal",
+          "value": "banana"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "mixed ordered comparison is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "<",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        },
+        "right": {
+          "node": "literal",
+          "value": "95"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "boolean ordered comparison is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "<",
+        "left": {
+          "node": "input",
+          "name": "flag"
+        },
+        "right": {
+          "node": "literal",
+          "value": true
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "number never equals string",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        },
+        "right": {
+          "node": "literal",
+          "value": "95"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "boolean never equals number",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "input",
+          "name": "flag"
+        },
+        "right": {
+          "node": "literal",
+          "value": 1
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "null equals null",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "input",
+          "name": "none"
+        },
+        "right": {
+          "node": "literal",
+          "value": null
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "missing property is undefined",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "missing"
+        },
+        "right": {
+          "node": "literal",
+          "value": null
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "missing property is not null",
+      "predicate": {
+        "node": "binary",
+        "operator": "!==",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "missing"
+        },
+        "right": {
+          "node": "literal",
+          "value": null
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "undefined equals undefined",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "missing"
+        },
+        "right": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "absent"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "missing input is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "input",
+          "name": "nope"
+        },
+        "right": {
+          "node": "literal",
+          "value": 1
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "property of a number is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          },
+          "property": "x"
+        },
+        "right": {
+          "node": "literal",
+          "value": 1
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "property of null is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "none"
+          },
+          "property": "x"
+        },
+        "right": {
+          "node": "literal",
+          "value": 1
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "array length",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "tags"
+          },
+          "property": "length"
+        },
+        "right": {
+          "node": "literal",
+          "value": 2
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "string length counts UTF-16 units",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "notes"
+          },
+          "property": "length"
+        },
+        "right": {
+          "node": "literal",
+          "value": 4
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "array index",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "tags"
+          },
+          "index": {
+            "node": "literal",
+            "value": 1
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "rush"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "array index as canonical string",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "tags"
+          },
+          "index": {
+            "node": "literal",
+            "value": "1"
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "rush"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "array index with leading zero is undefined",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "tags"
+          },
+          "index": {
+            "node": "literal",
+            "value": "01"
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "rush"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "array index out of range is undefined",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "tags"
+          },
+          "index": {
+            "node": "literal",
+            "value": 5
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": null
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "fractional array index is undefined",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "tags"
+          },
+          "index": {
+            "node": "literal",
+            "value": 0.5
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "gift"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "array length through index",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "tags"
+          },
+          "index": {
+            "node": "literal",
+            "value": "length"
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 2
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "string index yields a UTF-16 unit",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "notes"
+          },
+          "index": {
+            "node": "literal",
+            "value": 0
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "a"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "object index by integer number",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "meta"
+          },
+          "index": {
+            "node": "literal",
+            "value": 1
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "one"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "object index by fractional number",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "meta"
+          },
+          "index": {
+            "node": "literal",
+            "value": 1.5
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "x"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "object index by large number uses exponent form",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "meta"
+          },
+          "index": {
+            "node": "literal",
+            "value": 1e21
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "big"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "object index by boolean is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "meta"
+          },
+          "index": {
+            "node": "literal",
+            "value": true
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "one"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "index into a number is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "index",
+          "object": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          },
+          "index": {
+            "node": "literal",
+            "value": 0
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 1
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "and short-circuits",
+      "predicate": {
+        "node": "binary",
+        "operator": "&&",
+        "left": {
+          "node": "literal",
+          "value": false
+        },
+        "right": {
+          "node": "binary",
+          "operator": "===",
+          "left": {
+            "node": "input",
+            "name": "nope"
+          },
+          "right": {
+            "node": "literal",
+            "value": 1
+          }
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": false
+    },
+    {
+      "name": "or short-circuits",
+      "predicate": {
+        "node": "binary",
+        "operator": "||",
+        "left": {
+          "node": "literal",
+          "value": true
+        },
+        "right": {
+          "node": "binary",
+          "operator": "===",
+          "left": {
+            "node": "input",
+            "name": "nope"
+          },
+          "right": {
+            "node": "literal",
+            "value": 1
+          }
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "and needs boolean operands",
+      "predicate": {
+        "node": "binary",
+        "operator": "&&",
+        "left": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        },
+        "right": {
+          "node": "literal",
+          "value": true
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "or right operand must be boolean",
+      "predicate": {
+        "node": "binary",
+        "operator": "||",
+        "left": {
+          "node": "literal",
+          "value": false
+        },
+        "right": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "not",
+      "predicate": {
+        "node": "unary",
+        "operator": "!",
+        "operand": {
+          "node": "binary",
+          "operator": ">",
+          "left": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          },
+          "right": {
+            "node": "literal",
+            "value": 100
+          }
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "not needs a boolean",
+      "predicate": {
+        "node": "unary",
+        "operator": "!",
+        "operand": {
+          "node": "property",
+          "object": {
+            "node": "input",
+            "name": "order"
+          },
+          "property": "ageDays"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "unary minus",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "unary",
+          "operator": "-",
+          "operand": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": -95
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "unary plus of a string is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "unary",
+          "operator": "+",
+          "operand": {
+            "node": "literal",
+            "value": "1"
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 1
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "arithmetic",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "binary",
+          "operator": "+",
+          "left": {
+            "node": "binary",
+            "operator": "*",
+            "left": {
+              "node": "property",
+              "object": {
+                "node": "input",
+                "name": "order"
+              },
+              "property": "ageDays"
+            },
+            "right": {
+              "node": "literal",
+              "value": 2
+            }
+          },
+          "right": {
+            "node": "literal",
+            "value": 10
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 200
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "string concatenation is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "binary",
+          "operator": "+",
+          "left": {
+            "node": "literal",
+            "value": "a"
+          },
+          "right": {
+            "node": "literal",
+            "value": "b"
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": "ab"
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "division",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "binary",
+          "operator": "/",
+          "left": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          },
+          "right": {
+            "node": "literal",
+            "value": 5
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 19
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "division by zero is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": ">",
+        "left": {
+          "node": "binary",
+          "operator": "/",
+          "left": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          },
+          "right": {
+            "node": "input",
+            "name": "n"
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 0
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "remainder follows the dividend sign",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "binary",
+          "operator": "%",
+          "left": {
+            "node": "literal",
+            "value": -7
+          },
+          "right": {
+            "node": "literal",
+            "value": 3
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": -1
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "remainder by zero is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "binary",
+          "operator": "%",
+          "left": {
+            "node": "property",
+            "object": {
+              "node": "input",
+              "name": "order"
+            },
+            "property": "ageDays"
+          },
+          "right": {
+            "node": "literal",
+            "value": 0
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 0
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "exponent",
+      "predicate": {
+        "node": "binary",
+        "operator": "===",
+        "left": {
+          "node": "binary",
+          "operator": "**",
+          "left": {
+            "node": "literal",
+            "value": 2
+          },
+          "right": {
+            "node": "literal",
+            "value": 10
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 1024
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": true
+    },
+    {
+      "name": "exponent overflow is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": ">",
+        "left": {
+          "node": "binary",
+          "operator": "**",
+          "left": {
+            "node": "literal",
+            "value": 10
+          },
+          "right": {
+            "node": "literal",
+            "value": 400
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 0
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "fractional power of a negative is an error",
+      "predicate": {
+        "node": "binary",
+        "operator": ">",
+        "left": {
+          "node": "binary",
+          "operator": "**",
+          "left": {
+            "node": "literal",
+            "value": -8
+          },
+          "right": {
+            "node": "literal",
+            "value": 0.5
+          }
+        },
+        "right": {
+          "node": "literal",
+          "value": 0
+        }
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    },
+    {
+      "name": "non-boolean predicate is an error",
+      "predicate": {
+        "node": "property",
+        "object": {
+          "node": "input",
+          "name": "order"
+        },
+        "property": "ageDays"
+      },
+      "inputs": {
+        "order": {
+          "ageDays": 95,
+          "status": "delivered",
+          "total": 120.5,
+          "tags": ["gift", "rush"],
+          "notes": "a🚀b",
+          "meta": {
+            "1": "one",
+            "1.5": "x",
+            "1e+21": "big"
+          }
+        },
+        "n": 0,
+        "flag": true,
+        "none": null
+      },
+      "expect": "error"
+    }
+  ]
+}

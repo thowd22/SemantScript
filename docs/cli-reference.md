@@ -495,17 +495,17 @@ it reads the pointer again and puts the release back if a `rollback` made it
 current meanwhile. It refuses to run when `current.json` is missing or invalid
 or names a release that is missing or invalid.
 
-| Code                      | Cause                                                                                                                                                                                                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POINTER_INVALID`         | `current.json` is missing (for `prune` or an unnamed `rollback`), not a regular file, or not a v1 pointer whose release is `releases/sha256-<manifestSha256>`, or (for `prune`) names a release that is missing or invalid. A named `rollback` or `promote` repairs it. |
-| `RELEASE_NOT_FOUND`       | No release matches the name or prefix.                                                                                                                                                                                                                                  |
-| `RELEASE_AMBIGUOUS`       | The prefix matches more than one release.                                                                                                                                                                                                                               |
-| `RELEASE_ALREADY_CURRENT` | The target is the current release.                                                                                                                                                                                                                                      |
-| `RELEASE_NO_PREVIOUS`     | An unnamed `rollback` found no valid release created before the current one, or the current one is missing or invalid.                                                                                                                                                  |
-| `RELEASE_INTEGRITY`       | The target is a symlink, its manifest does not hash to its name, or a resource is missing, crosses a symlink or has the wrong size or digest.                                                                                                                           |
-| `RELEASE_UNVERIFIED`      | A function in the target did not pass verification; the runtime refuses such a release.                                                                                                                                                                                 |
-| `RELEASE_REJECTED`        | The runtime's loader refuses the target; the message carries its `SEMA_ARTIFACT_*` code, for example `SEMA_ARTIFACT_INCOMPATIBLE` for a release built for another runtime or model ABI.                                                                                 |
-| `RELEASE_INVALID`         | `show` named a release whose manifest cannot be read.                                                                                                                                                                                                                   |
+| Code                      | Cause                                                                                                                                                                                                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POINTER_INVALID`         | `current.json` is missing (for `prune`, an unnamed `rollback` or an unnamed `derive --int8`), not a regular file, or not a v1 pointer whose release is `releases/sha256-<manifestSha256>`, or (for `prune`) names a release that is missing or invalid. A named `rollback` or `promote` repairs it. |
+| `RELEASE_NOT_FOUND`       | No release matches the name or prefix.                                                                                                                                                                                                                                                              |
+| `RELEASE_AMBIGUOUS`       | The prefix matches more than one release.                                                                                                                                                                                                                                                           |
+| `RELEASE_ALREADY_CURRENT` | The target is the current release.                                                                                                                                                                                                                                                                  |
+| `RELEASE_NO_PREVIOUS`     | An unnamed `rollback` found no valid release created before the current one, or the current one is missing or invalid.                                                                                                                                                                              |
+| `RELEASE_INTEGRITY`       | The target is a symlink, its manifest does not hash to its name, or a resource is missing, crosses a symlink or has the wrong size or digest.                                                                                                                                                       |
+| `RELEASE_UNVERIFIED`      | A function in the target did not pass verification; the runtime refuses such a release.                                                                                                                                                                                                             |
+| `RELEASE_REJECTED`        | The runtime's loader refuses the target; the message carries its `SEMA_ARTIFACT_*` code, for example `SEMA_ARTIFACT_INCOMPATIBLE` for a release built for another runtime or model ABI.                                                                                                             |
+| `RELEASE_INVALID`         | `show` named a release whose manifest cannot be read.                                                                                                                                                                                                                                               |
 
 `list` adds a line under the table for each release `derive --int8` produced
 (`<digest>: int8-dynamic from sha256-<source>: 0 of 586 decisions changed (0
@@ -523,8 +523,11 @@ release (a depth-routed release has one per depth) with ONNX Runtime's
 dynamic int8 quantization, copies every other resource unchanged, and then
 runs each record through the float32 chain and the int8 chain of its
 function: encoder, adapter and heads. A decision is the tuple of the heads'
-answers. The records are the release's own, taken from the build cache by
-digest:
+answers (their argmax: a function's `@confidence` threshold is not applied,
+so a record whose top answer stays the same but crosses the threshold is not
+counted as changed). Each record's output is its label for the ECE check, by
+the head's `support`, or by `supportDecimal` for a bounded number. The records
+are the release's own, taken from the build cache by digest:
 
 - the training dataset whose file SHA-256 is the function's
   `trainingProvenance.datasetSha256` (its gold cases, the sema call's
@@ -578,7 +581,11 @@ it), so derive and promote again after each train.
 
 Exit status: 0 published (and promoted with `--promote`), 2 refused by the
 gate or a usage error, 1 when the release or its records cannot be found or
-the trainer fails (the message ends with a `next:` clause).
+the trainer fails (the message ends with a `next:` clause). With no release
+at the artifact root, the `POINTER_INVALID` or `RELEASE_NOT_FOUND` message
+says to run `train` first (remedy `int8-no-release`); with releases on disk
+but none current or none matching the name, it names `releases list` and a
+derive command for the newest release (remedy `int8-release-not-named`).
 
 A malformed `<release>` (not hex, shorter than 7 characters) or `prune`
 without `--keep` or `--older-than` exits 2. After a rollback, the next `train`

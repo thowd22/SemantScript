@@ -29,6 +29,7 @@ import re
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, cast
 
@@ -451,7 +452,9 @@ def _documents(directory: Path, kind: str) -> dict[str, tuple[Path, dict[str, An
                 document = json.loads(data)
             except (OSError, ValueError):
                 continue
-            payload = document.get("payload") if isinstance(document, dict) else None
+            if not isinstance(document, dict):
+                continue
+            payload = document.get("payload")
             if document.get("kind") != kind or not isinstance(payload, dict):
                 continue
             documents[hashlib.sha256(data).hexdigest()] = (path, payload)
@@ -519,7 +522,7 @@ def _cases(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def _labels(heads: Sequence[Mapping[str, Any]], output: object) -> tuple[int | None, ...]:
-    """Each head's label index for one case's output; None where it has no support list."""
+    """Each head's label index for one case's output; None where the output is off its support."""
 
     labels: list[int | None] = []
     for head in heads:
@@ -529,8 +532,11 @@ def _labels(heads: Sequence[Mapping[str, Any]], output: object) -> tuple[int | N
             value = value.get(field) if isinstance(value, dict) else None
         head_type = head.get("type")
         support = head_type.get("support") if isinstance(head_type, dict) else None
+        decimals = head_type.get("supportDecimal") if isinstance(head_type, dict) else None
         label: int | None = None
-        if isinstance(support, list):
+        if isinstance(decimals, list):
+            label = _decimal_label(decimals, value)
+        elif isinstance(support, list):
             for index, member in enumerate(support):
                 if type(member) is type(value) or (
                     isinstance(member, (int, float))
@@ -543,6 +549,26 @@ def _labels(heads: Sequence[Mapping[str, Any]], output: object) -> tuple[int | N
                         break
         labels.append(label)
     return tuple(labels)
+
+
+def _decimal_label(decimals: Sequence[object], value: object) -> int | None:
+    """The index of ``value`` in an ordinal-number head's canonical decimal support."""
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        target = Decimal(repr(value)) if isinstance(value, float) else Decimal(value)
+    except (InvalidOperation, ValueError):
+        return None
+    for index, token in enumerate(decimals):
+        if not isinstance(token, str):
+            continue
+        try:
+            if Decimal(token) == target:
+                return index
+        except InvalidOperation:
+            continue
+    return None
 
 
 def _tree_bytes(path: Path) -> int:

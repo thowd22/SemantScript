@@ -628,5 +628,20 @@ REMEDY_TEMPLATES_JSON = r"""{
    "function",
    "cache"
   ]
+ },
+ "int8-no-release": {
+  "family": "cli",
+  "fix": "run semantscript train to publish a release at {root}, then derive from it; or pass --artifact for an artifact root published elsewhere",
+  "params": [
+   "root"
+  ]
+ },
+ "int8-release-not-named": {
+  "family": "cli",
+  "fix": "{list} lists the releases on disk; name one of them, as in {command}",
+  "params": [
+   "list",
+   "command"
+  ]
  }
 }"""

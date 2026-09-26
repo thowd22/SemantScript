@@ -16,6 +16,7 @@ import {
   type CliIo,
 } from "./io.js";
 import { readJson, readPointer, ReleaseError } from "./manifest.js";
+import { remedyText } from "./remedy.js";
 import {
   formatBytes,
   releasesCommand,
@@ -113,30 +114,42 @@ export async function deriveRelease(
   }
 
   const root = resolveArtifactRoot(values, io);
-  let source: string;
-  if (spec === undefined) {
-    const pointer = await readPointer(root);
-    if (pointer === undefined) {
-      throw new ReleaseError(
-        "POINTER_INVALID",
-        `${resolve(root, "current.json")} does not exist; name the release to derive from`,
-      );
-    }
-    source = pointer.manifestSha256;
-  } else {
-    source = resolveRelease(await scanReleases(root), spec).digest;
-  }
   const cacheDir = resolve(
     io.cwd,
     stringOption(values, "cache-dir") ?? ".semantscript/cache",
   );
+  const trainerModule =
+    stringOption(values, "trainer-module") ?? DEFAULT_TRAINER_MODULE;
+  // The location flags the developer gave, repeated in every derive command
+  // the CLI or the trainer names (a refusal's tolerance, an int8 source's
+  // float32 release, a release to name), so the command runs as printed from
+  // the same directory.
+  const locationFlags: string[] = [];
+  if (stringOption(values, "artifact") !== undefined) {
+    locationFlags.push(`--artifact ${shellWord(root)}`);
+  }
+  if (stringOption(values, "cache-dir") !== undefined) {
+    locationFlags.push(`--cache-dir ${shellWord(cacheDir)}`);
+  }
+  const pythonOption = stringOption(values, "python");
+  if (pythonOption !== undefined) {
+    locationFlags.push(`--python ${shellWord(pythonOption)}`);
+  }
+  if (trainerModule !== DEFAULT_TRAINER_MODULE) {
+    locationFlags.push(`--trainer-module ${shellWord(trainerModule)}`);
+  }
+  const source = await sourceRelease(root, spec, {
+    artifactFlag:
+      stringOption(values, "artifact") === undefined
+        ? ""
+        : ` --artifact ${shellWord(root)}`,
+    locationFlags,
+  });
   const report = resolve(
     io.cwd,
     stringOption(values, "report") ?? `${root}.derive-report.json`,
   );
   const python = resolvePython(values, io);
-  const trainerModule =
-    stringOption(values, "trainer-module") ?? DEFAULT_TRAINER_MODULE;
   const doctor = trainerDoctorCommand(values, trainerModule);
   const trainerIo: CliIo = {
     ...io,
@@ -166,23 +179,6 @@ export async function deriveRelease(
   }
   for (const name of ["per-channel", "reduce-range"] as const) {
     if (values[name] === true) commandArgs.push(`--${name}`);
-  }
-  // The location flags the developer gave, repeated in every derive command
-  // the trainer names (a refusal's tolerance, an int8 source's float32
-  // release), so the command runs as printed from the same directory.
-  const locationFlags: string[] = [];
-  if (stringOption(values, "artifact") !== undefined) {
-    locationFlags.push(`--artifact ${shellWord(root)}`);
-  }
-  if (stringOption(values, "cache-dir") !== undefined) {
-    locationFlags.push(`--cache-dir ${shellWord(cacheDir)}`);
-  }
-  const pythonOption = stringOption(values, "python");
-  if (pythonOption !== undefined) {
-    locationFlags.push(`--python ${shellWord(pythonOption)}`);
-  }
-  if (trainerModule !== DEFAULT_TRAINER_MODULE) {
-    locationFlags.push(`--trainer-module ${shellWord(trainerModule)}`);
   }
   if (locationFlags.length > 0) {
     commandArgs.push("--command-flags", locationFlags.join(" "));
@@ -438,4 +434,54 @@ export function renderDeriveReport(
     }
   }
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * The digest of the release to derive from: the named one, else the current
+ * one. When neither resolves, the error ends with a `next:` clause: train
+ * first when the root holds no release at all, else list the releases and
+ * name one (the newest valid one in the example command).
+ */
+async function sourceRelease(
+  root: string,
+  spec: string | undefined,
+  flags: { readonly artifactFlag: string; readonly locationFlags: string[] },
+): Promise<string> {
+  const entries = await scanReleases(root);
+  const valid = entries.filter((entry) => entry.error === undefined);
+  const next = (): string => {
+    const [newest] = valid;
+    if (newest === undefined) {
+      return remedyText("int8-no-release", { root });
+    }
+    return remedyText("int8-release-not-named", {
+      list: `semantscript releases list${flags.artifactFlag}`,
+      command: [
+        "semantscript releases derive --int8",
+        newest.digest.slice(0, 12),
+        ...flags.locationFlags,
+      ].join(" "),
+    });
+  };
+  if (spec === undefined) {
+    const pointer = await readPointer(root);
+    if (pointer !== undefined) return pointer.manifestSha256;
+    throw new ReleaseError(
+      "POINTER_INVALID",
+      valid.length === 0
+        ? `no release to derive from at ${root} (${entries.length === 0 ? "current.json and releases/ are missing" : "no valid release under releases/"}); next: ${next()}`
+        : `${resolve(root, "current.json")} does not exist and no release was named; next: ${next()}`,
+    );
+  }
+  try {
+    return resolveRelease(entries, spec).digest;
+  } catch (error: unknown) {
+    if (error instanceof ReleaseError && error.code === "RELEASE_NOT_FOUND") {
+      throw new ReleaseError(
+        error.code,
+        `${error.message.slice(`${error.code}: `.length)}${valid.length === 0 ? ` (${root} holds no release)` : ""}; next: ${next()}`,
+      );
+    }
+    throw error;
+  }
 }

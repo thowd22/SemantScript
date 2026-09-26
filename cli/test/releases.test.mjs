@@ -796,5 +796,28 @@ test("releases derive checks its options before running anything", async (t) => 
   }
   const unknown = await derive(root, ["--int8", "0000000"]);
   assert.equal(unknown.code, 1);
-  assert.match(unknown.stderr, /RELEASE_NOT_FOUND/u);
+  assert.match(
+    unknown.stderr,
+    /^RELEASE_NOT_FOUND: no release under releases\/ matches 0000000; next: semantscript releases list --artifact \S+ lists the releases on disk; name one of them, as in semantscript releases derive --int8 [a-f0-9]{12} --artifact \S+ --python \S+ --trainer-module fake_trainer$/mu,
+  );
+  // No current release and none named: list the releases and name one.
+  await rm(join(root, "current.json"));
+  const unnamed = await derive(root, ["--int8"]);
+  assert.equal(unnamed.code, 1);
+  assert.match(
+    unnamed.stderr,
+    /^POINTER_INVALID: \S+current\.json does not exist and no release was named; next: semantscript releases list --artifact \S+ lists the releases on disk; name one of them, as in semantscript releases derive --int8 [a-f0-9]{12} /mu,
+  );
+});
+
+test("releases derive with no release at the root says to train first", async (t) => {
+  const root = await scratch(t, "semantscript-releases-derive-empty-");
+  for (const args of [["--int8"], ["--int8", "abcdef1"]]) {
+    const result = await derive(root, args);
+    assert.equal(result.code, 1, args.join(" "));
+    assert.match(
+      result.stderr,
+      /(POINTER_INVALID: no release to derive from at \S+ \(current\.json and releases\/ are missing\)|RELEASE_NOT_FOUND: no release under releases\/ matches abcdef1 \(\S+ holds no release\)); next: run semantscript train to publish a release at \S+, then derive from it; or pass --artifact for an artifact root published elsewhere$/mu,
+    );
+  }
 });

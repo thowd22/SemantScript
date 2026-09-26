@@ -36,6 +36,7 @@ from semantscript_trainer.quantization import (
     QuantizationReport,
     quantize_release_artifact,
 )
+from semantscript_trainer.teacher import JsonValue
 
 ROOT = Path(__file__).parents[2]
 FIXTURES = ROOT / "runtime" / "test" / "fixtures"
@@ -58,7 +59,7 @@ def _write_json(path: Path, value: Any) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _cases(count: int, *, gold: int, output: str = "review") -> list[dict[str, Any]]:
+def _cases(count: int, *, gold: int, output: JsonValue = "review") -> list[dict[str, Any]]:
     return [
         {
             "inputs": {"facts": {"a": index, "b": index * 3 + 1}},
@@ -103,14 +104,17 @@ def write_sidecar(
     )
 
 
-def fixture_release(root: Path, datasets: dict[str, str]) -> str:
+def fixture_release(
+    root: Path, datasets: dict[str, str], head_type: dict[str, Any] | None = None
+) -> str:
     """A two-function release on the quantizable fixture encoder; returns its digest."""
 
     script = """
 import process from 'node:process';
-const [moduleUrl, root, second, datasets] = process.argv.slice(1);
+const [moduleUrl, root, second, datasets, headType] = process.argv.slice(1);
 const { createFixtureArtifact } = await import(moduleUrl);
 const digests = JSON.parse(datasets);
+const type = JSON.parse(headType);
 const result = await createFixtureArtifact(root, {
   encoderSource: 'quantizable-encoder.onnx',
   extraFunctions: [{ id: second, headRef: 'head.second.value' }],
@@ -118,6 +122,7 @@ const result = await createFixtureArtifact(root, {
     // The fixture's functions share one provenance object: replace it, per function.
     for (const fn of manifest.functions) {
       fn.trainingProvenance = { ...fn.trainingProvenance, datasetSha256: digests[fn.id] };
+      if (type !== null) fn.heads = fn.heads.map((head) => ({ ...head, type }));
     }
   },
 });
@@ -133,6 +138,7 @@ process.stdout.write(result.manifestSha256);
             str(root),
             SECOND,
             json.dumps(datasets),
+            json.dumps(head_type),
         ],
         cwd=ROOT,
         check=True,
@@ -267,6 +273,33 @@ await runtime.checkSemaArtifact(release);
         timeout=60,
     )
     assert checked.returncode == 0, checked.stderr
+
+
+def test_labels_bounded_number_heads_by_their_decimal_support(tmp_path: Path) -> None:
+    """An ordinal-number head carries supportDecimal, not support: its records are labeled."""
+
+    cache = tmp_path / "cache"
+    first_dataset = write_dataset(cache, FIRST, _cases(12, gold=3, output=3), "base")
+    second_dataset = write_dataset(cache, SECOND, _cases(8, gold=2, output=3.0), "base")
+    ordinal = {
+        "kind": "ordinal-number",
+        "sourceKind": "bounded-int",
+        "minimum": "1",
+        "maximum": "3",
+        "step": "1",
+        "supportDecimal": ["1", "2", "3"],
+    }
+    root = tmp_path / "artifact"
+    fixture_release(root, {FIRST: first_dataset, SECOND: second_dataset}, ordinal)
+    # A cached file that is valid JSON but not an object is skipped, not a crash.
+    _write_json(cache / "datasets" / "v1" / "zz" / "junk.json", [1, 2])
+
+    result = derive_int8_release(root, cache_directory=cache)
+
+    assert result.status == "published"
+    functions = result.report["quantization"]["functions"]
+    assert [entry["labeledRecords"] for entry in functions] == [12, 8]
+    assert all(entry["quantizedEce"] is not None for entry in functions)
 
 
 def flipped_encoder(source: Path, destination: Path, settings: Any, config: Any) -> Any:

@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 00:12'
+updated_date: '2026-09-26 00:49'
 labels:
   - dx
   - train
@@ -95,4 +95,6 @@ FINALIZE validation (2026-09-26):
 - AC3 checked: 'init --teacher anthropic|openrouter|ollama|constraints --tool tsc --no-doctor' in four scratch projects each wrote .semantscript/teacher.toml (backend anthropic/claude-sonnet-5 mode auto; anthropic + base_url openrouter.ai mode direct; ollama qwen3:14b; constraints), the only key mention is a comment telling the user to export it, and a second init reports 'unchanged'. 'teacher probe' sent one request: Ollama qwen3:14b 4.53 s, 17 in / 8 out, USD 0; OpenRouter anthropic/claude-sonnet-5 2.60 s, 16 in / 4 out, USD 0.000072; constraints sends none, USD 0.
 - AC4 NOT checked: prompt reduction measured (decideRefund case 20,434 -> ~4,705 chars; live cost per request USD 0.0071 first / 0.0017 cached vs 0.017), but equal verification on the Express example is not measured. The comparison costs about USD 1.02 expected (2.88 max) plus a GPU retrain, over the USD 0.50 budget; needs user approval or a rescope. Task stays In Progress.
 - Gates: npm run build 0; npm run lint:node 0; npm run test:node 89/105/22/8/85 pass 0 fail; npm run test:python 639 passed 4 skipped; ruff check all passed; ruff format --check 129 files formatted; prettier --check docs README.md ok. OpenRouter spend this stage USD 0.000072.
+
+AC4 comparison run 2026-09-25 (user-approved spend): the Express example regenerated with the reduced prompt through OpenRouter under --max-cost-usd 3 cost USD 0.99 for 496 requests (before: about USD 10 for about 600), so the per-case cost is well under half. Verification at the matched seed 3: refund accuracy 0.9873 (before 0.9872), ECE 0.0106 (0.0080), pair consistency 0.926 (0.979), 5 of 394 constraint violations (before 0) which fails the 1% gate; triage identical (1.000, ECE 0.000). Free seed retrains from the cached datasets: seed 1 4 violations (1.02%), seed 2 6 (1.5%), seed 4 8 (2.0%), seed 5 published release 217d386c with refund 0.924 / ECE 0.072 (weaker). Judgment: cost criterion met, accuracy equal at the matched seed, but the violation gate is not equal, so AC4 is left unchecked rather than claimed; the task stays In Progress pending the user's call on whether AC4 is rescoped to the measured cost reduction with comparable accuracy. The seed lottery on near-threshold cases is what TASK-14.6 addresses. Recorded in examples/express-app/README.md.
 <!-- SECTION:NOTES:END -->

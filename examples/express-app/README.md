@@ -77,6 +77,18 @@ dist/refunds.sem.js --call decideRefund --input '[…]'` answers `approve`,
 days. Two earlier seeds (1 and 2) trained from the same cached datasets failed
 the gate on standard-tier orders at 45 days (2.0% and 1.3% violations), so the
 seed is part of the record, as it was for the refund benchmark's release.
+The same corpus regenerated on 2026-09-25 with the reduced teacher prompt
+(TASK-14.5: constraints sent as source text, no duplicated schema) cost
+USD 0.99 for 496 requests under `--max-cost-usd 3`, a tenth of the figure
+above. At the matched seed (3) the refund expression verified at the same
+accuracy (0.987) with ECE 0.011 and pair consistency 0.926, but 5 of 394
+records violated a constraint near the tier window, over the 1% tolerance;
+seeds 1, 2 and 4 landed at 1.0%, 1.5% and 2.0%, and seed 5 published
+(release `217d386c…`, refund 0.924, ECE 0.072, triage 1.000). So the reduced
+prompt buys the same accuracy at a tenth of the cost, and the near-threshold
+gate stays a seed lottery on this corpus size either way; the release the
+table above describes remains the stronger one.
+
 Generation cost about USD 10 through OpenRouter for the two expressions
 (about 600 requests at roughly 8,000 prompt tokens each, plus three attempts
 for each of five counterfactual anchors the teacher could not twin); the

@@ -207,6 +207,21 @@ verifies the gold example and the constraints, and publishes
 then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases.
 
+What a pass on this expression looks like, and what it does not guarantee:
+the Express example's own release, `217d386c` (2026-09-26, Sonnet 5 through
+OpenRouter, `--cases 192 --epochs 8 --seed 5 --select-best-epoch
+--counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01`), verified
+`decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus
+violations, before the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+existed, and it answers `approve` for paid orders at 100 to 200 days. No
+retrain from its cached datasets passes that check today: seeds 1 to 10 broke
+28 to 109 of 512 held-out inputs (5.5% to 21.3%) and the best training-only
+variant 20 of 512 (3.9%), against a 1% tolerance
+([example README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)).
+If your run fails there, add the `examples` entry the failure suggests or
+raise `--cases`; both call the teacher again, so check `--estimate` first.
+
 To see the whole flow without any key on the clone route, run the reference
 application instead, whose expressions are labeled by their own constraints
 (clone only: `examples/refund-service` is not published):
@@ -224,8 +239,9 @@ npx semantscript run dist/refunds.sem.js --call decideRefund \
 "approve"
 ```
 
-`test` reports the shipped verification, checks the release's digests and
-replays the build's IR example through the runtime; `run` loads the artifact,
+`test` reports the shipped verification (including the `held-out` column,
+the inputs of the held-out sample that broke a constraint), checks the
+release's digests and replays the build's IR example through the runtime; `run` loads the artifact,
 imports the compiled module and calls the export with the JSON arguments. That
 is the end of the published route: import `decideRefund` from
 `dist/refunds.sem.js` in your own code, after one `await loadSemaArtifact()` at
@@ -238,7 +254,17 @@ npm start        # clone only: POST /refunds/:orderId decides over PGlite and co
 ```
 
 The server loads the artifact once at startup with `loadSemaArtifact()` and
-no path.
+no path. The example's release `217d386c` packages to 653.9 MiB (570.9 MiB
+of it the float32 artifact, 82.7 MiB `node_modules`) with `semantscript
+package`, and `semantscript test` prints `-` in its `held-out` and `seed`
+columns because it was published before those fields. A paid order at 100
+days shows the answer the held-out check now refuses:
+
+```sh
+npx semantscript run dist/refunds.sem.js --call decideRefund \
+  --input '[{"tier":"standard","priorRefunds":0},{"total":100,"ageDays":100,"status":"paid"}]'
+"approve"
+```
 
 ## What you have
 

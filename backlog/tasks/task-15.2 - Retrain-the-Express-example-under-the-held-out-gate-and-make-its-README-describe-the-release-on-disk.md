@@ -3,9 +3,11 @@ id: TASK-15.2
 title: >-
   Retrain the Express example under the held-out gate and make its README
   describe the release on disk
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-26 06:27'
+updated_date: '2026-09-26 10:52'
 labels:
   - dx
   - example
@@ -29,3 +31,44 @@ examples/express-app currently serves release 217d386c (built 2026-09-26T00:48Z,
 - [ ] #2 examples/express-app/README.md, docs/tutorial-refund-decision.md and docs/deploy.md quote the current release's digest, seed, accuracy, ECE, corpus and held-out violation figures and sizes, and semantscript releases list agrees with them
 - [ ] #3 If no cached-dataset seed passes, the per-seed corpus and held-out violation rates are recorded in the task and no teacher spend happens without the user's approval
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Findings: the dataset cache key (dataset.py/adversarial.py _request_digest) covers the IR (id, semanticSha256, definition), teacher descriptor, --cases and --counterfactual-ratio only, so --seed, --epochs, --learning-rate, --head-architecture, --select-best-epoch and --held-out-samples retrain from cache at USD 0; --cases other than 192, another counterfactual ratio or any src/refunds.sem.ts change (gold examples) is a cache miss that calls the teacher. Reachable caches with the current teacher digest 5fa70d83: refund caa8e895 (192 cases, 3 gold) + adversarial fde84ed3 (202, ratio 0.5), triage 2cbfbe07/59f21134 (192). The build-cache recipe includes the training and verification config (seed, held_out_samples), so every run retrains both functions jointly. held_out_seed = the build's first --seed, so seed retries share one sample but separate --seed runs draw different samples. Refund corpus: 44 fraudulent >90-day deny cases, but ages above 90 cluster at 91/95 with few at 100-214, which is why the head breaks constraint 0 in the interior (15.1: seeds 3/4/5 held-out 70/36/109 of 512). Seed retry only continues within margin x 1% (max margin 10), so a sweep is run as separate --seed-attempts 1 builds. derive.held_out_records still returns [] (int8 check has no held-out set; out of scope). Main checkout artifact holds only 217d386c; int8 7f982976 quoted in README/deploy.md is not on disk there.
+
+1. Setup (no spend): cp -a /home/admin2/SemantScript/examples/express-app/.semantscript into the worktree example; npm install && npm run build in examples/express-app; confirm function ids nf_957c2b2b.../nf_bcbf93e1... match the cached datasets. Every train runs with ANTHROPIC_API_KEY set to a dummy value and --max-cost-usd 0.01 so a cache miss fails instead of spending; the report must show teacher requests 0 / USD 0.
+2. Baseline recipe sweep (GPU, HSA_ENABLE_DXG_DETECTION=1): npx semantscript train --teacher .semantscript/teacher.toml --cases 192 --epochs 8 --seed N --seed-attempts 1 --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 --device cuda --report .semantscript/train-report-15.2-<variant>-seedN.json, seeds 1..10; record refund/triage accuracy, ECE, corpus violations of 394 and held-out violations of 512 (with the broken constraints) per seed.
+3. If no seed passes: training-only variants that keep the datasets cached (epochs 12/16, learning rate 5e-5 / 1e-4, --head-architecture mlp, with and without --select-best-epoch) over a few seeds, same records. The tolerance stays at the recorded 1% (decision-8) and --held-out-samples at >= 512; loosening either is a user decision, not a fix.
+4a. If a run passes: that release is current. Check AC1 with semantscript explain dist/refunds.sem.js --call decideRefund over the 16-input grid (standard/enterprise x paid/fraudulent x 100/120/150/200 days), all deny; semantscript test (bundle + digests) passes; semantscript releases list/show agree. Measure sizes with semantscript package --target lambda-zip; rerun releases derive --int8 (default, --per-channel, and the tolerance setting if needed) on the new release, package the int8 release via promote, then promote the float32 release back so it stays current.
+4b. If none passes (AC3): record the per-seed/per-variant corpus and held-out violation rates in the task notes, spend nothing, and report the paid options with --estimate figures (USD 0): gold examples for stale fraudulent orders (function id changes -> refund dataset regenerates, ~USD 0.8 estimated in README, over the USD 0.50 cap) or --cases 384; these need the user's approval.
+5. Docs (4a): rewrite examples/express-app/README.md "A trained release" around the release on disk (digest, seed, recipe, accuracy, ECE, pair consistency, corpus x/394, held-out x/512, triage figures, date, USD 0), condense the 5c755d08/217d386c history into a short record, drop the stale "next train regenerates both datasets" paragraph, update the size and int8 tables; docs/deploy.md worked case (bundle bytes, int8 table); docs/tutorial-refund-decision.md step 4/5 quotes the example release's digest, seed, accuracy, ECE, corpus and held-out figures; docs/training-pipeline.md one line noting the passing release after the seed-4 failure. For 4b, README/tutorial/deploy state that the release on disk (217d386c) fails the held-out gate and quote the measured rates. npx prettier --write on touched markdown; prettier --check docs README.md.
+6. Checks: npm run lint:node, npx prettier --check docs README.md examples/express-app/README.md, npm test -w cli (tables unaffected); commit on task-15.2 with attribution trailer, git push -u origin task-15.2, gh run watch until green.
+7. Result notes for the orchestrator: the worktree paths examples/express-app/.semantscript/artifact and .semantscript/cache to copy back to the main checkout (not done here).
+Risks: the held-out gate may not pass from cached data at any seed or setting (corpus is thin in the 100-214 day interior); GPU training is not bit-for-bit repeatable so figures can move between runs; choosing among seeds is choosing among held-out samples too, so the 16-input explain grid is the independent check; the .semantscript copy is 1.7 GB; int8 derive takes 2-6 min CPU per setting and 15.4 edits docs in parallel (textual merge conflicts possible in docs/).
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Seed sweep 2026-09-26 (RX 9070 XT, cached datasets caa8e895/fde84ed3 + triage 2cbfbe07, recipe --cases 192 --epochs 8 --select-best-epoch --counterfactual-ratio 0.5 --max-constraint-violation-rate 0.01 --seed N --seed-attempts 1, dummy key + --max-cost-usd 0.01; every run 0 teacher requests, USD 0). decideRefund per seed (accuracy, ECE, corpus violations of 394, held-out inputs broken of 512 [per constraint]); triage passed at 1.000 every seed:
+seed 1: 0.9747, 0.0227, 1/394, 60/512 (11.7%) [c0 39, c2 4, c3 14, c5 3]
+seed 2: 0.9750, 0.0414, 6/394, 28/512 (5.5%) [c0 2, c2 8, c3 11, c4 2, c5 5]
+seed 3: 0.9873, 0.0106, 5/394, 70/512 (13.7%) [c0 25, c2 12, c3 18, c4 11, c5 4]
+seed 4: 0.9620, 0.0302, 8/394, 53/512 (10.4%) [c0 33, c3 15, c5 5]
+seed 5: 0.9494, 0.0620, 8/394, 109/512 (21.3%) [c0 81, c2 3, c3 19, c5 6]
+seed 6: 0.9625, 0.0122, 0/394, 30/512 (5.9%) [c0 15, c2 5, c3 6, c4 2, c5 2]
+seed 7: 0.9367, 0.0703, 12/394, 72/512 (14.1%) [c0 50, c2 3, c3 13, c4 1, c5 5]
+seed 8: 0.9231, 0.0290, 8/394, 60/512 (11.7%) [c0 25, c2 6, c3 18, c4 2, c5 9]
+seed 9: 0.9750, 0.0366, 5/394, 50/512 (9.8%) [c0 17, c2 8, c3 20, c4 3, c5 2]
+seed 10: 0.9351, 0.0876, 1/394, 43/512 (8.4%) [c0 7, c2 19, c3 12, c4 3, c5 2]
+No seed passes the held-out gate (best 28/512 = 5.5%, gate 1%); the violations are spread over constraints 0, 2, 3, 4 and 5, not only the 90-day rule. Next: training-only variants from the same cache.
+
+Training-only variants from the same cache (0 teacher requests, USD 0 each), decideRefund accuracy / ECE / corpus of 394 / held-out of 512:
+seed 2: --epochs 16 (last epoch) 0.9625/0.0306/1/25; --epochs 16 --select-best-epoch 0.9875/0.0225/2/20 (3.9%, best of all runs); --epochs 32 --select-best-epoch 0.9875/0.0225/2/20 (same epoch 12); --learning-rate 5e-5 0.9625/0.0450/9/60; --epochs 16 --learning-rate 1e-5 0.9750/0.0517/2/34; --head-architecture mlp 0.9750/0.0371/6/43; --epochs 8 without --select-best-epoch 0.9000/0.0770/5/49; --epochs 16 --batch-size 4 --select-best-epoch 0.9875/0.0214/0/38.
+seed 6: --epochs 16 0.9500/0.0276/0/28; --epochs 16/32 --select-best-epoch 0.9625/0.0122/0/30 (epoch 7, as the base run); --learning-rate 5e-5 0.9500/0.0569/2/37; --epochs 16 --learning-rate 1e-5 0.9625/0.0202/0/35; mlp 0.9500/0.0493/6/77; no select 0.9375/0.0343/2/35.
+seed 1: --epochs 32 --select-best-epoch 0.9873/0.0261/0/67. seed 9: --epochs 16 --select-best-epoch 0.9750/0.0241/6/65.
+No cached-dataset run passes the 1% held-out gate (best 20/512 = 3.9%); tolerance and sample size left at 1% / 512. The release on disk, 217d386c, answers approve for paid and review for fraudulent orders at 100/120/150/200 days for both tiers (semantscript run, 0 of 16 deny). AC1 is not reachable without teacher spend; stopping on AC3.
+
+Paid options priced with semantscript train --estimate (no request sent, OpenRouter list 2026-09-25), none run (each needs the user's approval; over or near the USD 0.50 cap): (a) three gold examples for stale orders in src/refunds.sem.ts (tried in a scratch edit, reverted; function id becomes nf_950180e6...) regenerates the refund dataset only: 401 requests (max 1320), USD 0.81 (max 2.67); (b) --cases 384 regenerates both: 1192 requests (max 3069), USD 2.02 (max 5.71); (c) a constraints teacher with the OpenRouter teacher as [teacher.fallback]: 271 requests (max 457), USD 0.39 (max 0.78), also regenerates triage and is not 'cached datasets'. Docs: examples/express-app/README.md now describes 217d386c as the release on disk, its 0-of-16 deny grid, the full sweep table, the three priced routes and a short 5c755d08 history (stale 'next train regenerates both datasets' paragraph removed); 217d386c bundle re-measured 2026-09-26 with semantscript package --target lambda-zip: 685,635,429 B (653.9 MiB; node_modules 82.7 MiB, artifact 570.9 MiB), over by 403.9 MiB. docs/deploy.md worked case, docs/tutorial-refund-decision.md steps 4/5 and docs/training-pipeline.md updated to match. semantscript test passes on 217d386c (held-out and seed '-'); releases list shows 217d386c9852, 2/2 passed, 0.9241, 0.0719, 0.
+<!-- SECTION:NOTES:END -->

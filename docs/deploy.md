@@ -123,8 +123,15 @@ no source change, so run the derive and promote steps again after each train
 before packaging. The
 [CLI reference](cli-reference.md#releases-derive---int8) lists the flags.
 
-The Express example's trained release is the worked case: its bundle is
-685,309,690 bytes (653.6 MiB), 403.6 MiB over `lambda-zip`. Depth routing
+The Express example's trained release `217d386c` is the worked case: its
+bundle measured 685,635,429 bytes (653.9 MiB) on 2026-09-26, 403.9 MiB over
+`lambda-zip`. (That release predates the
+[held-out constraint check](training-pipeline.md#held-out-constraint-check)
+and answers `approve` or `review` for orders past 90 days that its policy
+denies; no retrain from its cached datasets passes the check, so the example
+still ships it for the wiring only, as its
+[README](../examples/express-app/README.md#the-release-on-disk-breaks-the-90-day-rule)
+records.) Depth routing
 alone leaves it over (the dependencies stay). `releases derive --int8`
 measured it on 2026-09-26 on 586 records (6 attested), on CPU:
 

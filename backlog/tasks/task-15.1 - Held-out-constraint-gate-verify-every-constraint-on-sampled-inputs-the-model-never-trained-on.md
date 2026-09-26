@@ -3,11 +3,11 @@ id: TASK-15.1
 title: >-
   Held-out constraint gate: verify every constraint on sampled inputs the model
   never trained on
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 07:23'
+updated_date: '2026-09-26 09:40'
 labels:
   - dx
   - quality
@@ -26,9 +26,9 @@ The verifier's constraint check (trainer/src/semantscript_trainer/verification.p
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The verifier scores each constraint on a held-out input set generated from the input types and the constraint predicates (boundary, interior and uniform draws, deterministic by --seed, disjoint from the training corpus), and the release manifest records the held-out sample size and violation rate beside the existing corpus figures
-- [ ] #2 A model that keeps the rules on the corpus but breaks them on held-out inputs fails the gate (proved with the Express example's cached datasets or a fixture), and the failure names the constraint, several offending inputs with the model's answer, and the next command through the generated remedies
-- [ ] #3 Tests cover the sampler (per-constraint boundary and interior coverage, determinism, corpus disjointness, evaluation budget) and the gate; semantscript test and the train report show the held-out figure; docs/training-pipeline.md, docs/cli-reference.md and docs/diagnostics.md describe the check; CI is green
+- [x] #1 The verifier scores each constraint on a held-out input set generated from the input types and the constraint predicates (boundary, interior and uniform draws, deterministic by --seed, disjoint from the training corpus), and the release manifest records the held-out sample size and violation rate beside the existing corpus figures
+- [x] #2 A model that keeps the rules on the corpus but breaks them on held-out inputs fails the gate (proved with the Express example's cached datasets or a fixture), and the failure names the constraint, several offending inputs with the model's answer, and the next command through the generated remedies
+- [x] #3 Tests cover the sampler (per-constraint boundary and interior coverage, determinism, corpus disjointness, evaluation budget) and the gate; semantscript test and the train report show the held-out figure; docs/training-pipeline.md, docs/cli-reference.md and docs/diagnostics.md describe the check; CI is green
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -53,4 +53,14 @@ Risks: new VerificationConfig field changes the cache recipe (all cached functio
 
 <!-- SECTION:NOTES:BEGIN -->
 IMPLEMENT: new trainer/src/semantscript_trainer/held_out.py (boundary/interior/uniform sampler over ConstraintSampler, seeded per function/constraint/category, disjoint by canonical encoding, work allowance within the constraint evaluation step budget, refusal names --held-out-samples); verification.py held-out gate (VerificationConfig.held_out_samples default 512, held_out_seed, HeldOutConstraintEvidence, seed-retry classification, manifest verification.heldOutConstraints); remedies held-out-violation-example / held-out-violation-more-cases; trainer --held-out-samples, report/attempt/log figures, build-cache record; schema + runtime loader + CLI manifest summary, train report column, test/releases show held-out column; docs/training-pipeline.md (new, linked from index), cli-reference, diagnostics, ir reference, trainer README. Express reproduction from cached datasets (0 teacher requests, USD 0): seed 4 kept the corpus within 1% (2 of 394) and failed the held-out gate 36 of 512 (constraint 0 on 15, e.g. ageDays 100/150/158 fraudulent predicted review); seeds 3 and 5 broke 70 and 109 of 512.
+
+Verification: refund-service trained with --teacher constraints on GPU (scratchpad, USD 0) passed all 9 expressions; manifest heldOutConstraints per function (0-2 of 512 broken, seed 1), semantscript test shows the held-out column (0/512, 2/512), train report shows 'held-out constraints'. Checks: npm run lint:node ok, npm run lint:python ok, npm run test:node all pass, pytest trainer+model (excluding test_cli) 641 pass after the public-API export fix, trainer/tests/test_cli.py 26 passed locally, prettier docs ok, generate-remedies --check ok. CI run 36230453006 green (first run 36229962675 failed on test_held_out importing a sibling test module in importlib mode; fixed in 2nd commit). test_cli fixture grid reordered so a 48-case prefix covers fraudulent orders past 90 days (the held-out gate rightly failed the old prefix).
+
+Finalize validation (2026-09-26): npm run build ok; npm run lint:node ok; npm run lint:python ok; prettier --check docs README.md trainer/README.md ok; generate-remedies --check ok; npm run test:node 89/132/61/9/85 pass, 0 fail; pytest trainer/tests model/tests (excluding test_cli.py) 641 passed, 4 skipped; test_held_out + test_verification + test_seed_retry 38 passed (incl. test_a_model_that_keeps_the_rule_only_on_its_corpus_fails_the_held_out_gate: 0 corpus violations, held-out gate fails naming constraint 0, up to 10 inputs with 'predicted false', generated examples-entry remedy, no retry at zero tolerance); CLI tests assert the 'held-out constraints' train-report column, attempts 'held-out' column and releases/test 'held-out' column; CI 36230453006 green on the implementation commit. Express AC2 reproduction evidence recorded above (seed 4: corpus 2/394, held-out 36/512).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added a held-out constraint gate: trainer/src/semantscript_trainer/held_out.py samples boundary pairs, interior and uniform inputs per constraint from the IR (seeded, disjoint from the training corpus, within the constraint evaluation budget, --held-out-samples default 512); verification.py scores every constraint on them under the raw model, applies the corpus tolerance and seed-retry classification, names the broken constraint, offending inputs with the model's answer and a generated remedy, and records verification.heldOutConstraints in the manifest (optional in schema, runtime loader and CLI). Train report, attempts table, semantscript test and releases show display the figure; docs/training-pipeline.md (new), cli-reference, diagnostics, ir reference and trainer README describe it. Verified by the fixture gate tests, the Express retrain from cached datasets (seed 4 corpus 2/394 but held-out 36/512 failing on ageDays > 90 -> deny, USD 0), the refund-service constraints-teacher training (passes, figures in manifest), full node and python suites, lint, and green CI.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -9,6 +9,7 @@ import pytest
 from semantscript_trainer.verification import (
     CalibrationRecordV1,
     HeadVerificationV1,
+    HeldOutConstraintEvidence,
     SeedRetryConfig,
     VerificationConfig,
     VerificationConfigurationError,
@@ -29,6 +30,7 @@ def result(
     example_failures: int = 0,
     type_errors: int = 0,
     failed: bool = True,
+    held_out: HeldOutConstraintEvidence | None = None,
 ) -> VerificationResult:
     calibration = CalibrationRecordV1(
         temperature=1.0, ece=ece, brier=0.1, sample_count=10, split_sha256="2" * 64, ece_bins=15
@@ -57,6 +59,7 @@ def result(
         attested_cases=1,
         pair_count=0,
         failures=("a gate failed",) if failed else (),
+        held_out=held_out,
         record_count=records,
     )
 
@@ -152,3 +155,53 @@ def test_passing_or_unclassifiable_results_do_not_retry() -> None:
     assert not unclassified.retry and "does not classify" in unclassified.reason
     with pytest.raises(VerificationConfigurationError):
         seed_retry_decision([result()], TOLERANCE, object())  # type: ignore[arg-type]
+
+
+def held_out(violating: int, size: int = 512) -> HeldOutConstraintEvidence:
+    return HeldOutConstraintEvidence(
+        sample_size=size, violating_inputs=violating, violations=violating, seed=3
+    )
+
+
+def test_held_out_rate_is_classified_like_the_corpus_rate() -> None:
+    # 8 of 512 is 1.56%: within 2 x 1% but not within 1.2 x 1%.
+    narrow = seed_retry_decision([result(held_out=held_out(8))], TOLERANCE, SeedRetryConfig())
+    assert narrow.retry
+    assert "held-out violation rate 1.5625% (8 of 512 held-out inputs) within 2 x" in (
+        narrow.reason
+    )
+    outside = seed_retry_decision(
+        [result(held_out=held_out(8))], TOLERANCE, SeedRetryConfig(margin=1.2)
+    )
+    assert not outside.retry
+    assert "held-out violation rate 1.5625%" in outside.reason
+    assert "outside the retry margin 1.2 x 0.01" in outside.reason
+    zero = seed_retry_decision(
+        [result(held_out=held_out(1))], VerificationConfig(), SeedRetryConfig()
+    )
+    assert not zero.retry and "1 of 512 held-out inputs broke a constraint" in zero.reason
+    assert "zero tolerance" in zero.reason
+    # Within the tolerance the held-out figure is not a failure the retry classifies.
+    within = seed_retry_decision([result(held_out=held_out(2))], TOLERANCE, SeedRetryConfig())
+    assert not within.retry and "does not classify" in within.reason
+
+
+def test_held_out_evidence_is_validated() -> None:
+    assert held_out(0).rate == 0.0
+    assert HeldOutConstraintEvidence(0, 0, 0, 1).rate == 0.0
+    assert held_out(4).to_document() == {
+        "sampleSize": 512,
+        "violations": 4,
+        "violationRate": 4 / 512,
+        "seed": 3,
+    }
+    assert HeldOutConstraintEvidence.from_record(held_out(4).to_record()) == held_out(4)
+    with pytest.raises(VerificationConfigurationError, match="violating_inputs"):
+        HeldOutConstraintEvidence(10, 11, 11, 1)
+    with pytest.raises(VerificationConfigurationError, match="held-out violations"):
+        HeldOutConstraintEvidence(10, 2, 1, 1)
+    with pytest.raises(VerificationConfigurationError, match="held-out seed"):
+        HeldOutConstraintEvidence(10, 0, 0, -1)
+    with pytest.raises(VerificationConfigurationError, match="held_out_samples"):
+        VerificationConfig(held_out_samples=0)
+    assert VerificationConfig().held_out_samples == 512

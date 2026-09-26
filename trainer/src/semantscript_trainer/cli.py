@@ -68,6 +68,7 @@ from semantscript_trainer.dataset import (
 from semantscript_trainer.doctor import add_arguments as add_doctor_arguments
 from semantscript_trainer.doctor import run_from_arguments as run_doctor_from_arguments
 from semantscript_trainer.failures import FailureStage, failure_remedy, with_remedy
+from semantscript_trainer.held_out import DEFAULT_HELD_OUT_SAMPLES, MAXIMUM_HELD_OUT_SAMPLES
 from semantscript_trainer.lifecycle import (
     TrainingProvenanceCounts,
     VerifiedIrProvenance,
@@ -473,12 +474,16 @@ def train_bundle(
                 tokenizer=resolved_tokenizer,
                 config=resolved_verification,
                 verified_at=trained_at,
+                # Every attempt is scored on the same held-out sample: the one the
+                # build's first seed draws.
+                held_out_seed=first_seed,
             )
             say(
                 f"{function_id}: verification {verification.status}, accuracy "
                 f"{verification.metrics.accuracy:.4f}, ece {verification.metrics.ece:.4f}, "
                 f"held-out accuracy {training.held_out_accuracy:.4f}"
                 + _violation_note(verification)
+                + _held_out_note(verification)
                 + f", seed {training.config.seed}"
             )
             trained.append(TrainedFunction(ir, base, adversarial, training, verification))
@@ -824,6 +829,38 @@ def _violation_note(verification: VerificationResult) -> str:
     return f", constraint violations {violations} of {records} ({violations / records:.2%})"
 
 
+def _held_out_note(verification: VerificationResult) -> str:
+    """`, held-out constraints 3 of 512 broken` when the function has a held-out sample."""
+
+    held_out = verification.held_out
+    if held_out is None or held_out.sample_size == 0:
+        return ""
+    return (
+        f", held-out constraints {held_out.violating_inputs} of {held_out.sample_size} broken"
+        + ("" if not held_out.violating_inputs else f" ({held_out.rate:.2%})")
+    )
+
+
+def _held_out_report(verification: VerificationResult) -> dict[str, Any] | None:
+    """The held-out figure for the report, with the categories no draw reached.
+
+    ``coverageShortfalls`` (``constraint 0 boundary-true``, …) is measured
+    evidence only: a result restored from the build cache has none.
+    """
+
+    held_out = verification.held_out
+    if held_out is None:
+        return None
+    return {
+        **held_out.to_record(),
+        "coverageShortfalls": [
+            f"constraint {coverage.index} {category}"
+            for coverage in held_out.coverage
+            for category in coverage.shortfalls
+        ],
+    }
+
+
 def _with_suggestion(entry: TrainedFunction, suggestion: str) -> TrainedFunction:
     """``entry`` with ``suggestion`` as the next step under every one of its failures."""
 
@@ -870,6 +907,7 @@ def _attempt_report(attempt: int, seed: int, trained: Sequence[TrainedFunction])
                 "violationRate": (
                     None if records is None else metrics.constraint_violations / records
                 ),
+                "heldOutConstraints": _held_out_report(verification),
                 "failures": _report_failures(verification),
                 "suggestions": list(verification.suggestions),
             }
@@ -924,6 +962,7 @@ def _cached_function_report(ir: NeuralFunctionIr, record: CachedFunction) -> dic
             "attestedCases": verification.attested_cases,
             "pairCount": verification.pair_count,
             "metrics": verification.to_ir_document()["metrics"],
+            "heldOutConstraints": _held_out_report(verification),
         },
     }
 
@@ -1071,6 +1110,7 @@ def _function_report(entry: TrainedFunction) -> dict[str, Any]:
             "attestedCases": verification.attested_cases,
             "pairCount": verification.pair_count,
             "metrics": verification.to_ir_document()["metrics"],
+            "heldOutConstraints": _held_out_report(verification),
         },
     }
 
@@ -1194,6 +1234,12 @@ def _build_parser() -> argparse.ArgumentParser:
     train.add_argument("--select-best-epoch", action="store_true")
     train.add_argument("--ece-threshold", type=float)
     train.add_argument("--max-constraint-violation-rate", type=float)
+    train.add_argument(
+        "--held-out-samples",
+        type=int,
+        help="inputs in the held-out constraint sample each function with constraints is "
+        f"scored on (default {DEFAULT_HELD_OUT_SAMPLES}, at most {MAXIMUM_HELD_OUT_SAMPLES})",
+    )
     train.add_argument("--counterfactual-ratio", type=float)
     train.add_argument(
         "--seed-attempts",
@@ -1267,6 +1313,12 @@ def _verification_config(arguments: argparse.Namespace) -> VerificationConfig:
         kwargs["ece_threshold"] = arguments.ece_threshold
     if arguments.max_constraint_violation_rate is not None:
         kwargs["maximum_constraint_violation_rate"] = arguments.max_constraint_violation_rate
+    if arguments.held_out_samples is not None:
+        try:
+            VerificationConfig(held_out_samples=arguments.held_out_samples)
+        except VerificationConfigurationError as error:
+            raise ValueError(f"--held-out-samples: {error}") from error
+        kwargs["held_out_samples"] = arguments.held_out_samples
     return VerificationConfig(**kwargs)
 
 

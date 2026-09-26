@@ -54,6 +54,20 @@
       "fix": "sample the boundaries more densely: rerun with --cases {cases} (now {current}), or accept isolated misses by recording a tolerance with --max-constraint-violation-rate"
     },
     {
+      "id": "held-out-violation-example",
+      "family": "verifier",
+      "failure": "`held-out constraint check failed on N of M sampled inputs (…)`, and the constraints require exactly one output for an offending input",
+      "cause": "The model keeps a rule on the inputs it trained on but breaks it on inputs sampled away from them: the training data covers the rule's region only near its boundary.",
+      "fix": "add the examples entry {example}: constraint {index} ({source}) is broken on {count} of {size} held-out inputs (seed {seed}), and the constraints require that output for this one; or rerun with --cases {cases} (now {current}) so the region is sampled more densely"
+    },
+    {
+      "id": "held-out-violation-more-cases",
+      "family": "verifier",
+      "failure": "`held-out constraint check failed on N of M sampled inputs (…)`, and no single output is required for the offending inputs",
+      "cause": "The model breaks a rule on inputs sampled away from its training data, and the constraints alone do not name the answer for them.",
+      "fix": "rerun with --cases {cases} (now {current}): constraint {index} ({source}) is broken on {count} of {size} held-out inputs (seed {seed}), such as {inputs}; more cases cover the rule's region beyond its boundary, or record a tolerance with --max-constraint-violation-rate"
+    },
+    {
       "id": "calibration-more-cases",
       "family": "verifier",
       "failure": "`ECE x exceeds configured threshold t`, with fewer than 200 calibration rows or a head that already fits",

@@ -53,8 +53,15 @@ VERIFIED_AT = "2026-09-22T12:34:56Z"
 
 
 class FixedTokenizer:
-    def __init__(self, token_by_text: dict[str, int]) -> None:
+    """One token per known text; ``default`` (when set) for every other text.
+
+    The held-out constraint sample reaches inputs no fixture lists, so a fixture
+    whose function has constraints gives them a token (and so one logit).
+    """
+
+    def __init__(self, token_by_text: dict[str, int], default: int | None = None) -> None:
         self._token_by_text = token_by_text
+        self._default = default
         self.semantscript_tokenizer_json = json.dumps(
             {"kind": "semantscript-test-tokenizer", "tokens": token_by_text},
             ensure_ascii=False,
@@ -79,7 +86,14 @@ class FixedTokenizer:
         assert return_tensors == "pt"
         return {
             "input_ids": torch.tensor(
-                [[self._token_by_text[text]] for text in texts],
+                [
+                    [
+                        self._token_by_text[text]
+                        if self._default is None
+                        else self._token_by_text.get(text, self._default)
+                    ]
+                    for text in texts
+                ],
                 dtype=torch.long,
             ),
             "attention_mask": torch.ones((len(texts), 1), dtype=torch.long),
@@ -181,6 +195,8 @@ def test_passing_binary_flow_emits_exact_ir_and_manifest_projections() -> None:
         "exampleFailures": 0,
         "constraintViolations": 0,
         "typeErrors": 0,
+        # No constraints: an empty held-out sample, recorded with the seed it used.
+        "heldOutConstraints": {"sampleSize": 0, "violations": 0, "violationRate": 0.0, "seed": 1},
     }
     assert len(training.split.evaluation) == 1
     assert training.split.evaluation[0].origin != "gold"
@@ -437,6 +453,133 @@ def test_constraint_violation_and_counterfactual_pair_failure_are_measured() -> 
         VerificationConfig(maximum_constraint_violation_rate=1.5)
 
 
+MEMORISED = {0: -12.0, 1: -12.0, 20: 12.0, 9: -12.0, 10: 12.0, 11: 12.0}
+
+
+def test_a_model_that_keeps_the_rule_only_on_its_corpus_fails_the_held_out_gate() -> None:
+    # Right on every corpus record (the boundary pair 9/10, the twin 11 and the
+    # synthetic 20) and "false" everywhere else: the corpus check sees nothing.
+    contract, base, adversarial, training, tokenizer = constrained_fixture(
+        MEMORISED, unseen_logit=-12.0
+    )
+    loose_ece = VerificationConfig(ece_threshold=1.0)
+    result = evaluate_training_result(
+        contract,
+        training,
+        base,
+        adversarial,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+        config=loose_ece,
+    )
+
+    assert result.metrics.constraint_violations == 0
+    assert result.status == "failed"
+    held_out = result.held_out
+    assert held_out is not None and held_out.seed == training.config.seed
+    assert held_out.sample_size > 10 and 0 < held_out.violating_inputs < held_out.sample_size
+    assert held_out.violations == held_out.violating_inputs
+    (failure,) = result.failures
+    assert failure.startswith(
+        f"held-out constraint check failed on {held_out.violating_inputs} of "
+        f"{held_out.sample_size} sampled inputs ("
+    )
+    assert f"seed {training.config.seed}; broken: constraint 0 on" in failure
+    assert "none of them a training input" in failure
+    offending = [line for line in failure.splitlines() if line.startswith("  - constraint 0")]
+    assert len(offending) == min(held_out.violating_inputs, 10)
+    for line in offending:
+        assert line.startswith(
+            '  - constraint 0 (score >= 10) violated by held-out input {"score":'
+        )
+        assert line.endswith(": predicted false")
+        score = float(line.split('{"score":', 1)[1].split("}", 1)[0])
+        assert score >= 10 and score not in (10, 11, 20)
+    # The next step pastes one offending input with the output the rule requires.
+    (suggestion,) = result.suggestions
+    assert suggestion.startswith('add the examples entry { inputs: {"score": ')
+    assert "output: true }: constraint 0 (score >= 10) is broken on" in suggestion
+    assert f"of {held_out.sample_size} held-out inputs (seed {training.config.seed})" in (
+        suggestion
+    )
+    assert "--held-out-samples" not in suggestion
+    # The same seed draws the same sample; a zero tolerance never retries it.
+    again = evaluate_training_result(
+        contract,
+        training,
+        base,
+        adversarial,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+        config=loose_ece,
+    )
+    assert again.held_out == held_out and again.failures == result.failures
+    decision = seed_retry_decision([result], loose_ece, SeedRetryConfig())
+    assert not decision.retry and "held-out inputs broke a constraint" in decision.reason
+
+    # A tolerance at or above the held-out rate admits the model and the manifest
+    # records the figure beside the corpus count.
+    tolerated = evaluate_training_result(
+        contract,
+        training,
+        base,
+        adversarial,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+        config=replace(loose_ece, maximum_constraint_violation_rate=held_out.rate),
+    )
+    assert tolerated.status == "passed", tolerated.failures
+    projection = tolerated.to_manifest_function_verification()
+    assert projection["constraintViolations"] == 0
+    assert projection["heldOutConstraints"] == {
+        "sampleSize": held_out.sample_size,
+        "violations": held_out.violating_inputs,
+        "violationRate": held_out.rate,
+        "seed": training.config.seed,
+    }
+
+
+def test_held_out_sample_follows_its_seed_and_size() -> None:
+    contract, base, adversarial, training, tokenizer = constrained_fixture(
+        MEMORISED, unseen_logit=-12.0
+    )
+
+    def held_out(**kwargs: Any) -> Any:
+        return evaluate_training_result(
+            contract,
+            training,
+            base,
+            adversarial,
+            tokenizer=tokenizer,
+            verified_at=VERIFIED_AT,
+            **kwargs,
+        ).held_out
+
+    first = held_out(held_out_seed=7)
+    assert first.seed == 7 and held_out(held_out_seed=7) == first
+    assert held_out(held_out_seed=8).seed == 8
+    small = held_out(held_out_seed=7, config=VerificationConfig(held_out_samples=8))
+    assert small.sample_size == 8
+
+
+def test_a_model_that_keeps_the_rule_everywhere_passes_the_held_out_gate() -> None:
+    contract, base, adversarial, training, tokenizer = constrained_fixture(
+        MEMORISED, unseen_logit=12.0
+    )
+    result = evaluate_training_result(
+        contract,
+        training,
+        base,
+        adversarial,
+        tokenizer=tokenizer,
+        verified_at=VERIFIED_AT,
+        config=VerificationConfig(ece_threshold=1.0),
+    )
+    assert result.status == "passed", result.failures
+    assert result.held_out is not None and result.held_out.violating_inputs == 0
+    assert result.to_manifest_function_verification()["heldOutConstraints"]["violations"] == 0
+
+
 def test_ece_above_configured_gate_fails_even_without_gold_miss() -> None:
     contract, base, _, training, tokenizer = binary_fixture({0: -12.0, 1: 0.0, 2: 12.0})
 
@@ -589,13 +732,23 @@ def binary_fixture(
     return contract, base, corpus, training, tokenizer
 
 
-def constrained_fixture() -> tuple[
+def constrained_fixture(
+    logits_by_score: dict[int, float] | None = None,
+    *,
+    unseen_logit: float = 12.0,
+) -> tuple[
     dict[str, Any],
     TrainingDataset,
     AdversarialDataset,
     TrainingResult,
     FixedTokenizer,
 ]:
+    """A ``score >= 10 -> true`` function; ``unseen_logit`` answers every held-out input.
+
+    The default answers ``true`` off the corpus, which keeps the rule everywhere
+    (``false`` is only ever forbidden when the score is at least 10).
+    """
+
     contract = boolean_ir(constraints=[minimum_constraint()])
     base = training_dataset(
         (
@@ -666,7 +819,10 @@ def constrained_fixture() -> tuple[
         base,
         corpus,
         adversarial,
-        {0: -12.0, 1: -12.0, 20: -12.0, 9: -12.0, 10: -12.0, 11: -12.0},
+        logits_by_score
+        if logits_by_score is not None
+        else {0: -12.0, 1: -12.0, 20: -12.0, 9: -12.0, 10: -12.0, 11: -12.0},
+        unseen_logit=unseen_logit,
     )
     return contract, base, adversarial, training, tokenizer
 
@@ -677,6 +833,8 @@ def training_result(
     corpus: TrainingCorpus,
     adversarial: AdversarialDataset | None,
     logits_by_score: dict[int, float],
+    *,
+    unseen_logit: float | None = None,
 ) -> tuple[TrainingResult, FixedTokenizer]:
     schema = contract["inputs"]
     texts = {
@@ -684,7 +842,12 @@ def training_result(
         for score, logit in logits_by_score.items()
     }
     token_by_text = {text: index for index, text in enumerate(texts)}
-    model = FixedBinaryModel([texts[text] for text in token_by_text])
+    logits = [texts[text] for text in token_by_text]
+    default = None
+    if unseen_logit is not None:
+        default = len(logits)
+        logits.append(unseen_logit)
+    model = FixedBinaryModel(logits)
     config = TrainingConfig(
         epochs=1,
         batch_size=4,
@@ -710,7 +873,7 @@ def training_result(
         base_dataset_sha256=base.dataset_sha256,
         adversarial_dataset_sha256=(None if adversarial is None else adversarial.dataset_sha256),
     )
-    return result, FixedTokenizer(token_by_text)
+    return result, FixedTokenizer(token_by_text, default)
 
 
 def training_dataset(cases: tuple[DatasetCase, ...]) -> TrainingDataset:

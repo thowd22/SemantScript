@@ -1116,6 +1116,8 @@ function validateVerification(value: unknown, path: string): void {
       "typeErrors",
     ],
     path,
+    "SEMA_ARTIFACT_INVALID_MANIFEST",
+    ["heldOutConstraints"],
   );
   equal(get(verification, "status"), "passed", `${path}.status`);
   for (const key of ["accuracy", "ece", "brier", "pairConsistency"])
@@ -1130,6 +1132,25 @@ function validateVerification(value: unknown, path: string): void {
     `${path}.constraintViolations`,
     0,
   );
+  // The held-out constraint check (absent in releases from before it): inputs drawn
+  // from the input types and constraint predicates, none of them a training input.
+  if (Object.prototype.hasOwnProperty.call(verification, "heldOutConstraints")) {
+    const heldPath = `${path}.heldOutConstraints`;
+    const held = object(get(verification, "heldOutConstraints"), heldPath);
+    exact(held, ["sampleSize", "violations", "violationRate", "seed"], heldPath);
+    const size = integer(get(held, "sampleSize"), `${heldPath}.sampleSize`, 0);
+    const violations = integer(
+      get(held, "violations"),
+      `${heldPath}.violations`,
+      0,
+    );
+    if (violations > size)
+      invalid(`${heldPath}.violations must not exceed sampleSize`);
+    const rate = unit(get(held, "violationRate"), `${heldPath}.violationRate`);
+    if (Math.abs(rate - (size === 0 ? 0 : violations / size)) > 1e-9)
+      invalid(`${heldPath}.violationRate must equal violations / sampleSize`);
+    integer(get(held, "seed"), `${heldPath}.seed`, 0);
+  }
 }
 
 function validateCompatibility(

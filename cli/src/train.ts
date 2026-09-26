@@ -48,6 +48,7 @@ const PASSTHROUGH_STRING = [
   "head-architecture",
   "ece-threshold",
   "max-constraint-violation-rate",
+  "held-out-samples",
   "counterfactual-ratio",
   "adapter-bottleneck-size",
   "max-cost-usd",
@@ -652,6 +653,10 @@ export function renderTrainReport(document: unknown): string {
               `${path}.adversarial.cases`,
             );
       const heldOut = training["heldOutAccuracy"];
+      const heldOutConstraints = heldOutConstraintsCell(
+        verification["heldOutConstraints"],
+        `${path}.verification.heldOutConstraints`,
+      );
       return [
         shortId(stringOf(fn["id"], `${path}.id`)),
         typeof fn["sourcePath"] === "string" ? fn["sourcePath"] : "",
@@ -681,6 +686,7 @@ export function renderTrainReport(document: unknown): string {
             `${path}.verification.metrics.constraintViolations`,
           ),
         ),
+        heldOutConstraints,
       ];
     },
   );
@@ -698,6 +704,7 @@ export function renderTrainReport(document: unknown): string {
         "ece",
         "attested",
         "violations",
+        "held-out constraints",
       ],
       rows,
     ),
@@ -791,6 +798,10 @@ function renderSeedRetry(report: Readonly<Record<string, unknown>>): string[] {
           typeof records === "number" && typeof rate === "number"
             ? `${String(violations)}/${String(records)} (${(rate * 100).toFixed(2)}%)`
             : String(violations),
+          heldOutConstraintsCell(
+            fn["heldOutConstraints"],
+            `${fnPath}.heldOutConstraints`,
+          ),
           formatRatio(numberOf(fn["ece"], `${fnPath}.ece`)),
         ]);
       }
@@ -805,6 +816,7 @@ function renderSeedRetry(report: Readonly<Record<string, unknown>>): string[] {
           "status",
           "accuracy",
           "violations",
+          "held-out",
           "ece",
         ],
         rows,
@@ -824,6 +836,23 @@ function renderSeedRetry(report: Readonly<Record<string, unknown>>): string[] {
     }
   }
   return lines;
+}
+
+/**
+ * `3/512 (0.59%)`: held-out inputs that broke a constraint, of the sample drawn
+ * from the input types and constraint predicates; `-` when the report has no
+ * held-out figure (an older trainer) or the function has no constraints.
+ */
+function heldOutConstraintsCell(value: unknown, path: string): string {
+  if (value === null || value === undefined) return "-";
+  const held = objectOf(value, path);
+  const size = numberOf(held["sampleSize"], `${path}.sampleSize`);
+  if (size === 0) return "-";
+  const violations = numberOf(held["violations"], `${path}.violations`);
+  const rate = numberOf(held["violationRate"], `${path}.violationRate`);
+  return violations === 0
+    ? `0/${String(size)}`
+    : `${String(violations)}/${String(size)} (${(rate * 100).toFixed(2)}%)`;
 }
 
 /** `teacher: 596 requests (12 replayed), USD 1.0213 of the USD 5 cap`. */

@@ -237,6 +237,50 @@ def violation_suggestion(violations: Sequence[Violation], current_cases: int) ->
     return remedy("violation-denser-data", cases=more_cases(current_cases), current=current_cases)
 
 
+def held_out_suggestion(
+    violations: Sequence[Violation], current_cases: int, *, seed: int, sample_size: int
+) -> str:
+    """The next step after the held-out constraint check failed.
+
+    The constraint broken on the most held-out inputs is named. When its first
+    offending input has exactly one output the active constraints require
+    (``case.expected`` is set), that input with that output is an examples entry
+    to paste; otherwise the fix is more cases over the rule's region.
+    """
+
+    if not violations:
+        raise ValueError("a held-out suggestion needs at least one violation")
+    by_index: dict[int, list[Violation]] = {}
+    for violation in violations:
+        by_index.setdefault(violation.index, []).append(violation)
+    index, group = max(by_index.items(), key=lambda item: (len(item[1]), -item[0]))
+    chosen = next((item for item in group if item.case.expected is not None), None)
+    source = " ".join(group[0].source.split()) or "no source"
+    if chosen is not None:
+        return remedy(
+            "held-out-violation-example",
+            example=example_literal(chosen.case.inputs, chosen.case.expected),
+            index=index,
+            source=source,
+            count=len(group),
+            size=sample_size,
+            seed=seed,
+            cases=more_cases(current_cases),
+            current=current_cases,
+        )
+    return remedy(
+        "held-out-violation-more-cases",
+        cases=more_cases(current_cases),
+        current=current_cases,
+        index=index,
+        source=source,
+        count=len(group),
+        size=sample_size,
+        seed=seed,
+        inputs=_literal(dict(group[0].case.inputs)),
+    )
+
+
 def calibration_suggestion(
     *, ece: float, rows: int, accuracy: float, current_cases: int, epochs: int
 ) -> str:

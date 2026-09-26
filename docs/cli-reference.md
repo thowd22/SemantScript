@@ -215,8 +215,9 @@ printing that input and the outputs the constraints admit (see
 Every verification failure in the report ends with a `next:` line: the
 constraint to add when the missed gold examples share a one-field rule, an
 example to add for a repeated miss, more `--cases` or `--epochs` for a
-calibration failure, or the seed retry to run (`--seed-attempts`, or the next
-untried `--seed`). The suggestion is derived from the failing cases; the
+calibration failure, an offending held-out input as an example (or more
+`--cases`) for a [held-out constraint](#held-out-constraint-check) failure, or
+the seed retry to run (`--seed-attempts`, or the next untried `--seed`). The suggestion is derived from the failing cases; the
 [diagnostics catalogue](diagnostics.md#verification-failures) says how.
 
 ```text
@@ -306,7 +307,8 @@ Options handed to the trainer unchanged:
 | `--encoder-name`, `--encoder-revision`                            | strings  | The Hugging Face checkpoint and pinned commit every function of the application fine-tunes from.                                                              |
 | `--local-files-only`                                              |          | Never download; fail if the checkpoint is not cached.                                                                                                         |
 | `--ece-threshold`                                                 | fraction | Verification gate on calibration error (default 0.1).                                                                                                         |
-| `--max-constraint-violation-rate`                                 | fraction | Share of raw predictions allowed to violate an active constraint (default 0; the value used is recorded).                                                     |
+| `--max-constraint-violation-rate`                                 | fraction | Share of raw predictions allowed to violate an active constraint (default 0; the value used is recorded). Applies to the corpus and the held-out rate.        |
+| `--held-out-samples`                                              | integer  | Inputs in each function's [held-out constraint sample](#held-out-constraint-check) (default 512, from 1 through 50,000).                                      |
 | `--seed-attempts`                                                 | integer  | Training runs a narrowly failed release gate may use, the first included (default 3, at most 20; 1 turns the seed retry off).                                 |
 | `--seed-retry-margin`                                             | factor   | How far past its gate a failure may be and still retry: the violation rate and the ECE each within this many times their gate (default 2, from 1 through 10). |
 | `--counterfactual-ratio`                                          | fraction | Share of synthetic cases that get a counterfactual twin (default 1).                                                                                          |
@@ -322,11 +324,13 @@ can fail at one seed and pass at the next. The seed drives training noise
 (initialisation and batch order) and also draws the held-out calibration and
 evaluation split, so each attempt's accuracy and ECE are measured on its own
 split; the violation rate is measured over every record and does not depend
-on the split. When verification fails only on
-the constraint-violation rate or the ECE, and by no more than the margin,
+on the split, and the held-out constraint sample is drawn once from the first
+`--seed`, so every attempt is scored on the same held-out inputs. When
+verification fails only on the corpus or held-out constraint-violation rate
+or the ECE, and by no more than the margin,
 `train` retrains with the next seed (`--seed`, then `--seed` + 1, …) up to
 `--seed-attempts` runs in all. "By no more than the margin" means the
-violation rate is at most `--seed-retry-margin` times
+violation rates are each at most `--seed-retry-margin` times
 `--max-constraint-violation-rate` and the ECE at most that many times
 `--ece-threshold`. The datasets are generated once, before the first attempt,
 so a retry calls no teacher and costs training time only. A retry that
@@ -352,10 +356,28 @@ margin stops the build; on an incremental build only the changed
 expressions retrain, and the reused ones keep their recorded seeds.
 
 The report lists every attempt (`attempts[]`: attempt number, seed, status
-and, per expression, accuracy, ECE, violations, records, violation rate and
-failures), the published seed (`seed`) and the retry settings
-(`retry.attempts`, `retry.margin`, `retry.stopReason`); the rendered report
-prints the attempts as a table when more than one ran.
+and, per expression, accuracy, ECE, violations, records, violation rate,
+the held-out figure and failures), the published seed (`seed`) and the retry
+settings (`retry.attempts`, `retry.margin`, `retry.stopReason`); the rendered
+report prints the attempts as a table when more than one ran.
+
+### Held-out constraint check
+
+The corpus violation count scores only inputs the model trained on. Every
+function with constraints is also scored on `--held-out-samples` inputs
+(default 512) drawn from its input types and constraint predicates: both
+sides of each constraint's boundary, the interior of each side, and uniform
+draws. The sample is seeded from the first `--seed`, excludes every training
+input and attested case, and calls no teacher. The share of sampled inputs
+whose raw prediction breaks a constraint must stay within
+`--max-constraint-violation-rate`, like the corpus rate, and the seed retry
+classifies it the same way. A failure names each broken constraint, the first
+offending inputs with the model's answer and the seed, and its `next:` line
+pastes one offending input as an example or asks for more `--cases`. The
+rendered report adds a `held-out constraints` column (`3/512 (0.59%)`), the
+attempts table a `held-out` column, and the release manifest records
+`verification.heldOutConstraints`. [Training pipeline](training-pipeline.md#held-out-constraint-check)
+describes the sampler, the budget and the numbers.
 
 ## `teacher probe`
 
@@ -400,9 +422,12 @@ cycle; exit 0 on interruption, 1 when a `--once` cycle fails.
 
 Reads the artifact pointer and manifest and reports every function's shipped
 verification (status, accuracy, ECE, Brier, pair consistency, attested cases,
-constraint violations, the training seed the release passed at, each head's
-accuracy). The seed is `-` in the table and `null` in `--json` for a release
-built before the manifest recorded seeds.
+constraint violations, the [held-out constraint](#held-out-constraint-check)
+figure as broken inputs of the sample (`3/512`), the training seed the release
+passed at, each head's accuracy). The seed is `-` in the table and `null` in
+`--json` for a release built before the manifest recorded seeds; the
+held-out figure is `-` (`null` in `--json`) for such a release or a function
+without constraints.
 
 | Flag         | Value | Effect                                                                                                                        |
 | ------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------- |

@@ -278,6 +278,13 @@ def main(argv: list[str]) -> int:
                         "constraintViolations": 0,
                         "typeErrors": 0,
                     },
+                    "heldOutConstraints": {
+                        "sampleSize": 512,
+                        "violations": 0 if exit_code == 0 else 3,
+                        "violationRate": 0.0 if exit_code == 0 else 3 / 512,
+                        "seed": int(values.get("seed", 1)),
+                        "violatedChecks": 0 if exit_code == 0 else 3,
+                    },
                 },
             }
         ],
@@ -315,6 +322,13 @@ def main(argv: list[str]) -> int:
                         "constraintViolations": violations,
                         "records": 394,
                         "violationRate": violations / 394,
+                        "heldOutConstraints": {
+                            "sampleSize": 512,
+                            "violations": 0 if passed else 1,
+                            "violationRate": 0.0 if passed else 1 / 512,
+                            "seed": first,
+                            "violatedChecks": 0 if passed else 1,
+                        },
                         "failures": [] if passed else ["violation rate over tolerance"],
                     }
                 ],

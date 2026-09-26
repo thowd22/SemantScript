@@ -1,8 +1,8 @@
-# Tutorial: from a fresh clone to a running refund decision
+# Tutorial: from an empty directory to a running refund decision
 
-This is the end-to-end path through the repository as it stands: clone, build
-both halves, compile the refund-decision expression, train its artifact, and
-call it. Every command was run on the development machine described below;
+This is the end-to-end path: install the packages (from npm and PyPI, or from
+a clone of the repository), compile the refund-decision expression, train its
+artifact, and call it. Every command was run on the development machine described below;
 where a step needs something you must provide (a teacher), the alternatives
 are listed with what each costs. The [getting-started guide](getting-started.md)
 covers the other direction, adding one expression to an app you already have.
@@ -18,10 +18,52 @@ covers the other direction, adding one expression to an app you already have.
 | Disk              | 600 MB for the encoder checkpoint, 275 to 600 MB per artifact, as much again for the build cache | 3 GB free                                                             |
 | Network           | Once, for the ModernBERT-base checkpoint from the Hugging Face Hub, plus the teacher if remote   |                                                                       |
 
-## 1. Clone and build
+## 1. Install
+
+Two routes. The published packages need no clone; the clone is the
+contributor's route and the one the repository's examples use. The steps
+below give both routes' commands where they differ, and a few extras (the
+keyless reference application and the Express server in step 5) exist only
+in the clone.
+
+### From npm and PyPI
 
 ```sh
-git clone <this repository> semantscript && cd semantscript
+mkdir refund-decision && cd refund-decision
+npm init -y                                     # this directory's own package.json
+npm install semantscript @semantscript/core @semantscript/compiler @semantscript/framework
+python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install "semantscript-trainer[training]"   # trainer, model, torch, transformers, onnx, onnxruntime
+export SEMANTSCRIPT_PYTHON="$PWD/.venv/bin/python"
+npx semantscript init --no-example   # new project: tsconfig.json, type module, build script, transformer, ts-patch; runs doctor
+npm install                                     # runs the prepare script: ts-patch install
+```
+
+`npm init -y` comes first so that `npm install` installs here: in a directory
+with no `package.json`, npm installs into the nearest parent directory that
+has one. In a directory with no `tsconfig.json` and no other build tool, `init` starts
+a TypeScript project: it writes `tsconfig.json` (NodeNext modules, `src/`
+compiled to `dist/`), sets `"type": "module"` and a `build` script that runs
+`tspc`, and adds TypeScript (5.9 to 6.x; 7 is not supported yet) to
+`devDependencies`. The four npm packages and the trainer share one version, and every artifact
+records the compiler and trainer versions that built it. For a GPU, install
+the CUDA or ROCm PyTorch build into the venv first
+([pytorch.org](https://pytorch.org/get-started/locally/)).
+
+> **First publish pending.** The release workflow is in place
+> ([releasing](releasing.md)) but version 0.1.0 is not on npm and PyPI yet, so
+> `npm install` and `pip install` above return 404 until it is. Until then
+> take the clone route below, or `npm install` the four `npm pack` tarballs
+> and `pip install` the clone as the [getting-started guide](getting-started.md)
+> describes; this route was run end to end against a local registry holding
+> exactly those packs (`init`, `build`, `train --teacher constraints`, `test`
+> and `run` in a directory with no checkout, recorded in
+> [releasing](releasing.md#local-proof)).
+
+### From a clone
+
+```sh
+git clone https://github.com/thowd22/SemantScript.git semantscript && cd semantscript
 npm install                    # links the workspaces
 npm run build                  # tsc -b: compiler, runtime, cli, framework, refund benchmark
 python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
@@ -44,8 +86,11 @@ has the wheel to install.
 Then check the environment before anything runs:
 
 ```sh
-node cli/bin/semantscript.js doctor --no-teacher   # the teacher is chosen in step 4
+npx semantscript doctor --no-teacher               # published route, in refund-decision/
+node cli/bin/semantscript.js doctor --no-teacher   # clone route, at the repository root
 ```
+
+The teacher is chosen in step 4.
 
 Every line should read `pass` or `skip` (a `warn` on `device` means training will run on
 the CPU). A `fail` carries its fix; if `trainer` or `torch` fails and the fix
@@ -60,7 +105,15 @@ the full run.
 ## 2. The expression
 
 The refund decision lives in the Express example, already wired to the
-compiler through its `tsconfig.json`:
+compiler through its `tsconfig.json`. On the published-packages route, fetch
+the same file into your project:
+
+```sh
+mkdir -p src && curl -fsSLo src/refunds.sem.ts \
+  https://raw.githubusercontent.com/thowd22/SemantScript/main/examples/express-app/src/refunds.sem.ts
+```
+
+Its core (the full file carries all six policy rules as constraints):
 
 ```ts
 // examples/express-app/src/refunds.sem.ts
@@ -94,12 +147,27 @@ The text is what a teacher reads to generate the corpus.
 
 ## 3. Compile
 
+On the published-packages route, in your project directory:
+
+```sh
+npm run build                  # tspc -p tsconfig.json (or npx semantscript build)
+ls dist/refunds.sem.js dist/semantscript.ir.v1.json
+```
+
+On the clone route, in the example:
+
 ```sh
 cd examples/express-app
 npm install                    # file: links to ../../compiler, ../../runtime, ../../framework
 npm run build                  # tspc -p tsconfig.json
 ls dist/refunds.sem.js dist/semantscript.ir.v1.json
 ```
+
+The examples keep `file:` links on purpose: they build against the
+repository's sources, so CI tests the tree as it is rather than the last
+published release. Steps 4 and 5 run from your project directory on the
+published route and from `examples/express-app` on the clone route; the
+lines that exist only in a clone are marked.
 
 `dist/refunds.sem.js` now calls the runtime by function id and
 `dist/semantscript.ir.v1.json` holds the IR record and the execution plan.
@@ -127,7 +195,7 @@ leave open ([teachers](teachers.md)). With a key:
 npx semantscript train --cases 200 --epochs 4 --device cuda
 ```
 
-`npx semantscript doctor` in `examples/express-app` checks the teacher you
+`npx semantscript doctor` in the same directory checks the teacher you
 picked, including one request of well under USD 0.001. `train` itself first
 runs the doctor's Python and teacher checks (about five seconds,
 no billed request; a missing key or package stops it there with the fix),
@@ -139,8 +207,9 @@ verifies the gold example and the constraints, and publishes
 then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases.
 
-To see the whole flow without any key, run the reference application instead,
-whose expressions are labeled by their own constraints:
+To see the whole flow without any key on the clone route, run the reference
+application instead, whose expressions are labeled by their own constraints
+(clone only: `examples/refund-service` is not published):
 
 ```sh
 cd ../refund-service && npm install && npm run build && npm run train && npm test
@@ -153,13 +222,22 @@ npx semantscript test --bundle dist/semantscript.ir.v1.json
 npx semantscript run dist/refunds.sem.js --call decideRefund \
   --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
 "approve"
-npm start        # POST /refunds/:orderId decides over PGlite and commits only on approve
 ```
 
 `test` replays the IR's example through the runtime and reports the shipped
 verification; `run` loads the artifact, imports the compiled module and calls
-the export with the JSON arguments. The server loads the artifact once at
-startup with `loadSemaArtifact()` and no path.
+the export with the JSON arguments. That is the end of the published route:
+import `decideRefund` from `dist/refunds.sem.js` in your own code, after one
+`await loadSemaArtifact()` at startup.
+
+On the clone route, the Express example also has a server:
+
+```sh
+npm start        # clone only: POST /refunds/:orderId decides over PGlite and commits only on approve
+```
+
+The server loads the artifact once at startup with `loadSemaArtifact()` and
+no path.
 
 ## What you have
 

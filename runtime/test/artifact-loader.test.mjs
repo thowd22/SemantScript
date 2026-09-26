@@ -126,6 +126,32 @@ test("rejects invalid relational metadata", async (context) => {
     });
   });
 
+  await context.test("runtime older than the artifact requires", async () => {
+    const { VERSION } = await import("../dist/version.js");
+    const corePackage = JSON.parse(
+      await readFile(new URL("../package.json", import.meta.url), "utf8"),
+    );
+    assert.equal(VERSION, corePackage.version);
+    await withArtifact(async (artifact) => {
+      await republish(artifact, (manifest) => {
+        manifest.compatibility.minimumRuntimeVersion = "999.0.0";
+      });
+      // Without runtimeVersion the loader compares against the package's own version.
+      await assert.rejects(
+        loadArtifact(artifact.root),
+        (error) =>
+          error.code === "SEMA_ARTIFACT_INCOMPATIBLE" &&
+          error.message === `artifact requires runtime 999.0.0; current is ${VERSION}`,
+      );
+    });
+    await withArtifact(async (artifact) => {
+      await republish(artifact, (manifest) => {
+        manifest.compatibility.minimumRuntimeVersion = VERSION;
+      });
+      await loadArtifact(artifact.root);
+    });
+  });
+
   await context.test("unsupported opset", async () => {
     await withArtifact(async (artifact) => {
       await republish(artifact, (manifest) => {

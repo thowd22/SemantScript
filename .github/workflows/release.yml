@@ -1,0 +1,290 @@
+# Publishes every package of one release: semantscript, @semantscript/core,
+# @semantscript/compiler and @semantscript/framework to npm, and
+# semantscript-trainer to PyPI, all at the version in the root package.json.
+# docs/releasing.md is the procedure.
+#
+# - A pushed tag v<version> builds, tests, packs, smoke-installs the packs in
+#   an empty directory (init, build, train, test, run) and then publishes.
+# - Every other trigger is a dry run: the same jobs, with `npm publish
+#   --dry-run` and no PyPI upload. A push that touches the release machinery
+#   runs it on any branch; `workflow_dispatch` runs it on demand (dry_run
+#   defaults to true; false publishes, and only from a v* tag ref).
+#
+# Needs, for a real publish: the repository secret NPM_TOKEN (an npm automation
+# or granular token that can publish the @semantscript scope and the
+# semantscript package); for PyPI either a trusted publisher for this
+# repository, workflow release.yml and environment `pypi`, or the repository
+# secret PYPI_TOKEN; and a LICENSE file at the repository root.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths:
+      - .github/workflows/release.yml
+      - scripts/version.mjs
+      - scripts/release-smoke.mjs
+      - pyproject.toml
+      - package.json
+      - "*/package.json"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Pack and smoke-test only; publish nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  npm_config_fund: "false"
+  npm_config_audit: "false"
+  # onnxruntime-node bundles its CPU binaries; skip its CUDA download.
+  ONNXRUNTIME_NODE_INSTALL: skip
+  # A real publish only from a v* tag, and never when dry_run was asked for.
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.dry_run == false) }}
+
+jobs:
+  verify:
+    name: Version, tag and license
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: One version everywhere (and the tag names it)
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            node scripts/version.mjs check --tag "$GITHUB_REF_NAME"
+          else
+            node scripts/version.mjs check
+          fi
+          echo "version=$(node scripts/version.mjs print)" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+      - name: A public release carries a license
+        if: env.PUBLISH == 'true'
+        run: |
+          test -f LICENSE || { echo "::error::no LICENSE file at the repository root; add one before publishing (docs/releasing.md)"; exit 1; }
+          for pkg in runtime compiler framework cli; do
+            node -e 'const p=require(`./${process.argv[1]}/package.json`); if (!p.license) { console.error(`::error::${process.argv[1]}/package.json has no license field`); process.exit(1); }' "$pkg"
+          done
+          grep -Eq '^license' pyproject.toml || { echo "::error::pyproject.toml has no license"; exit 1; }
+      - run: echo "release ${{ steps.version.outputs.version }}, publish=${{ env.PUBLISH }}"
+
+  test:
+    name: Build, lint and test
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint:node
+      - run: npm run test:node
+      - name: Install '.[dev,training]' into .venv (CPU PyTorch)
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          torch=$(grep -o '"torch==[^"]*"' pyproject.toml | tr -d '"')
+          .venv/bin/python -m pip install "$torch" --index-url https://download.pytorch.org/whl/cpu
+          .venv/bin/python -m pip install -e '.[dev,training]'
+      - name: Python lint and tests
+        run: |
+          source .venv/bin/activate
+          npm run lint:python
+          npm run test:python
+
+  pack:
+    name: Pack npm tarballs, wheel and sdist
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run build
+      - name: npm pack every published workspace
+        run: |
+          mkdir -p release
+          for workspace in runtime compiler framework cli; do
+            npm pack -w "$workspace" --pack-destination release
+          done
+      - name: Build and check the wheel and sdist
+        run: |
+          python -m pip install "build>=1.2,<2" "twine>=6,<7"
+          python -m build --outdir release .
+          python -m twine check --strict release/*.whl release/*.tar.gz
+      - name: Contents
+        run: |
+          ls -l release
+          for tarball in release/*.tgz; do tar -tzf "$tarball" | sort | sed "s|^|$(basename "$tarball"): |"; done
+          python -m zipfile -l release/*.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ needs.verify.outputs.version }}
+          path: release/
+          if-no-files-found: error
+
+  smoke:
+    # docs/getting-started.md's flow against the packs, in an empty directory
+    # outside the checkout: npm install of the four tarballs, pip install of
+    # the wheel, then semantscript init, build, train (constraints teacher on
+    # the CPU, no key), test and run.
+    name: Install the packs and run init, build, train, test, run
+    needs: [verify, pack]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.verify.outputs.version }}
+          path: release
+      - name: Install the wheel with the training extra into a venv outside the checkout
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --upgrade pip
+          torch=$(grep -o '"torch==[^"]*"' pyproject.toml | tr -d '"')
+          "$RUNNER_TEMP/venv/bin/python" -m pip install "$torch" --index-url https://download.pytorch.org/whl/cpu
+          wheel=$(ls release/*.whl)
+          "$RUNNER_TEMP/venv/bin/python" -m pip install "${wheel}[training]"
+          "$RUNNER_TEMP/venv/bin/python" -c "import semantscript_trainer as t; print(t.__version__, t.__file__)"
+      - name: Smoke run
+        run: node scripts/release-smoke.mjs --tarballs release --python "$RUNNER_TEMP/venv/bin/python" --device cpu
+
+  publish-npm:
+    name: Publish to npm${{ needs.verify.outputs.publish != 'true' && ' (dry run)' || '' }}
+    needs: [verify, test, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.verify.outputs.version }}
+          path: release
+      - name: npm publish in dependency order
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          REAL: ${{ needs.verify.outputs.publish }}
+        run: |
+          if [ "$REAL" = true ] && [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::the NPM_TOKEN repository secret is not set (docs/releasing.md)"; exit 1
+          fi
+          case "$VERSION" in *-*) tag=next ;; *) tag=latest ;; esac
+          for name in @semantscript/core @semantscript/compiler @semantscript/framework semantscript; do
+            # "./": a bare release/x.tgz reads as a GitHub owner/repo shorthand.
+            file="./release/$(echo "$name" | sed 's|^@||; s|/|-|')-$VERSION.tgz"
+            if [ "$REAL" = true ]; then
+              # A rerun after a partial publish skips what is already there.
+              if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+                echo "$name@$VERSION is already published"; continue
+              fi
+              npm publish "$file" --access public --provenance --tag "$tag"
+            else
+              npm publish "$file" --access public --tag "$tag" --dry-run
+            fi
+          done
+
+  pypi-dry-run:
+    name: PyPI (dry run)
+    if: needs.verify.outputs.publish != 'true'
+    needs: [verify, test, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.verify.outputs.version }}
+          path: release
+      - run: echo "dry run, nothing uploaded; a v* tag would upload:" && ls -l release/*.whl release/*.tar.gz
+
+  publish-pypi:
+    name: Publish to PyPI
+    if: needs.verify.outputs.publish == 'true'
+    needs: [verify, test, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The trusted publisher on PyPI names this environment.
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.verify.outputs.version }}
+          path: release
+      - name: Keep only the Python distributions
+        run: |
+          mkdir -p python-dist
+          mv release/*.whl release/*.tar.gz python-dist/
+      # Trusted publishing when PyPI trusts this workflow; the PYPI_TOKEN secret
+      # otherwise (an empty password makes the action use trusted publishing).
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python-dist
+          password: ${{ secrets.PYPI_TOKEN }}
+          skip-existing: true
+
+  github-release:
+    name: GitHub release with the packs
+    if: needs.verify.outputs.publish == 'true'
+    needs: [verify, publish-npm, publish-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.verify.outputs.version }}
+          path: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --generate-notes \
+            $(case "$GITHUB_REF_NAME" in *-*) echo --prerelease ;; esac)

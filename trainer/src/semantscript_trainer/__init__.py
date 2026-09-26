@@ -1,5 +1,6 @@
 """Synthetic data, adversarial generation, calibration, and verification tooling."""
 
+from semantscript_trainer._version import __version__
 from semantscript_trainer.adversarial import (
     ADVERSARIAL_DATASET_KIND,
     ADVERSARIAL_DATASET_VERSION,
@@ -339,6 +340,7 @@ __all__ = [
     "VerificationStatus",
     "VerifiedIrBuildError",
     "VerifiedIrProvenance",
+    "__version__",
     "add_function_head",
     "application_function",
     "assemble_training_corpus",

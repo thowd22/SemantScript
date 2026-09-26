@@ -3,10 +3,24 @@ requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "semantscript-python"
-version = "0.0.0"
-description = "Training and model tooling for SemantScript"
+# Published to PyPI as semantscript-trainer. The version is the one release
+# version every SemantScript package shares: scripts/version.mjs writes it to
+# trainer/src/semantscript_trainer/_version.py and this file reads it there.
+name = "semantscript-trainer"
+dynamic = ["version"]
+description = "The SemantScript trainer: teacher data, training, verification and artifact export for sema expressions"
+readme = "trainer/README.md"
 requires-python = ">=3.12"
+authors = [{ name = "Tyler Howd" }]
+keywords = ["semantscript", "typescript", "classifier", "distillation", "onnx"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Compilers",
+]
 dependencies = [
   "anthropic==1.7.0",
   "openai>=2.0.0,<3.0.0",
@@ -24,6 +38,18 @@ training = [
   "torch==2.9.1",
   "transformers==5.17.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/thowd22/SemantScript"
+Documentation = "https://github.com/thowd22/SemantScript/tree/main/docs"
+Repository = "https://github.com/thowd22/SemantScript"
+Issues = "https://github.com/thowd22/SemantScript/issues"
+
+[project.scripts]
+semantscript-trainer = "semantscript_trainer.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "semantscript_trainer._version.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["trainer/src", "model/src"]

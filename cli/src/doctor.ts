@@ -411,7 +411,7 @@ export async function runPythonDoctor(
         id: "trainer",
         status: "fail",
         summary: `${options.python} cannot import ${options.trainerModule}: ${stderrTail}`,
-        fix: `pip install -e ".[training]" from the SemantScript checkout into ${options.python}, or run the CLI from the checkout (it adds trainer/src and model/src to PYTHONPATH)`,
+        fix: `install the trainer into ${options.python}: pip install "semantscript-trainer[training]" (in a SemantScript checkout: pip install -e ".[training]", or run the CLI from the checkout, which adds trainer/src and model/src to PYTHONPATH)`,
       }
     : noDoctor
       ? {

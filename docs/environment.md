@@ -26,7 +26,7 @@ nothing failed, 1 otherwise.
 | `node`             | Node is 22.13 or later.                                                                                                                                                     | Older Node: install 22.13+ (`.nvmrc` pins the tested release).                                                                                                        |
 | `runtime-bindings` | `onnxruntime-node` and `tokenizers`, resolved from `@semantscript/core`, load for this platform.                                                                            | A `node_modules` copied from another OS or architecture, or an interrupted install: `npm install`, or `npm rebuild onnxruntime-node tokenizers`.                      |
 | `python`           | The interpreter the CLI uses (`--python`, `SEMANTSCRIPT_PYTHON`, else `python3`, or `python` on Windows) starts and is 3.12 or later.                                       | Not on the path, or too old (checked even when the trainer's 3.12 syntax stops it importing): install 3.12 or point the CLI at one.                                   |
-| `trainer`          | `semantscript_trainer` imports with the teacher clients `anthropic` and `openai`.                                                                                           | Outside the checkout with the package not installed: `pip install -e ".[training]"` into that interpreter (double quotes work in every shell).                        |
+| `trainer`          | `semantscript_trainer` imports with the teacher clients `anthropic` and `openai`.                                                                                           | Not installed: `pip install "semantscript-trainer[training]"` into that interpreter (in a clone: `pip install -e ".[training]"`; double quotes work in every shell).  |
 | `model`            | `semantscript_model` imports.                                                                                                                                               | As for `trainer`.                                                                                                                                                     |
 | `torch`            | PyTorch and Transformers import; the line names the build (CUDA, ROCm or CPU-only).                                                                                         | The training extra is missing (install it), or a user-site package breaks the import (see `platform-env`).                                                            |
 | `device`           | A CUDA or ROCm GPU is visible; the line gives its total and free memory.                                                                                                    | No GPU: a `warn`, training runs on the CPU (the RAM is shown). Apple MPS is reported but the trainer does not use it yet. `--device cuda` with no GPU is a `fail`.    |
@@ -55,6 +55,13 @@ needed; the `train` preflight (`--quick`) skips that confirmation and only
 notes that the variable is set.
 
 ## Recorded runs
+
+These transcripts are kept as they were printed, before the first release
+version: they show `semantscript_trainer 0.0.0` where doctor now prints the
+shared release version (0.1.0), and the older trainer fix text
+`pip install -e . from the SemantScript checkout` where doctor now prints
+`pip install "semantscript-trainer[training]"` first (the table above has
+the current fix lines).
 
 ### Linux: WSL2 with ROCm (run 2026-09-25)
 

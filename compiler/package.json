@@ -1,7 +1,26 @@
 {
   "name": "@semantscript/compiler",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "The SemantScript compiler: finds sema expressions in TypeScript, emits their IR and rewrites them to runtime calls",
+  "keywords": [
+    "semantscript",
+    "sema",
+    "typescript",
+    "classifier",
+    "compiler",
+    "typescript-transformer",
+    "vite-plugin",
+    "esbuild-plugin"
+  ],
+  "homepage": "https://github.com/thowd22/SemantScript/tree/main/compiler#readme",
+  "bugs": {
+    "url": "https://github.com/thowd22/SemantScript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thowd22/SemantScript.git",
+    "directory": "compiler"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -55,5 +74,11 @@
     "vite": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

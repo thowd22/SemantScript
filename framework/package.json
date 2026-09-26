@@ -1,7 +1,26 @@
 {
   "name": "@semantscript/framework",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Controller-style handlers with sema expressions, mounted on Express, Fastify, Next.js or Node http",
+  "keywords": [
+    "semantscript",
+    "sema",
+    "typescript",
+    "classifier",
+    "framework",
+    "express",
+    "fastify",
+    "nextjs"
+  ],
+  "homepage": "https://github.com/thowd22/SemantScript/tree/main/framework#readme",
+  "bugs": {
+    "url": "https://github.com/thowd22/SemantScript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thowd22/SemantScript.git",
+    "directory": "framework"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -23,10 +42,16 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@semantscript/core": "0.0.0"
+    "@semantscript/core": "0.1.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "express": "5.2.1"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

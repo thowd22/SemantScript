@@ -57,7 +57,7 @@ against 54% for a 7B generative model reading the same policy. See the
 - [Getting started](docs/getting-started.md): add one expression to an
   existing Express or Next.js app and take it through `init`, `build`,
   `train`, `test` and `run`; or start
-  [from a fresh clone](docs/tutorial-refund-decision.md) with the refund
+  [from an empty directory](docs/tutorial-refund-decision.md) with the refund
   decision itself. `semantscript doctor` checks the environment first
   ([environment guide](docs/environment.md)), and
   `semantscript train --estimate` says what the teacher will cost before a
@@ -89,12 +89,19 @@ against 54% for a 7B generative model reading the same policy. See the
 
 ## Status
 
-This repository is the working tree of the project: the packages
-(`@semantscript/compiler`, `@semantscript/core`, `@semantscript/framework`,
-the `semantscript` CLI and the Python trainer) are private workspaces linked
-from source, not published to a registry. To try it, clone the repository,
-run `npm install` and `npm run build`, install the Python training extra, and
-follow the tutorial or one of the [examples](examples/README.md). Training
+This repository is the working tree of the project. Its packages are
+prepared for npm (`semantscript`, `@semantscript/core`,
+`@semantscript/compiler`, `@semantscript/framework`) and PyPI
+(`semantscript-trainer`) at one shared version, 0.1.0, with a tagged
+[release workflow](docs/releasing.md); the first publish is still pending, so
+until it happens, clone the repository, run `npm install` and `npm run build`,
+install the Python training extra, and follow the
+[tutorial](docs/tutorial-refund-decision.md) or one of the
+[examples](examples/README.md) (which link the packages from source with
+`file:` dependencies). Once published, the
+[getting-started guide](docs/getting-started.md) installs them with
+`npm install semantscript @semantscript/core @semantscript/compiler
+@semantscript/framework` and `pip install "semantscript-trainer[training]"`. Training
 needs a GPU to be quick and a teacher (an Anthropic key, a local Ollama
 model, or complete constraints); inference needs neither.
 [CONTRIBUTING](docs/CONTRIBUTING.md) covers the layout, toolchains and

@@ -6,7 +6,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -20,7 +22,7 @@
     "test": "node --test test/*.test.mjs program/program.test.mjs"
   },
   "dependencies": {
-    "@semantscript/compiler": "0.0.0",
-    "@semantscript/core": "0.0.0"
+    "@semantscript/compiler": "0.1.0",
+    "@semantscript/core": "0.1.0"
   }
 }

@@ -28,6 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from semantscript_trainer._version import __version__
 from semantscript_trainer.adversarial import (
     AdversarialDataset,
     AdversarialDatasetGenerator,
@@ -113,7 +114,27 @@ BUNDLE_KIND = "semantscript.ir-bundle"
 REPORT_KIND = "semantscript.train-report"
 REPORT_VERSION = 1
 DEFAULT_CASES = 64
-TRAINER_VERSION = "0.0.0"
+_PEP440_PRERELEASE = re.compile(r"^(\d+\.\d+\.\d+)(a|b|rc)(\d+)$")
+_SEMVER_PRERELEASE_TAG = {"a": "alpha", "b": "beta", "rc": "rc"}
+
+
+def release_semver(version: str) -> str:
+    """The semver spelling of a PEP 440 release version (0.2.0rc1 -> 0.2.0-rc.1).
+
+    scripts/version.mjs writes pre-releases into _version.py the PEP 440 way for
+    PyPI, but the artifact manifest records semantic versions, the spelling the
+    npm packages use, so both halves of a release record the same string.
+    """
+    match = _PEP440_PRERELEASE.fullmatch(version)
+    if match is None:
+        return version
+    base, tag, number = match.groups()
+    return f"{base}-{_SEMVER_PRERELEASE_TAG[tag]}.{number}"
+
+
+# The release version of this package, shared with the npm packages, in the
+# semver spelling the artifact manifest records.
+TRAINER_VERSION = release_semver(__version__)
 _TRAINING_KEY_KIND = "semantscript.training-key"
 
 
@@ -162,7 +183,7 @@ def train_bundle(
     adversarial_config: AdversarialGenerationConfig | None = None,
     application_id: str | None = None,
     application_version: str = "0.0.0",
-    compiler_version: str = "0.0.0",
+    compiler_version: str = TRAINER_VERSION,
     trainer_version: str = TRAINER_VERSION,
     trainer_commit: str | None = None,
     tokenizer: Any | None = None,
@@ -1035,16 +1056,29 @@ def _pinned_weights_sha256(config: TrainingConfig) -> str:
     return hashlib.sha256(Path(weights).read_bytes()).hexdigest()
 
 
-def _git_commit() -> str:
+def _git_commit(package_directory: Path | None = None) -> str:
+    """The SemantScript commit this trainer runs from, or 0000000 when installed.
+
+    Only a source checkout (the package at ``<root>/trainer/src/semantscript_trainer``
+    with ``<root>`` the git top level) has a commit of its own. An installed
+    package can sit inside the user's repository (a project ``.venv``), whose
+    commit says nothing about the trainer; there the release version identifies it.
+    """
+    directory = (package_directory or Path(__file__).parent).resolve()
+    root = directory.parents[2] if len(directory.parents) > 2 else None
+    if root is None or directory != root / "trainer" / "src" / "semantscript_trainer":
+        return "0000000"
     completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=Path(__file__).resolve().parent,
+        ["git", "rev-parse", "--show-toplevel", "HEAD"],
+        cwd=directory,
         capture_output=True,
         text=True,
         check=False,
     )
-    commit = completed.stdout.strip()
-    return commit if completed.returncode == 0 and commit else "0000000"
+    lines = completed.stdout.splitlines()
+    if completed.returncode != 0 or len(lines) != 2 or Path(lines[0]).resolve() != root:
+        return "0000000"
+    return lines[1]
 
 
 def _utc_now() -> str:
@@ -1055,10 +1089,23 @@ def _dump(value: Any) -> str:
     return json.dumps(value, allow_nan=False, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def _program_name() -> str:
+    """The console script's own name when run as one, else the module invocation."""
+    invoked = os.path.basename(sys.argv[0]) if sys.argv else ""
+    return (
+        "semantscript-trainer"
+        if invoked == "semantscript-trainer"
+        else "python -m semantscript_trainer.cli"
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m semantscript_trainer.cli",
+        prog=_program_name(),
         description="Train, verify and export every function of a SemantScript IR bundle.",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"semantscript-trainer {__version__}"
     )
     commands = parser.add_subparsers(dest="command", required=True)
     train = commands.add_parser("train", help="produce an artifact from an IR bundle")
@@ -1076,7 +1123,7 @@ def _build_parser() -> argparse.ArgumentParser:
     train.add_argument("--cases", type=int, default=DEFAULT_CASES)
     train.add_argument("--application-id")
     train.add_argument("--application-version", default="0.0.0")
-    train.add_argument("--compiler-version", default="0.0.0")
+    train.add_argument("--compiler-version", default=TRAINER_VERSION)
     train.add_argument("--encoder-name")
     train.add_argument("--encoder-revision")
     train.add_argument("--local-files-only", action="store_true")

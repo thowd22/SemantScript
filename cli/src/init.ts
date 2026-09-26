@@ -146,20 +146,36 @@ export async function initCommand(
   const root = io.cwd;
   const packagePath = join(root, "package.json");
   if (!existsSync(packagePath)) {
-    throw new CliUsageError(
-      `no package.json in ${root}; run init at the project root`,
+    throw new Error(
+      `no package.json in ${root}. Run init at the project root; in a new directory, create one first with \`npm init -y\` (npm install run here, with no package.json, installs into the nearest parent project instead).`,
     );
   }
   const pkg = readPackageJson(packagePath);
-  const tool =
-    values.tool === undefined
-      ? detectBuildTool(root, pkg)
-      : parseTool(values.tool);
   const outcomes: Outcome[] = [];
+  let tool: BuildTool;
+  let scaffolded = false;
+  if (values.tool === undefined) {
+    const detected = detectBuildTool(root, pkg, { allowNone: true });
+    if (detected === undefined) {
+      // A new project (for example the package.json `npm install` just wrote):
+      // start a plain TypeScript project compiled by tspc.
+      tool = "tsc";
+      scaffolded = true;
+    } else {
+      tool = detected;
+    }
+  } else {
+    tool = parseTool(values.tool);
+    scaffolded = tool === "tsc" && !existsSync(join(root, "tsconfig.json"));
+  }
+  if (scaffolded) {
+    outcomes.push(scaffoldTsconfig(root));
+    outcomes.push(scaffoldPackageJson(root, pkg));
+  }
 
   outcomes.push(wireBuildTool(tool, root));
   outcomes.push(wireEditorPlugin(root));
-  outcomes.push(addPackages(packagePath, pkg, tool));
+  outcomes.push(addPackages(packagePath, pkg, tool, scaffolded));
   outcomes.push(reserveArtifactDirectory(root));
   if (values["no-example"] !== true) {
     outcomes.push(writeStarter(root, tool));
@@ -171,7 +187,7 @@ export async function initCommand(
       : writeTeacher(root, teacher, values["teacher-model"]);
   if (teacherOutcome !== undefined) outcomes.push(teacherOutcome);
 
-  io.stdout(render(tool, root, outcomes));
+  io.stdout(render(tool, root, outcomes, scaffolded));
   if (values["no-doctor"] !== true) {
     let checks: Awaited<ReturnType<typeof collectChecks>>;
     // init's --teacher is a choice, not a path: the doctor checks the file it wrote.
@@ -203,8 +219,23 @@ export async function initCommand(
   return 0;
 }
 
-/** Detect the project's build tool from its config files and dependencies: Next.js, Vite, esbuild, else tsc. */
-export function detectBuildTool(root: string, pkg: PackageJson): BuildTool {
+/**
+ * Detect the project's build tool from its config files and dependencies:
+ * Next.js, Vite, esbuild, else tsc when a tsconfig.json exists. With
+ * `allowNone`, a project with none of them returns undefined instead of
+ * throwing, so init can start a new TypeScript project there.
+ */
+export function detectBuildTool(root: string, pkg: PackageJson): BuildTool;
+export function detectBuildTool(
+  root: string,
+  pkg: PackageJson,
+  options: { readonly allowNone: true },
+): BuildTool | undefined;
+export function detectBuildTool(
+  root: string,
+  pkg: PackageJson,
+  options?: { readonly allowNone?: boolean },
+): BuildTool | undefined {
   const dependencies = { ...pkg.dependencies, ...pkg.devDependencies };
   if (
     NEXT_CONFIG_FILES.some((file) => existsSync(join(root, file))) ||
@@ -230,6 +261,7 @@ export function detectBuildTool(root: string, pkg: PackageJson): BuildTool {
   if (existsSync(join(root, "tsconfig.json"))) {
     return "tsc";
   }
+  if (options?.allowNone === true) return undefined;
   throw new CliUsageError(
     "no build tool detected (next.config, vite.config, esbuild in package.json or a tsconfig.json); pass --tool next|vite|esbuild|tsc",
   );
@@ -303,6 +335,103 @@ function writeTeacher(
     what: `${choice} teacher${choice === "constraints" ? "" : ` (${model ?? "default model"})`}, no key in the file`,
     path,
   };
+}
+
+/** The tsconfig.json init writes for a new project: ES modules from src/ to dist/. */
+const SCAFFOLD_TSCONFIG = `{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "strict": true,
+    "skipLibCheck": true,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}
+`;
+
+/** A new project gets a tsconfig.json and a src/ directory; the plugin entries are added next. */
+function scaffoldTsconfig(root: string): Outcome {
+  writeFileSync(join(root, "tsconfig.json"), SCAFFOLD_TSCONFIG);
+  mkdirSync(join(root, "src"), { recursive: true });
+  return {
+    kind: "changed",
+    file: "tsconfig.json",
+    what: "new TypeScript project: NodeNext modules, src/ compiled to dist/",
+  };
+}
+
+/** The test script `npm init -y` writes; a package.json with only this has no code yet. */
+const NPM_INIT_TEST_SCRIPT = 'echo "Error: no test specified" && exit 1';
+
+/**
+ * A new project's package.json gets a `build` script that runs tspc and
+ * TypeScript itself, each only when it is not there already, and `type:
+ * module` when nothing in it points at existing code (no `type`, no `main`
+ * file on disk, no scripts beyond `npm init`'s placeholder) so the change
+ * cannot turn existing CommonJS files into ES modules. It is written with the
+ * packages by addPackages.
+ */
+function scaffoldPackageJson(root: string, pkg: PackageJson): Outcome {
+  const added: string[] = [];
+  const main = pkg["main"];
+  // No code relies on the module type yet: no entry point on disk, no
+  // scripts beyond npm init's placeholder and no JavaScript files in the root
+  // or src/. Only then does init choose ES modules.
+  const untouched =
+    (main === undefined ||
+      (typeof main === "string" && !existsSync(join(root, main)))) &&
+    Object.values(pkg.scripts ?? {}).every(
+      (script) => script === NPM_INIT_TEST_SCRIPT,
+    ) &&
+    !hasJavaScriptFiles(root) &&
+    !hasJavaScriptFiles(join(root, "src"));
+  const type = pkg["type"];
+  if (untouched && type === undefined) {
+    pkg["type"] = "module";
+    added.push("type: module");
+  } else if (untouched && type === "commonjs") {
+    // npm 11's `npm init -y` writes "type": "commonjs" into its placeholder.
+    pkg["type"] = "module";
+    added.push("type: module (was npm init's commonjs default)");
+  }
+  const scripts = pkg.scripts ?? {};
+  if (typeof scripts["build"] !== "string" || scripts["build"].length === 0) {
+    scripts["build"] = "tspc -p tsconfig.json";
+    added.push("scripts.build (tspc -p tsconfig.json)");
+  }
+  pkg.scripts = scripts;
+  const dependencies = { ...pkg.dependencies, ...pkg.devDependencies };
+  if (!("typescript" in dependencies)) {
+    pkg.devDependencies = {
+      ...pkg.devDependencies,
+      typescript: typescriptRange(),
+    };
+    added.push("typescript");
+  }
+  return added.length === 0
+    ? {
+        kind: "unchanged",
+        file: "package.json",
+        what: "type, build script and typescript already set",
+      }
+    : {
+        kind: "changed",
+        file: "package.json",
+        what: `new project: ${added.join(", ")}`,
+      };
+}
+
+/** Whether `directory` holds .js or .cjs files, whose meaning depends on the module type. */
+function hasJavaScriptFiles(directory: string): boolean {
+  if (!existsSync(directory)) return false;
+  return readdirSync(directory, { withFileTypes: true }).some(
+    (entry) =>
+      entry.isFile() &&
+      (entry.name.endsWith(".js") || entry.name.endsWith(".cjs")),
+  );
 }
 
 function parseTool(value: string): BuildTool {
@@ -569,6 +698,7 @@ function addPackages(
   packagePath: string,
   pkg: PackageJson,
   tool: BuildTool,
+  alreadyChanged = false,
 ): Outcome {
   const version = packageVersion();
   const added: string[] = [];
@@ -600,23 +730,29 @@ function addPackages(
     }
     pkg.scripts = scripts;
   }
-  if (added.length === 0) {
+  pkg.dependencies = dependencies;
+  pkg.devDependencies = { ...pkg.devDependencies, ...devDependencies };
+  if (added.length === 0 && !alreadyChanged) {
     return {
       kind: "unchanged",
       file: "package.json",
       what: "packages already present",
     };
   }
-  pkg.dependencies = dependencies;
-  pkg.devDependencies = devDependencies;
   const original = readFileSync(packagePath, "utf8");
   const indent = /^([ \t]+)"/mu.exec(original)?.[1] ?? "  ";
   writeFileSync(packagePath, `${JSON.stringify(pkg, null, indent)}\n`);
-  return {
-    kind: "changed",
-    file: "package.json",
-    what: `added ${added.join(", ")}`,
-  };
+  return added.length === 0
+    ? {
+        kind: "unchanged",
+        file: "package.json",
+        what: "packages already present",
+      }
+    : {
+        kind: "changed",
+        file: "package.json",
+        what: `added ${added.join(", ")}`,
+      };
 }
 
 /**
@@ -726,6 +862,19 @@ function readPackageJson(path: string): PackageJson {
   return parsed as PackageJson;
 }
 
+/** The TypeScript range the CLI accepts (its peer dependency), for a new project's devDependencies. */
+function typescriptRange(): string {
+  try {
+    const own = createRequire(import.meta.url)("../package.json") as {
+      peerDependencies?: Record<string, unknown>;
+    };
+    const range = own.peerDependencies?.["typescript"];
+    return typeof range === "string" ? range : "^6.0.0";
+  } catch {
+    return "^6.0.0";
+  }
+}
+
 function packageVersion(): string {
   try {
     const own = createRequire(import.meta.url)("../package.json") as {
@@ -754,8 +903,13 @@ function render(
   tool: BuildTool,
   root: string,
   outcomes: readonly Outcome[],
+  scaffolded: boolean,
 ): string {
-  const lines = [`semantscript init: detected ${tool} in ${root}`];
+  const lines = [
+    scaffolded
+      ? `semantscript init: no tsconfig.json in ${root}; started a TypeScript project built by tspc`
+      : `semantscript init: detected ${tool} in ${root}`,
+  ];
   for (const outcome of outcomes) {
     if (outcome.kind === "manual") {
       lines.push(`  manual     ${outcome.what}:`);
@@ -771,8 +925,8 @@ function render(
     "next steps:",
     "  1. npm install",
     `  2. ${buildInstructions(tool)}   (writes the IR bundle next to the build output)`,
-    "  3. semantscript teacher probe, then semantscript train --estimate   (one small request to the teacher; then the cost and time of the run, without calling it)",
-    "  4. semantscript train   (the teacher file init wrote, ANTHROPIC_API_KEY with the default teacher, --teacher <toml>, or --teacher constraints when the constraints decide every input; --max-cost-usd <x> caps the spend)",
+    "  3. npx semantscript teacher probe, then npx semantscript train --estimate   (one small request to the teacher; then the cost and time of the run, without calling it)",
+    "  4. npx semantscript train   (the teacher file init wrote, ANTHROPIC_API_KEY with the default teacher, --teacher <toml>, or --teacher constraints when the constraints decide every input; --max-cost-usd <x> caps the spend)",
     `  5. call loadSemaArtifact() once at startup; it reads ${DEFAULT_ARTIFACT_PATH} unless ${ARTIFACT_ENVIRONMENT_VARIABLE} is set`,
     "  editor: after npm install, hover a sema expression for its verified accuracy (VS Code loads the plugin from node_modules; no extension needed)",
     "",

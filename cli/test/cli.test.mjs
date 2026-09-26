@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import {
   chmod,
   copyFile,
@@ -7,10 +8,11 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { setTimeout } from "node:timers";
@@ -108,6 +110,14 @@ test("usage and unknown commands exit with status 2", async () => {
   assert.equal(await runCli(["doctor", "--help"], commandHelp.io), 0);
   assert.equal(commandHelp.stdout(), USAGE);
   assert.equal(await runCli(["train", "-h"], capture(process.cwd()).io), 0);
+  const rootPackage = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  for (const flag of ["--version", "-v", "version"]) {
+    const version = capture(process.cwd());
+    assert.equal(await runCli([flag], version.io), 0);
+    assert.equal(version.stdout(), `semantscript ${rootPackage.version}\n`);
+  }
   assert.match(
     renderChecks([
       { id: "device", status: "warn", summary: "cpu", fix: null },
@@ -215,6 +225,54 @@ export const freeText = sema<string>\`free text \${message}\`;
     1,
   );
   assert.match(missingOutDir.stderr(), /must set compilerOptions\.outDir/u);
+});
+
+test("build rewrites sema sites when ts-patch has patched typescript and tsconfig lists the transformer", async (t) => {
+  // The tsc setup `init` writes: a `plugins` transform entry plus `ts-patch
+  // install`. The patched emit must not apply the transformer a second time,
+  // or build fails with "planned 1 sema rewrites ... but matched 0". The
+  // loader hook stands in for the patched install: it hands every importer of
+  // `typescript` the ts-patch live compiler, which honors `plugins`.
+  const root = await scratch(t, "semantscript-cli-build-patched-");
+  const configPath = await createProject(root, { "app.sem.ts": program });
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  config.compilerOptions.plugins = [
+    { transform: "@semantscript/compiler/transformer" },
+  ];
+  await writeFile(configPath, JSON.stringify(config));
+  await symlink(
+    resolve(here, "..", "..", "compiler"),
+    join(root, "node_modules", "@semantscript", "compiler"),
+    "junction",
+  );
+  const hook = join(root, "patched-typescript.mjs");
+  await writeFile(
+    hook,
+    [
+      'import { register } from "node:module";',
+      "const source = `export async function resolve(specifier, context, next) {",
+      '  return next(specifier === "typescript" ? "ts-patch/compiler" : specifier, context);',
+      "}`;",
+      "register(`data:text/javascript,${encodeURIComponent(source)}`, import.meta.url);",
+      "",
+    ].join("\n"),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      pathToFileURL(hook).href,
+      join(here, "..", "bin", "semantscript.js"),
+      "build",
+      "--project",
+      configPath,
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /compiled 1 neural function\(s\)/u);
+  const emitted = await readFile(join(root, "dist", "app.sem.js"), "utf8");
+  assert.match(emitted, /__sema\.call\("nf_[a-f0-9]{64}"/u);
 });
 
 test("test reports shipped verification and replays bundle examples through the runtime", async (t) => {
@@ -741,12 +799,128 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
     script,
     /await build\(\{\n {2}plugins: \[semantscript\(\)\],\n {2}entryPoints/u,
   );
+});
 
+test("init starts a TypeScript project in a directory that has only the package.json npm install wrote", async (t) => {
   const bare = await scratch(t, "semantscript-cli-init-bare-");
-  await writeFile(join(bare, "package.json"), '{ "name": "b" }\n');
+  await writeFile(
+    join(bare, "package.json"),
+    '{\n  "dependencies": {\n    "semantscript": "^0.1.0"\n  }\n}\n',
+  );
   const bareRun = capture(bare);
-  assert.equal(await runCli(["init", "--no-doctor"], bareRun.io), 2);
-  assert.match(bareRun.stderr(), /no build tool detected/u);
+  assert.equal(
+    await runCli(["init", "--no-doctor"], bareRun.io),
+    0,
+    bareRun.stderr(),
+  );
+  assert.match(bareRun.stdout(), /started a TypeScript project built by tspc/u);
+  assert.doesNotMatch(bareRun.stdout(), /manual/u);
+  const tsconfig = JSON.parse(
+    await readFile(join(bare, "tsconfig.json"), "utf8"),
+  );
+  assert.equal(tsconfig.compilerOptions.module, "NodeNext");
+  assert.equal(tsconfig.compilerOptions.outDir, "dist");
+  assert.deepEqual(tsconfig.include, ["src"]);
+  assert.deepEqual(tsconfig.compilerOptions.plugins, [
+    { name: "@semantscript/compiler/ts-plugin" },
+    { transform: "@semantscript/compiler/transformer" },
+  ]);
+  const pkg = JSON.parse(await readFile(join(bare, "package.json"), "utf8"));
+  assert.equal(pkg.type, "module");
+  assert.equal(pkg.scripts.build, "tspc -p tsconfig.json");
+  assert.equal(pkg.scripts.prepare, "ts-patch install");
+  assert.equal(pkg.dependencies.semantscript, "^0.1.0");
+  assert.ok("@semantscript/core" in pkg.dependencies);
+  assert.ok("typescript" in pkg.devDependencies);
+  assert.ok("ts-patch" in pkg.devDependencies);
+  assert.ok(existsSync(join(bare, "src", "hello.sem.ts")));
+
+  // A second run changes nothing.
+  const again = capture(bare);
+  assert.equal(await runCli(["init", "--no-doctor"], again.io), 0);
+  assert.match(again.stdout(), /detected tsc/u);
+  assert.doesNotMatch(again.stdout(), /^ {2}changed/mu);
+
+  // npm init -y's package.json counts as new; an existing CommonJS entry keeps its module type.
+  const npmInit = await scratch(t, "semantscript-cli-init-npm-init-");
+  await writeFile(
+    join(npmInit, "package.json"),
+    JSON.stringify({
+      name: "x",
+      main: "index.js",
+      scripts: { test: 'echo "Error: no test specified" && exit 1' },
+    }),
+  );
+  assert.equal(await runCli(["init", "--no-doctor"], capture(npmInit).io), 0);
+  assert.equal(
+    JSON.parse(await readFile(join(npmInit, "package.json"), "utf8")).type,
+    "module",
+  );
+  const commonjs = await scratch(t, "semantscript-cli-init-commonjs-");
+  await writeFile(
+    join(commonjs, "package.json"),
+    JSON.stringify({ name: "y", main: "index.js" }),
+  );
+  await writeFile(join(commonjs, "index.js"), "module.exports = {};\n");
+  assert.equal(
+    await runCli(
+      ["init", "--tool", "tsc", "--no-doctor"],
+      capture(commonjs).io,
+    ),
+    0,
+  );
+  const kept = JSON.parse(
+    await readFile(join(commonjs, "package.json"), "utf8"),
+  );
+  assert.equal(kept.type, undefined);
+  assert.equal(kept.scripts.build, "tspc -p tsconfig.json");
+
+  // npm 11's npm init -y writes "type": "commonjs"; with no code yet that is a placeholder too.
+  const npm11 = await scratch(t, "semantscript-cli-init-npm11-");
+  await writeFile(
+    join(npm11, "package.json"),
+    JSON.stringify({
+      name: "z",
+      main: "index.js",
+      type: "commonjs",
+      scripts: { test: 'echo "Error: no test specified" && exit 1' },
+    }),
+  );
+  const npm11Run = capture(npm11);
+  assert.equal(await runCli(["init", "--no-doctor"], npm11Run.io), 0);
+  assert.match(
+    npm11Run.stdout(),
+    /type: module \(was npm init's commonjs default\)/u,
+  );
+  assert.equal(
+    JSON.parse(await readFile(join(npm11, "package.json"), "utf8")).type,
+    "module",
+  );
+
+  // A plain CommonJS script with no main or scripts (npm install wrote the package.json) keeps working.
+  const script = await scratch(t, "semantscript-cli-init-cjs-script-");
+  await writeFile(
+    join(script, "package.json"),
+    '{ "dependencies": { "semantscript": "^0.1.0" } }\n',
+  );
+  await writeFile(
+    join(script, "server.js"),
+    'const path = require("node:path");\n',
+  );
+  assert.equal(await runCli(["init", "--no-doctor"], capture(script).io), 0);
+  assert.equal(
+    JSON.parse(await readFile(join(script, "package.json"), "utf8")).type,
+    undefined,
+  );
+});
+
+test("init in a directory without package.json names npm init -y", async (t) => {
+  const empty = await scratch(t, "semantscript-cli-init-empty-");
+  const run = capture(empty);
+  assert.equal(await runCli(["init", "--no-doctor"], run.io), 1);
+  assert.match(run.stderr(), /no package\.json in .*`npm init -y`/u);
+  assert.doesNotMatch(run.stderr(), /usage/iu);
+  assert.equal(existsSync(join(empty, "tsconfig.json")), false);
 });
 
 test("train, test and run resolve the bundle, artifact and teacher from documented defaults", async (t) => {
@@ -800,6 +974,14 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   );
   assert.equal(after("--artifact"), join(root, ".semantscript", "artifact"));
   assert.equal(after("--teacher"), join(root, ".semantscript", "teacher.toml"));
+  // The manifest's build.compilerVersion comes from the installed compiler.
+  const compilerPackage = JSON.parse(
+    await readFile(
+      new URL("../../compiler/package.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.equal(after("--compiler-version"), compilerPackage.version);
   assert.match(
     await readFile(join(root, ".semantscript", "teacher.toml"), "utf8"),
     /backend = "anthropic"/u,
@@ -816,7 +998,15 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   });
   assert.equal(
     await runCli(
-      ["train", "--python", python, "--trainer-module", "fake_trainer"],
+      [
+        "train",
+        "--python",
+        python,
+        "--trainer-module",
+        "fake_trainer",
+        "--compiler-version",
+        "9.8.7",
+      ],
       explicit.io,
     ),
     0,
@@ -825,6 +1015,11 @@ test("train, test and run resolve the bundle, artifact and teacher from document
   const second = JSON.parse(await readFile(argvPath, "utf8"));
   const secondAfter = (flag) => second.argv[second.argv.indexOf(flag) + 1];
   assert.equal(secondAfter("--teacher"), join(root, "teacher.toml"));
+  assert.equal(secondAfter("--compiler-version"), "9.8.7");
+  assert.equal(
+    second.argv.filter((value) => value === "--compiler-version").length,
+    1,
+  );
   assert.equal(secondAfter("--artifact"), join(root, "elsewhere", "artifact"));
 
   const testRun = capture(root, {
@@ -1138,7 +1333,10 @@ test("doctor prints one line per check with the fix, and exits 1 on a failure", 
     noModule.stdout(),
     / {2}fail {2}trainer {11}.* cannot import no_such_trainer_module/u,
   );
-  assert.match(noModule.stdout(), /fix: pip install -e "\.\[training\]"/u);
+  assert.match(
+    noModule.stdout(),
+    /fix: install the trainer into .*: pip install "semantscript-trainer\[training\]" \(in a SemantScript checkout: pip install -e "\.\[training\]"/u,
+  );
 
   const badProbe = capture(root, env);
   assert.equal(await runCli([...base, "--probe", "maybe"], badProbe.io), 2);

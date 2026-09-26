@@ -7,6 +7,22 @@ and verifies examples, constraints, types, and quality gates.
 It emits trained and verified lifecycle records for the model exporter. It is not
 part of the production inference path.
 
+## Install
+
+```sh
+pip install "semantscript-trainer[training]"   # PyTorch, Transformers, ONNX, ONNX Runtime
+```
+
+The distribution `semantscript-trainer` carries two import packages,
+`semantscript_trainer` and `semantscript_model`, and shares its version with the
+npm packages (`semantscript_trainer.__version__`; see
+[releasing](https://github.com/thowd22/SemantScript/blob/main/docs/releasing.md)). Without the `training` extra it installs only
+the teacher clients, enough for `semantscript doctor` and `train --estimate`. The
+`semantscript` CLI starts it as `python -m semantscript_trainer.cli`; the same
+driver is installed as the `semantscript-trainer` command. For a GPU, install the
+CUDA or ROCm PyTorch build first. The first publish to PyPI is pending; until then
+install from a clone with `pip install -e ".[training]"`.
+
 ## Synthetic datasets and cache
 
 `SyntheticDatasetGenerator.generate(ir, total_cases)` treats `total_cases` as the

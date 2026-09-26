@@ -10,13 +10,15 @@ follows the same steps with the differences noted at the end.
 
 - **Node 22** and a TypeScript project compiled by `tsc` (the tutorial's
   case), Vite, esbuild or Next.js. The example is Express 5.
-- **Python 3.12** with the trainer installed: from this repository,
-  `python3 -m pip install -e '.[dev,training]'` (PyTorch, Transformers, ONNX
-  and ONNX Runtime); or `python3 -m pip install --target .python-packages
-'.[dev,training]'` when the host Python has no `venv`. The CLI finds the
-  interpreter through `--python`, `SEMANTSCRIPT_PYTHON` or `python3`
-  (`python` on Windows); for a venv that is not activated, set
-  `SEMANTSCRIPT_PYTHON` to its interpreter.
+- **TypeScript 6** (`npm install -D typescript@6`). The packages accept
+  5.9 to 6.x, but the `tsc` route's `ts-patch` 4 needs 6, and TypeScript 7
+  is not supported yet: with 7 installed, the install below stops with an
+  `ERESOLVE` peer-dependency error.
+- **Python 3.12** with the trainer, `semantscript-trainer` from PyPI with
+  its `training` extra (PyTorch, Transformers, ONNX and ONNX Runtime); step 2
+  installs it. The CLI finds the interpreter through `--python`,
+  `SEMANTSCRIPT_PYTHON` or `python3` (`python` on Windows); for a venv that
+  is not activated, set `SEMANTSCRIPT_PYTHON` to its interpreter.
 - **A GPU for training**, or patience: the encoder is ModernBERT-base, and
   fine-tuning one expression over a few hundred cases takes about a minute on
   a desktop GPU (an AMD RX 9070 XT here; NVIDIA through CUDA works the same)
@@ -67,17 +69,52 @@ app.listen(3000);
 The priority is hard-coded. The rest of the tutorial replaces that one value
 with a learned decision and leaves everything else alone.
 
-## 2. Wire the compiler
+## 2. Install the packages
+
+All five packages share one version and are released together:
+
+```sh
+npm install semantscript @semantscript/core @semantscript/compiler @semantscript/framework
+python3 -m venv .venv
+.venv/bin/python -m pip install "semantscript-trainer[training]"
+export SEMANTSCRIPT_PYTHON="$PWD/.venv/bin/python"
+```
+
+`semantscript` is the CLI, `@semantscript/core` the runtime the compiled
+code imports, `@semantscript/compiler` the build-time transformer and
+`@semantscript/framework` the optional controller layer (the
+[framework guide](framework-guide.md); leave it out if you only call
+expressions directly). `semantscript-trainer` is the Python trainer the CLI
+starts for `train`. For a GPU, install the CUDA or ROCm build of PyTorch
+from [pytorch.org](https://pytorch.org/get-started/locally/) into the venv
+before the trainer; on Windows the interpreter is `.venv\Scripts\python.exe`.
+Every artifact records the compiler and trainer versions that built it
+(`build.compilerVersion` and `build.trainerVersion` in its manifest), and
+`semantscript doctor` prints the trainer's.
+
+> **First publish pending.** The release workflow that puts these packages
+> on npm and PyPI is in place ([releasing](releasing.md)), but version 0.1.0
+> has not been published yet, so the commands above return 404 until it is.
+> Until then, install from a clone: `npm pack` each workspace of this
+> repository (`npm pack -w runtime -w compiler -w framework -w cli` after
+> `npm install && npm run build`) and `npm install` the four `.tgz` files, and
+> install the trainer with `pip install '<clone>[training]'`; or follow the
+> [tutorial](tutorial-refund-decision.md), which works from the clone.
+
+## 3. Wire the compiler
 
 ```sh
 npx semantscript init
 ```
 
-`init` finds `tsconfig.json`, adds the transformer entry and the editor
+`init` finds `tsconfig.json` (in a directory without one it starts a
+TypeScript project first: `tsconfig.json`, `"type": "module"` and a `tspc`
+build script, see [cli-reference](cli-reference.md#init)), adds the transformer entry and the editor
 plugin entry to its `plugins`, adds `@semantscript/core` and
-`@semantscript/compiler` to `package.json` with `ts-patch` and a `prepare`
-script, reserves the build outputs under `.semantscript/` (the artifact, the
-cache and the `package` bundle) in a `.gitignore`, and writes a starter
+`@semantscript/compiler` to `package.json` if step 2 did not (at the CLI's
+own version) with `ts-patch` and a `prepare` script, reserves the build
+outputs under `.semantscript/` (the artifact, the cache and the `package`
+bundle) in a `.gitignore`, and writes a starter
 `src/hello.sem.ts` (pass `--no-example` to skip it). It ends with the
 `doctor` checks under `environment (semantscript doctor):`, so a missing
 Python package, GPU or teacher shows now; they send no billed request and
@@ -96,12 +133,13 @@ npm install
 ]
 ```
 
-and the build runs through ts-patch's `tspc` instead of `tsc`; change the
-`build` script to `tspc -p tsconfig.json`. That is the whole adoption cost
+and the build runs through ts-patch's `tspc` instead of `tsc`. In a new
+project `init` wrote that `build` script; in an existing one whose `build`
+script runs `tsc`, change it to `tspc -p tsconfig.json`. That is the whole adoption cost
 for a tsc project; the [build tool pages](build-tools/tsc.md) cover the other
 tools.
 
-## 3. Write the expression
+## 4. Write the expression
 
 `src/triage.sem.ts` (the `.sem.ts` suffix is what the compiler looks for):
 
@@ -161,11 +199,15 @@ response.status(201).json({
 });
 ```
 
-## 4. Build
+## 5. Build
 
 ```sh
 npm run build          # tspc -p tsconfig.json
 ```
+
+(`npx semantscript build` also compiles the project from its
+`tsconfig.json`, without the build script, and lists each compiled
+expression; see the [CLI reference](cli-reference.md).)
 
 `dist/triage.sem.js` now contains a runtime call instead of the template, and
 `dist/semantscript.ir.v1.json` is the IR bundle: one record for `triage` with
@@ -174,7 +216,7 @@ execution plan (one stage, one function). A malformed expression fails the
 build with a `TS91xx` diagnostic at the site; the
 [diagnostics catalogue](diagnostics.md) lists them.
 
-## 5. Train
+## 6. Train
 
 Pick the teacher once, if `init` did not already ask:
 
@@ -228,7 +270,7 @@ of it is the teacher requests and the encoder download the first time. Every
 later `train` reuses the [build cache](build-cache.md): an unchanged
 expression trains nothing, a changed one trains only its head.
 
-## 6. Test and run
+## 7. Test and run
 
 ```sh
 npx semantscript test --bundle dist/semantscript.ir.v1.json
@@ -249,7 +291,7 @@ the constraints active for the input, the nearest gold examples and training
 cases, and the release it came from (see the
 [wrong-answer workflow](diagnostics.md#wrong-answer-workflow)).
 
-## 7. Load the artifact at startup
+## 8. Load the artifact at startup
 
 One line, before the server listens:
 

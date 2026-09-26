@@ -55,8 +55,12 @@ TypeScript is strict with `noUncheckedIndexedAccess` and
 
 ## The Python toolchain
 
-Requirements: Python 3.12. The project is `semantscript-python` in
-`pyproject.toml` with two source roots, `trainer/src` and `model/src`. Either
+Requirements: Python 3.12. The project is `semantscript-trainer` in
+`pyproject.toml` (the name it is published under on PyPI) with two source
+roots, `trainer/src` and `model/src`; its version is read from
+`trainer/src/semantscript_trainer/_version.py`, which
+[`scripts/version.mjs`](releasing.md#one-version) keeps equal to the npm
+packages'. Either
 create a virtual environment:
 
 ```sh
@@ -193,6 +197,17 @@ providers' binaries), the Lambda handler invocation under 1 s, `docker build`
 from the bundle 6 s and the request 3 s. The image built from the bundle is
 314 MB, against 624 MB for the two-stage `deploy/Dockerfile` image, whose
 `node_modules` keeps every platform's native binaries.
+
+## Releases
+
+All five packages (the four npm workspaces and the Python trainer) share the
+root `package.json` version; change it only with `node scripts/version.mjs
+set <version>`, which `cli/test/version.test.mjs` checks on every push.
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) publishes
+them from a `v*` tag and runs as a dry run (pack, smoke install, `npm publish
+--dry-run`) on any push that changes the release machinery. The
+[releasing guide](releasing.md) has the procedure and what the first publish
+needs.
 
 ## Work tracking
 

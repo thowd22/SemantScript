@@ -30,7 +30,12 @@ semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [
 semantscript package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>] [--include <path>]...
                      [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>]
                      [--platform <os>] [--arch <cpu>] [--force] [--json]
+semantscript --version
 ```
+
+`semantscript --version` (also `-v` or `version`) prints `semantscript`
+and the release version every package shares, and exits 0. The trainer's
+console script answers the same way: `semantscript-trainer --version`.
 
 ## Exit codes
 
@@ -61,11 +66,23 @@ Every command runs without flags in an initialised project:
 ## `init`
 
 Wires the compiler into an existing project and adds a starter expression.
+In a new project (no `tsconfig.json` and no other build tool detected, for
+example a directory holding only the `package.json` that `npm install`
+wrote, or `--tool tsc` with no `tsconfig.json`), it first starts a
+TypeScript project: `tsconfig.json` (NodeNext modules, `src/` compiled to
+`dist/`), `src/`, a `build` script `tspc -p tsconfig.json` and `typescript`
+in `devDependencies` (each only when absent), and `"type": "module"` when no
+code depends on the module type yet: no existing `main` file, no scripts
+beyond `npm init`'s placeholder and no `.js` or `.cjs` file in the root or
+`src/`. In that case a `type` of `"commonjs"` (which npm 11's `npm init -y`
+writes) becomes `"module"` too, and init says so; otherwise `type` is left
+alone. Run in a directory without `package.json`, `init` exits 1 and asks
+for `npm init -y` first.
 
-| Flag           | Value                            | Effect                                                                                                                                                                                  |
-| -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--tool`       | `next`, `vite`, `esbuild`, `tsc` | Overrides detection. Detection order: a `next.config.*` or `next` dependency; a `vite.config.*` or `vite` dependency; `esbuild` in the dependencies or a build script; `tsconfig.json`. |
-| `--no-example` |                                  | Do not write the starter `.sem.ts` (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). A project that already has a `.sem.ts` file gets none either.                               |
+| Flag           | Value                            | Effect                                                                                                                                                                                                          |
+| -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--tool`       | `next`, `vite`, `esbuild`, `tsc` | Overrides detection. Detection order: a `next.config.*` or `next` dependency; a `vite.config.*` or `vite` dependency; `esbuild` in the dependencies or a build script; `tsconfig.json`; else a new tsc project. |
+| `--no-example` |                                  | Do not write the starter `.sem.ts` (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). A project that already has a `.sem.ts` file gets none either.                                                       |
 
 What it writes: the adapter entry for the detected tool (see the
 [build tool pages](build-tools/tsc.md)), the editor plugin entry
@@ -247,7 +264,7 @@ Options handed to the trainer unchanged:
 | `--seed-retry-margin`                                             | factor   | How far past its gate a failure may be and still retry: the violation rate and the ECE each within this many times their gate (default 2, from 1 through 10). |
 | `--counterfactual-ratio`                                          | fraction | Share of synthetic cases that get a counterfactual twin (default 1).                                                                                          |
 | `--adapter-bottleneck-size`                                       | integer  | Width of the per-domain adapter.                                                                                                                              |
-| `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest.                                                                                                                                     |
+| `--application-id`, `--application-version`, `--compiler-version` | strings  | Recorded in the manifest; `--compiler-version` defaults to the installed `@semantscript/compiler` version.                                                    |
 | `--no-cache`                                                      |          | Ignore the build cache and write nothing to it.                                                                                                               |
 | `--full`                                                          |          | Retrain every function jointly, discarding cached function records.                                                                                           |
 

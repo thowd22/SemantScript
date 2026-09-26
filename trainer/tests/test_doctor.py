@@ -143,6 +143,7 @@ def test_report_is_closed_and_ordered() -> None:
 def test_missing_training_extra_fails_with_the_install_fix() -> None:
     checks = by_id(doctor(import_probe=FakeProbe(lambda env: NO_TORCH)))
     assert checks["torch"]["status"] == "fail"
+    assert 'pip install "semantscript-trainer[training]"' in checks["torch"]["fix"]
     assert 'pip install -e ".[training]"' in checks["torch"]["fix"]
     assert checks["device"]["status"] == "skip"
     assert checks["onnxruntime"]["status"] == "fail"

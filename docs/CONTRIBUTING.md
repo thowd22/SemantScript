@@ -189,13 +189,14 @@ this cost: it needs a teacher and preferably a GPU, and is measured in the
 [teachers page](teachers.md).
 
 The `package` job, run
-[36214034260](https://github.com/thowd22/SemantScript/actions/runs/36214034260)
-(2026-09-26, npm cache on), takes 41 s from start to finish: `npm ci` and the
-build 11 s, the example build and fixture artifact 5 s,
-`semantscript package` 6 s (a bundle of 86,641,760 bytes, 82.6 MiB, 167.4 MiB
-under `lambda-zip`, after pruning 296.6 MiB of other platforms' and GPU
-providers' binaries), the Lambda handler invocation under 1 s, `docker build`
-from the bundle 6 s and the request 3 s. The image built from the bundle is
+[36226530361](https://github.com/thowd22/SemantScript/actions/runs/36226530361)
+(2026-09-26, npm and pip caches on), takes about 1.6 min: installing
+`.[training]` with CPU PyTorch into `.venv` 48 s, `npm ci` and the build 12 s,
+the example build and quantizable fixture artifact 5 s, `semantscript releases
+derive --int8 --promote` 4 s (128 records, 6 attested, no decision changed),
+`semantscript package` 5 s (a bundle of 86,959,606 bytes, 82.9 MiB, 167.1 MiB
+under `lambda-zip`), the Lambda handler invocation under 1 s, `docker build`
+from the bundle 8 s and the request 4 s. The image built from the bundle is
 314 MB, against 624 MB for the two-stage `deploy/Dockerfile` image, whose
 `node_modules` keeps every platform's native binaries.
 

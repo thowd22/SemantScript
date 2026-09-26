@@ -14,9 +14,11 @@ import { randomBytes, createHash } from "node:crypto";
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rename,
   rm,
+  rmdir,
   writeFile,
 } from "node:fs/promises";
 import { Buffer } from "node:buffer";
@@ -121,7 +123,14 @@ export type SemaStubAnswers =
 export interface CreateSemaStubArtifactOptions {
   /** What each function answers. A call to a function without an answer throws `SemaStubError` ("unanswered"). */
   readonly answers: SemaStubAnswers;
-  /** Where to write the artifact root; default a fresh temporary directory, removed by `dispose()`. */
+  /**
+   * Where to write the artifact root; default a fresh temporary directory,
+   * removed by `dispose()`. A given directory must be missing, empty or one a
+   * stub wrote before: a directory with anything else in it (such as a trained
+   * artifact root like `.semantscript/artifact`) is refused with
+   * `SemaStubError` ("occupied-directory"). `dispose()` removes the stub's
+   * release and its `current.json` pointer from it.
+   */
   readonly directory?: string;
   /** The manifest's application id (default "semantscript-stub"). */
   readonly applicationId?: string;
@@ -145,8 +154,14 @@ export interface SemaStubHandle extends SemaArtifactHandle {
   readonly root: string;
 }
 
-/** An IR bundle as the compiler emits it (`semantscript.ir.v1.json`), or its path. */
-export type SemaIrBundleSource = string | Readonly<Record<string, unknown>>;
+/**
+ * An IR bundle as the compiler emits it (`semantscript.ir.v1.json`), or its
+ * path or file URL. A relative path resolves against the working directory;
+ * `new URL("../dist/semantscript.ir.v1.json", import.meta.url)` resolves
+ * against the test file instead.
+ */
+export type SemaIrBundleSource =
+  string | URL | Readonly<Record<string, unknown>>;
 
 type JsonRecord = Readonly<Record<string, unknown>>;
 
@@ -157,6 +172,8 @@ interface StubHead {
 
 interface StubFunction {
   readonly id: string;
+  /** How messages name the function: its source position and id. */
+  readonly label: string;
   readonly inputs: readonly CanonicalInputEntry[];
   readonly heads: readonly StubHead[];
 }
@@ -200,6 +217,7 @@ export async function createSemaStubArtifact(
   bundle: SemaIrBundleSource,
   options: CreateSemaStubArtifactOptions,
 ): Promise<SemaStubArtifact> {
+  requireAnswersOption(options);
   const ir = await readBundle(bundle);
   const applicationId = options.applicationId ?? STUB_PROVENANCE;
   if (!APPLICATION_ID.test(applicationId)) {
@@ -216,10 +234,13 @@ export async function createSemaStubArtifact(
   );
 
   const temporary = options.directory === undefined;
-  const root =
-    options.directory === undefined
-      ? await mkdtemp(join(tmpdir(), "semantscript-stub-"))
-      : resolve(options.directory);
+  let root: string;
+  if (options.directory === undefined) {
+    root = await mkdtemp(join(tmpdir(), "semantscript-stub-"));
+  } else {
+    root = resolve(options.directory);
+    await refuseOccupiedDirectory(root);
+  }
   let manifestSha256: string;
   try {
     manifestSha256 = await writeRelease(root, derived);
@@ -241,7 +262,11 @@ export async function createSemaStubArtifact(
       if (disposed) return;
       disposed = true;
       unregisterStubAnswerer(manifestSha256);
-      if (temporary) await rm(root, { recursive: true, force: true });
+      if (temporary) {
+        await rm(root, { recursive: true, force: true });
+      } else {
+        await removeRelease(root, manifestSha256);
+      }
     },
   });
 }
@@ -255,6 +280,7 @@ export async function loadSemaStubArtifact(
   bundle: SemaIrBundleSource,
   options: LoadSemaStubArtifactOptions,
 ): Promise<SemaStubHandle> {
+  requireAnswersOption(options);
   const { answers, directory, applicationId, ...loadOptions } = options;
   const stub = await createSemaStubArtifact(bundle, {
     answers,
@@ -289,6 +315,15 @@ export async function loadSemaStubArtifact(
   });
 }
 
+function requireAnswersOption(options: unknown): void {
+  if (!isRecord(options) || !("answers" in options)) {
+    throw new SemaStubError(
+      "invalid-value",
+      "the stub needs options with answers, for example { answers: { [functionId]: value } }",
+    );
+  }
+}
+
 /** The id of the one sema expression a compiled function calls, or the id itself. */
 export function semaFunctionId(key: SemaStubFunctionKey): string {
   if (typeof key === "string") {
@@ -309,7 +344,13 @@ export function semaFunctionId(key: SemaStubFunctionKey): string {
   const source = Function.prototype.toString.call(key);
   const ids = new Set(source.match(FUNCTION_ID_IN_SOURCE) ?? []);
   const [id] = ids;
-  if (ids.size !== 1 || id === undefined) {
+  if (ids.size === 0 || id === undefined) {
+    throw new SemaStubError(
+      "unresolved-function",
+      `function ${JSON.stringify(key.name)} calls no sema expression; key an answer by a function the compiler emitted (import it from the build output, not from src) or by its function id`,
+    );
+  }
+  if (ids.size !== 1) {
     throw new SemaStubError(
       "unresolved-function",
       `function ${JSON.stringify(key.name)} calls ${String(ids.size)} sema expressions; key its answer by function id instead`,
@@ -328,14 +369,15 @@ interface ReadBundle {
 
 async function readBundle(source: SemaIrBundleSource): Promise<ReadBundle> {
   let value: unknown = source;
-  if (typeof source === "string") {
+  if (typeof source === "string" || source instanceof URL) {
+    const where = typeof source === "string" ? source : source.href;
     let text: string;
     try {
       text = await readFile(source, "utf8");
     } catch (error) {
       throw new SemaStubError(
         "invalid-bundle",
-        `cannot read the IR bundle ${source}: ${errorMessage(error)}`,
+        `cannot read the IR bundle ${where}: ${errorMessage(error)}; run semantscript build first, or pass the bundle's path`,
       );
     }
     try {
@@ -343,7 +385,7 @@ async function readBundle(source: SemaIrBundleSource): Promise<ReadBundle> {
     } catch (error) {
       throw new SemaStubError(
         "invalid-bundle",
-        `the IR bundle ${source} is not JSON: ${errorMessage(error)}`,
+        `the IR bundle ${where} is not JSON: ${errorMessage(error)}`,
       );
     }
   }
@@ -574,6 +616,7 @@ function deriveArtifact(
     });
     stubFunctions.set(fn.id, {
       id: fn.id,
+      label: functionLabel(fn.source, fn.id),
       inputs: fn.inputs,
       heads: fn.heads.map((head) => ({
         field: head.field,
@@ -693,8 +736,10 @@ function parseIrFunction(fn: JsonRecord, index: number): IrFunction {
     !Array.isArray(provenance)
       ? (provenance as JsonRecord)["canonicalInput"]
       : undefined;
+  // A bundle not trained yet gets the encoding the trainer uses by default, so
+  // input limits behave as they will once the artifact is trained.
   const canonicalInput =
-    typeof declared === "string" ? declared : CANONICAL_INPUT_V1;
+    typeof declared === "string" ? declared : CANONICAL_INPUT_V2;
   if (
     canonicalInput !== CANONICAL_INPUT_V1 &&
     canonicalInput !== CANONICAL_INPUT_V2
@@ -814,11 +859,64 @@ function uniqueRef(
   return ref;
 }
 
+/** Marks a directory a stub wrote, so a later stub may reuse it. */
+const STUB_MARKER = ".semantscript-stub";
+
+async function refuseOccupiedDirectory(root: string): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(root);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw new SemaStubError(
+      "occupied-directory",
+      `cannot use ${root} for a stub artifact: ${errorMessage(error)}`,
+    );
+  }
+  if (entries.length > 0 && !entries.includes(STUB_MARKER)) {
+    throw new SemaStubError(
+      "occupied-directory",
+      `${root} is not empty and was not written by a stub artifact (it may hold a trained artifact); pass an empty or missing directory, or omit directory to use a temporary one`,
+    );
+  }
+}
+
+/** Removes a stub's release, its pointer if it still names it, and the directory once nothing else is left. */
+async function removeRelease(
+  root: string,
+  manifestSha256: string,
+): Promise<void> {
+  const release = `releases/sha256-${manifestSha256}`;
+  await rm(join(root, release), { recursive: true, force: true });
+  const pointerPath = join(root, "current.json");
+  try {
+    const pointer = JSON.parse(await readFile(pointerPath, "utf8")) as unknown;
+    if (isRecord(pointer) && pointer["release"] === release) {
+      await rm(pointerPath, { force: true });
+    }
+  } catch {
+    // No pointer, or one another stub rewrote: leave it.
+  }
+  try {
+    await rmdir(join(root, "releases"));
+    if ((await readdir(root)).every((entry) => entry === STUB_MARKER)) {
+      await rm(join(root, STUB_MARKER), { force: true });
+      await rmdir(root);
+    }
+  } catch {
+    // Another stub's release or pointer is still there.
+  }
+}
+
 async function writeRelease(
   root: string,
   derived: DerivedArtifact,
 ): Promise<string> {
   await mkdir(root, { recursive: true });
+  await writeFile(
+    join(root, STUB_MARKER),
+    "Written by @semantscript/core/testing. A stub artifact is for tests only.\n",
+  );
   const staging = await mkdtemp(join(root, ".staging-"));
   try {
     for (const [path, bytes] of derived.files) {
@@ -906,7 +1004,7 @@ function prepareAnswers(
     if (prepared.has(id)) {
       throw new SemaStubError(
         "invalid-value",
-        `${id} is answered more than once`,
+        `${fn.label} is answered more than once`,
         id,
       );
     }
@@ -925,7 +1023,7 @@ function prepareAnswer(
     if (typeof compute !== "function") {
       throw new SemaStubError(
         "invalid-value",
-        `${fn.id}: compute must be a function`,
+        `${fn.label}: compute must be a function`,
         fn.id,
       );
     }
@@ -939,7 +1037,7 @@ function prepareAnswer(
     if (!Array.isArray(cases)) {
       throw new SemaStubError(
         "invalid-value",
-        `${fn.id}: byInput must be a list of { inputs, value, confidence? }`,
+        `${fn.label}: byInput must be a list of { inputs, value, confidence? }`,
         fn.id,
       );
     }
@@ -948,7 +1046,7 @@ function prepareAnswer(
       if (!isRecord(entry) || !isRecord(entry["inputs"])) {
         throw new SemaStubError(
           "invalid-value",
-          `${fn.id}: byInput[${String(index)}] needs an inputs record`,
+          `${fn.label}: byInput[${String(index)}] needs an inputs record`,
           fn.id,
         );
       }
@@ -985,7 +1083,7 @@ function canonicalKey(
   } catch (error) {
     throw new SemaStubError(
       "invalid-value",
-      `${fn.id}: byInput inputs do not match the function's inputs: ${errorMessage(error)}`,
+      `${fn.label}: byInput inputs do not match the function's inputs: ${errorMessage(error)}`,
       fn.id,
     );
   }
@@ -1000,7 +1098,7 @@ function headAnswers(
   if (!isRecord(answer) || !("value" in answer)) {
     throw new SemaStubError(
       "invalid-value",
-      `${fn.id}: ${where} must be a scalar or { value, confidence? }`,
+      `${fn.label}: ${where} must be a scalar, { value, confidence? }, { byInput, otherwise? } or { compute }`,
       fn.id,
     );
   }
@@ -1010,7 +1108,7 @@ function headAnswers(
   if (extra.length > 0) {
     throw new SemaStubError(
       "invalid-value",
-      `${fn.id}: ${where} has unexpected keys ${extra.join(", ")}`,
+      `${fn.label}: ${where} has unexpected keys ${extra.join(", ")}`,
       fn.id,
     );
   }
@@ -1023,7 +1121,7 @@ function headAnswers(
     if (typeof confidence !== "number") {
       throw new SemaStubError(
         "invalid-confidence",
-        `${fn.id}: ${where} confidence of a scalar output must be a number`,
+        `${fn.label}: ${where} confidence of a scalar output must be a number`,
         fn.id,
       );
     }
@@ -1032,7 +1130,7 @@ function headAnswers(
   if (!isRecord(value)) {
     throw new SemaStubError(
       "invalid-value",
-      `${fn.id}: ${where} value must be an object with fields ${fn.heads.map((head) => head.field).join(", ")}`,
+      `${fn.label}: ${where} value must be an object with fields ${fn.heads.map((head) => head.field).join(", ")}`,
       fn.id,
     );
   }
@@ -1041,7 +1139,7 @@ function headAnswers(
     if (!fields.has(key)) {
       throw new SemaStubError(
         "invalid-value",
-        `${fn.id}: ${where} value has unexpected field ${JSON.stringify(key)}`,
+        `${fn.label}: ${where} value has unexpected field ${JSON.stringify(key)}`,
         fn.id,
       );
     }
@@ -1050,7 +1148,7 @@ function headAnswers(
     if (!isRecord(confidence)) {
       throw new SemaStubError(
         "invalid-confidence",
-        `${fn.id}: ${where} confidence must be a number or a record per field`,
+        `${fn.label}: ${where} confidence must be a number or a record per field`,
         fn.id,
       );
     }
@@ -1058,7 +1156,7 @@ function headAnswers(
       if (!fields.has(key)) {
         throw new SemaStubError(
           "invalid-confidence",
-          `${fn.id}: ${where} confidence names unknown field ${JSON.stringify(key)}`,
+          `${fn.label}: ${where} confidence names unknown field ${JSON.stringify(key)}`,
           fn.id,
         );
       }
@@ -1069,7 +1167,7 @@ function headAnswers(
     if (!Object.prototype.hasOwnProperty.call(value, field)) {
       throw new SemaStubError(
         "invalid-value",
-        `${fn.id}: ${where} value is missing field ${JSON.stringify(field)}`,
+        `${fn.label}: ${where} value is missing field ${JSON.stringify(field)}`,
         fn.id,
       );
     }
@@ -1078,7 +1176,7 @@ function headAnswers(
     if (typeof fieldConfidence !== "number") {
       throw new SemaStubError(
         "invalid-confidence",
-        `${fn.id}: ${where} confidence of ${JSON.stringify(field)} must be a number`,
+        `${fn.label}: ${where} confidence of ${JSON.stringify(field)} must be a number`,
         fn.id,
       );
     }
@@ -1105,7 +1203,7 @@ function headAnswer(
   if (supported === undefined) {
     throw new SemaStubError(
       "invalid-value",
-      `${fn.id}: ${where} ${JSON.stringify(value)} is not one of ${JSON.stringify(head.support)}`,
+      `${fn.label}: ${where} ${JSON.stringify(value)} is not one of ${JSON.stringify(head.support)}`,
       fn.id,
     );
   }
@@ -1113,7 +1211,7 @@ function headAnswer(
   if (!Number.isFinite(confidence) || confidence <= floor || confidence > 1) {
     throw new SemaStubError(
       "invalid-confidence",
-      `${fn.id}: ${where} confidence ${String(confidence)} must be above ${String(floor)} (one over the ${String(head.support.length)} possible values) and at most 1, so the answer stays the top value`,
+      `${fn.label}: ${where} confidence ${String(confidence)} must be above ${String(floor)} (one over the ${String(head.support.length)} possible values) and at most 1, so the answer stays the top value`,
       fn.id,
     );
   }
@@ -1128,9 +1226,10 @@ function answerCall(
   const fn = functions.get(request.functionId);
   const answer = answers.get(request.functionId);
   if (fn === undefined || answer === undefined) {
+    const label = fn?.label ?? `the semantic function ${request.functionId}`;
     throw new SemaStubError(
       "unanswered",
-      `the stub artifact has no answer for ${request.functionId}; add one to its answers`,
+      `the stub artifact has no answer for ${label}; add one to its answers, keyed by that id or by the compiled function that calls it`,
       request.functionId,
     );
   }
@@ -1149,7 +1248,7 @@ function answerCall(
     if (resolved === undefined) {
       throw new SemaStubError(
         "unmatched-input",
-        `the stub artifact has no byInput case for this ${request.functionId} input and no otherwise`,
+        `the stub artifact has no byInput case for this input of ${fn.label} and no otherwise`,
         request.functionId,
       );
     }
@@ -1296,6 +1395,22 @@ function sha256Field(value: JsonRecord, key: string, id: string): string {
     invalidBundle(`${id}: ${key} must be a sha256 digest`);
   }
   return field;
+}
+
+/** "the semantic function at src/x.sem.ts:12:3 (nf_...)", or the id alone. */
+function functionLabel(fn: JsonRecord, id: string): string {
+  const source = fn["source"];
+  if (isRecord(source)) {
+    const { path, line, column } = source;
+    if (
+      typeof path === "string" &&
+      typeof line === "number" &&
+      typeof column === "number"
+    ) {
+      return `the semantic function at ${path}:${String(line)}:${String(column)} (${id})`;
+    }
+  }
+  return `the semantic function ${id}`;
 }
 
 function invalidBundle(message: string): never {

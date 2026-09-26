@@ -183,10 +183,25 @@ await stub.close(); // closes the artifact and removes the stub
 - Values and confidences are checked against the bundle when the stub is
   created; a call to a function without an answer, or an input no `byInput`
   case matches without `otherwise`, throws `SemaStubError` (`unanswered`,
-  `unmatched-input`).
+  `unmatched-input`). Messages name the function by its source position and
+  id, for example
+  `the semantic function at src/refunds.sem.ts:143:10 (nf_f5a0...)`.
+- The bundle is an object, a path (resolved against the working directory)
+  or a file `URL`, such as
+  `new URL("../dist/semantscript.ir.v1.json", import.meta.url)`. A function
+  not trained yet gets the trainer's default canonical input (v2), so
+  `maximumInputBytes` limits behave as they will after training.
+- A loaded stub is the process's active artifact, like a trained one: loading
+  another stub (or artifact) replaces it. Load one at a time, and close it
+  when the test ends.
 - `createSemaStubArtifact(bundle, { answers, directory? })` writes the
   artifact without loading it and returns its `root` and `dispose()`, for
-  loading with your own `loadSemaArtifact` call. The answers live in the
+  loading with your own `loadSemaArtifact` call. Without `directory` it
+  writes a temporary directory that `dispose()` removes. A given `directory`
+  must be missing, empty or written by an earlier stub; anything else, such
+  as a trained artifact root like `.semantscript/artifact`, is refused with
+  `SemaStubError` (`occupied-directory`) and left untouched. `dispose()`
+  removes the stub's release and its `current.json` pointer from it. The answers live in the
   process that created the stub: a stub release loaded anywhere else is
   refused with `SemaStubError` (`unregistered`), so it cannot serve in
   production.

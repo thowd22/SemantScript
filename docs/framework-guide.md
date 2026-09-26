@@ -198,7 +198,7 @@ import { loadSemaStubArtifact } from "@semantscript/core/testing";
 import { handle, routesOf } from "@semantscript/framework";
 import { decideRefund, migrate, refundRisk } from "../dist/app.js";
 import { RefundController } from "../dist/refunds.js";
-const bundle = "dist/semantscript.ir.v1.json"; // written by semantscript build
+const bundle = new URL("../dist/semantscript.ir.v1.json", import.meta.url);
 
 test("a reviewed refund rolls back", async (t) => {
   const answers = new Map().set(decideRefund, "review").set(refundRisk, "high");
@@ -223,7 +223,12 @@ value }`. A flat object output answers `{ value: { ...fields } }`, with one
   call: request scopes, `x-sema-passes`, input validation, `@confidence`
   thresholds and the `fallbacks` you pass behave as with a trained artifact.
   A low confidence answer takes the fallback path.
+- The bundle is the one `semantscript build` writes; a `URL` resolves it
+  against the test file, a plain path against the working directory.
 - A call to an expression without an answer throws `SemaStubError`
-  (`unanswered`); `close()` removes the stub. The
+  (`unanswered`), whose message names the expression's source position and
+  id; `close()` removes the stub. A loaded stub is the process's active
+  artifact, like a trained one, so load one stub at a time (node:test runs a
+  file's tests in order). The
   [reference application](reference-application.md) tests its refund
   controller this way and its other controllers over the trained artifact.

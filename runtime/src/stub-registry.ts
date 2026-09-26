@@ -32,7 +32,8 @@ export type SemaStubErrorReason =
   | "unanswered"
   | "unmatched-input"
   | "unregistered"
-  | "invalid-bundle";
+  | "invalid-bundle"
+  | "occupied-directory";
 
 /** A stub artifact was described or used inconsistently with the IR bundle. */
 export class SemaStubError extends Error {

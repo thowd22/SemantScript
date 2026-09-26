@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 import {
@@ -584,7 +585,10 @@ test("calls without an answer, bad computed answers and unregistered stubs fail 
     assert.throws(
       () => runtime.__sema.call(ids.flag, { facts }),
       (error) =>
-        error instanceof testing.SemaStubError && error.reason === "unanswered",
+        error instanceof testing.SemaStubError &&
+        error.reason === "unanswered" &&
+        error.functionId === ids.flag &&
+        error.message.includes(`src/app.sem.ts:1:1 (${ids.flag})`),
     );
     assert.throws(
       () => runtime.__sema.call(ids.label, { facts }),
@@ -596,22 +600,102 @@ test("calls without an answer, bad computed answers and unregistered stubs fail 
     await handle.close();
   }
 
-  // A stub release whose answers are not registered in this process never loads.
-  const directory = await mkdtemp(join(tmpdir(), "semantscript-stub-dir-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  // A stub release whose answers are not registered in this process never
+  // loads, here a copy of the release kept after the stub was disposed.
+  const scratch = await mkdtemp(join(tmpdir(), "semantscript-stub-dir-"));
+  t.after(() => rm(scratch, { recursive: true, force: true }));
+  const directory = join(scratch, "stub");
   const stub = await testing.createSemaStubArtifact(bundle, {
     answers: {},
     directory,
   });
+  await cp(directory, join(scratch, "copy"), { recursive: true });
   await stub.dispose();
-  assert.ok(
-    existsSync(join(directory, "current.json")),
-    "a given directory is kept",
-  );
+  assert.ok(!existsSync(directory), "dispose removes what the stub wrote");
   await assert.rejects(
-    runtime.loadSemaArtifact(directory, { fallbacks: fallbacks() }),
+    runtime.loadSemaArtifact(join(scratch, "copy"), {
+      fallbacks: fallbacks(),
+    }),
     (error) =>
       error instanceof testing.SemaStubError && error.reason === "unregistered",
+  );
+});
+
+test("a given directory that holds anything but a stub is refused and left alone", async (t) => {
+  const { testing } = await runtimeModules();
+  const scratch = await mkdtemp(join(tmpdir(), "semantscript-stub-root-"));
+  t.after(() => rm(scratch, { recursive: true, force: true }));
+  // A trained artifact root: its pointer must survive a misdirected stub.
+  const trained = join(scratch, "artifact");
+  await mkdir(join(trained, "releases", "sha256-trained"), { recursive: true });
+  const pointer = `${JSON.stringify({ release: "releases/sha256-trained" })}\n`;
+  await writeFile(join(trained, "current.json"), pointer);
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, {
+      answers: {},
+      directory: trained,
+    }),
+    (error) =>
+      error instanceof testing.SemaStubError &&
+      error.reason === "occupied-directory",
+  );
+  assert.equal(await readFile(join(trained, "current.json"), "utf8"), pointer);
+
+  // A directory a stub wrote can be reused, and each dispose removes only
+  // its own release and the pointer while it still names that release.
+  const shared = join(scratch, "shared");
+  const first = await testing.createSemaStubArtifact(bundle, {
+    answers: { [ids.label]: "deny" },
+    directory: shared,
+  });
+  const second = await testing.createSemaStubArtifact(bundle, {
+    answers: { [ids.label]: "approve" },
+    directory: shared,
+  });
+  await first.dispose();
+  assert.ok(existsSync(join(shared, "current.json")));
+  assert.ok(
+    !existsSync(join(shared, "releases", `sha256-${first.manifestSha256}`)),
+  );
+  await second.dispose();
+  assert.ok(!existsSync(shared));
+});
+
+test("misuse names the function by its source position", async () => {
+  const { testing } = await runtimeModules();
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, {
+      answers: { [ids.label]: "maybe" },
+    }),
+    (error) =>
+      error.reason === "invalid-value" &&
+      error.message.startsWith(
+        `the semantic function at src/app.sem.ts:1:1 (${ids.label}):`,
+      ),
+  );
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle),
+    (error) =>
+      error instanceof testing.SemaStubError &&
+      error.reason === "invalid-value",
+  );
+  await assert.rejects(
+    testing.loadSemaStubArtifact(bundle),
+    (error) => error instanceof testing.SemaStubError,
+  );
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, {
+      answers: { [ids.label]: { byinput: [] } },
+    }),
+    (error) => error.message.includes("{ byInput, otherwise? } or { compute }"),
+  );
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, {
+      answers: [[() => "no sema here", "deny"]],
+    }),
+    (error) =>
+      error.reason === "unresolved-function" &&
+      error.message.includes("calls no sema expression"),
   );
 });
 
@@ -628,6 +712,11 @@ test("a bundle path loads like the bundle object", async (t) => {
   t.after(() => handle.close());
   assert.equal(handle.call(ids.label, { facts }), "review");
   assert.equal(runtime.__sema.call(ids.label, { facts }), "review");
+  const byUrl = await testing.createSemaStubArtifact(pathToFileURL(path), {
+    answers: {},
+  });
+  assert.equal(byUrl.functionIds.size, handle.functionIds.size);
+  await byUrl.dispose();
   await assert.rejects(
     testing.createSemaStubArtifact(join(directory, "missing.json"), {
       answers: {},

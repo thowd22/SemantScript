@@ -283,6 +283,16 @@ export const REMEDY_TEMPLATES = {
     fix: "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train",
     params: [],
   },
+  "test-no-build": {
+    family: "cli",
+    fix: "run semantscript build, then rerun semantscript test; or pass --bundle <path> for a bundle elsewhere, or --no-bundle to check the artifact alone",
+    params: [],
+  },
+  "test-function-unbundled": {
+    family: "cli",
+    fix: "the program changed since training: run semantscript build, then semantscript train, and rerun semantscript test; or pass --bundle for the bundle this artifact was trained from",
+    params: [],
+  },
   "run-no-export": {
     family: "cli",
     fix: "pass --call one of the module's function exports: {exports}",

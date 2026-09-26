@@ -340,7 +340,10 @@ test("test reports shipped verification and replays bundle examples through the 
   );
 
   const stats = capture(root);
-  assert.equal(await runCli(["test", "--artifact", artifactRoot], stats.io), 0);
+  assert.equal(
+    await runCli(["test", "--artifact", artifactRoot, "--no-bundle"], stats.io),
+    0,
+  );
   assert.match(
     stats.stdout(),
     /nf_11111111…\s+passed\s+1\.0000\s+0\.0000\s+0\.0000\s+1\.0000\s+1\s+0\s+-\s+1\.0000\s+-/u,
@@ -354,12 +357,18 @@ test("test reports shipped verification and replays bundle examples through the 
     },
   });
   const seeded = capture(root);
-  assert.equal(await runCli(["test", "--artifact", seededRoot], seeded.io), 0);
+  assert.equal(
+    await runCli(["test", "--artifact", seededRoot, "--no-bundle"], seeded.io),
+    0,
+  );
   assert.match(seeded.stdout(), /\s+seed\s+/u);
   assert.match(seeded.stdout(), /\s1\s+0\s+4\s+1\.0000\s+-/u);
   const seededJson = capture(root);
   assert.equal(
-    await runCli(["test", "--artifact", seededRoot, "--json"], seededJson.io),
+    await runCli(
+      ["test", "--artifact", seededRoot, "--no-bundle", "--json"],
+      seededJson.io,
+    ),
     0,
   );
   assert.equal(JSON.parse(seededJson.stdout()).functions[0].seed, 4);
@@ -430,7 +439,10 @@ test("test reports shipped verification and replays bundle examples through the 
     },
   });
   const refused = capture(root);
-  assert.equal(await runCli(["test", "--artifact", unverified], refused.io), 1);
+  assert.equal(
+    await runCli(["test", "--artifact", unverified, "--no-bundle"], refused.io),
+    1,
+  );
   assert.match(
     refused.stdout(),
     /\nnext: retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback <release> \(semantscript releases list shows which releases pass\)\ntest failed\n$/u,
@@ -454,6 +466,146 @@ test("test reports shipped verification and replays bundle examples through the 
   assert.match(
     gone.stderr(),
     /ENOENT[^\n]*; next: run semantscript releases list to find an intact release/u,
+  );
+});
+
+test("test checks the artifact against the build's bundle and the release's digests by default", async (t) => {
+  const root = await scratch(t, "semantscript-cli-test-default-");
+  const artifactRoot = join(root, ".semantscript", "artifact");
+  await createFixtureArtifact(artifactRoot);
+  const { loadSemaArtifact } = await import("@semantscript/core");
+  const handle = await loadSemaArtifact(artifactRoot);
+  const inputs = { facts: { a: 1, b: 2 } };
+  const expected = handle.call(fixtureFunctionId, inputs);
+  await handle.close();
+  const bundleFor = (id) =>
+    JSON.stringify({
+      kind: "semantscript.ir-bundle",
+      bundleVersion: 1,
+      functions: [
+        { id, definition: { examples: [{ inputs, output: expected }] } },
+      ],
+      executionPlan: { stages: [], dependencies: [] },
+    });
+
+  // No build output yet: test names semantscript build.
+  const noBuild = capture(root);
+  assert.equal(await runCli(["test"], noBuild.io), 1);
+  assert.match(
+    noBuild.stderr(),
+    /^no semantscript\.ir\.v1\.json under [^\n]*; next: run semantscript build, then rerun semantscript test; or pass --bundle <path> for a bundle elsewhere, or --no-bundle to check the artifact alone\n$/u,
+  );
+  const artifactOnly = capture(root);
+  assert.equal(await runCli(["test", "--no-bundle"], artifactOnly.io), 0);
+  assert.match(artifactOnly.stdout(), /\s-\ntest passed\n$/u);
+  assert.doesNotMatch(artifactOnly.stdout(), /\nbundle /u);
+  const both = capture(root);
+  assert.equal(
+    await runCli(["test", "--bundle", "x.json", "--no-bundle"], both.io),
+    2,
+  );
+  assert.match(both.stderr(), /--bundle and --no-bundle cannot be combined/u);
+
+  // The build's bundle comes from the tsconfig outDir, as run and explain find it.
+  await writeFile(
+    join(root, "tsconfig.json"),
+    JSON.stringify({ compilerOptions: { outDir: "build-output" } }),
+  );
+  const bundlePath = join(root, "build-output", "semantscript.ir.v1.json");
+  await mkdir(dirname(bundlePath));
+  await writeFile(bundlePath, bundleFor(fixtureFunctionId));
+  const current = capture(root);
+  assert.equal(await runCli(["test"], current.io), 0, current.stderr());
+  assert.match(current.stdout(), new RegExp(`\\nbundle ${bundlePath}\\n`, "u"));
+  assert.match(current.stdout(), /1\/1\ntest passed\n$/u);
+
+  // The program changed since training: the ids no longer match either way.
+  const changedId = `nf_${"8".repeat(64)}`;
+  await writeFile(bundlePath, bundleFor(changedId));
+  const stale = capture(root);
+  assert.equal(await runCli(["test"], stale.io), 1);
+  assert.match(stale.stdout(), /nf_88888888…: absent from the artifact/u);
+  assert.match(
+    stale.stdout(),
+    /nf_11111111…: in the artifact but not in the bundle/u,
+  );
+  assert.match(
+    stale.stdout(),
+    /\nnext: run semantscript train on this bundle \(semantscript build first if the source changed\)\nnext: the program changed since training: run semantscript build, then semantscript train, and rerun semantscript test; or pass --bundle for the bundle this artifact was trained from\ntest failed\n$/u,
+  );
+  const staleJson = capture(root);
+  assert.equal(await runCli(["test", "--json"], staleJson.io), 1);
+  const document = JSON.parse(staleJson.stdout());
+  assert.equal(document.ok, false);
+  assert.equal(document.bundle, bundlePath);
+  assert.deepEqual(document.missingFunctions, [changedId]);
+  assert.deepEqual(document.unbundledFunctions, [fixtureFunctionId]);
+  assert.equal(document.next.length, 2);
+  const skipped = capture(root);
+  assert.equal(await runCli(["test", "--no-bundle", "--json"], skipped.io), 0);
+  const skippedDocument = JSON.parse(skipped.stdout());
+  assert.equal(skippedDocument.bundle, null);
+  assert.deepEqual(skippedDocument.unbundledFunctions, []);
+
+  // A release that fails the runtime's digest or symlink checks fails test
+  // with the runtime's ArtifactLoadError code and remedy, bundle or not.
+  const corruptFix =
+    "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>";
+  const tampered = join(root, "tampered");
+  const { release } = await createFixtureArtifact(tampered);
+  const tokenizer = join(release, "tokenizer", "tokenizer.json");
+  const bytes = await readFile(tokenizer);
+  bytes[bytes.length - 1] = bytes[bytes.length - 1] === 0x20 ? 0x0a : 0x20;
+  await writeFile(tokenizer, bytes);
+  for (const flag of [[], ["--no-bundle"]]) {
+    const run = capture(root);
+    assert.equal(
+      await runCli(["test", "--artifact", tampered, ...flag], run.io),
+      1,
+    );
+    assert.equal(run.stdout(), "");
+    assert.match(
+      run.stderr(),
+      new RegExp(
+        `^artifact at ${tampered} fails the runtime's load checks: SEMA_ARTIFACT_INTEGRITY: [^\\n]*; next: ${corruptFix}`,
+        "u",
+      ),
+    );
+  }
+
+  const edited = join(root, "edited");
+  const editedRelease = (await createFixtureArtifact(edited)).release;
+  const manifestPath = join(editedRelease, "manifest.json");
+  await writeFile(manifestPath, `${await readFile(manifestPath, "utf8")} \n`);
+  const manifestRun = capture(root);
+  assert.equal(await runCli(["test", "--artifact", edited], manifestRun.io), 1);
+  assert.match(
+    manifestRun.stderr(),
+    new RegExp(
+      `fails the runtime's load checks: SEMA_ARTIFACT_INTEGRITY: [^\\n]*manifest[^\\n]*; next: ${corruptFix}`,
+      "u",
+    ),
+  );
+
+  const linked = join(root, "linked");
+  await createFixtureArtifact(linked);
+  await copyFile(
+    join(linked, "current.json"),
+    join(root, "elsewhere-current.json"),
+  );
+  await rm(join(linked, "current.json"));
+  await symlink(
+    join(root, "elsewhere-current.json"),
+    join(linked, "current.json"),
+  );
+  const linkRun = capture(root);
+  assert.equal(
+    await runCli(["test", "--artifact", linked, "--no-bundle"], linkRun.io),
+    1,
+  );
+  assert.match(
+    linkRun.stderr(),
+    /fails the runtime's load checks: SEMA_ARTIFACT_PATH: [^\n]*; next: point at the artifact root semantscript train published/u,
   );
 });
 

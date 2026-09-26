@@ -3,9 +3,11 @@ id: TASK-15.3
 title: >-
   semantscript test checks the artifact against the build's bundle and its
   digests by default
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-26 06:27'
+updated_date: '2026-09-26 06:37'
 labels:
   - dx
   - quality
@@ -28,3 +30,20 @@ TASK-14.11's reviewers confirmed that semantscript test without --bundle passes 
 - [ ] #2 A release whose pointer, manifest or resource fails its digest or symlink check fails test with the runtime's ArtifactLoadError code and remedy instead of passing
 - [ ] #3 cli tests cover both failures and the flag; docs/cli-reference.md, cli/README.md and docs/diagnostics.md are updated with the regenerated remedies; the CI fresh-install job still passes
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. cli/src/test-command.ts: add --no-bundle (boolean); --bundle with --no-bundle is a CliUsageError (exit 2). Order of checks: (a) readSummary as today (missing current.json -> test-no-artifact; unreadable pointer/release -> test-artifact-unreadable, existing tests unchanged); (b) new: dynamic-import checkSemaArtifact from @semantscript/core and run it on the root; an ArtifactLoadError (pointer/manifest/resource digest, symlink or non-regular file, incompatible ABI) is rethrown as 'artifact at <root> fails the runtime's load checks: <code>: <detail>; next: <error.remedy>' -> exit 1 with the runtime's own code and remedy (artifact-corrupt / artifact-path / ...), for --no-bundle too; (c) bundle: --bundle path, else --no-bundle -> none, else the first existing bundleCandidates(io.cwd) (tsconfig outDir, then ., dist, out, build; same lookup as explain/train); none found -> Error ending 'next: <remedy test-no-build>' (exit 1). (d) replay as today, plus the reverse direction: artifact functions whose id the bundle no longer has are listed ('<id>: in the artifact but not in the bundle'), make ok false and add next: <remedy test-function-unbundled>; --json gains bundle (path or null) and unbundledFunctions. Not using releases.verifyRelease: it rewraps ArtifactLoadError as RELEASE_REJECTED/RELEASE_INTEGRITY and also refuses unverified functions, which would hide the ArtifactLoadError code AC2 asks for; checkSemaArtifact alone already does pointer, manifest digest, resource size/digest and symlink checks (runtime/src/artifact-loader.ts selectRelease/readSafeFile/safeDirectory). No edit to releases.ts (15.5 in flight).
+2. diagnostics/remedies.json: two new cli-family entries under distinct ids after test-artifact-unreadable: test-no-build (fix: run semantscript build, or pass --bundle <path>, or --no-bundle to check the artifact alone) and test-function-unbundled (fix: the program changed since training: run semantscript build, then semantscript train, and rerun semantscript test; or pass --bundle for the bundle this artifact was trained from). Existing entries left alone (15.4 owns wording). Run node scripts/generate-remedies.mjs (runtime/compiler generated TS, trainer remedies_generated.py, docs/diagnostics.md cli table) and --check.
+3. cli/src/index.ts USAGE: test [--artifact <root>] [--bundle <path> | --no-bundle] [--json] with the new description.
+4. cli/test/cli.test.mjs: existing artifact-only calls (stats, seeded, seededJson, unverified) get --no-bundle; new test 'test checks the artifact against the build bundle and its digests by default': project dir with tsconfig outDir build-output holding a bundle for the fixture function -> exit 0 with 1/1 examples and no --bundle; bundle with a different id -> exit 1 with absent + unbundled lines and both next: lines, JSON missingFunctions/unbundledFunctions; --no-bundle -> exit 0 with '-' examples; no build -> exit 1 naming semantscript build; --bundle + --no-bundle -> exit 2; tampered resource (same length) -> SEMA_ARTIFACT_INTEGRITY + artifact-corrupt remedy (also with --no-bundle); edited manifest -> SEMA_ARTIFACT_INTEGRITY manifest digest; symlinked current.json -> SEMA_ARTIFACT_PATH + artifact-path remedy.
+5. Docs: docs/cli-reference.md (usage line + test section flags table: --bundle default, --no-bundle, digest check, exit conditions), cli/README.md (usage + test section), docs/diagnostics.md (regenerated table; one sentence that test reports ArtifactLoadError codes with the runtime remedy). Light touch on docs/getting-started.md and docs/tutorial-refund-decision.md sentences that say replay happens only with --bundle. npx prettier --check docs README.md cli/README.md.
+6. Verify: npm run build, npm run lint:node, npm test -w cli (and npm run test:node), node scripts/generate-remedies.mjs --check, ruff on the regenerated python file, trainer test_remedies. Commit on task-15.3 with trailers, git push -u origin task-15.3, gh run watch until green (fresh-install job does not call semantscript test; release-smoke passes --bundle explicitly).
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+IMPLEMENT: cli/src/test-command.ts now (1) reads the summary as before, (2) runs the runtime's checkSemaArtifact on verified releases and turns an ArtifactLoadError into 'artifact at <root> fails the runtime's load checks: <code>: <detail>; next: <remedy>' (exit 1; unverified releases skip it because the runtime refuses them first and the unverified next: line already applies), (3) resolves the bundle: --bundle, --no-bundle (none), else first existing bundleCandidates (tsconfig outDir, ., dist, out, build); none -> 'no semantscript.ir.v1.json under ...; next: <test-no-build>' (exit 1); --bundle with --no-bundle is a usage error (exit 2), (4) replays as before and lists artifact functions missing from the bundle ('<id>: in the artifact but not in the bundle', next: test-function-unbundled); --json gains bundle and unbundledFunctions. New remedies test-no-build and test-function-unbundled (causes kept under the existing column width so docs/diagnostics.md changes by two rows only); generated outputs regenerated. cli tests: existing artifact-only calls use --no-bundle; new test covers no build, --no-bundle, flag conflict, outDir bundle pass, stale ids both directions (text and JSON), tampered resource (SEMA_ARTIFACT_INTEGRITY + artifact-corrupt remedy, with and without --no-bundle), edited manifest digest, symlinked current.json (SEMA_ARTIFACT_PATH + artifact-path remedy). Docs: cli-reference test section and usage, cli/README usage and test section, diagnostics.md sentence + table, getting-started and tutorial now run plain 'npx semantscript test'. Checks: build, lint:node, test:node (all suites pass), generate-remedies --check, ruff, pytest test_remedies, prettier --check.
+<!-- SECTION:NOTES:END -->

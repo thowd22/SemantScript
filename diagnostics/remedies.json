@@ -397,6 +397,20 @@
       "fix": "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train"
     },
     {
+      "id": "test-no-build",
+      "family": "cli",
+      "failure": "`semantscript test`: `no semantscript.ir.v1.json under <directories>`",
+      "cause": "Test compares the artifact with the build's bundle, and none was found under the tsconfig outDir, ., dist, out or build.",
+      "fix": "run semantscript build, then rerun semantscript test; or pass --bundle <path> for a bundle elsewhere, or --no-bundle to check the artifact alone"
+    },
+    {
+      "id": "test-function-unbundled",
+      "family": "cli",
+      "failure": "`semantscript test`: `<id>: in the artifact but not in the bundle`",
+      "cause": "The artifact has an expression the build's bundle no longer has: the program changed since training.",
+      "fix": "the program changed since training: run semantscript build, then semantscript train, and rerun semantscript test; or pass --bundle for the bundle this artifact was trained from"
+    },
+    {
       "id": "run-no-export",
       "family": "cli",
       "failure": "`semantscript run --call`: `<module> has no function export named <name>`",

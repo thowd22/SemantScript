@@ -218,17 +218,18 @@ cd ../refund-service && npm install && npm run build && npm run train && npm tes
 ## 5. Test and call
 
 ```sh
-npx semantscript test --bundle dist/semantscript.ir.v1.json
+npx semantscript test
 npx semantscript run dist/refunds.sem.js --call decideRefund \
   --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
 "approve"
 ```
 
-`test` replays the IR's example through the runtime and reports the shipped
-verification; `run` loads the artifact, imports the compiled module and calls
-the export with the JSON arguments. That is the end of the published route:
-import `decideRefund` from `dist/refunds.sem.js` in your own code, after one
-`await loadSemaArtifact()` at startup.
+`test` reports the shipped verification, checks the release's digests and
+replays the build's IR example through the runtime; `run` loads the artifact,
+imports the compiled module and calls the export with the JSON arguments. That
+is the end of the published route: import `decideRefund` from
+`dist/refunds.sem.js` in your own code, after one `await loadSemaArtifact()` at
+startup.
 
 On the clone route, the Express example also has a server:
 

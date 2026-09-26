@@ -18,7 +18,7 @@ semantscript train [--bundle <path>] [--artifact <root>] [--teacher <teacher.tom
                    [--estimate] [--max-cost-usd <x>] [options]
 semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe>] [--json]
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
-semantscript test  [--artifact <root>] [--bundle <path>] [--json]
+semantscript test  [--artifact <root>] [--bundle <path> | --no-bundle] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list] [--artifact <root>] [--json]
 semantscript releases show <release> [--artifact <root>] [--json]
@@ -404,18 +404,36 @@ constraint violations, the training seed the release passed at, each head's
 accuracy). The seed is `-` in the table and `null` in `--json` for a release
 built before the manifest recorded seeds.
 
-| Flag         | Value | Effect                                                                                                                        |
-| ------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--artifact` | path  | The artifact root (default above).                                                                                            |
-| `--bundle`   | path  | Also load the artifact and replay every IR example through the runtime, comparing by value (diagnostic functions by `value`). |
-| `--json`     |       | Print one JSON document instead of the table.                                                                                 |
+It then runs the runtime's own load checks on the release (`checkSemaArtifact`,
+without starting ONNX sessions): the pointer, the manifest digest against the
+release name, every resource's size and SHA-256, and symlinks or non-regular
+files. A release that fails exits 1 with
+`artifact at <root> fails the runtime's load checks: <code>: <detail>; next: <remedy>`,
+where `<code>` is the runtime's `ArtifactLoadError` code
+(`SEMA_ARTIFACT_INTEGRITY`, `SEMA_ARTIFACT_PATH`, ...) and `<remedy>` is the fix the runtime would print
+([diagnostics](diagnostics.md#runtime-errors)). A release with a function
+that did not pass verification is refused by the runtime before any digest
+check, so for it the unverified `next:` line below is the fix.
+
+Last, it compares the artifact with the build's bundle, found the way `run`
+and `explain` find it (default above), and replays every IR example through the
+runtime, comparing by value (diagnostic functions by `value`).
+
+| Flag          | Value | Effect                                                                                                                          |
+| ------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `--artifact`  | path  | The artifact root (default above).                                                                                              |
+| `--bundle`    | path  | The IR bundle to compare with and replay; default the build's bundle. No build output fails with `semantscript build`.          |
+| `--no-bundle` |       | Check the artifact alone: verification and digests, no bundle and no replay. Cannot be combined with `--bundle`.                |
+| `--json`      |       | Print one JSON document instead of the table, with `bundle` (the path, or `null`), `missingFunctions` and `unbundledFunctions`. |
 
 Exit 1 when any function's status is not `passed`, any bundle function is
-absent from the artifact, or any example mismatches. An absent function and a
-mismatch each add a `next:` line (retrain on this bundle; rebuild, retrain
-and rerun), and so does a function that did not pass (retrain, or roll back),
-which `--json` lists as `next`. With nothing published at the artifact root
-the command exits 1 with
+absent from the artifact, any artifact function is not in the bundle (the
+program changed since training), or any example mismatches. Each adds a
+`next:` line (retrain on this bundle; rebuild and retrain; rebuild, retrain
+and rerun; retrain or roll back), which `--json` lists as `next`. Without
+`--bundle` and `--no-bundle` and with no build output, the command exits 1 with
+`no semantscript.ir.v1.json under <directories>; next: run semantscript build, …`.
+With nothing published at the artifact root the command exits 1 with
 `no artifact at <root> (current.json is missing); next: run semantscript train …`;
 a pointer or release that does not read ends with
 `next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, …`,

@@ -3,11 +3,11 @@ id: TASK-15.4
 title: >-
   Remedies and docs point at explain and the stub artifact, and the hand-written
   advice agrees with the generated fixes
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 09:47'
+updated_date: '2026-09-26 09:54'
 labels:
   - dx
 milestone: m-6
@@ -25,9 +25,9 @@ TASK-14.11 (diagnostics/remedies.json, scripts/generate-remedies.mjs, generated 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The remedies gold-check-example, test-example-mismatch, unknown-function, runtime-not-loaded, artifact-missing and editor-no-artifact name semantscript explain or @semantscript/core/testing where that is the next step, the generated outputs are regenerated and node scripts/generate-remedies.mjs --check passes
-- [ ] #2 The seed-retry stop reason and the hand-written diagnostics prose for VerificationConfigurationError, TrainingConfigurationError and ArtifactExportError no longer contradict the generated fixes (either generated or aligned), the estimate-specific trainer-killed remedy drops the training-only flags, and init's .gitignore covers the traceback file
-- [ ] #3 docs/tutorial-refund-decision.md, docs/build-cache.md and the framework testing docs point at explain and the stub artifact where wrong answers or untrained tests are discussed; prettier and the full test suites pass
+- [x] #1 The remedies gold-check-example, test-example-mismatch, unknown-function, runtime-not-loaded, artifact-missing and editor-no-artifact name semantscript explain or @semantscript/core/testing where that is the next step, the generated outputs are regenerated and node scripts/generate-remedies.mjs --check passes
+- [x] #2 The seed-retry stop reason and the hand-written diagnostics prose for VerificationConfigurationError, TrainingConfigurationError and ArtifactExportError no longer contradict the generated fixes (either generated or aligned), the estimate-specific trainer-killed remedy drops the training-only flags, and init's .gitignore covers the traceback file
+- [x] #3 docs/tutorial-refund-decision.md, docs/build-cache.md and the framework testing docs point at explain and the stub artifact where wrong answers or untrained tests are discussed; prettier and the full test suites pass
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -56,4 +56,12 @@ FIX round 1 (commit 0006160, CI run 36228598548 green, all 7 jobs): (1) docs/dia
 FIX round 2 (commit fb49623, CI run 36230662893 green, all 7 jobs): the reviewer was right. A failed retrain leaves the earlier release published, and the run's dataset is already cached (dataset.py writes it at generation, before verification). explain then prints the gold example next to the nearest teacher-labelled cases (findTrainingCases falls back to the newest dataset for the function id). gold-check-example now names 'semantscript explain <module.js> --call <export> with the example's inputs' for the case where a release is already published. Updated the diagnostics.md verifier bullet and tutorial step 4 (on a first train there is no release; on a retrain explain applies). remedies.test.mjs now asserts the pointer is there. The cli-reference test summary also mentions explain. Checks: generate-remedies --check ok, prettier ok, build/lint ok, test:node 89/126/61/9/85 pass, pytest test_remedies/test_failures/test_verification 35 passed, ruff clean.
 
 FIX round 3 (commit 63a4cae, CI run 36233640427 green): verified both blocking findings. After a failed retrain, explain's missing line told the user to rerun build and train, which reuses the cached dataset and fails again. cli/src/explain.ts missingAdvice(): when the cache holds a dataset for the changed id, the missing line now says a train already labelled it and to act on that train's next: line first (correct the example, add examples or a constraint), then train. Other missing cases are unchanged. New assertions in cli/test/explain.test.mjs cover a cached dataset for the changed id. The wrong-answer workflow step 1, the cli-reference explain paragraph, the diagnostics verifier bullet and tutorial step 4 say the same. Advisories fixed: gold-check-example now says 'this run's when the expression changed since that release; a --no-cache run caches none'; the seed-retry row drops its stale ellipsis; the temperature-fitting VerificationConfigurationError is described as internal (doctor and a bug report). Checks: generate-remedies --check 0, prettier clean, build/lint 0, test:node 89/126/61/9/85 pass, pytest remedies/failures/verification/seed_retry 44 passed, ruff clean.
+
+FINALIZE validation (worktree at f9a6f22): npm run build rc 0; node scripts/generate-remedies.mjs --check rc 0; npx prettier --check docs README.md framework/README.md cli/README.md runtime/README.md compiler/README.md clean; npm run lint:node rc 0; npm run test:node 89/126/61/9/85 pass, 0 fail; pytest trainer test_remedies/test_failures/test_verification/test_seed_retry/test_cli 70 passed; ruff check and format --check clean. Targeted: node --test (missing from the loaded artifact|init|estimate) over cli/test/explain.test.mjs and cli.test.mjs 9 pass. remedies.json fixes printed for gold-check-example, test-example-mismatch, unknown-function (explain) and runtime-not-loaded, artifact-missing, editor-no-artifact (loadSemaStubArtifact from @semantscript/core/testing); estimate-killed has no --batch-size/--device and cli/src/train.ts:202 uses it; verification.py:227 gold stop reason carries no advice; init reserves *.traceback.txt. The round-3 review loop (explain missing -> retrain) is closed by missingAdvice() and the wrong-answer workflow step 1 text.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Remedies now point at semantscript explain (gold-check-example when a release is published, test-example-mismatch, unknown-function) and at loadSemaStubArtifact() from @semantscript/core/testing (runtime-not-loaded, artifact-missing, editor-no-artifact), and the generated outputs are regenerated. A new estimate-killed remedy drops the training-only flags. The seed-retry gold stop reason no longer gives its own advice. The diagnostics prose for VerificationConfigurationError, TrainingConfigurationError/TrainingExecutionError and ArtifactExportError/ArtifactPublicationError matches the generated fixes (train-option-invalid, train-no-gold-examples, train-failed, train-out-of-memory, artifact-export-failed, train-path-unwritable). init git-ignores *.traceback.txt. explain's missing line no longer sends a failed retrain back to train when a dataset for the changed id is cached. The tutorial, build-cache.md, framework-guide.md, framework/README.md, cli-reference and diagnostics.md point at explain and the stub artifact. Verified with build, generate-remedies --check, prettier, lint:node, test:node (all pass), trainer pytest (70 passed), ruff, and green CI on every pushed commit.
+<!-- SECTION:FINAL_SUMMARY:END -->

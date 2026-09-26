@@ -183,7 +183,7 @@ targets and the [deploy guide](../../docs/deploy.md) the size levers.
 - [`deploy/Dockerfile.package`](deploy/Dockerfile.package): a single-stage
   image whose build context is the bundle
   (`docker build -f deploy/Dockerfile.package -t ticket-api .semantscript/package`);
-  it copies the directory, runs as the `node` user and starts
+  it copies the directory owned by the `node` user (the trainer publishes releases owner-only), runs as that user and starts
   `dist/server.js`. The bundle carries native bindings for one platform and
   arch, so package for the image's: on macOS or another non-Linux host pass
   `--platform linux --arch arm64` (Apple silicon, whose Docker builds

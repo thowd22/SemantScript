@@ -314,7 +314,7 @@ status 1, each with a `next:` line naming the fix (retrain, rebuild then
 retrain, or `semantscript releases rollback`); no build output exits 1 naming
 `semantscript build`, and `--no-bundle` checks the artifact alone. An artifact
 whose pointer or manifest does not read fails with the runtime's code, and a
-missing release file names `releases rollback`. `--json` prints the same as one document, with the
+missing release file reports the runtime's code too and names `releases rollback`. `--json` prints the same as one document, with the
 `next:` lines as `next`.
 
 ## run

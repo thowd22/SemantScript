@@ -465,7 +465,7 @@ test("test reports shipped verification and replays bundle examples through the 
   assert.equal(await runCli(["test", "--artifact", dangling], gone.io), 1);
   assert.match(
     gone.stderr(),
-    /ENOENT[^\n]*; next: run semantscript releases list to find an intact release/u,
+    /fails the runtime's load checks: SEMA_ARTIFACT_PATH: [^\n]*; next: run semantscript releases list to find an intact release/u,
   );
 });
 
@@ -708,6 +708,46 @@ test("test checks the artifact against the build's bundle and the release's dige
     deadReleaseRun.stderr(),
     /fails the runtime's load checks: SEMA_ARTIFACT_PATH: /u,
   );
+
+  // A pointer that names a release that does not exist, with digests that
+  // disagree, a consistent pointer to a deleted release, and a deleted
+  // manifest all report the runtime's code; the missing files keep the
+  // rollback fix.
+  const rollbackFix =
+    /; next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, /u;
+  const ghost = join(root, "ghost");
+  await createFixtureArtifact(ghost);
+  const ghostPointer = JSON.parse(
+    await readFile(join(ghost, "current.json"), "utf8"),
+  );
+  ghostPointer.release = `releases/sha256-${"b".repeat(64)}`;
+  await writeFile(join(ghost, "current.json"), JSON.stringify(ghostPointer));
+  const gone = join(root, "gone");
+  await rm((await createFixtureArtifact(gone)).release, {
+    recursive: true,
+    force: true,
+  });
+  const bare = join(root, "bare");
+  await rm(join((await createFixtureArtifact(bare)).release, "manifest.json"));
+  for (const [artifact, code] of [
+    [ghost, "SEMA_ARTIFACT_INVALID_POINTER: pointer digests differ"],
+    [gone, "SEMA_ARTIFACT_PATH: cannot inspect release directory"],
+    [bare, "SEMA_ARTIFACT_PATH: cannot inspect manifest"],
+  ]) {
+    const run = capture(root);
+    assert.equal(
+      await runCli(["test", "--artifact", artifact, "--no-bundle"], run.io),
+      1,
+    );
+    assert.match(
+      run.stderr(),
+      new RegExp(
+        `^artifact at [^\\n]* fails the runtime's load checks: ${code}; `,
+        "u",
+      ),
+    );
+    assert.match(run.stderr(), rollbackFix);
+  }
 
   // A bundle path that does not exist, or a file that is not an IR bundle,
   // fails with a next: line instead of a bare ENOENT or a wrong comparison.

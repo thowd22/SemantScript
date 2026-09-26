@@ -442,7 +442,9 @@ is not a `semantscript.ir-bundle`, exits 1 with the no-build `next:` line. Witho
 `no semantscript.ir.v1.json under <directories>; next: run semantscript build, …`.
 With nothing published at the artifact root the command exits 1 with
 `no artifact at <root> (current.json is missing); next: run semantscript train …`;
-a release file that is missing (or a pointer that fails no runtime check but does not read) ends with
+a release file that is missing (a deleted manifest, or a pointer naming a release
+that does not exist) reports the runtime's `ArtifactLoadError` code, such as
+`SEMA_ARTIFACT_PATH` or `SEMA_ARTIFACT_INVALID_POINTER`, and ends with
 `next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, …`,
 the same fix `run` prints for that artifact.
 

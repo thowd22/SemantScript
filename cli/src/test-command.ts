@@ -210,25 +210,43 @@ function findBundle(requested: string | undefined, io: CliIo): string {
  * are not reached, but the pointer and manifest digests already were.
  */
 async function checkArtifact(root: string, unverified: boolean): Promise<void> {
+  const error = await loadCheckError(root);
+  if (error === undefined) return;
+  if (
+    unverified &&
+    error.code === "SEMA_ARTIFACT_INVALID_MANIFEST" &&
+    UNVERIFIED_STATUS.test(error.detail)
+  ) {
+    return;
+  }
+  throw loadCheckFailure(root, error, error.remedy);
+}
+
+/** The runtime's `ArtifactLoadError` for `root`, or undefined when it loads. */
+async function loadCheckError(
+  root: string,
+): Promise<
+  (Error & { code: string; detail: string; remedy: string }) | undefined
+> {
   const { checkSemaArtifact } = await import("@semantscript/core");
   try {
     await checkSemaArtifact(root);
+    return undefined;
   } catch (error: unknown) {
-    if (isArtifactLoadError(error)) {
-      if (
-        unverified &&
-        error.code === "SEMA_ARTIFACT_INVALID_MANIFEST" &&
-        UNVERIFIED_STATUS.test(error.detail)
-      ) {
-        return;
-      }
-      throw new Error(
-        `artifact at ${root} fails the runtime's load checks: ${error.code}: ${error.detail}; next: ${error.remedy}`,
-        { cause: error },
-      );
-    }
+    if (isArtifactLoadError(error)) return error;
     throw error;
   }
+}
+
+function loadCheckFailure(
+  root: string,
+  error: Error & { code: string; detail: string },
+  remedy: string,
+): Error {
+  return new Error(
+    `artifact at ${root} fails the runtime's load checks: ${error.code}: ${error.detail}; next: ${remedy}`,
+    { cause: error },
+  );
 }
 
 const UNVERIFIED_STATUS =
@@ -236,7 +254,7 @@ const UNVERIFIED_STATUS =
 
 function isArtifactLoadError(
   error: unknown,
-): error is { code: string; detail: string; remedy: string } {
+): error is Error & { code: string; detail: string; remedy: string } {
   return (
     error instanceof Error &&
     error.name === "ArtifactLoadError" &&
@@ -251,11 +269,12 @@ function isArtifactLoadError(
 
 /**
  * The artifact's summary. With no `current.json` at the root the error names
- * `semantscript train`. A release file that is missing names
- * `semantscript releases rollback`. Any other pointer or release that does not
- * read (a manifest that no longer parses, a symlink to nothing anywhere in it)
- * gets the runtime's load checks first, so it fails with the runtime's
- * `ArtifactLoadError` code and remedy, as `run` would.
+ * `semantscript train`. Any other pointer or release that does not read gets
+ * the runtime's load checks first, so it fails with the runtime's
+ * `ArtifactLoadError` code, as `run` would. A release file that is simply
+ * missing names `semantscript releases rollback`; every other failure (a
+ * pointer whose digests disagree, a manifest that no longer parses, a symlink
+ * to nothing anywhere in it) keeps the runtime's remedy too.
  */
 async function readSummary(root: string): Promise<ArtifactSummary> {
   try {
@@ -276,10 +295,25 @@ async function readSummary(root: string): Promise<ArtifactSummary> {
         { cause: error },
       );
     }
-    // A release file that is simply gone keeps the rollback fix; anything
-    // else (a manifest that no longer parses, a pointer, release or manifest
-    // symlinked to nothing) reports the runtime's code first.
-    if (!(await isSimplyMissing(root, error))) {
+    // Every other failure reports the runtime's code. A release file that is
+    // simply gone (a deleted manifest, or a pointer naming a release that
+    // does not exist) keeps the rollback fix in place of the runtime's
+    // generic path remedy; a pointer the runtime rejects itself, such as one
+    // whose digests disagree, keeps the runtime's remedy. Anything else (a
+    // manifest that no longer parses, a pointer, release or manifest
+    // symlinked to nothing) reports the runtime's code and remedy.
+    if (await isSimplyMissing(root, error)) {
+      const loadError = await loadCheckError(root);
+      if (loadError !== undefined) {
+        throw loadCheckFailure(
+          root,
+          loadError,
+          loadError.code === "SEMA_ARTIFACT_PATH"
+            ? remedyText("test-artifact-unreadable")
+            : loadError.remedy,
+        );
+      }
+    } else {
       await checkArtifact(root, false);
     }
     throw new Error(

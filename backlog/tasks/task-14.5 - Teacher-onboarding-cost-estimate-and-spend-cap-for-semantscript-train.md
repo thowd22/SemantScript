@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 00:05'
+updated_date: '2026-09-26 00:12'
 labels:
   - dx
   - train
@@ -23,9 +23,9 @@ A training run through a paid teacher gives the developer no idea what it will c
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 semantscript train --estimate prints, per expression and in total, the number of teacher requests, the input and output tokens, the cost in USD at the configured backend's price and the expected wall time, without calling the teacher
-- [ ] #2 --max-cost-usd stops a run before the request that would exceed it, with the cached datasets kept, and every run prints its running cost and request count
-- [ ] #3 init asks for or accepts a teacher choice (Anthropic, OpenRouter, Ollama, constraints) and writes the TOML; semantscript teacher probe sends one request through the configured backend and reports the model, latency and cost
+- [x] #1 semantscript train --estimate prints, per expression and in total, the number of teacher requests, the input and output tokens, the cost in USD at the configured backend's price and the expected wall time, without calling the teacher
+- [x] #2 --max-cost-usd stops a run before the request that would exceed it, with the cached datasets kept, and every run prints its running cost and request count
+- [x] #3 init asks for or accepts a teacher choice (Anthropic, OpenRouter, Ollama, constraints) and writes the TOML; semantscript teacher probe sends one request through the configured backend and reports the model, latency and cost
 - [ ] #4 The teacher prompt is measured and reduced (or served through prompt caching) so that a case costs no more than half of the 2026-09-25 figure at equal verification results on the Express example
 <!-- AC:END -->
 
@@ -88,4 +88,11 @@ FIX round 3 (2026-09-25):
 - Blocking (batch wall time, AC1): the estimate now gives Message Batches a wall time. teacher_estimate adds batchSeconds (BATCH_EXPECTED_SECONDS = 3600 per batch; Anthropic docs: most batches finish within an hour) into seconds, and maximumSeconds (poll_timeout_seconds per batch the run can submit: the first synthetic batch plus 3 label-replacement rounds on a constrained expression; direct rows: maximum requests x seconds per request). The Node table shows 'time (max ...)' on batch rows and a line under the table explaining the batch. Measured on examples/express-app with the default Anthropic teacher (mode auto, --cases 192, cfr 0.5): 'nf_957c2b2b... 69 min (max 97.3 h)', 'nf_bcbf93e1... 60 min (max 24.0 h)', 'total ... 2.2 h (max 121.3 h)', plus '454 requests go through the Message Batches API at half price; ...'. Documented in teachers.md, cli-reference.md, trainer/README.md.
 - Advisory fixed: a rejected batch now charges every succeeded item before raising (meter matches the provider bill); a recorded batch whose results expired (SDK error naming results_url, no status) is resubmitted like a 404; the batch poll timeout message says a rerun collects the recorded batch at no new cost. Tests added (2 in test_anthropic_teacher, batch time asserts in test_teacher_estimate, a batch rendering case in cli.test.mjs).
 - AC4 still open (blocking, needs user): equal verification on the Express example with the reduced prompt is not measured. The comparison costs about USD 1.02 expected (USD 2.88 max) through OpenRouter plus a GPU retrain, above the USD 0.50 budget. No OpenRouter money spent this round.
+
+FINALIZE validation (2026-09-26):
+- AC1 checked: with ANTHROPIC_API_KEY unset, 'semantscript train --estimate --cases 192 --counterfactual-ratio 0.5' in examples/express-app with an OpenRouter TOML printed per-expression rows and total 596 (max 1533) requests, 1,251,811 input / 48,284 output tokens, USD 1.02 (max 2.88), 40 min, 'no teacher request was sent', and the cap verdict for --max-cost-usd 0.5; with the constraints teacher every row and the total are 0 requests, USD 0.00, 0 s. Batch rows carry a batch time (fix round 3 tests).
+- AC2 checked: 23 spend/cap/journal tests pass (test_spend_cap_stops_before_the_request_that_would_pass_it, test_spend_cap_stops_the_run_keeps_paid_responses_and_a_rerun_replays_them, batch journal resume tests, meter running lines); live capped OpenRouter runs recorded in IMPLEMENT notes (stop under the 0.02 cap, datasets cached, zero-cost replay on resume); Node tests cover the 'teacher: n requests, USD x' report line.
+- AC3 checked: 'init --teacher anthropic|openrouter|ollama|constraints --tool tsc --no-doctor' in four scratch projects each wrote .semantscript/teacher.toml (backend anthropic/claude-sonnet-5 mode auto; anthropic + base_url openrouter.ai mode direct; ollama qwen3:14b; constraints), the only key mention is a comment telling the user to export it, and a second init reports 'unchanged'. 'teacher probe' sent one request: Ollama qwen3:14b 4.53 s, 17 in / 8 out, USD 0; OpenRouter anthropic/claude-sonnet-5 2.60 s, 16 in / 4 out, USD 0.000072; constraints sends none, USD 0.
+- AC4 NOT checked: prompt reduction measured (decideRefund case 20,434 -> ~4,705 chars; live cost per request USD 0.0071 first / 0.0017 cached vs 0.017), but equal verification on the Express example is not measured. The comparison costs about USD 1.02 expected (2.88 max) plus a GPU retrain, over the USD 0.50 budget; needs user approval or a rescope. Task stays In Progress.
+- Gates: npm run build 0; npm run lint:node 0; npm run test:node 89/105/22/8/85 pass 0 fail; npm run test:python 639 passed 4 skipped; ruff check all passed; ruff format --check 129 files formatted; prettier --check docs README.md ok. OpenRouter spend this stage USD 0.000072.
 <!-- SECTION:NOTES:END -->

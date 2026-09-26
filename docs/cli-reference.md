@@ -411,11 +411,16 @@ files. A release that fails exits 1 with
 `artifact at <root> fails the runtime's load checks: <code>: <detail>; next: <remedy>`,
 where `<code>` is the runtime's `ArtifactLoadError` code
 (`SEMA_ARTIFACT_INTEGRITY`, `SEMA_ARTIFACT_PATH`, ...) and `<remedy>` is the fix the runtime would print
-([diagnostics](diagnostics.md#runtime-errors)). A release with a function
-that did not pass verification is refused by the runtime before any digest
-check, so for it the unverified `next:` line below is the fix.
+([diagnostics](diagnostics.md#runtime-errors)). A manifest that no longer
+parses, or a `current.json` symlinked to nothing, fails the same way. Every
+release gets these checks, including one whose manifest records a function
+that did not pass verification: its pointer and manifest digests are checked
+(so a manifest hand-edited to read `failed` is `SEMA_ARTIFACT_INTEGRITY`), and
+the runtime's refusal of the unverified status itself is left to the
+unverified `next:` line below. The runtime stops at that status, before the
+resource digests, so those are checked once the release is retrained.
 
-Last, it compares the artifact with the build's bundle, found the way `run`
+Last, it compares the artifact with the build's bundle, found the way `train`
 and `explain` find it (default above), and replays every IR example through the
 runtime, comparing by value (diagnostic functions by `value`).
 
@@ -429,13 +434,15 @@ runtime, comparing by value (diagnostic functions by `value`).
 Exit 1 when any function's status is not `passed`, any bundle function is
 absent from the artifact, any artifact function is not in the bundle (the
 program changed since training), or any example mismatches. Each adds a
-`next:` line (retrain on this bundle; rebuild and retrain; rebuild, retrain
-and rerun; retrain or roll back), which `--json` lists as `next`. Without
+`next:` line (retrain on this bundle; rebuild, retrain and rerun; retrain or
+roll back), which `--json` lists as `next`; ids missing both ways get the one
+rebuild-and-retrain line. A `--bundle` path that does not read, or a file that
+is not a `semantscript.ir-bundle`, exits 1 with the no-build `next:` line. Without
 `--bundle` and `--no-bundle` and with no build output, the command exits 1 with
 `no semantscript.ir.v1.json under <directories>; next: run semantscript build, …`.
 With nothing published at the artifact root the command exits 1 with
 `no artifact at <root> (current.json is missing); next: run semantscript train …`;
-a pointer or release that does not read ends with
+a release file that is missing (or a pointer that fails no runtime check but does not read) ends with
 `next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, …`,
 the same fix `run` prints for that artifact.
 

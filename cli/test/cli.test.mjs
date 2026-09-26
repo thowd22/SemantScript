@@ -506,7 +506,7 @@ test("test checks the artifact against the build's bundle and the release's dige
   );
   assert.match(both.stderr(), /--bundle and --no-bundle cannot be combined/u);
 
-  // The build's bundle comes from the tsconfig outDir, as run and explain find it.
+  // The build's bundle comes from the tsconfig outDir, as train and explain find it.
   await writeFile(
     join(root, "tsconfig.json"),
     JSON.stringify({ compilerOptions: { outDir: "build-output" } }),
@@ -529,9 +529,11 @@ test("test checks the artifact against the build's bundle and the release's dige
     stale.stdout(),
     /nf_11111111…: in the artifact but not in the bundle/u,
   );
+  assert.match(stale.stdout(), /\ntest failed\n$/u);
+  // Missing both ways is one fix, rebuild and retrain: one next: line.
   assert.match(
     stale.stdout(),
-    /\nnext: run semantscript train on this bundle \(semantscript build first if the source changed\)\nnext: the program changed since training: run semantscript build, then semantscript train, and rerun semantscript test; or pass --bundle for the bundle this artifact was trained from\ntest failed\n$/u,
+    /\nnext: the program changed since training: run semantscript build, then semantscript train, and rerun semantscript test; or pass --bundle for the bundle this artifact was trained from\ntest failed\n$/u,
   );
   const staleJson = capture(root);
   assert.equal(await runCli(["test", "--json"], staleJson.io), 1);
@@ -540,7 +542,7 @@ test("test checks the artifact against the build's bundle and the release's dige
   assert.equal(document.bundle, bundlePath);
   assert.deepEqual(document.missingFunctions, [changedId]);
   assert.deepEqual(document.unbundledFunctions, [fixtureFunctionId]);
-  assert.equal(document.next.length, 2);
+  assert.equal(document.next.length, 1);
   const skipped = capture(root);
   assert.equal(await runCli(["test", "--no-bundle", "--json"], skipped.io), 0);
   const skippedDocument = JSON.parse(skipped.stdout());
@@ -606,6 +608,91 @@ test("test checks the artifact against the build's bundle and the release's dige
   assert.match(
     linkRun.stderr(),
     /fails the runtime's load checks: SEMA_ARTIFACT_PATH: [^\n]*; next: point at the artifact root semantscript train published/u,
+  );
+
+  // A passing release whose manifest was hand-edited to read "failed" is
+  // tampering, not an honest unverified release: the manifest digest fails.
+  const flipped = join(root, "flipped");
+  const flippedManifest = join(
+    (await createFixtureArtifact(flipped)).release,
+    "manifest.json",
+  );
+  const text = await readFile(flippedManifest, "utf8");
+  assert.match(text, /"status": "passed"/u);
+  await writeFile(
+    flippedManifest,
+    text.replace('"status": "passed"', '"status": "failed"'),
+  );
+  const flippedRun = capture(root);
+  assert.equal(
+    await runCli(["test", "--artifact", flipped, "--no-bundle"], flippedRun.io),
+    1,
+  );
+  assert.equal(flippedRun.stdout(), "");
+  assert.match(
+    flippedRun.stderr(),
+    new RegExp(
+      `fails the runtime's load checks: SEMA_ARTIFACT_INTEGRITY: manifest digest [^\\n]*; next: ${corruptFix}`,
+      "u",
+    ),
+  );
+
+  // A manifest that no longer parses, and a pointer symlinked to nothing,
+  // report the runtime's code rather than a bare read error.
+  const garbled = join(root, "garbled");
+  await writeFile(
+    join((await createFixtureArtifact(garbled)).release, "manifest.json"),
+    "garbage",
+  );
+  const garbledRun = capture(root);
+  assert.equal(
+    await runCli(["test", "--artifact", garbled, "--no-bundle"], garbledRun.io),
+    1,
+  );
+  assert.match(
+    garbledRun.stderr(),
+    /^artifact at [^\n]* fails the runtime's load checks: SEMA_ARTIFACT_[A-Z_]+: /u,
+  );
+  const nowhere = join(root, "nowhere");
+  await createFixtureArtifact(nowhere);
+  await rm(join(nowhere, "current.json"));
+  await symlink(
+    join(root, "missing-current.json"),
+    join(nowhere, "current.json"),
+  );
+  const nowhereRun = capture(root);
+  assert.equal(
+    await runCli(["test", "--artifact", nowhere, "--no-bundle"], nowhereRun.io),
+    1,
+  );
+  assert.match(
+    nowhereRun.stderr(),
+    /fails the runtime's load checks: SEMA_ARTIFACT_PATH: /u,
+  );
+
+  // A bundle path that does not exist, or a file that is not an IR bundle,
+  // fails with a next: line instead of a bare ENOENT or a wrong comparison.
+  const missingBundle = capture(root);
+  assert.equal(
+    await runCli(["test", "--bundle", "nope.json"], missingBundle.io),
+    1,
+  );
+  assert.match(
+    missingBundle.stderr(),
+    /^cannot read the bundle [^\n]*nope\.json: [^\n]*; next: run semantscript build/u,
+  );
+  await writeFile(
+    join(root, "other.json"),
+    JSON.stringify({ kind: "other", functions: [] }),
+  );
+  const otherBundle = capture(root);
+  assert.equal(
+    await runCli(["test", "--bundle", "other.json"], otherBundle.io),
+    1,
+  );
+  assert.match(
+    otherBundle.stderr(),
+    /other\.json is not a semantscript\.ir-bundle; next: run semantscript build/u,
   );
 });
 

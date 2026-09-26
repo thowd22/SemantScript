@@ -1,10 +1,11 @@
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { lstat } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import {
   BUNDLE_FILE_NAME,
   bundleCandidates,
+  findBuiltBundle,
   resolveArtifactRoot,
 } from "./defaults.js";
 import { CliUsageError, listOf, objectOf, stringOf, type CliIo } from "./io.js";
@@ -50,7 +51,7 @@ interface BundleFunction {
  * paths) on the release, then compare the artifact's functions with the
  * build's bundle and replay its examples through the loaded artifact.
  * `--no-bundle` skips the bundle; without `--bundle` the build's bundle is
- * found the way `run` and `explain` find it.
+ * found the way `train` and `explain` find it.
  */
 export async function testCommand(
   args: readonly string[],
@@ -72,9 +73,11 @@ export async function testCommand(
   const root = resolveArtifactRoot(values, io);
   const summary = await readSummary(root);
   const verified = summary.functions.every((fn) => fn.status === "passed");
-  // The runtime refuses a release with an unverified function before any
-  // digest check, so for one of those the unverified next: line is the fix.
-  if (verified) await checkArtifact(root);
+  // Every release gets the runtime's load checks. For a release with an
+  // unverified function the runtime's refusal of that status is expected (the
+  // unverified next: line below is its fix); any other failure, such as a
+  // pointer or manifest digest mismatch or an unsafe path, is still reported.
+  await checkArtifact(root, !verified);
   const bundlePath =
     values["no-bundle"] === true ? null : findBundle(values.bundle, io);
   const bundle =
@@ -95,10 +98,13 @@ export async function testCommand(
   const ok = verified && replayed && unbundled.length === 0;
   const next: string[] = [];
   if (!verified) next.push(remedyText("test-function-unverified"));
-  if (examples?.some((entry) => !entry.present) === true) {
+  // Ids missing in both directions mean the program changed since training;
+  // the unbundled fix (rebuild, retrain, rerun) covers the absent one too.
+  if (unbundled.length > 0) {
+    next.push(remedyText("test-function-unbundled"));
+  } else if (examples?.some((entry) => !entry.present) === true) {
     next.push(remedyText("test-function-absent"));
   }
-  if (unbundled.length > 0) next.push(remedyText("test-function-unbundled"));
   if (
     examples?.some((entry) => entry.present && entry.failures.length > 0) ===
     true
@@ -177,17 +183,16 @@ export async function testCommand(
 
 /**
  * `--bundle`, else the first bundle the build wrote (the tsconfig outDir, then
- * the conventional output directories, as `run` and `explain` look). No build
+ * the conventional output directories, as `train` and `explain` look). No build
  * output is a failure that names `semantscript build`.
  */
 function findBundle(requested: string | undefined, io: CliIo): string {
   if (requested !== undefined) return resolve(io.cwd, requested);
-  const candidates = bundleCandidates(io.cwd);
-  const found = candidates.find((candidate) => existsSync(candidate));
+  const found = findBuiltBundle(io.cwd);
   if (found === undefined) {
     throw new Error(
-      `no ${BUNDLE_FILE_NAME} under ${candidates
-        .map((candidate) => candidate.slice(0, -BUNDLE_FILE_NAME.length - 1))
+      `no ${BUNDLE_FILE_NAME} under ${bundleCandidates(io.cwd)
+        .map((candidate) => dirname(candidate))
         .join(", ")}; next: ${remedyText("test-no-build")}`,
     );
   }
@@ -198,14 +203,25 @@ function findBundle(requested: string | undefined, io: CliIo): string {
  * The runtime's own load checks on the release `current.json` names, without
  * starting ONNX sessions: pointer, manifest digest and schema, ABI, resource
  * sizes and digests, symlinks and non-regular files. A failure keeps the
- * runtime's `ArtifactLoadError` code and remedy.
+ * runtime's `ArtifactLoadError` code and remedy. With `unverified` true (the
+ * summary already shows a function that did not pass), the runtime's refusal
+ * of a `verification.status` other than "passed" is expected and not
+ * reported; the runtime stops there, so resource digests of such a release
+ * are not reached, but the pointer and manifest digests already were.
  */
-async function checkArtifact(root: string): Promise<void> {
+async function checkArtifact(root: string, unverified: boolean): Promise<void> {
   const { checkSemaArtifact } = await import("@semantscript/core");
   try {
     await checkSemaArtifact(root);
   } catch (error: unknown) {
     if (isArtifactLoadError(error)) {
+      if (
+        unverified &&
+        error.code === "SEMA_ARTIFACT_INVALID_MANIFEST" &&
+        UNVERIFIED_STATUS.test(error.detail)
+      ) {
+        return;
+      }
       throw new Error(
         `artifact at ${root} fails the runtime's load checks: ${error.code}: ${error.detail}; next: ${error.remedy}`,
         { cause: error },
@@ -214,6 +230,9 @@ async function checkArtifact(root: string): Promise<void> {
     throw error;
   }
 }
+
+const UNVERIFIED_STATUS =
+  /^manifest\.functions\[\d+\]\.verification\.status must equal "passed"$/u;
 
 function isArtifactLoadError(
   error: unknown,
@@ -232,25 +251,41 @@ function isArtifactLoadError(
 
 /**
  * The artifact's summary. With no `current.json` at the root the error names
- * `semantscript train`; a pointer or release that does not read names
- * `semantscript releases rollback`, as `run` does for the same artifact.
+ * `semantscript train`. A release file that is missing names
+ * `semantscript releases rollback`. Any other pointer or release that does not
+ * read (a manifest that no longer parses, a `current.json` symlink to nothing)
+ * gets the runtime's load checks first, so it fails with the runtime's
+ * `ArtifactLoadError` code and remedy, as `run` would.
  */
 async function readSummary(root: string): Promise<ArtifactSummary> {
   try {
     return await readArtifactSummary(root);
   } catch (error: unknown) {
+    const pointer = join(root, "current.json");
     if (
       typeof error === "object" &&
       error !== null &&
       "code" in error &&
       error.code === "ENOENT" &&
       "path" in error &&
-      error.path === join(root, "current.json")
+      error.path === pointer &&
+      !(await exists(pointer))
     ) {
       throw new Error(
         `no artifact at ${root} (current.json is missing); next: ${remedyText("test-no-artifact", { root })}`,
         { cause: error },
       );
+    }
+    // A release file that is simply gone keeps the rollback fix; anything
+    // else (a manifest that no longer parses, a pointer symlinked to nothing)
+    // reports the runtime's code first.
+    const pointerDangles =
+      typeof error === "object" &&
+      error !== null &&
+      "path" in error &&
+      error.path === pointer;
+    if (!isMissingFile(error) || pointerDangles) {
+      await checkArtifact(root, false);
     }
     throw new Error(
       `${error instanceof Error ? error.message : String(error)}; next: ${remedyText("test-artifact-unreadable")}`,
@@ -259,10 +294,43 @@ async function readSummary(root: string): Promise<ArtifactSummary> {
   }
 }
 
+function isMissingFile(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "ENOENT" || error.code === "ENOTDIR")
+  );
+}
+
+/** Whether `path` itself exists, without following a final symlink. */
+async function exists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function readBundleFunctions(
   bundlePath: string,
 ): Promise<readonly BundleFunction[]> {
-  const bundle = objectOf(await readJson(bundlePath), "bundle");
+  let raw: unknown;
+  try {
+    raw = await readJson(bundlePath);
+  } catch (error: unknown) {
+    throw new Error(
+      `cannot read the bundle ${bundlePath}: ${error instanceof Error ? error.message : String(error)}; next: ${remedyText("test-no-build")}`,
+      { cause: error },
+    );
+  }
+  const bundle = objectOf(raw, "bundle");
+  if (bundle["kind"] !== "semantscript.ir-bundle") {
+    throw new Error(
+      `${bundlePath} is not a semantscript.ir-bundle; next: ${remedyText("test-no-build")}`,
+    );
+  }
   return listOf(bundle["functions"], "bundle.functions").map((entry, index) => {
     const path = `bundle.functions[${String(index)}]`;
     const fn = objectOf(entry, path);

@@ -304,7 +304,7 @@ are not persisted, so this is the gate `train` already enforced. It then runs
 the runtime's load checks on the release (`checkSemaArtifact`: pointer,
 manifest digest, resource sizes and digests, symlinks), and a release that
 fails exits 1 with the runtime's `ArtifactLoadError` code and remedy. Last it
-finds the build's bundle as `run` and `explain` do (`--bundle` overrides it),
+finds the build's bundle as `train` and `explain` do (`--bundle` overrides it),
 compares its functions with the artifact's and replays every IR example through
 the runtime, comparing outputs by value (diagnostic functions by their
 `value`). Any function whose status is not `passed`, any bundle function absent
@@ -313,8 +313,8 @@ changed since training) and any example mismatch make the command exit with
 status 1, each with a `next:` line naming the fix (retrain, rebuild then
 retrain, or `semantscript releases rollback`); no build output exits 1 naming
 `semantscript build`, and `--no-bundle` checks the artifact alone. An artifact
-whose pointer or release does not read fails the same way `run` does, naming
-`releases rollback`. `--json` prints the same as one document, with the
+whose pointer or manifest does not read fails with the runtime's code, and a
+missing release file names `releases rollback`. `--json` prints the same as one document, with the
 `next:` lines as `next`.
 
 ## run

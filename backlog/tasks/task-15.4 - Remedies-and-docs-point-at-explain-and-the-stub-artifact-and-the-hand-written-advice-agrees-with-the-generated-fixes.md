@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 08:07'
+updated_date: '2026-09-26 08:48'
 labels:
   - dx
 milestone: m-6
@@ -52,4 +52,6 @@ IMPLEMENT: remedies.json edits (gold-check-example, test-example-mismatch, unkno
 Committed and pushed task-15.4 (9cc92a8); CI run 36224327946 green on all 7 jobs (Node lint/build/tests, Python lint and tests dev and dev,training, fresh clone, package, doctor macOS/Windows).
 
 FIX round 1 (commit 0006160, CI run 36228598548 green, all 7 jobs): (1) docs/diagnostics.md: out-of-range options (--batch-size, --evaluation-ratio, --ece-threshold...) raise TrainingConfigurationError/VerificationConfigurationError at the options stage and end with train-option-invalid (verified: trainer CLI with --batch-size 0, --evaluation-ratio 0, --ece-threshold -1 each printed the train-option-invalid fix); train-failed is now stated only for errors raised during the run; ArtifactExportError notes train-path-unwritable for file-system causes. (2) gold-check-example no longer points at semantscript explain: a failed verification raises before export (cli.py 538-552), so there is no release to explain (verified: explain with an empty --artifact exits 1 with ENOENT on current.json). Reverted its fix to the pre-15.4 text; verifier bullet and tutorial step 4 say why. AC1 reads 'where that is the next step'; for this train-side remedy it is not. (3) Tutorial step 5 and build-cache.md: a changed example/constraint changes the dataset key (IR definition includes examples and constraints), so run train --estimate first. (4) runtime/test/remedies.test.mjs pins explain in test-example-mismatch/unknown-function, loadSemaStubArtifact() from @semantscript/core/testing in runtime-not-loaded/artifact-missing/editor-no-artifact, no explain in gold-check-example, no --batch-size/--device in estimate-killed. Checks: generate-remedies --check ok, prettier ok, build ok, lint:node ok, test:node 89/126/61/9/85 pass, pytest remedies/failures/seed_retry/verification 44 passed, ruff clean.
+
+FIX round 2 (commit fb49623, CI run 36230662893 green, all 7 jobs): the reviewer was right. A failed retrain leaves the earlier release published, and the run's dataset is already cached (dataset.py writes it at generation, before verification). explain then prints the gold example next to the nearest teacher-labelled cases (findTrainingCases falls back to the newest dataset for the function id). gold-check-example now names 'semantscript explain <module.js> --call <export> with the example's inputs' for the case where a release is already published. Updated the diagnostics.md verifier bullet and tutorial step 4 (on a first train there is no release; on a retrain explain applies). remedies.test.mjs now asserts the pointer is there. The cli-reference test summary also mentions explain. Checks: generate-remedies --check ok, prettier ok, build/lint ok, test:node 89/126/61/9/85 pass, pytest test_remedies/test_failures/test_verification 35 passed, ruff clean.
 <!-- SECTION:NOTES:END -->

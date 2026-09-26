@@ -170,11 +170,23 @@ await stub.close(); // closes the artifact and removes the stub
 - `answers` is a `Map`, a list of `[key, answer]` pairs or an object keyed by
   function id. A key is a function id or the compiled function that calls one
   sema expression (its id is read from the compiled source; `semaFunctionId`
-  shows which).
+  shows which). Keying by compiled function needs a `Map` or pairs; an
+  object's keys must be `nf_` ids.
+- A compiled function that calls several sema expressions, such as a staged
+  `screenOrder` that asks three questions, has no single id: answer each
+  expression by its id. Creating the stub with such a key throws
+  `SemaStubError` (`unresolved-function`) listing each expression's source
+  position and id. The IR bundle lists them too: every entry of
+  `functions` has its `id` and its `source` (`path`, `line`, `column`), so
+  `bundle.functions.find((fn) => fn.source.line === 36).id` picks one by
+  position.
 - An answer is a fixed value, `{ value, confidence }`,
   `{ byInput: [{ inputs, value, confidence? }], otherwise? }` (inputs matched
   on their canonical serialization, so key order does not matter) or
-  `{ compute: (inputs) => value | { value, confidence } }`. A flat object
+  `{ compute: (inputs) => value | { value, confidence } }`, where `compute`
+  is synchronous (sema calls answer synchronously; a returned `Promise` is
+  refused) and `inputs` is typed loosely so TypeScript tests can destructure
+  it. A flat object
   output's value is `{ value: { ...fields } }` and its confidence one number
   or one per field. Confidence defaults to 1 and must be above one over the
   number of possible values, so the answer stays the top value; the
@@ -192,14 +204,18 @@ await stub.close(); // closes the artifact and removes the stub
   not trained yet gets the trainer's default canonical input (v2), so
   `maximumInputBytes` limits behave as they will after training.
 - A loaded stub is the process's active artifact, like a trained one: loading
-  another stub (or artifact) replaces it. Load one at a time, and close it
-  when the test ends.
+  another stub (or artifact) replaces it, and closing that one leaves no
+  artifact active: calls then throw `SemaRuntimeNotLoadedError` even though
+  the earlier stub was never closed. Do not nest stubs (for example one per
+  `describe` and one per test); load one at a time, and close it when the
+  test ends.
 - `createSemaStubArtifact(bundle, { answers, directory? })` writes the
   artifact without loading it and returns its `root` and `dispose()`, for
   loading with your own `loadSemaArtifact` call. Without `directory` it
   writes a temporary directory that `dispose()` removes. A given `directory`
   must be missing, empty or written by an earlier stub; anything else, such
-  as a trained artifact root like `.semantscript/artifact`, is refused with
+  as a trained artifact root like `.semantscript/artifact` or a release a
+  trainer published into a directory a crashed stub left behind, is refused with
   `SemaStubError` (`occupied-directory`) and left untouched. `dispose()`
   removes the stub's release and its `current.json` pointer from it. The answers live in the
   process that created the stub: a stub release loaded anywhere else is

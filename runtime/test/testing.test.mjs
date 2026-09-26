@@ -659,6 +659,34 @@ test("a given directory that holds anything but a stub is refused and left alone
   );
   await second.dispose();
   assert.ok(!existsSync(shared));
+
+  // A stub that crashed before dispose leaves its marker behind; a trained
+  // release published there later must still be protected.
+  const crashed = join(scratch, "crashed");
+  await testing.createSemaStubArtifact(bundle, {
+    answers: {},
+    directory: crashed,
+  });
+  await mkdir(join(crashed, "releases", "sha256-trained"), { recursive: true });
+  await writeFile(
+    join(crashed, "releases", "sha256-trained", "manifest.json"),
+    JSON.stringify({
+      functions: [
+        { trainingProvenance: { teacher: "claude", baseModel: "qwen" } },
+      ],
+    }),
+  );
+  await writeFile(join(crashed, "current.json"), pointer);
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, {
+      answers: {},
+      directory: crashed,
+    }),
+    (error) =>
+      error.reason === "occupied-directory" &&
+      error.message.includes("releases/sha256-trained"),
+  );
+  assert.equal(await readFile(join(crashed, "current.json"), "utf8"), pointer);
 });
 
 test("misuse names the function by its source position", async () => {
@@ -697,6 +725,66 @@ test("misuse names the function by its source position", async () => {
       error.reason === "unresolved-function" &&
       error.message.includes("calls no sema expression"),
   );
+
+  // A compiled function that calls several expressions: the error lists
+  // each expression's source position and id, ready to key by.
+  const screen = new Function(
+    `return __sema.call("${ids.label}", {}) + __sema.call("${ids.flag}", {});`,
+  );
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, { answers: [[screen, "deny"]] }),
+    (error) =>
+      error.reason === "unresolved-function" &&
+      error.message.includes("calls 2 sema expressions") &&
+      error.message.includes(`src/app.sem.ts:1:1 (${ids.label})`) &&
+      error.message.includes(`src/app.sem.ts:1:1 (${ids.flag})`) &&
+      error.message.includes("functions[].id"),
+  );
+  assert.throws(
+    () => testing.semaFunctionId(screen),
+    (error) =>
+      error.reason === "unresolved-function" &&
+      error.message.includes(ids.label) &&
+      error.message.includes(ids.flag),
+  );
+
+  // Common key mistakes carry the fix in the message.
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, { answers: { decideRefund: "x" } }),
+    (error) =>
+      error.reason === "unknown-function" &&
+      error.message.includes(
+        "pass a Map or a list of [function, answer] pairs",
+      ),
+  );
+  await assert.rejects(
+    testing.createSemaStubArtifact(bundle, {
+      answers: { [`nf_${"f".repeat(64)}`]: "deny" },
+    }),
+    (error) =>
+      error.reason === "unknown-function" &&
+      error.message.includes("run semantscript build"),
+  );
+});
+
+test("an async compute is refused with a message saying compute must be synchronous", async () => {
+  const { runtime, testing } = await runtimeModules();
+  const handle = await testing.loadSemaStubArtifact(bundle, {
+    answers: { [ids.label]: { compute: async () => "deny" } },
+    fallbacks: fallbacks(),
+  });
+  try {
+    assert.throws(
+      () => runtime.__sema.call(ids.label, { facts }),
+      (error) =>
+        error instanceof testing.SemaStubError &&
+        error.reason === "invalid-value" &&
+        error.message.includes("returned a Promise") &&
+        error.message.includes("synchronous"),
+    );
+  } finally {
+    await handle.close();
+  }
 });
 
 test("a bundle path loads like the bundle object", async (t) => {

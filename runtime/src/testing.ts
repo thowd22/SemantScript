@@ -98,10 +98,15 @@ export interface SemaStubByInput {
   readonly otherwise?: SemaStubScalar | SemaStubAnswer;
 }
 
-/** A function of the call's inputs, returning a scalar or `{ value, confidence }`. */
+/**
+ * A synchronous function of the call's inputs, returning a scalar or
+ * `{ value, confidence }`. The inputs are the validated call inputs by name;
+ * they are typed loosely so a test can destructure them without casts.
+ */
 export interface SemaStubCompute {
   readonly compute: (
-    inputs: Readonly<Record<string, unknown>>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    inputs: Readonly<Record<string, any>>,
   ) => SemaStubScalar | SemaStubAnswer;
 }
 
@@ -324,16 +329,31 @@ function requireAnswersOption(options: unknown): void {
   }
 }
 
-/** The id of the one sema expression a compiled function calls, or the id itself. */
+/**
+ * The id of the one sema expression a compiled function calls, or the id
+ * itself. A compiled function that calls several expressions has no single
+ * id: the error lists them, and `loadSemaStubArtifact` also names each one's
+ * source position.
+ */
 export function semaFunctionId(key: SemaStubFunctionKey): string {
+  const ids = semaFunctionIdsOf(key);
+  const [id] = ids;
+  if (ids.length !== 1 || id === undefined) {
+    throw severalExpressions(key as (...args: never[]) => unknown, ids);
+  }
+  return id;
+}
+
+/** Every sema expression id a key names: the id itself, or those in the compiled function's source. */
+function semaFunctionIdsOf(key: SemaStubFunctionKey): readonly string[] {
   if (typeof key === "string") {
     if (!FUNCTION_ID.test(key)) {
       throw new SemaStubError(
         "unknown-function",
-        `${JSON.stringify(key)} is not a semantic function id (nf_ and 64 hex digits)`,
+        `${JSON.stringify(key)} is not a semantic function id (nf_ and 64 hex digits); to key answers by the compiled function, pass a Map or a list of [function, answer] pairs instead of an object`,
       );
     }
-    return key;
+    return [key];
   }
   if (typeof key !== "function") {
     throw new SemaStubError(
@@ -342,21 +362,28 @@ export function semaFunctionId(key: SemaStubFunctionKey): string {
     );
   }
   const source = Function.prototype.toString.call(key);
-  const ids = new Set(source.match(FUNCTION_ID_IN_SOURCE) ?? []);
-  const [id] = ids;
-  if (ids.size === 0 || id === undefined) {
+  const ids = [...new Set(source.match(FUNCTION_ID_IN_SOURCE) ?? [])];
+  if (ids.length === 0) {
     throw new SemaStubError(
       "unresolved-function",
       `function ${JSON.stringify(key.name)} calls no sema expression; key an answer by a function the compiler emitted (import it from the build output, not from src) or by its function id`,
     );
   }
-  if (ids.size !== 1) {
-    throw new SemaStubError(
-      "unresolved-function",
-      `function ${JSON.stringify(key.name)} calls ${String(ids.size)} sema expressions; key its answer by function id instead`,
-    );
-  }
-  return id;
+  return ids;
+}
+
+function severalExpressions(
+  key: (...args: never[]) => unknown,
+  ids: readonly string[],
+  functions?: ReadonlyMap<string, StubFunction>,
+): SemaStubError {
+  const listed = ids
+    .map((id) => `  - ${functions?.get(id)?.label ?? id}`)
+    .join("\n");
+  return new SemaStubError(
+    "unresolved-function",
+    `function ${JSON.stringify(key.name)} calls ${String(ids.length)} sema expressions; key each answer by its function id instead:\n${listed}\n(the IR bundle lists every id with its source position under functions[].id and functions[].source)`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -873,11 +900,51 @@ async function refuseOccupiedDirectory(root: string): Promise<void> {
       `cannot use ${root} for a stub artifact: ${errorMessage(error)}`,
     );
   }
-  if (entries.length > 0 && !entries.includes(STUB_MARKER)) {
+  const refuse = (why: string): never => {
     throw new SemaStubError(
       "occupied-directory",
-      `${root} is not empty and was not written by a stub artifact (it may hold a trained artifact); pass an empty or missing directory, or omit directory to use a temporary one`,
+      `${root} ${why} (it may hold a trained artifact); pass an empty or missing directory, or omit directory to use a temporary one`,
     );
+  };
+  if (entries.length === 0) return;
+  if (!entries.includes(STUB_MARKER)) {
+    refuse("is not empty and was not written by a stub artifact");
+  }
+  // The marker alone is not proof: a trainer may have published into a
+  // directory a crashed stub left behind. Every release must be a stub's.
+  let releases: string[] = [];
+  try {
+    releases = await readdir(join(root, "releases"));
+  } catch {
+    // No releases directory: nothing to protect.
+  }
+  for (const release of releases) {
+    if (!(await isStubRelease(join(root, "releases", release)))) {
+      refuse(`holds releases/${release}, which a stub did not write`);
+    }
+  }
+}
+
+/** True when a release's manifest has stub provenance on every function. */
+async function isStubRelease(directory: string): Promise<boolean> {
+  try {
+    const manifest = JSON.parse(
+      await readFile(join(directory, "manifest.json"), "utf8"),
+    ) as unknown;
+    if (!isRecord(manifest) || !Array.isArray(manifest["functions"])) {
+      return false;
+    }
+    return (manifest["functions"] as readonly unknown[]).every((fn) => {
+      if (!isRecord(fn)) return false;
+      const provenance = fn["trainingProvenance"];
+      return (
+        isRecord(provenance) &&
+        provenance["teacher"] === STUB_PROVENANCE &&
+        provenance["baseModel"] === STUB_PROVENANCE
+      );
+    });
+  } catch {
+    return false;
   }
 }
 
@@ -992,12 +1059,20 @@ function prepareAnswers(
 ): ReadonlyMap<string, PreparedAnswer> {
   const prepared = new Map<string, PreparedAnswer>();
   for (const [key, spec] of answerEntries(answers)) {
-    const id = semaFunctionId(key);
+    const ids = semaFunctionIdsOf(key);
+    const [id] = ids;
+    if (ids.length !== 1 || id === undefined) {
+      throw severalExpressions(
+        key as (...args: never[]) => unknown,
+        ids,
+        functions,
+      );
+    }
     const fn = functions.get(id);
     if (fn === undefined) {
       throw new SemaStubError(
         "unknown-function",
-        `${id} is not a semantic function of the IR bundle`,
+        `${id} is not a semantic function of the IR bundle; if the source changed since the last build, run semantscript build and load the new bundle`,
         id,
       );
     }
@@ -1069,6 +1144,20 @@ function prepareAnswer(
   return { kind: "fixed", heads: headAnswers(fn, answerOf(spec), "answer") };
 }
 
+function computed(fn: StubFunction, result: unknown): unknown {
+  if (
+    (isRecord(result) || typeof result === "function") &&
+    typeof (result as { then?: unknown }).then === "function"
+  ) {
+    throw new SemaStubError(
+      "invalid-value",
+      `${fn.label}: compute() returned a Promise; compute must be synchronous, because a sema call answers synchronously`,
+      fn.id,
+    );
+  }
+  return result;
+}
+
 function answerOf(spec: unknown): unknown {
   return isRecord(spec) ? spec : { value: spec };
 }
@@ -1098,7 +1187,9 @@ function headAnswers(
   if (!isRecord(answer) || !("value" in answer)) {
     throw new SemaStubError(
       "invalid-value",
-      `${fn.label}: ${where} must be a scalar, { value, confidence? }, { byInput, otherwise? } or { compute }`,
+      where === "compute()"
+        ? `${fn.label}: compute() must return a scalar or { value, confidence? }`
+        : `${fn.label}: ${where} must be a scalar, { value, confidence? }, { byInput, otherwise? } or { compute }`,
       fn.id,
     );
   }
@@ -1239,7 +1330,7 @@ function answerCall(
   } else if (answer.kind === "compute") {
     heads = headAnswers(
       fn,
-      answerOf(answer.compute(request.inputs)),
+      answerOf(computed(fn, answer.compute(request.inputs))),
       "compute()",
     );
   } else {

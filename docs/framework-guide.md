@@ -216,9 +216,16 @@ test("a reviewed refund rolls back", async (t) => {
 - An answer is keyed by the compiled function (or by its `nf_...` id) and is
   a fixed value, `{ value, confidence }`, `{ byInput: [{ inputs, value }],
 otherwise }` matched on the canonical input, or `{ compute: (inputs) =>
-value }`. A flat object output answers `{ value: { ...fields } }`, with one
-  confidence or one per field. Confidence defaults to 1 and must stay above
-  one over the number of possible values, so the answer is the top value.
+value }` (synchronous). A flat object output answers
+  `{ value: { ...fields } }`, with one confidence or one per field.
+  Confidence defaults to 1 and must stay above one over the number of
+  possible values, so the answer is the top value.
+- A compiled function that calls several expressions (the staged
+  `screenOrder` asks three) has no single id, so answer each expression by
+  its `nf_...` id. Keying by that function throws `SemaStubError`
+  (`unresolved-function`) listing every expression's source position and
+  id; the IR bundle has the same pairs under `functions[].id` and
+  `functions[].source`.
 - The stub loads through `loadSemaArtifact`, so the real worker runs every
   call: request scopes, `x-sema-passes`, input validation, `@confidence`
   thresholds and the `fallbacks` you pass behave as with a trained artifact.
@@ -229,6 +236,7 @@ value }`. A flat object output answers `{ value: { ...fields } }`, with one
   (`unanswered`), whose message names the expression's source position and
   id; `close()` removes the stub. A loaded stub is the process's active
   artifact, like a trained one, so load one stub at a time (node:test runs a
-  file's tests in order). The
+  file's tests in order) and do not nest them: closing a later stub leaves
+  no artifact active. The
   [reference application](reference-application.md) tests its refund
   controller this way and its other controllers over the trained artifact.

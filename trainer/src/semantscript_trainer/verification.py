@@ -30,6 +30,7 @@ from semantscript_trainer.suggestions import (
     calibration_suggestion,
     gold_miss_suggestion,
     type_error_suggestion,
+    underfit_suggestion,
     violation_suggestion,
 )
 from semantscript_trainer.teacher import GeneratedCase, JsonValue, NeuralFunctionIr
@@ -1588,13 +1589,17 @@ def _gate_suggestions(
             teacher,
         )
 
+    rows = [
+        labelled(row.row_id, row.inputs, row.label_indices, row.origin != "gold")
+        for row in corpus.rows
+    ]
+    # An underfit head needs more training before any example or constraint.
+    underfit = underfit_suggestion(rows, current_cases=current_cases, epochs=epochs)
     suggestions: list[str] = []
     for gate in gates:
-        if gate == "examples":
-            rows = [
-                labelled(row.row_id, row.inputs, row.label_indices, row.origin != "gold")
-                for row in corpus.rows
-            ]
+        if underfit is not None and gate in ("examples", "constraints"):
+            suggestions.append(underfit)
+        elif gate == "examples":
             misses = [
                 row
                 for row, source in zip(rows, corpus.rows, strict=True)

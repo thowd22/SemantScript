@@ -393,7 +393,7 @@ which `--json` lists as `next`. With nothing published at the artifact root
 the command exits 1 with
 `no artifact at <root> (current.json is missing); next: run semantscript train …`;
 a pointer or release that does not read ends with
-`next: switch to an intact release with semantscript releases rollback, …`,
+`next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, …`,
 the same fix `run` prints for that artifact.
 
 ## `run`

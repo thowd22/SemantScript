@@ -40,6 +40,13 @@
       "fix": "add the examples entry {example}: constraint {index} ({source}) is broken by {count} records"
     },
     {
+      "id": "underfit-more-training",
+      "family": "verifier",
+      "failure": "a gold miss or a constraint violation while the head gets more than 5% of its own teacher-labelled training cases wrong (at least 3), or predicts one output for all of them",
+      "cause": "The head underfits (too few epochs or cases, or a lowered learning rate), so one more example would only move the error elsewhere.",
+      "fix": "rerun with --epochs {epochs} (now {currentEpochs}) and --cases {cases} (now {currentCases}), and the default --learning-rate if you lowered it: the head gets {missed} of {total} teacher-labelled training cases wrong ({detail}), which more training fixes before any example does"
+    },
+    {
       "id": "violation-denser-data",
       "family": "verifier",
       "failure": "`N adversarial constraint check(s) failed (…)`, and no constraint is broken twice",
@@ -157,6 +164,13 @@
       "failure": "`error: … out of memory …` (a PyTorch OutOfMemoryError or a MemoryError)",
       "cause": "The device or the host ran out of memory while training or exporting.",
       "fix": "rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached"
+    },
+    {
+      "id": "encoder-download-failed",
+      "family": "trainer-process",
+      "failure": "`error: could not load the configured tokenizer: We couldn't connect to 'https://huggingface.co' …` and the other failed encoder downloads",
+      "cause": "The pinned encoder (or the one --encoder-name and --encoder-revision name) is not in the Hugging Face cache and could not be downloaded: no network, a proxy, a hub outage, offline mode, or a model or revision that does not exist.",
+      "fix": "check that this machine can reach https://huggingface.co (or the HF_ENDPOINT mirror, through HTTPS_PROXY if one is needed), unset HF_HUB_OFFLINE and TRANSFORMERS_OFFLINE, or copy a Hugging Face cache that holds the encoder into HF_HOME; if you passed --encoder-name or --encoder-revision, check that the model and revision exist; then rerun semantscript train"
     },
     {
       "id": "train-path-unwritable",
@@ -317,7 +331,7 @@
       "family": "runtime",
       "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_INVALID_JSON`, `_INVALID_POINTER`, `_INVALID_MANIFEST`, `_INTEGRITY`)",
       "cause": "The pointer or manifest is malformed, or a file fails its digest.",
-      "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train"
+      "fix": "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train"
     },
     {
       "id": "artifact-incompatible",
@@ -373,14 +387,14 @@
       "family": "cli",
       "failure": "`semantscript test`: a function whose verification status is not `passed`",
       "cause": "The release carries a function that did not pass its verification gates.",
-      "fix": "retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback"
+      "fix": "retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback <release> (semantscript releases list shows which releases pass)"
     },
     {
       "id": "test-artifact-unreadable",
       "family": "cli",
       "failure": "`semantscript test`: `current.json.release must be a string`, a missing manifest or another unreadable release",
       "cause": "The pointer or the release it names is malformed or missing.",
-      "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train"
+      "fix": "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train"
     },
     {
       "id": "run-no-export",
@@ -646,7 +660,7 @@
       "family": "editor",
       "failure": "`9150`: `the artifact at <root> cannot be read`",
       "cause": "The pointer or manifest is malformed.",
-      "fix": "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train"
+      "fix": "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train"
     },
     {
       "id": "editor-not-in-artifact",

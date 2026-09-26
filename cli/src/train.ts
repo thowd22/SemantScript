@@ -194,7 +194,12 @@ export async function runTrain(
       io.stderr(
         `semantscript train: the trainer was killed by ${outcome.signal}; next: ${remedyText("trainer-killed", { doctor })}\n`,
       );
-      return 1;
+      // The shell's convention, as for a training run: 128 plus the signal number.
+      return (
+        128 +
+        ((constants.signals[outcome.signal as NodeJS.Signals] as
+          number | undefined) ?? 0)
+      );
     }
     if (outcome.status !== 0) {
       const filter = new TrainerStderr((text) => {

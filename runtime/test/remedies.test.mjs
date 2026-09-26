@@ -83,7 +83,7 @@ test("a corrupt pointer names releases rollback, and a stale call names build th
     assert.equal(error.remedy, remedy("artifact-corrupt"));
     assert.match(
       error.message,
-      /; next: switch to an intact release with semantscript releases rollback/u,
+      /; next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>/u,
     );
     return true;
   });

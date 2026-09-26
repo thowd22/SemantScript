@@ -21,6 +21,11 @@ from semantscript_trainer.remedies import remedy
 MINIMUM_CALIBRATION_ROWS = 200
 # At or above this accuracy the head fits; more epochs would not help the ECE.
 FITTED_ACCURACY = 0.95
+# The trainer's defaults, the floor of a "train more" suggestion.
+DEFAULT_EPOCHS = 3
+DEFAULT_CASES = 64
+# At least this many teacher-labelled training rows missed marks an underfit head.
+MINIMUM_UNDERFIT_MISSES = 3
 _IDENTIFIER = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 _MAXIMUM_LITERAL_CHARACTERS = 600
 
@@ -49,13 +54,60 @@ class Violation:
     case: LabelledCase
 
 
+def more_cases(current: int) -> int:
+    """The ``--cases`` to suggest: double the current count, at least the default."""
+
+    return max(2 * current, DEFAULT_CASES)
+
+
+def underfit_suggestion(
+    corpus: Sequence[LabelledCase], *, current_cases: int, epochs: int
+) -> str | None:
+    """More epochs and cases when the head misses its own teacher-labelled training rows.
+
+    An example fixes one systematic confusion of a head that fits; a head
+    that gets less than :data:`FITTED_ACCURACY` of its training rows right (or
+    predicts one output for rows labelled with several) needs more training
+    first, or each added example only moves the miss elsewhere.
+    """
+
+    rows = [row for row in corpus if row.teacher_labelled]
+    missed = [row for row in rows if not _same(row.expected, row.predicted)]
+    if not rows or len(missed) < MINIMUM_UNDERFIT_MISSES:
+        return None
+    accuracy = 1 - len(missed) / len(rows)
+    predicted = {_key(row.predicted) for row in rows}
+    labels = {_key(row.expected) for row in rows}
+    collapsed = len(predicted) == 1 and len(labels) > 1
+    if accuracy >= FITTED_ACCURACY and not collapsed:
+        return None
+    detail = (
+        f"it predicts {_literal(rows[0].predicted)} for every one"
+        if collapsed
+        else f"training accuracy {accuracy:.4f}"
+    )
+    return remedy(
+        "underfit-more-training",
+        epochs=max(DEFAULT_EPOCHS, 2 * epochs),
+        currentEpochs=epochs,
+        cases=more_cases(current_cases),
+        currentCases=current_cases,
+        missed=len(missed),
+        total=len(rows),
+        detail=detail,
+    )
+
+
 def gold_miss_suggestion(
     misses: Sequence[LabelledCase],
     corpus: Sequence[LabelledCase],
     constraints: Sequence[Mapping[str, Any]],
     required: RequiredOutputs | None = None,
 ) -> str:
-    """The constraint, example or check a set of missed gold or attested cases calls for."""
+    """The constraint, example or check a set of missed gold or attested cases calls for.
+
+    Callers ask :func:`underfit_suggestion` first: this assumes a head that fits.
+    """
 
     if not misses:
         raise ValueError("a gold miss suggestion needs at least one miss")
@@ -182,7 +234,7 @@ def violation_suggestion(violations: Sequence[Violation], current_cases: int) ->
             source=" ".join(chosen.source.split()) or "no source",
             count=len(records),
         )
-    return remedy("violation-denser-data", cases=max(2 * current_cases, 1), current=current_cases)
+    return remedy("violation-denser-data", cases=more_cases(current_cases), current=current_cases)
 
 
 def calibration_suggestion(
@@ -193,7 +245,7 @@ def calibration_suggestion(
     if rows < MINIMUM_CALIBRATION_ROWS or accuracy >= FITTED_ACCURACY:
         return remedy(
             "calibration-more-cases",
-            cases=max(2 * current_cases, 1),
+            cases=more_cases(current_cases),
             current=current_cases,
             ece=f"{ece:.4f}",
             rows=rows,

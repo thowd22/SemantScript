@@ -17,6 +17,7 @@ from semantscript_trainer.suggestions import (
     gold_miss_suggestion,
     seed_retry_suggestion,
     shared_rule,
+    underfit_suggestion,
     violation_suggestion,
 )
 
@@ -193,6 +194,10 @@ def test_violations_suggest_an_example_or_denser_data() -> None:
     assert violation_suggestion(repeated[2:], 64) == remedy(
         "violation-denser-data", cases=128, current=64
     )
+    # A tiny --cases is never answered with an even smaller suggestion than the default.
+    assert violation_suggestion(repeated[2:], 2) == remedy(
+        "violation-denser-data", cases=64, current=2
+    )
 
 
 def test_calibration_and_seed_retry_suggestions() -> None:
@@ -209,3 +214,35 @@ def test_calibration_and_seed_retry_suggestions() -> None:
         remedy("seed-retry-next-seed", seed=6, first=3, last=5)
     )
     assert seed_retry_suggestion(attempts=3, first_seed=3, last_seed=5, maximum_seed=5) is None
+
+
+def test_an_underfit_head_gets_more_training_not_one_more_example() -> None:
+    # CORPUS misses 2 of 6 teacher rows: below the 3-miss floor, so a fitted head.
+    assert underfit_suggestion(CORPUS, current_cases=8, epochs=1) is None
+    wrong = [case(f"w{index}", "paid", 50 + index, "deny", "approve") for index in range(3)]
+    suggestion = underfit_suggestion([*CORPUS, *wrong], current_cases=8, epochs=1)
+    assert suggestion == remedy(
+        "underfit-more-training",
+        epochs=3,
+        currentEpochs=1,
+        cases=64,
+        currentCases=8,
+        missed=5,
+        total=9,
+        detail="training accuracy 0.4444",
+    )
+    # One output for rows labelled with several is named as such.
+    collapsed = [
+        case(f"c{index}", "paid", index, label, "approve")
+        for index, label in enumerate(["approve"] * 60 + ["deny"] * 3)
+    ]
+    text = underfit_suggestion(collapsed, current_cases=100, epochs=3)
+    assert text is not None
+    assert text.startswith("rerun with --epochs 6 (now 3) and --cases 200 (now 100)")
+    assert 'it predicts "approve" for every one' in text
+    # A head that fits its training rows keeps the example suggestions.
+    fitted = [
+        case(f"f{index}", "paid", index, label, label)
+        for index, label in enumerate(["approve"] * 90 + ["deny"] * 7)
+    ]
+    assert underfit_suggestion([*fitted, *wrong], current_cases=100, epochs=3) is None

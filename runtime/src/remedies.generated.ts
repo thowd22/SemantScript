@@ -20,6 +20,19 @@ export const REMEDY_TEMPLATES = {
     fix: "add the examples entry {example}: constraint {index} ({source}) is broken by {count} records",
     params: ["example", "index", "source", "count"],
   },
+  "underfit-more-training": {
+    family: "verifier",
+    fix: "rerun with --epochs {epochs} (now {currentEpochs}) and --cases {cases} (now {currentCases}), and the default --learning-rate if you lowered it: the head gets {missed} of {total} teacher-labelled training cases wrong ({detail}), which more training fixes before any example does",
+    params: [
+      "epochs",
+      "currentEpochs",
+      "cases",
+      "currentCases",
+      "missed",
+      "total",
+      "detail",
+    ],
+  },
   "violation-denser-data": {
     family: "verifier",
     fix: "sample the boundaries more densely: rerun with --cases {cases} (now {current}), or accept isolated misses by recording a tolerance with --max-constraint-violation-rate",
@@ -103,6 +116,11 @@ export const REMEDY_TEMPLATES = {
   "train-out-of-memory": {
     family: "trainer-process",
     fix: "rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached",
+    params: [],
+  },
+  "encoder-download-failed": {
+    family: "trainer-process",
+    fix: "check that this machine can reach https://huggingface.co (or the HF_ENDPOINT mirror, through HTTPS_PROXY if one is needed), unset HF_HUB_OFFLINE and TRANSFORMERS_OFFLINE, or copy a Hugging Face cache that holds the encoder into HF_HOME; if you passed --encoder-name or --encoder-revision, check that the model and revision exist; then rerun semantscript train",
     params: [],
   },
   "train-path-unwritable": {
@@ -217,7 +235,7 @@ export const REMEDY_TEMPLATES = {
   },
   "artifact-corrupt": {
     family: "runtime",
-    fix: "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train",
+    fix: "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train",
     params: [],
   },
   "artifact-incompatible": {
@@ -257,12 +275,12 @@ export const REMEDY_TEMPLATES = {
   },
   "test-function-unverified": {
     family: "cli",
-    fix: "retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback",
+    fix: "retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback <release> (semantscript releases list shows which releases pass)",
     params: [],
   },
   "test-artifact-unreadable": {
     family: "cli",
-    fix: "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train",
+    fix: "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train",
     params: [],
   },
   "run-no-export": {
@@ -452,7 +470,7 @@ export const REMEDY_TEMPLATES = {
   },
   "editor-unreadable": {
     family: "editor",
-    fix: "switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train",
+    fix: "run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, which also rewrites a broken current.json (pass --artifact <root> to both when the artifact is not .semantscript/artifact); or publish a new one with semantscript train",
     params: [],
   },
   "editor-not-in-artifact": {

@@ -123,6 +123,10 @@ def test_every_run_failure_names_a_next_command(monkeypatch: pytest.MonkeyPatch)
     except RuntimeError as error:
         assert fix(error).startswith("check that /c can be written")
     assert fix(OSError("disk full")).startswith("check that /c and /a can be written")
+    # A network error is an OSError too, but no path to fix.
+    assert fix(ConnectionResetError(104, "Connection reset by peer")).startswith(
+        "if the message names a setting"
+    )
 
     class ArtifactExportError(RuntimeError):
         pass
@@ -276,3 +280,33 @@ def test_the_trainer_s_own_error_classes_map_to_their_fix(
     assert fix(
         UnsynthesizableConstraintError("constraint 1 did not yield a valid two-sided pair")
     ).startswith("rerun semantscript train")
+
+
+def test_a_failed_encoder_download_names_network_access_not_a_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    monkeypatch.delenv(DOCTOR_COMMAND_VARIABLE, raising=False)
+
+    def fix(error: BaseException) -> str:
+        return failure_remedy(
+            error, stage="run", bundle="b", teacher="t", cache="/c", artifact="/a"
+        )
+
+    # transformers wraps the hub's error in a bare OSError without errno or filename.
+    try:
+        try:
+            raise LocalEntryNotFoundError("cannot find the requested files in the disk cache")
+        except LocalEntryNotFoundError as hub:
+            raise OSError(
+                "We couldn't connect to 'https://huggingface.co' to load the files"
+            ) from hub
+    except OSError as error:
+        text = fix(error)
+    assert text.startswith("check that this machine can reach https://huggingface.co")
+    assert "can be written" not in text
+    # Without the hub's class in the chain, the text alone is enough.
+    assert fix(OSError("x is not a local folder and is not a valid model identifier")).startswith(
+        "check that this machine can reach"
+    )

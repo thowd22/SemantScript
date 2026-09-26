@@ -3,7 +3,8 @@
 ``semantscript_trainer.cli`` prints ``error: <message>`` for every exception it
 handles; :func:`failure_remedy` adds ``; next: <fix>`` for the failures a
 developer fixes outside the trainer (a missing training package, a bundle
-that is not the build's, a broken teacher file, an unreachable teacher), for
+that is not the build's, a broken teacher file, an unreachable teacher, an
+encoder the Hugging Face hub did not serve), for
 the ones a rerun with other options fixes (out of memory, an unwritable path,
 an option out of range, answers the teacher got wrong), and a last resort for
 the rest, so every failure names the next command. The fix texts come from
@@ -125,6 +126,51 @@ def _rejected_answer(chain: list[BaseException]) -> bool:
     return rejected
 
 
+_HUB_MARKERS = (
+    "huggingface.co",
+    "is not a local folder and is not a valid model identifier",
+    "HF_HUB_OFFLINE",
+)
+"""Text transformers and huggingface_hub put in a failed model download."""
+_NETWORK_MODULES = ("requests", "urllib3", "httpx", "httpcore", "socket", "ssl")
+
+
+def _module_names(error: BaseException) -> set[str]:
+    return {cls.__module__.split(".")[0] for cls in type(error).__mro__}
+
+
+def _hub_download(chain: list[BaseException]) -> bool:
+    """The encoder or tokenizer could not be fetched from the Hugging Face hub.
+
+    transformers reports a failed download as a bare ``OSError`` (no errno, no
+    filename) raised from a ``huggingface_hub`` error, so it must be told apart
+    from a path the trainer cannot write.
+    """
+
+    for link in chain:
+        if "huggingface_hub" in _module_names(link):
+            return True
+        text = str(link)
+        if any(marker in text for marker in _HUB_MARKERS):
+            return True
+    return False
+
+
+def _network(link: BaseException) -> bool:
+    return isinstance(link, ConnectionError | TimeoutError) or bool(
+        _module_names(link) & set(_NETWORK_MODULES)
+    )
+
+
+def _file_system(chain: list[BaseException]) -> bool:
+    """A path the trainer writes failed: an ``OSError`` that is not a network error."""
+
+    return any(
+        "DatasetCacheError" in _names(link) or (isinstance(link, OSError) and not _network(link))
+        for link in chain
+    )
+
+
 def failure_remedy(
     error: BaseException,
     *,
@@ -166,11 +212,15 @@ def failure_remedy(
         return remedy("teacher-transport", doctor=doctor)
     if _out_of_memory(chain):
         return remedy("train-out-of-memory")
-    if any(isinstance(link, OSError) or "DatasetCacheError" in _names(link) for link in chain):
+    if _hub_download(chain):
+        return remedy("encoder-download-failed")
+    if _file_system(chain):
         filenames = [
             str(link.filename)
             for link in chain
-            if isinstance(link, OSError) and isinstance(link.filename, str | os.PathLike)
+            if isinstance(link, OSError)
+            and not _network(link)
+            and isinstance(link.filename, str | os.PathLike)
         ]
         filename = filenames[0] if filenames else f"{cache} and {artifact}"
         if filename.startswith(str(cache).rstrip("/\\") + os.sep):

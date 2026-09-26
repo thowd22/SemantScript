@@ -375,7 +375,7 @@ test("test reports shipped verification and replays bundle examples through the 
   assert.equal(await runCli(["test", "--artifact", unverified], refused.io), 1);
   assert.match(
     refused.stdout(),
-    /\nnext: retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback\ntest failed\n$/u,
+    /\nnext: retrain with semantscript train, following the next: lines of its report, or switch to a passing release with semantscript releases rollback <release> \(semantscript releases list shows which releases pass\)\ntest failed\n$/u,
   );
 
   // A pointer or release that does not read names the same fix run prints.
@@ -386,7 +386,7 @@ test("test reports shipped verification and replays bundle examples through the 
   assert.equal(await runCli(["test", "--artifact", corrupt], broken.io), 1);
   assert.match(
     broken.stderr(),
-    /; next: switch to an intact release with semantscript releases rollback, or publish a new one with semantscript train\n$/u,
+    /; next: run semantscript releases list to find an intact release, then switch to it with semantscript releases rollback <release>, [^\n]*; or publish a new one with semantscript train\n$/u,
   );
   const dangling = join(root, "dangling");
   await createFixtureArtifact(dangling);
@@ -395,7 +395,7 @@ test("test reports shipped verification and replays bundle examples through the 
   assert.equal(await runCli(["test", "--artifact", dangling], gone.io), 1);
   assert.match(
     gone.stderr(),
-    /ENOENT[^\n]*; next: switch to an intact release/u,
+    /ENOENT[^\n]*; next: run semantscript releases list to find an intact release/u,
   );
 });
 
@@ -917,6 +917,13 @@ test("train names the signal and the fix when the trainer is killed", async (t) 
       );
     }
   }
+  // --estimate exits the same way.
+  const estimate = capture(root, {
+    PYTHONPATH: fixtures,
+    FAKE_TRAINER_RAISE: "signal:SIGKILL",
+  });
+  assert.equal(await runCli([...args, "--estimate"], estimate.io), 128 + 9);
+  assert.match(estimate.stderr(), /the trainer was killed by SIGKILL; next: /u);
 });
 
 test("helpers canonicalize JSON, extend PYTHONPATH and render reports", () => {

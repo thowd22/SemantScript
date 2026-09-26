@@ -3,11 +3,11 @@ id: TASK-15.3
 title: >-
   semantscript test checks the artifact against the build's bundle and its
   digests by default
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 08:44'
+updated_date: '2026-09-26 09:02'
 labels:
   - dx
   - quality
@@ -26,9 +26,9 @@ TASK-14.11's reviewers confirmed that semantscript test without --bundle passes 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Without --bundle, test finds the build's bundle the way run and explain do, and a bundle function absent from the artifact (or an artifact function the bundle no longer has) fails test with exit 1 and the next command; --no-bundle keeps the artifact-only behaviour, and a missing build says to run semantscript build
-- [ ] #2 A release whose pointer, manifest or resource fails its digest or symlink check fails test with the runtime's ArtifactLoadError code and remedy instead of passing
-- [ ] #3 cli tests cover both failures and the flag; docs/cli-reference.md, cli/README.md and docs/diagnostics.md are updated with the regenerated remedies; the CI fresh-install job still passes
+- [x] #1 Without --bundle, test finds the build's bundle the way run and explain do, and a bundle function absent from the artifact (or an artifact function the bundle no longer has) fails test with exit 1 and the next command; --no-bundle keeps the artifact-only behaviour, and a missing build says to run semantscript build
+- [x] #2 A release whose pointer, manifest or resource fails its digest or symlink check fails test with the runtime's ArtifactLoadError code and remedy instead of passing
+- [x] #3 cli tests cover both failures and the flag; docs/cli-reference.md, cli/README.md and docs/diagnostics.md are updated with the regenerated remedies; the CI fresh-install job still passes
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -54,4 +54,12 @@ Review fix round 1: test now runs checkSemaArtifact on every release. For a rele
 Review round 2 fix: a release manifest or release directory symlinked to nothing was treated as a simply missing file and reported a bare ENOENT with the rollback remedy. readSummary now counts a failure as simply missing only when no component between the artifact root and the failing path is a symlink (lstat walk, isSimplyMissing); otherwise it runs checkSemaArtifact and reports SEMA_ARTIFACT_PATH with the runtime remedy. New cli tests cover a dangling manifest symlink and a dangling release-directory symlink; both failed on the previous commit (61/1) and pass now (62/62). Also: explain uses the shared findBuiltBundle lookup; cli-reference exit code 2 row names --bundle with --no-bundle; getting-started says a changed program fails test once semantscript build has rebuilt it.
 
 Review round 3 fix: a pointer naming a release that does not exist (digests disagreeing, SEMA_ARTIFACT_INVALID_POINTER, or consistent, SEMA_ARTIFACT_PATH cannot inspect release directory) and a deleted manifest.json printed a bare ENOENT with no runtime code. readSummary now runs the runtime's checkSemaArtifact in the simply-missing case too and reports its ArtifactLoadError code and detail; SEMA_ARTIFACT_PATH there keeps the rollback remedy (test-artifact-unreadable), any other code keeps the runtime's remedy. checkArtifact is split into loadCheckError/loadCheckFailure. New cli tests cover the three cases; the older dangling-releases test now expects SEMA_ARTIFACT_PATH instead of a bare ENOENT. docs/cli-reference.md and cli/README.md updated. npm test -w cli 62/62, npm run test:node all pass, lint and prettier clean, remedies --check clean.
+
+Finalization validation (independent): scratch probe on createFixtureArtifact with the built CLI, test --no-bundle: pointer release renamed to a missing release -> exit 1 'SEMA_ARTIFACT_INVALID_POINTER: pointer digests differ' + rollback next:; manifest.json deleted -> SEMA_ARTIFACT_PATH cannot inspect manifest; release dir deleted -> SEMA_ARTIFACT_PATH cannot inspect release directory; intact -> exit 0 test passed (round-3 blocking finding resolved). npm run build ok, npm run lint:node clean, npm test -w cli 62/62, npm run test:node 89/125/62/9/85 pass 0 fail, generate-remedies --check exit 0, prettier --check docs README.md cli/README.md cli/src cli/test clean. CI run 36230690568 on 174e6c0: all 7 jobs success incl. Fresh clone, examples and Docker image.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+semantscript test now finds the build's bundle by default (tsconfig outDir, ., dist, out, build, the lookup train and explain use), fails with exit 1 and a next: line when a bundle function is absent from the artifact or an artifact function is no longer in the bundle, says to run semantscript build when there is no build output, and keeps artifact-only behaviour behind --no-bundle (--bundle with --no-bundle is exit 2). Every release goes through the runtime's checkSemaArtifact, so pointer, manifest and resource digest and symlink failures, and pointers to missing releases, report the runtime's ArtifactLoadError code and remedy. New remedies test-no-build and test-function-unbundled are regenerated into runtime, compiler, trainer and docs/diagnostics.md; docs/cli-reference.md, cli/README.md, getting-started and the tutorial are updated. Verified with the cli test suite (62/62), npm run test:node, lint, prettier, generate-remedies --check, a scratch probe of the pointer and missing-release cases, and green CI run 36230690568 including the fresh-install job. Breaking change: plain test needs build output or --no-bundle.
+<!-- SECTION:FINAL_SUMMARY:END -->

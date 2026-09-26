@@ -278,8 +278,9 @@ npx semantscript test
 
 reads the release's verification per function, checks the release's digests,
 and replays every example in the build's IR (`dist/semantscript.ir.v1.json`)
-through the runtime; an artifact trained before the program changed fails here
-with the command that fixes it. Then call the function directly:
+through the runtime; once `semantscript build` has rebuilt a changed program,
+an artifact trained before the change fails here with the command that fixes
+it. Then call the function directly:
 
 ```sh
 npx semantscript run dist/triage.sem.js --call triage --input '["Checkout is down", "Every customer sees a 500 since 9am"]'

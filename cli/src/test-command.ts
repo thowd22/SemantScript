@@ -1,5 +1,5 @@
 import { lstat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
 import {
@@ -253,7 +253,7 @@ function isArtifactLoadError(
  * The artifact's summary. With no `current.json` at the root the error names
  * `semantscript train`. A release file that is missing names
  * `semantscript releases rollback`. Any other pointer or release that does not
- * read (a manifest that no longer parses, a `current.json` symlink to nothing)
+ * read (a manifest that no longer parses, a symlink to nothing anywhere in it)
  * gets the runtime's load checks first, so it fails with the runtime's
  * `ArtifactLoadError` code and remedy, as `run` would.
  */
@@ -277,14 +277,9 @@ async function readSummary(root: string): Promise<ArtifactSummary> {
       );
     }
     // A release file that is simply gone keeps the rollback fix; anything
-    // else (a manifest that no longer parses, a pointer symlinked to nothing)
-    // reports the runtime's code first.
-    const pointerDangles =
-      typeof error === "object" &&
-      error !== null &&
-      "path" in error &&
-      error.path === pointer;
-    if (!isMissingFile(error) || pointerDangles) {
+    // else (a manifest that no longer parses, a pointer, release or manifest
+    // symlinked to nothing) reports the runtime's code first.
+    if (!(await isSimplyMissing(root, error))) {
       await checkArtifact(root, false);
     }
     throw new Error(
@@ -294,13 +289,36 @@ async function readSummary(root: string): Promise<ArtifactSummary> {
   }
 }
 
-function isMissingFile(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error.code === "ENOENT" || error.code === "ENOTDIR")
-  );
+/**
+ * Whether `error` is a release file that is simply gone: an ENOENT or ENOTDIR
+ * on a path under `root` where no symlink is involved. A symlink that points
+ * nowhere (the pointer, a release directory or a file inside a release) is a
+ * path problem the runtime classifies as `SEMA_ARTIFACT_PATH`, so it is not
+ * "simply missing". The walk goes up from the failing path to the first
+ * component that exists and asks whether that component is a symlink.
+ */
+async function isSimplyMissing(root: string, error: unknown): Promise<boolean> {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("code" in error) ||
+    (error.code !== "ENOENT" && error.code !== "ENOTDIR") ||
+    !("path" in error) ||
+    typeof error.path !== "string"
+  ) {
+    return false;
+  }
+  const top = resolve(root);
+  let path = resolve(error.path);
+  if (path === top || !path.startsWith(top + sep)) return false;
+  while (path !== top) {
+    try {
+      return !(await lstat(path)).isSymbolicLink();
+    } catch {
+      path = dirname(path);
+    }
+  }
+  return true;
 }
 
 /** Whether `path` itself exists, without following a final symlink. */

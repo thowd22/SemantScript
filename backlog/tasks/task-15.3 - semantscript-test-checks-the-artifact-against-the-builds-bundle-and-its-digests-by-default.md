@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-26 06:27'
-updated_date: '2026-09-26 07:33'
+updated_date: '2026-09-26 08:10'
 labels:
   - dx
   - quality
@@ -50,4 +50,6 @@ IMPLEMENT: cli/src/test-command.ts now (1) reads the summary as before, (2) runs
 CI: first push (run 36224304780) failed in Python (dev,training): trainer/tests/test_cli.py run_cli_test ran 'test --artifact ... --json' from the repo root with no build output and now hit test-no-build; it asserts examples is null, so it now passes --no-bundle (commit 2). Local: pytest trainer/tests model/tests 656 passed, 4 skipped. Second push, CI run 36224612805: all 7 jobs green, including Fresh clone, examples and Docker image.
 
 Review fix round 1: test now runs checkSemaArtifact on every release. For a release whose summary already shows an unverified function, only the runtime's 'manifest.functions[N].verification.status must equal "passed"' INVALID_MANIFEST refusal is suppressed, so a manifest hand-edited from passed to failed fails its manifest digest as SEMA_ARTIFACT_INTEGRITY with the artifact-corrupt remedy (the runtime checks pointer and manifest digests before validation; only resource digests are not reached for an unverified release). readSummary failures other than a missing release file (unparseable manifest, current.json symlinked to nothing) run the runtime check first and report its code. --bundle that does not read or is not a semantscript.ir-bundle now fails with the test-no-build next: line. Ids missing both ways print one next: line (test-function-unbundled). findBundle shares defaults.findBuiltBundle with resolveBundlePath. Docs corrected: the bundle lookup is the one train and explain use (not run), and the 'refused before any digest check' sentence now says only resource digests are skipped. Checks: npm run build, lint:node, npm test -w cli 62/62, test:node all pass, generate-remedies --check clean, prettier clean.
+
+Review round 2 fix: a release manifest or release directory symlinked to nothing was treated as a simply missing file and reported a bare ENOENT with the rollback remedy. readSummary now counts a failure as simply missing only when no component between the artifact root and the failing path is a symlink (lstat walk, isSimplyMissing); otherwise it runs checkSemaArtifact and reports SEMA_ARTIFACT_PATH with the runtime remedy. New cli tests cover a dangling manifest symlink and a dangling release-directory symlink; both failed on the previous commit (61/1) and pass now (62/62). Also: explain uses the shared findBuiltBundle lookup; cli-reference exit code 2 row names --bundle with --no-bundle; getting-started says a changed program fails test once semantscript build has rebuilt it.
 <!-- SECTION:NOTES:END -->

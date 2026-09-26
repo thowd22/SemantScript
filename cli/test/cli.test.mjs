@@ -670,6 +670,45 @@ test("test checks the artifact against the build's bundle and the release's dige
     /fails the runtime's load checks: SEMA_ARTIFACT_PATH: /u,
   );
 
+  // A release manifest, or a release directory, symlinked to nothing is a
+  // path problem, not a missing file: it reports the runtime's code too.
+  const deadManifest = join(root, "dead-manifest");
+  const deadManifestRelease = (await createFixtureArtifact(deadManifest))
+    .release;
+  await rm(join(deadManifestRelease, "manifest.json"));
+  await symlink(
+    join(root, "missing-manifest.json"),
+    join(deadManifestRelease, "manifest.json"),
+  );
+  const deadManifestRun = capture(root);
+  assert.equal(
+    await runCli(
+      ["test", "--artifact", deadManifest, "--no-bundle"],
+      deadManifestRun.io,
+    ),
+    1,
+  );
+  assert.match(
+    deadManifestRun.stderr(),
+    /fails the runtime's load checks: SEMA_ARTIFACT_PATH: /u,
+  );
+  const deadRelease = join(root, "dead-release");
+  const deadReleaseDir = (await createFixtureArtifact(deadRelease)).release;
+  await rm(deadReleaseDir, { recursive: true, force: true });
+  await symlink(join(root, "missing-release"), deadReleaseDir);
+  const deadReleaseRun = capture(root);
+  assert.equal(
+    await runCli(
+      ["test", "--artifact", deadRelease, "--no-bundle"],
+      deadReleaseRun.io,
+    ),
+    1,
+  );
+  assert.match(
+    deadReleaseRun.stderr(),
+    /fails the runtime's load checks: SEMA_ARTIFACT_PATH: /u,
+  );
+
   // A bundle path that does not exist, or a file that is not an IR bundle,
   // fails with a next: line instead of a bare ENOENT or a wrong comparison.
   const missingBundle = capture(root);

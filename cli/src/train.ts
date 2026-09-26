@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdir, stat, writeFile } from "node:fs/promises";
+import { constants } from "node:os";
 import { dirname, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { parseArgs } from "node:util";
@@ -185,7 +186,14 @@ export async function runTrain(
     commandArgs.push("--estimate");
     const outcome = await capture(python, commandArgs, trainerIo);
     if (outcome.error !== undefined) {
-      io.stderr(unableToRun(python, outcome.error));
+      io.stderr(unableToRun(python, outcome.error, doctor));
+      return 1;
+    }
+    if (outcome.signal !== undefined && io.signal?.aborted !== true) {
+      io.stderr(outcome.stderr);
+      io.stderr(
+        `semantscript train: the trainer was killed by ${outcome.signal}; next: ${remedyText("trainer-killed", { doctor })}\n`,
+      );
       return 1;
     }
     if (outcome.status !== 0) {
@@ -228,10 +236,20 @@ export async function runTrain(
   });
   const outcome = await runProcess(python, commandArgs, trainerIo, filter);
   if (outcome.error !== undefined) {
-    io.stderr(unableToRun(python, outcome.error));
+    io.stderr(unableToRun(python, outcome.error, doctor));
     return 1;
   }
   const status = outcome.status;
+  if (outcome.signal !== undefined && io.signal?.aborted !== true) {
+    // Killed by the operating system (the OOM killer, a native crash): no
+    // Python exception to blame, and a traceback it survived earlier is not
+    // the cause. Forward what was held and name the signal.
+    filter.release();
+    io.stderr(
+      `semantscript train: the trainer was killed by ${outcome.signal}; next: ${remedyText("trainer-killed", { doctor })}\n`,
+    );
+    return status;
+  }
   // A report the trainer did not rewrite is an earlier run's: never render it.
   const after = await fileStamp(report);
   const fresh = after !== undefined && after !== before;
@@ -283,7 +301,12 @@ function runProcess(
   args: readonly string[],
   io: CliIo,
   filter: TrainerStderr,
-): Promise<{ readonly status: number; readonly error?: Error }> {
+): Promise<{
+  readonly status: number;
+  readonly error?: Error;
+  /** The signal that killed the trainer, when one did. */
+  readonly signal?: string;
+}> {
   return new Promise((resolvePromise) => {
     const child = spawn(command, args, {
       cwd: io.cwd,
@@ -306,10 +329,18 @@ function runProcess(
       io.signal?.removeEventListener("abort", abort);
       resolvePromise({ status: 1, error });
     });
-    child.once("close", (code) => {
+    child.once("close", (code, signal) => {
       io.signal?.removeEventListener("abort", abort);
       filter.push(decoder.end());
       filter.end();
+      if (code === null && signal !== null) {
+        // The shell's convention: 128 plus the signal number.
+        resolvePromise({
+          status: 128 + constants.signals[signal],
+          signal,
+        });
+        return;
+      }
       resolvePromise({ status: code ?? 1 });
     });
   });
@@ -501,8 +532,9 @@ async function fileStamp(path: string): Promise<string | undefined> {
 }
 
 /**
- * `semantscript doctor`, with the `--python` and `--trainer-module` this run
- * passed, so following the advice checks the same interpreter and module.
+ * `semantscript doctor`, with the `--python`, `--trainer-module` and
+ * `--teacher` this run passed, so following the advice checks the same
+ * interpreter, module and teacher file.
  */
 export function trainerDoctorCommand(
   values: OptionValues,
@@ -514,6 +546,8 @@ export function trainerDoctorCommand(
   if (trainerModule !== DEFAULT_TRAINER_MODULE) {
     parts.push(`--trainer-module ${shellWord(trainerModule)}`);
   }
+  const teacher = stringOption(values, "teacher");
+  if (teacher !== undefined) parts.push(`--teacher ${shellWord(teacher)}`);
   return parts.join(" ");
 }
 
@@ -578,8 +612,8 @@ async function pythonIsCurrent(python: string, io: CliIo): Promise<boolean> {
 }
 
 /** `unable to run <python>: spawn <python> ENOENT; next: ...` */
-function unableToRun(python: string, error: Error): string {
-  return `unable to run ${python}: ${error.message}; next: ${remedyText("python-missing")}\n`;
+function unableToRun(python: string, error: Error, doctor: string): string {
+  return `unable to run ${python}: ${error.message}; next: ${remedyText("python-missing", { doctor })}\n`;
 }
 
 /** Render the trainer's JSON report as the per-function table `semantscript train` prints. */

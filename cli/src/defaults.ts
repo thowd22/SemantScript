@@ -11,6 +11,7 @@ import {
   type CliIo,
   type OptionValues,
 } from "./io.js";
+import { remedyText } from "./remedy.js";
 
 const REPOSITORY_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -224,7 +225,7 @@ export function resolveTeacherConfig(values: OptionValues, io: CliIo): string {
     return generated;
   }
   throw new CliUsageError(
-    `--teacher is required: no ${TEACHER_CONFIG_CANDIDATES.join(", ")} found and ANTHROPIC_API_KEY is not set (set it to use the default Anthropic teacher, run semantscript init --teacher anthropic|openrouter|ollama|constraints to write a teacher file, or pass --teacher constraints when the constraints decide every input)`,
+    `--teacher is required: no ${TEACHER_CONFIG_CANDIDATES.join(", ")} found and ANTHROPIC_API_KEY is not set; next: ${remedyText("train-no-teacher")}`,
   );
 }
 

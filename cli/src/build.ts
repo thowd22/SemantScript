@@ -119,11 +119,16 @@ export async function compileProject(
         ? formatDiagnostics(configDiagnostics, io.cwd)
         : `unable to read ${configPath}\n`,
     );
-    io.stderr(`next: ${remedyText("build-no-tsconfig")}\n`);
+    io.stderr(
+      `next: ${remedyText("build-no-tsconfig", { config: configPath })}\n`,
+    );
     return failed();
   }
   if (parsed.errors.length > 0) {
     io.stderr(formatDiagnostics(parsed.errors, io.cwd));
+    io.stderr(
+      `next: ${remedyText("build-tsconfig-invalid", { config: configPath })}\n`,
+    );
     return failed();
   }
   const sourceFiles = parsed.fileNames.map((fileName) => resolve(fileName));

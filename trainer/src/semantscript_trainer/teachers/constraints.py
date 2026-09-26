@@ -48,6 +48,7 @@ from semantscript_trainer.constraints import (
     compile_constraints,
     json_values_equal,
 )
+from semantscript_trainer.remedies import remedy
 from semantscript_trainer.teacher import (
     AdversarialTeacher,
     BoundaryPairProposal,
@@ -145,7 +146,10 @@ class ConstraintSampler:
         self.where = describe_expression(self.ir)
         output = self.ir.get("output")
         if not isinstance(output, Mapping) or output.get("kind") != "scalar":
-            raise _Unsupported("its output is an object, and the constraints label scalar outputs")
+            raise _Unsupported(
+                "its output is an object, and the constraints label scalar outputs",
+                "teacher-constraints-object",
+            )
         try:
             self.constraints: CompiledConstraints = compile_constraints(self.ir)
             self.support: tuple[JsonValue, ...] = tuple(_head_support(output["head"]))
@@ -154,7 +158,7 @@ class ConstraintSampler:
                 f"{self.where}: its constraints cannot be compiled: {error}"
             ) from error
         if len(self.constraints) == 0:
-            raise _Unsupported("it declares no constraints")
+            raise _Unsupported("it declares no constraints", "teacher-constraints-none")
         self.rules: tuple[tuple[str, JsonValue], ...] = tuple(
             (cast(str, item["kind"]), cast(JsonValue, item["output"])) for item in self.constraints
         )
@@ -679,6 +683,11 @@ class _Undecided:
 class _Unsupported(Exception):
     """The expression cannot be labelled by its constraints at all."""
 
+    def __init__(self, reason: str, remedy_id: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.remedy = remedy_id
+
 
 # --- teacher ------------------------------------------------------------------
 
@@ -730,7 +739,7 @@ class ConstraintsTeacher:
                     }
                 ),
             )
-        self._samplers: dict[str, ConstraintSampler | str] = {}
+        self._samplers: dict[str, ConstraintSampler | _Unsupported] = {}
         self._attempts: dict[str, int] = {}
         self._shares: dict[str, float] = {}
 
@@ -985,14 +994,13 @@ class ConstraintsTeacher:
             try:
                 cached = ConstraintSampler(ir, self._config)
             except _Unsupported as reason:
-                cached = str(reason)
+                cached = reason.with_traceback(None)
             self._samplers[function_key] = cached
-        if isinstance(cached, str):
+        if isinstance(cached, _Unsupported):
             if self._fallback is None:
                 raise TeacherConfigurationError(
-                    f"{describe_expression(ir)}: {cached}, so the constraints teacher cannot "
-                    "label it. Add always/never constraints that decide every input, or let a "
-                    f"language-model teacher label it: {FALLBACK_HOWTO}"
+                    f"{describe_expression(ir)}: {cached.reason}, so the constraints teacher "
+                    f"cannot label it; next: {remedy(cached.remedy)}"
                 )
             return None
         return cached
@@ -1054,15 +1062,12 @@ class ConstraintsTeacher:
                 )
                 raise TeacherConfigurationError(
                     f"{sampler.where}: found {len(cases)} of {n} {kept} in {attempts - 1} "
-                    f"draws{detail}. Write a teacher TOML with [teacher] backend = "
-                    '"constraints" and a [teacher.ranges] table that widens the sampling '
-                    "ranges"
-                    + (
-                        ", or twin_filter = false when the constraints always give one output"
+                    f"draws{detail}; next: "
+                    + remedy(
+                        "teacher-constraints-twins"
                         if twin_filter
-                        else ""
+                        else "teacher-constraints-sampling"
                     )
-                    + ", and pass it with --teacher <file> (docs/teachers.md)"
                 )
             inputs = sampler.sample(rng)
             key = _key(inputs)
@@ -1204,24 +1209,15 @@ def incomplete_constraints_error(
     if allowed:
         admits = "admit " + ", ".join(_key(value) for value in allowed)
         why = "the constraints do not decide every input"
+        fix = "teacher-constraints-undecided"
     else:
         admits = "admit no output (the active constraints contradict each other)"
         why = "the constraints contradict each other on an input"
+        fix = "teacher-constraints-contradict"
     return TeacherConfigurationError(
         f"{sampler.where}: {why}, so the constraints teacher cannot label it alone. "
-        f"For the input {_key(inputs)} the constraints {admits}. Add constraints until "
-        "exactly one output is admissible for every input, or label the inputs the "
-        f"constraints leave open with a language-model teacher: {FALLBACK_HOWTO}"
+        f"For the input {_key(inputs)} the constraints {admits}; next: {remedy(fix)}"
     )
-
-
-# How to configure mixed mode, for messages: the ``constraints`` keyword cannot
-# carry a fallback, so the user needs a teacher file.
-FALLBACK_HOWTO = (
-    'write a teacher TOML with [teacher] backend = "constraints" and a [teacher.fallback] '
-    'table (backend = "anthropic" or "ollama" and its model), and pass it with '
-    "--teacher <file> (docs/teachers.md)"
-)
 
 
 # --- helpers ------------------------------------------------------------------

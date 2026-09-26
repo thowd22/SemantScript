@@ -155,8 +155,10 @@ an example to add, more `--cases` or `--epochs`, or the seed retry). A trainer
 that dies on an uncaught exception (a missing package, an interpreter too old,
 a crash) becomes one line, `semantscript train: the trainer stopped: <exception>;
 next: <fix>; full traceback in <artifact>.report.traceback.txt`, naming the
-`doctor` check to run with this run's `--python` and `--trainer-module`; a
-failure the trainer catches ends its `error:` line with `; next: <fix>`. A
+`doctor` check to run with this run's `--python`, `--trainer-module` and
+`--teacher`; every failure the trainer catches ends its `error:` line with
+`; next: <fix>`, and a trainer the operating system kills names the signal and
+the fix. A
 traceback the trainer goes on from is printed in place, and only a report this
 run wrote is rendered. The fix texts come from `diagnostics/remedies.json`
 (docs/diagnostics.md).

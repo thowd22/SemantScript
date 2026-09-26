@@ -545,6 +545,8 @@ export function capture(
   readonly stdout: string;
   readonly stderr: string;
   readonly error?: Error;
+  /** The signal that killed the process, when one did. */
+  readonly signal?: string;
 }> {
   return new Promise((resolvePromise) => {
     const out: Buffer[] = [];
@@ -571,10 +573,11 @@ export function capture(
       io.signal?.removeEventListener("abort", abort);
       resolvePromise({ status: 1, stdout: "", stderr: "", error });
     });
-    child.once("close", (code) => {
+    child.once("close", (code, signal) => {
       io.signal?.removeEventListener("abort", abort);
       resolvePromise({
         status: code ?? 1,
+        ...(code === null && signal !== null ? { signal } : {}),
         stdout: Buffer.concat(out).toString("utf8"),
         stderr: Buffer.concat(err).toString("utf8"),
       });

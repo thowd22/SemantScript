@@ -72,6 +72,7 @@ from semantscript_trainer.lifecycle import (
     VerifiedIrProvenance,
     build_verified_ir,
 )
+from semantscript_trainer.remedies import remedy
 from semantscript_trainer.semantic_json import semantic_json_sha256
 from semantscript_trainer.suggestions import seed_retry_suggestion
 from semantscript_trainer.teacher import (
@@ -316,9 +317,8 @@ def train_bundle(
             say(
                 f"warning: {describe_expression(ir)}: only {distinct} distinct inputs among "
                 f"{len(base.cases)} cases; the teacher repeated inputs because the input space "
-                "is small, so held-out accuracy says less than the count suggests (a "
-                "[teacher.ranges] table widens a constraints teacher's number ranges; "
-                "docs/teachers.md)"
+                "is small, so held-out accuracy says less than the count suggests; "
+                f"next: {remedy('teacher-few-distinct')}"
             )
         adversarial: AdversarialDataset | None = None
         if cast(list[Any], definition.get("constraints", [])):
@@ -976,8 +976,8 @@ def _require_gold_examples(functions: Sequence[NeuralFunctionIr]) -> None:
     names = ", ".join(describe_expression(ir) for ir in missing)
     raise TrainBundleError(
         f"{names} {'has' if len(missing) == 1 else 'have'} no gold examples: verification "
-        "needs at least one attested example per expression, whatever the teacher. Add an "
-        "examples: [{ inputs, output }] entry to the sema call"
+        "needs at least one attested example per expression, whatever the teacher; "
+        f"next: {remedy('train-no-gold-examples')}"
     )
 
 
@@ -1260,7 +1260,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         seed_retry = _seed_retry_config(arguments)
     except ValueError as error:
-        log(f"error: {error}")
+        fix = failure_remedy(
+            error, stage="options", bundle=str(arguments.bundle), teacher=str(arguments.teacher)
+        )
+        log(with_remedy(f"error: {error}", fix))
         return 1
 
     if arguments.estimate:
@@ -1271,12 +1274,19 @@ def main(argv: list[str] | None = None) -> int:
     meter: SpendMeter | None = None
     journal: ResponseJournal | None = None
     model_config = None
-    stage: FailureStage = "run"
+    stage: FailureStage = "options"
     try:
         if arguments.max_cost_usd is not None and not (
             arguments.max_cost_usd > 0 and arguments.max_cost_usd < float("inf")
         ):
             raise ValueError("--max-cost-usd must be a positive number")
+        adversarial_config = (
+            AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
+            if arguments.counterfactual_ratio is not None
+            else None
+        )
+        training_config = _training_config(arguments)
+        verification_config = _verification_config(arguments)
         stage = "bundle"
         bundle = json.loads(Path(arguments.bundle).read_text(encoding="utf-8"))
         stage = "teacher-config"
@@ -1289,7 +1299,7 @@ def main(argv: list[str] | None = None) -> int:
         except TeacherPriceUnknown as error:
             if arguments.max_cost_usd is not None:
                 raise
-            log(f"warning: {error}; the run counts requests and tokens but not USD")
+            log(f"warning: the run counts requests and tokens but not USD: {error}")
         meter = SpendMeter(price, max_cost_usd=arguments.max_cost_usd, log=log)
         if model_config is None:
             teacher = create_teacher(config)
@@ -1299,19 +1309,14 @@ def main(argv: list[str] | None = None) -> int:
             if not arguments.no_cache and model_config.backend == "anthropic":
                 journal = ResponseJournal(arguments.cache_dir, model_config.configuration_sha256)
             teacher = create_teacher(config, meter=meter, journal=journal)
-        adversarial_config = (
-            AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
-            if arguments.counterfactual_ratio is not None
-            else None
-        )
         result = train_bundle(
             bundle,
             arguments.artifact,
             teacher=teacher,
             cache_directory=arguments.cache_dir,
             cases=arguments.cases,
-            training_config=_training_config(arguments),
-            verification_config=_verification_config(arguments),
+            training_config=training_config,
+            verification_config=verification_config,
             adversarial_config=adversarial_config,
             application_id=arguments.application_id,
             application_version=arguments.application_version,
@@ -1329,18 +1334,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         report = result.report
     except TeacherBudgetExceeded as error:
-        journaled = "no" if journal is None else str(journal.count())
-        log(
-            f"error: {error}. Every dataset finished before the stop stays cached in "
-            f"{arguments.cache_dir}"
-            + (
-                "; rerun with a higher --max-cost-usd (or without it) to resume"
-                if journal is None
-                else f", and {journaled} paid teacher response(s) are kept in "
-                f"{journal.directory}; rerun with a higher --max-cost-usd (or without it) "
-                "to resume: journaled responses replay at no cost"
+        fix = (
+            remedy("teacher-spend-cap", cache=arguments.cache_dir)
+            if journal is None
+            else remedy(
+                "teacher-spend-cap-journal",
+                cache=arguments.cache_dir,
+                count=journal.count(),
+                journal=journal.directory,
             )
         )
+        log(f"error: {error}; next: {fix}")
         code = 1
     except TrainBundleFailure as error:
         log(f"error: {error}")
@@ -1352,6 +1356,8 @@ def main(argv: list[str] | None = None) -> int:
             stage="bundle-shape" if isinstance(error, InvalidBundleError) else stage,
             bundle=str(arguments.bundle),
             teacher=str(arguments.teacher),
+            cache=str(arguments.cache_dir),
+            artifact=str(arguments.artifact),
         )
         log(with_remedy(f"error: {error}", fix))
         code = 1
@@ -1408,12 +1414,13 @@ def _run_estimate(arguments: argparse.Namespace, log: Callable[[str], None]) -> 
         functions = _bundle_functions(bundle)
         stage = "teacher-config"
         config = load_teacher_config(arguments.teacher)
-        stage = "run"
+        stage = "options"
         adversarial_config = (
             AdversarialGenerationConfig(counterfactual_ratio=arguments.counterfactual_ratio)
             if arguments.counterfactual_ratio is not None
             else None
         )
+        stage = "run"
         estimate = estimate_bundle(
             functions,
             config,
@@ -1424,7 +1431,12 @@ def _run_estimate(arguments: argparse.Namespace, log: Callable[[str], None]) -> 
         )
     except (OSError, ValueError, RuntimeError, TypeError, ImportError) as error:
         fix = failure_remedy(
-            error, stage=stage, bundle=str(arguments.bundle), teacher=str(arguments.teacher)
+            error,
+            stage=stage,
+            bundle=str(arguments.bundle),
+            teacher=str(arguments.teacher),
+            cache=str(arguments.cache_dir),
+            artifact=str(arguments.artifact),
         )
         log(with_remedy(f"error: {error}", fix))
         return 1

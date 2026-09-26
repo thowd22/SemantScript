@@ -233,7 +233,7 @@ export const freeText = sema<string>\`free text \${message}\`;
   );
   assert.match(
     noProject.stderr(),
-    /next: run semantscript init to set up the project, or pass --project <tsconfig\.json>\n$/u,
+    /next: create \S*missing[\\/]tsconfig\.json with npx -p typescript tsc --init --rootDir . --outDir dist, then run semantscript init to add the SemantScript plugins, or pass --project <tsconfig\.json>\n$/u,
   );
 });
 
@@ -673,7 +673,7 @@ test("train spawns the Python driver with resolved paths and renders its report"
   );
   assert.match(
     noInterpreter.stderr(),
-    /unable to run .*no-such-python: .*ENOENT; next: run semantscript doctor and fix its python check: install Python 3\.12 or later/u,
+    /unable to run .*no-such-python: .*ENOENT; next: run semantscript doctor --python \S*no-such-python --teacher teacher\.toml and fix its python check: install Python 3\.12 or later/u,
   );
 });
 
@@ -697,7 +697,7 @@ test("train wraps a trainer traceback into one line with the doctor check to run
     "--no-preflight",
   ];
   const traceback = join(root, "out", "artifact.report.traceback.txt");
-  const doctor = `semantscript doctor --python ${python} --trainer-module fake_trainer`;
+  const doctor = `semantscript doctor --python ${python} --trainer-module fake_trainer --teacher teacher.toml`;
   const cases = [
     [
       "module:torch",
@@ -759,7 +759,7 @@ test("train wraps a trainer traceback into one line with the doctor check to run
   assert.match(
     launch.stderr(),
     new RegExp(
-      `the trainer stopped: ModuleNotFoundError: No module named 'semantscript_trainer\\.cli'; next: run semantscript doctor --python ${python} --trainer-module fake_trainer and fix its trainer check: ${python} cannot import semantscript_trainer\\.cli`,
+      `the trainer stopped: ModuleNotFoundError: No module named 'semantscript_trainer\\.cli'; next: run semantscript doctor --python ${python} --trainer-module fake_trainer --teacher teacher\\.toml and fix its trainer check: ${python} cannot import semantscript_trainer\\.cli`,
       "u",
     ),
   );
@@ -773,7 +773,7 @@ test("train wraps a trainer traceback into one line with the doctor check to run
   assert.doesNotMatch(estimate.stderr(), /Traceback/u);
   assert.match(
     estimate.stderr(),
-    /the trainer stopped: ModuleNotFoundError: No module named 'onnxruntime'; next: run semantscript doctor --python \S+ --trainer-module fake_trainer and fix its onnxruntime check/u,
+    /the trainer stopped: ModuleNotFoundError: No module named 'onnxruntime'; next: run semantscript doctor --python \S+ --trainer-module fake_trainer --teacher teacher\.toml and fix its onnxruntime check/u,
   );
 });
 
@@ -861,6 +861,62 @@ test("the doctor command carries the interpreter and module train used", () => {
     trainerDoctorCommand({ python: "/opt/py 3/bin/python" }, "my_trainer.cli"),
     'semantscript doctor --python "/opt/py 3/bin/python" --trainer-module my_trainer.cli',
   );
+  assert.equal(
+    trainerDoctorCommand({ teacher: "bad.toml" }, "semantscript_trainer.cli"),
+    "semantscript doctor --teacher bad.toml",
+  );
+});
+
+test("train names the signal and the fix when the trainer is killed", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX signals");
+    return;
+  }
+  const root = await scratch(t, "semantscript-cli-train-signal-");
+  await writeFile(join(root, "bundle.json"), "{}");
+  await writeFile(join(root, "teacher.toml"), "[teacher]\n");
+  const args = [
+    "train",
+    "--bundle",
+    "bundle.json",
+    "--artifact",
+    "out/artifact",
+    "--teacher",
+    "teacher.toml",
+    "--python",
+    "python3",
+    "--trainer-module",
+    "fake_trainer",
+    "--no-preflight",
+  ];
+  const doctor =
+    "semantscript doctor --python python3 --trainer-module fake_trainer --teacher teacher.toml";
+  for (const [mode, signal, number] of [
+    ["signal:SIGSEGV", "SIGSEGV", 11],
+    ["signal:SIGKILL", "SIGKILL", 9],
+    ["signal:SIGKILL:after-warning", "SIGKILL", 9],
+  ]) {
+    const run = capture(root, {
+      PYTHONPATH: fixtures,
+      FAKE_TRAINER_RAISE: mode,
+    });
+    assert.equal(await runCli(args, run.io), 128 + number, mode);
+    const stderr = run.stderr();
+    const line = stderr.split("\n").at(-2);
+    assert.equal(
+      line,
+      `semantscript train: the trainer was killed by ${signal}; next: run ${doctor} and fix its torch and device checks, then rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached, so the rerun asks the teacher only for the rest`,
+      mode,
+    );
+    assert.doesNotMatch(stderr, /the trainer stopped/u, mode);
+    if (mode.endsWith("after-warning")) {
+      // The traceback it went on from is shown where it occurred, not blamed.
+      assert.match(
+        stderr,
+        /ValueError: optional backend unavailable\ncontinuing without it\n/u,
+      );
+    }
+  }
 });
 
 test("helpers canonicalize JSON, extend PYTHONPATH and render reports", () => {

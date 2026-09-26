@@ -14,6 +14,7 @@ import {
   stringOption,
   type CliIo,
 } from "./io.js";
+import { remedyText } from "./remedy.js";
 
 export const TEACHER_PROBE_KIND = "semantscript.teacher-probe";
 
@@ -64,7 +65,7 @@ export async function teacherCommand(
   const teacher = findTeacherConfig(values, io);
   if (teacher === undefined) {
     throw new CliUsageError(
-      "no teacher to probe: pass --teacher <teacher.toml>|constraints, or run semantscript init --teacher anthropic|openrouter|ollama|constraints to write .semantscript/teacher.toml",
+      `no teacher to probe; next: ${remedyText("teacher-probe-none")}`,
     );
   }
   const python = resolvePython(values, io);

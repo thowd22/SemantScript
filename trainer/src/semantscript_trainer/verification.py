@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -1611,6 +1611,7 @@ def _gate_suggestions(
                     misses,
                     rows,
                     [item for item in constraints or [] if isinstance(item, Mapping)],
+                    _required_outputs(ir) if constraints else None,
                 )
             )
         elif gate == "constraints":
@@ -1660,6 +1661,31 @@ def _canonical_input(
         raise VerificationConfigurationError(
             f"verification case {case_id!r} cannot be canonically encoded: {error}"
         ) from error
+
+
+def _required_outputs(ir: NeuralFunctionIr) -> Callable[[Mapping[str, Any]], tuple[Any, ...]]:
+    """The outputs the active ``always`` constraints require for one input, for the
+    suggestion that must not propose a rule a constraint already states."""
+
+    try:
+        compiled = compile_constraints(ir)
+    except (RuntimeError, TypeError, ValueError):
+        return lambda _inputs: ()
+
+    def required(inputs: Mapping[str, Any]) -> tuple[Any, ...]:
+        outputs: list[Any] = []
+        for index, constraint in enumerate(compiled):
+            if constraint["kind"] != "always":
+                continue
+            try:
+                active = compiled.evaluate(index, inputs)
+            except (RuntimeError, TypeError, ValueError):
+                continue
+            if active:
+                outputs.append(constraint["output"])
+        return tuple(outputs)
+
+    return required
 
 
 def _constraints_count(ir: NeuralFunctionIr) -> int:

@@ -22,7 +22,7 @@ export const REMEDY_TEMPLATES = {
   },
   "violation-denser-data": {
     family: "verifier",
-    fix: "sample the boundaries more densely: rerun with --cases {cases} (now {current}) or a higher --counterfactual-ratio, or record a tolerance with --max-constraint-violation-rate (decision-8)",
+    fix: "sample the boundaries more densely: rerun with --cases {cases} (now {current}), or accept isolated misses by recording a tolerance with --max-constraint-violation-rate",
     params: ["cases", "current"],
   },
   "calibration-more-cases": {
@@ -52,8 +52,8 @@ export const REMEDY_TEMPLATES = {
   },
   "python-missing": {
     family: "trainer-process",
-    fix: "run semantscript doctor and fix its python check: install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON",
-    params: [],
+    fix: "run {doctor} and fix its python check: install Python 3.12 or later, or point the CLI at one with --python <exe> or SEMANTSCRIPT_PYTHON",
+    params: ["doctor"],
   },
   "module-missing": {
     family: "trainer-process",
@@ -94,6 +94,111 @@ export const REMEDY_TEMPLATES = {
     family: "trainer-process",
     fix: "run {doctor} --probe request to test the teacher, then rerun semantscript train: the datasets that finished stay cached",
     params: ["doctor"],
+  },
+  "trainer-killed": {
+    family: "trainer-process",
+    fix: "run {doctor} and fix its torch and device checks, then rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached, so the rerun asks the teacher only for the rest",
+    params: ["doctor"],
+  },
+  "train-out-of-memory": {
+    family: "trainer-process",
+    fix: "rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached",
+    params: [],
+  },
+  "train-path-unwritable": {
+    family: "trainer-process",
+    fix: "check that {path} can be written (a directory, with write permission and free space), or pass --cache-dir or --artifact another path, then rerun semantscript train",
+    params: ["path"],
+  },
+  "artifact-export-failed": {
+    family: "trainer-process",
+    fix: "run {doctor} and fix its onnxruntime check; if every check passes, rerun with --no-cache, and report a bug with this message if the export fails again",
+    params: ["doctor"],
+  },
+  "train-option-invalid": {
+    family: "trainer-process",
+    fix: "correct the option the message names and rerun semantscript train (docs/cli-reference.md lists each option and its range)",
+    params: [],
+  },
+  "teacher-rejected": {
+    family: "trainer-process",
+    fix: "rerun semantscript train: rejected answers are not replayed, so the teacher is asked again; if it fails the same way, use a stronger teacher model or a lower --counterfactual-ratio (0.5), and check that a single-field edit can cross the predicate of the constraint the message names",
+    params: [],
+  },
+  "train-failed": {
+    family: "trainer-process",
+    fix: "if the message names a setting or a file, correct it and rerun semantscript train; otherwise run {doctor} to check the environment, and report a bug with this message if every check passes",
+    params: ["doctor"],
+  },
+  "train-no-gold-examples": {
+    family: "teacher",
+    fix: "add an examples: [{ inputs, output }] entry to the sema call, then run semantscript build and semantscript train",
+    params: [],
+  },
+  "train-gold-example-invalid": {
+    family: "teacher",
+    fix: "correct the example or the constraint it breaks in the sema call, then run semantscript build and semantscript train",
+    params: [],
+  },
+  "constraint-constant": {
+    family: "teacher",
+    fix: "rewrite the predicate of that constraint over the inputs so that it holds for some inputs and not for others, then run semantscript build and semantscript train",
+    params: [],
+  },
+  "teacher-constraints-undecided": {
+    family: "teacher",
+    fix: 'add always/never constraints until exactly one output is admissible for every input, or label the inputs they leave open with a language-model teacher: write a teacher TOML with [teacher] backend = "constraints" and a [teacher.fallback] table (backend = "anthropic" or "ollama" and its model), and pass it with --teacher <file> (docs/teachers.md)',
+    params: [],
+  },
+  "teacher-constraints-contradict": {
+    family: "teacher",
+    fix: "correct the predicates or outputs of the constraints active on that input so that exactly one output is admissible, then run semantscript build and semantscript train",
+    params: [],
+  },
+  "teacher-constraints-none": {
+    family: "teacher",
+    fix: 'add always/never constraints that decide every input, or let a language-model teacher label it: write a teacher TOML with [teacher] backend = "constraints" and a [teacher.fallback] table (backend = "anthropic" or "ollama" and its model), and pass it with --teacher <file> (docs/teachers.md)',
+    params: [],
+  },
+  "teacher-constraints-object": {
+    family: "teacher",
+    fix: 'let a language-model teacher label it: write a teacher TOML with [teacher] backend = "constraints" and a [teacher.fallback] table (backend = "anthropic" or "ollama" and its model), and pass it with --teacher <file> (docs/teachers.md)',
+    params: [],
+  },
+  "teacher-constraints-sampling": {
+    family: "teacher",
+    fix: 'write a teacher TOML with [teacher] backend = "constraints" and a [teacher.ranges] table that widens the sampling ranges, pass it with --teacher <file> (docs/teachers.md), or request fewer --cases',
+    params: [],
+  },
+  "teacher-constraints-twins": {
+    family: "teacher",
+    fix: 'write a teacher TOML with [teacher] backend = "constraints" and a [teacher.ranges] table that widens the sampling ranges, or twin_filter = false when the constraints always give one output, and pass it with --teacher <file> (docs/teachers.md)',
+    params: [],
+  },
+  "training-single-group": {
+    family: "teacher",
+    fix: "lower --counterfactual-ratio (0.5, or 0 when the inputs are a few booleans or enum values), request fewer --cases, or, with the constraints teacher, widen the number ranges in [teacher.ranges] (docs/teachers.md)",
+    params: [],
+  },
+  "teacher-few-distinct": {
+    family: "teacher",
+    fix: "widen the input space the teacher samples (a [teacher.ranges] table for the constraints teacher, docs/teachers.md), or request fewer --cases",
+    params: [],
+  },
+  "teacher-spend-cap": {
+    family: "teacher",
+    fix: "rerun with a higher --max-cost-usd, or without it, to resume: every dataset finished before the stop stays cached in {cache}",
+    params: ["cache"],
+  },
+  "teacher-spend-cap-journal": {
+    family: "teacher",
+    fix: "rerun with a higher --max-cost-usd, or without it, to resume: every dataset finished before the stop stays cached in {cache}, and the {count} paid teacher response(s) kept in {journal} replay at no cost",
+    params: ["cache", "count", "journal"],
+  },
+  "teacher-price-unknown": {
+    family: "teacher",
+    fix: "check the teacher model name, or add a [teacher.pricing] table with input_usd_per_million and output_usd_per_million to the teacher file (docs/teachers.md)",
+    params: [],
   },
   "runtime-not-loaded": {
     family: "runtime",
@@ -167,13 +272,28 @@ export const REMEDY_TEMPLATES = {
   },
   "build-no-tsconfig": {
     family: "cli",
-    fix: "run semantscript init to set up the project, or pass --project <tsconfig.json>",
-    params: [],
+    fix: "create {config} with npx -p typescript tsc --init --rootDir . --outDir dist, then run semantscript init to add the SemantScript plugins, or pass --project <tsconfig.json>",
+    params: ["config"],
+  },
+  "build-tsconfig-invalid": {
+    family: "cli",
+    fix: "correct {config} as the errors above say (it must be one JSON object whose include or files select the .sem.ts sources), then rerun semantscript build",
+    params: ["config"],
   },
   "build-no-outdir": {
     family: "cli",
     fix: "set compilerOptions.outDir in {config} (for example dist)",
     params: ["config"],
+  },
+  "train-no-teacher": {
+    family: "cli",
+    fix: "run semantscript init --teacher anthropic, openrouter, ollama or constraints to write a teacher file, set ANTHROPIC_API_KEY to use the default Anthropic teacher, or pass --teacher constraints when the constraints decide every input",
+    params: [],
+  },
+  "teacher-probe-none": {
+    family: "cli",
+    fix: "run semantscript init --teacher anthropic, openrouter, ollama or constraints to write .semantscript/teacher.toml, or pass --teacher <teacher.toml>",
+    params: [],
   },
   "doctor-node": {
     family: "doctor",

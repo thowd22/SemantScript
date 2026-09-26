@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,6 +25,8 @@ _IDENTIFIER = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 _MAXIMUM_LITERAL_CHARACTERS = 600
 
 type Scalar = str | bool | int | float
+type RequiredOutputs = Callable[[Mapping[str, Any]], Sequence[Any]]
+"""The outputs the expression's active ``always`` constraints require for one input."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,12 +53,13 @@ def gold_miss_suggestion(
     misses: Sequence[LabelledCase],
     corpus: Sequence[LabelledCase],
     constraints: Sequence[Mapping[str, Any]],
+    required: RequiredOutputs | None = None,
 ) -> str:
     """The constraint, example or check a set of missed gold or attested cases calls for."""
 
     if not misses:
         raise ValueError("a gold miss suggestion needs at least one miss")
-    rule = shared_rule(misses, corpus, constraints)
+    rule = shared_rule(misses, corpus, constraints, required)
     if rule is not None:
         predicate, output, count = rule
         return remedy(
@@ -96,15 +99,19 @@ def shared_rule(
     misses: Sequence[LabelledCase],
     corpus: Sequence[LabelledCase],
     constraints: Sequence[Mapping[str, Any]],
+    required: RequiredOutputs | None = None,
 ) -> tuple[str, Any, int] | None:
     """A one-field predicate two or more misses share that the labels imply.
 
-    The misses must expect the same output and all satisfy the predicate (one
+    The misses must expect the same scalar output (the compiler accepts
+    constraints only on a scalar output) and all satisfy the predicate (one
     string or boolean value, or every number at or above, or at or below, a
     bound); every corpus row where it holds must carry that output, at least
     one teacher-labelled row must be among them, and no constraint may state
-    it already. Returns ``(predicate source, output, missed count)`` for the
-    predicate that covers the most teacher-labelled rows, else None.
+    it already: neither in the same source text nor, when ``required`` is
+    given, as an active ``always`` that requires that output on every missed
+    and covered row. Returns ``(predicate source, output, missed count)`` for
+    the predicate that covers the most teacher-labelled rows, else None.
     """
 
     groups: dict[str, list[LabelledCase]] = {}
@@ -114,10 +121,22 @@ def shared_rule(
         _normalize(str(item.get("source", ""))) for item in constraints if isinstance(item, Mapping)
     }
     flattened = [(row, _flatten(row.inputs)) for row in corpus]
+    already: dict[str, bool] = {}
+
+    def stated_for(row: LabelledCase, output: Any) -> bool:
+        # Whether an active always() already requires ``output`` for this row.
+        key = f"{_key(row.inputs)}\u0000{_key(output)}"
+        if key not in already:
+            assert required is not None
+            already[key] = any(_same(value, output) for value in required(row.inputs))
+        return already[key]
+
     for group in sorted(groups.values(), key=len, reverse=True):
         if len(group) < 2:
             break
         output = group[0].expected
+        if not _is_scalar(output):
+            continue
         fields = [_flatten(miss.inputs) for miss in group]
         shared = set(fields[0]).intersection(*fields[1:])
         best: tuple[int, int, str] | None = None
@@ -132,6 +151,10 @@ def shared_rule(
                     continue
                 support = sum(row.teacher_labelled for row in covered)
                 if support == 0:
+                    continue
+                if required is not None and all(
+                    stated_for(row, output) for row in (*group, *covered)
+                ):
                     continue
                 if best is None or (support, -rank) > (best[0], -best[1]):
                     best = (support, rank, source)
@@ -253,6 +276,10 @@ def _flatten(value: Mapping[str, Any], prefix: str = "") -> dict[str, Scalar]:
         elif isinstance(item, (str, bool)) or _numeric(item):
             leaves[path] = item
     return leaves
+
+
+def _is_scalar(value: object) -> bool:
+    return isinstance(value, (str, bool)) or _numeric(value)
 
 
 def _numeric(value: object) -> bool:

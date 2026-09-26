@@ -31,6 +31,7 @@ from semantscript_trainer.constraints import (
     ConstraintViolationError,
     compile_constraints,
 )
+from semantscript_trainer.remedies import remedy
 from semantscript_trainer.teacher import (
     CaseGenerator,
     GeneratedCase,
@@ -442,7 +443,8 @@ def _parse_gold_case(
         ConstraintViolationError,
     ) as error:
         raise DatasetConfigurationError(
-            f"{_where(ir)}IR gold example {index} is invalid: {error}"
+            f"{_where(ir)}IR gold example {index} is invalid: {error}; "
+            f"next: {remedy('train-gold-example-invalid')}"
         ) from error
     return DatasetCase(
         inputs=inputs,

@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from semantscript_trainer.remedies import remedy
 from semantscript_trainer.teacher import TeacherBudgetExceeded, TeacherConfigurationError
 from semantscript_trainer.teacher_config import (
     AnyTeacherConfig,
@@ -192,9 +193,8 @@ def resolve_price(
         )
         if base is None:
             raise TeacherPriceUnknown(
-                f"no price is known for teacher model {model_config.model!r}; add a "
-                "[teacher.pricing] table with input_usd_per_million and "
-                "output_usd_per_million (docs/teachers.md)"
+                f"no price is known for teacher model {model_config.model!r}; "
+                f"next: {remedy('teacher-price-unknown')}"
             )
     if pricing is None:
         return base
@@ -260,7 +260,7 @@ def _openrouter_price(
         if pinned is None:
             raise TeacherPriceUnknown(
                 f"OpenRouter's price list was unreachable ({error}) and no pinned price is "
-                f"known for {model!r}; add a [teacher.pricing] table (docs/teachers.md)"
+                f"known for {model!r}; next: {remedy('teacher-price-unknown')}"
             ) from error
         return pinned
     if entry is None:
@@ -269,8 +269,8 @@ def _openrouter_price(
         )
         if pinned is None:
             raise TeacherPriceUnknown(
-                f"OpenRouter lists no model {model!r} and no pinned price is known; check the "
-                "model name or add a [teacher.pricing] table (docs/teachers.md)"
+                f"OpenRouter lists no model {model!r} and no pinned price is known; "
+                f"next: {remedy('teacher-price-unknown')}"
             )
         return pinned
     input_price = entry["prompt"]

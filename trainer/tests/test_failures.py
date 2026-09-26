@@ -85,16 +85,83 @@ def test_bundle_teacher_and_transport_failures_name_their_command(
     assert str(
         failure_remedy(TeacherTransportError("timed out"), stage="run", bundle="b", teacher="t")
     ).startswith("run semantscript doctor --probe request to test the teacher")
-    # A failure whose message already says what to change gets no second fix.
-    assert (
-        failure_remedy(
-            TeacherConfigurationError("the constraints do not decide every input"),
-            stage="run",
+    # A message that already names its fix keeps it: with_remedy adds no second one.
+    constraints = TeacherConfigurationError(
+        "the constraints do not decide every input; next: add always/never constraints"
+    )
+    fix = failure_remedy(constraints, stage="run", bundle="b", teacher="t")
+    assert with_remedy(f"error: {constraints}", fix) == f"error: {constraints}"
+
+
+def test_every_run_failure_names_a_next_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(DOCTOR_COMMAND_VARIABLE, raising=False)
+
+    def fix(error: BaseException, stage: str = "run") -> str:
+        return failure_remedy(
+            error,
+            stage=stage,  # type: ignore[arg-type]
             bundle="b",
             teacher="t",
+            cache="/c",
+            artifact="/a",
         )
-        is None
+
+    class OutOfMemoryError(RuntimeError):
+        pass
+
+    assert fix(OutOfMemoryError("CUDA out of memory. Tried to allocate 2 GiB")).startswith(
+        "rerun with a smaller --batch-size or with --device cpu"
     )
+    try:
+        raise RuntimeError("could not create dataset cache directory") from NotADirectoryError(
+            20, "Not a directory", "/dev/null/cache"
+        )
+    except RuntimeError as error:
+        assert fix(error).startswith("check that /dev/null/cache can be written")
+    try:
+        raise RuntimeError("could not write") from PermissionError(13, "denied", "/c/datasets/x")
+    except RuntimeError as error:
+        assert fix(error).startswith("check that /c can be written")
+    assert fix(OSError("disk full")).startswith("check that /c and /a can be written")
+
+    class ArtifactExportError(RuntimeError):
+        pass
+
+    class ArtifactPublicationError(ArtifactExportError):
+        pass
+
+    try:
+        raise ArtifactPublicationError("artifact export failed") from ValueError(
+            "model.onnx ONNX output failed PyTorch parity"
+        )
+    except ArtifactPublicationError as error:
+        assert fix(error).startswith("run semantscript doctor and fix its onnxruntime check")
+    assert fix(ValueError("counterfactual_ratio must be ..."), "options").startswith(
+        "correct the option the message names"
+    )
+
+    class TeacherResponseError(RuntimeError):
+        pass
+
+    assert fix(TeacherResponseError("case outside the contract")).startswith(
+        "rerun semantscript train: rejected answers are not replayed"
+    )
+
+    class AdversarialGenerationError(RuntimeError):
+        pass
+
+    class UnsynthesizableConstraintError(AdversarialGenerationError):
+        pass
+
+    assert fix(
+        UnsynthesizableConstraintError("constraint 0 is constant true and has no opposite side")
+    ).startswith("rewrite the predicate of that constraint")
+    # Anything else still names a command.
+    assert fix(RuntimeError("something new")).startswith(
+        "if the message names a setting or a file, correct it"
+    )
+    assert "run semantscript doctor" in fix(RuntimeError("something new"))
+
     assert with_remedy("error: x", None) == "error: x"
     assert with_remedy("error: x; next: y", "z") == "error: x; next: y"
     assert with_remedy("error: x", "z") == "error: x; next: z"
@@ -176,3 +243,36 @@ def test_main_names_the_torch_check_when_training_cannot_import_torch(
         "semantscript doctor --python /opt/py and fix its torch check: "
         f"{sys.executable} cannot import torch"
     ) in err
+
+
+def test_the_trainer_s_own_error_classes_map_to_their_fix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from semantscript_trainer.adversarial import UnsynthesizableConstraintError
+    from semantscript_trainer.artifact import ArtifactPublicationError
+    from semantscript_trainer.dataset import DatasetCacheError
+    from semantscript_trainer.teacher import TeacherResponseError
+
+    monkeypatch.delenv(DOCTOR_COMMAND_VARIABLE, raising=False)
+
+    def fix(error: BaseException) -> str:
+        return failure_remedy(
+            error, stage="run", bundle="b", teacher="t", cache="/c", artifact="/a"
+        )
+
+    try:
+        raise ArtifactPublicationError("artifact export failed") from ValueError(
+            "model.onnx ONNX output failed PyTorch parity"
+        )
+    except ArtifactPublicationError as error:
+        assert fix(error).startswith("run semantscript doctor and fix its onnxruntime check")
+    assert fix(DatasetCacheError("could not write")).startswith("check that /c and /a")
+    assert fix(TeacherResponseError("bad case")).startswith("rerun semantscript train")
+    assert fix(
+        UnsynthesizableConstraintError(
+            "constraint 1 is constant true and has no opposite predicate side"
+        )
+    ).startswith("rewrite the predicate")
+    assert fix(
+        UnsynthesizableConstraintError("constraint 1 did not yield a valid two-sided pair")
+    ).startswith("rerun semantscript train")

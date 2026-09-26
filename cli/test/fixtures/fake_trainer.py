@@ -23,7 +23,9 @@ failed attempts and a stop reason. A failed report's failure ends with a
 line and then fail the way a broken environment does: ``module:<name>`` raises
 ``ModuleNotFoundError`` for that module, ``syntax`` a ``SyntaxError``, ``crash``
 a ``RuntimeError``, all as uncaught tracebacks, and ``launch`` prints the
-interpreter's own ``No module named`` line and exits 1. ``FAKE_TRAINER_NOISE``
+interpreter's own ``No module named`` line and exits 1. ``signal:<NAME>`` kills
+the process with that signal, as the out-of-memory killer or a native crash
+does; ``signal:<NAME>:after-warning`` first logs a traceback it goes on from. ``FAKE_TRAINER_NOISE``
 prints a traceback a library logged and went on from before the report, and
 Python's ``Exception ignored in`` shutdown traceback after it.
 """
@@ -204,6 +206,18 @@ def main(argv: list[str]) -> int:
             raise ModuleNotFoundError(f"No module named {name!r}", name=name)
         if failure == "syntax":
             raise SyntaxError("invalid syntax")
+        if failure.startswith("signal:"):
+            import signal
+            import traceback
+
+            if failure.endswith(":after-warning"):
+                try:
+                    raise ValueError("optional backend unavailable")
+                except ValueError:
+                    traceback.print_exc()
+                print("continuing without it", file=sys.stderr, flush=True)
+            name = failure.split(":")[1]
+            os.kill(os.getpid(), getattr(signal, name))
         raise RuntimeError("the fake trainer crashed")
     if values.get("estimate") is True:
         return estimate(values)

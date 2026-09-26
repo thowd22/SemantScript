@@ -1232,7 +1232,7 @@ def test_spend_cap_stops_the_run_keeps_paid_responses_and_a_rerun_replays_them(
     paid = len(sent)
     assert 0 < paid < 6
     assert "error: spend cap USD 0.006 reached" in stopped
-    assert f"{paid} paid teacher response(s) are kept" in stopped
+    assert f"the {paid} paid teacher response(s) kept in" in stopped
     assert "rerun with a higher --max-cost-usd" in stopped
     assert f"teacher: {paid} request(s), {400 * paid:,} in / {60 * paid} out tokens" in stopped
     assert not (tmp_path / "report.json").exists()

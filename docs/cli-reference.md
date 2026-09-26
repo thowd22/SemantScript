@@ -159,8 +159,11 @@ bundle with the execution plan.
 Compile diagnostics exit 1 and nothing is written; a successful build emits the
 JavaScript through TypeScript, then the bundle last. Exit 2 for a malformed
 `--domain-depth` value. A missing `tsconfig.json` ends with
-`next: run semantscript init to set up the project, or pass --project <tsconfig.json>`,
-and a project without `compilerOptions.outDir` with the setting to add.
+`next: create <tsconfig.json> with npx -p typescript tsc --init --rootDir . --outDir dist, then run semantscript init to add the SemantScript plugins, or pass --project <tsconfig.json>`
+(`init` wires an existing `tsconfig.json` but does not create one), a
+`tsconfig.json` that does not parse or selects no inputs with the file to
+correct, and a project without `compilerOptions.outDir` with the setting to
+add.
 
 ## `train`
 
@@ -207,17 +210,23 @@ report (`<artifact>.report.traceback.txt` by default):
 semantscript train: the trainer stopped: ModuleNotFoundError: No module named 'torch'; next: run semantscript doctor and fix its torch check: python3 cannot import torch; full traceback in /srv/app/.semantscript/artifact.report.traceback.txt
 ```
 
-The printed `doctor` command carries this run's `--python` and
-`--trainer-module` when they were passed. A traceback the trainer goes on from
-(a logged warning, Python's shutdown noise) is printed in place, and only one
-that ends the run without a report becomes the line. A failure the trainer
-catches itself ends its `error:` line with `; next: <fix>` when the fix lies
-outside the trainer: a training package that does not import (its doctor
-check), a missing or malformed bundle (`semantscript build`), a broken teacher
-file (the `teacher-config` check) or an unreachable teacher. `train` renders
-only a report this run wrote, never one an earlier run left at the path. An
-interpreter that does not exist gives
-`unable to run <python>: … ENOENT; next: run semantscript doctor and fix its python check: …`.
+The printed `doctor` command carries this run's `--python`,
+`--trainer-module` and `--teacher` when they were passed. A traceback the
+trainer goes on from (a logged warning, Python's shutdown noise) is printed in
+place, and only one that ends the run without a report becomes the line. Every
+failure the trainer catches itself ends its `error:` line with
+`; next: <fix>`: a training package that does not import (its doctor check),
+a missing or malformed bundle (`semantscript build`), a broken teacher file
+(the `teacher-config` check), an unreachable teacher, an option out of range,
+a lack of memory (`--batch-size` or `--device cpu`), an unwritable path, a
+failed export, answers the teacher got wrong, an expression's examples or
+constraints, and a last-resort fix for anything else. A trainer the operating
+system kills (the out-of-memory killer, a native crash) gives
+`semantscript train: the trainer was killed by <signal>; next: …` and exit
+128 plus the signal number. `train` renders only a report this run wrote,
+never one an earlier run left at the path. An interpreter that does not exist
+gives
+`unable to run <python>: … ENOENT; next: run semantscript doctor --python <python> and fix its python check: …`.
 `--estimate` wraps its failures the same way.
 
 | Flag               | Value  | Effect                                                                                                                                                                                                                                                           |

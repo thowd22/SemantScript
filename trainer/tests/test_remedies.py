@@ -99,6 +99,50 @@ def test_misses_sharing_a_one_field_rule_suggest_the_constraint() -> None:
     assert shared_rule(misses, corpus, stated) is None
 
 
+def test_a_rule_an_existing_always_constraint_implies_is_not_suggested() -> None:
+    misses = [
+        case("gold-1", "cancelled", 3, "deny", "approve", teacher=False),
+        case("gold-2", "cancelled", 60, "deny", "review", teacher=False),
+    ]
+    corpus = [*CORPUS, *misses]
+    # always(() => order.status !== "paid", "deny") states the rule in other words.
+
+    def required(inputs: object) -> tuple[str, ...]:
+        order = inputs["order"]  # type: ignore[index]
+        return ("deny",) if order["status"] != "paid" else ()
+
+    stated = [{"kind": "always", "source": 'order.status !== "paid"', "output": "deny"}]
+    assert shared_rule(misses, corpus, stated, required) is None
+    assert not gold_miss_suggestion(misses, corpus, stated, required).startswith(
+        "add the constraint"
+    )
+    # A constraint that requires another output there does not count as stating it.
+    assert shared_rule(misses, corpus, [], lambda _inputs: ("approve",)) == (
+        'order.status === "cancelled"',
+        "deny",
+        2,
+    )
+
+
+def test_an_object_output_never_gets_a_constraint_suggestion() -> None:
+    verdict = {"decision": "deny", "reason": "x"}
+
+    def row(case_id: str, status: str, teacher: bool) -> LabelledCase:
+        return LabelledCase(
+            case_id,
+            {"order": {"status": status}},
+            verdict,
+            {"decision": "approve", "reason": "x"},
+            teacher,
+        )
+
+    misses = [row("gold-1", "cancelled", False), row("gold-2", "cancelled", False)]
+    corpus = [row("s1", "cancelled", True), *misses]
+    # The compiler rejects constraints on a flat-interface output (TS9122).
+    assert shared_rule(misses, corpus, []) is None
+    assert gold_miss_suggestion(misses, corpus, []).startswith("add the examples entry")
+
+
 def test_a_numeric_bound_is_suggested_only_when_every_labelled_case_agrees() -> None:
     misses = [
         case("gold-1", "paid", 100, "deny", "approve", teacher=False),

@@ -72,10 +72,12 @@ export async function releasesCommand(
   args: readonly string[],
   io: CliIo,
 ): Promise<number> {
-  const [first, ...rest] = args;
-  if (first === undefined || first.startsWith("-")) {
+  const at = subcommandIndex(args);
+  if (at === undefined) {
     return listReleases(args, io);
   }
+  const first = args[at] as string;
+  const rest = [...args.slice(0, at), ...args.slice(at + 1)];
   switch (first) {
     case "list":
       return listReleases(rest, io);
@@ -92,6 +94,23 @@ export async function releasesCommand(
         `unknown releases subcommand ${first}: expected list, show, rollback, promote or prune`,
       );
   }
+}
+
+/** Options of any releases subcommand that take a value. */
+const VALUE_OPTIONS = new Set(["--artifact", "--keep", "--older-than"]);
+
+/**
+ * The position of the subcommand, which may follow flags
+ * (`releases --artifact <root> show <release>`); undefined means `list`.
+ */
+function subcommandIndex(args: readonly string[]): number | undefined {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index] as string;
+    if (arg === "--") return undefined;
+    if (!arg.startsWith("-")) return index;
+    if (VALUE_OPTIONS.has(arg)) index += 1;
+  }
+  return undefined;
 }
 
 async function listReleases(
@@ -270,8 +289,9 @@ async function switchRelease(
   if (spec === undefined && pointer === undefined) {
     throw new ReleaseError(
       "POINTER_INVALID",
-      pointerError ??
-        `${join(root, "current.json")} does not exist; name the release to switch to`,
+      pointerError === undefined
+        ? `${join(root, "current.json")} does not exist; name the release to switch to`
+        : `${pointerError}; name the release to switch to, which also rewrites current.json`,
     );
   }
   const entries = await scanReleases(root);
@@ -370,6 +390,12 @@ async function pruneReleases(
   }
   const entries = await scanReleases(root);
   const valid = entries.filter((entry) => entry.error === undefined);
+  if (!valid.some((entry) => entry.digest === pointer.manifestSha256)) {
+    throw new ReleaseError(
+      "POINTER_INVALID",
+      `${join(root, "current.json")} names ${pointer.release}, which is missing or invalid; prune never guesses which release is current (repair the pointer with releases rollback <release> first)`,
+    );
+  }
   const newest = new Set(
     keep === undefined ? [] : valid.slice(0, keep).map((entry) => entry.digest),
   );
@@ -405,6 +431,19 @@ async function pruneReleases(
         `${PRUNING_PREFIX}${randomBytes(8).toString("hex")}`,
       );
       await rename(entry.directory, doomed);
+      // A rollback may have pointed at it between the read and the rename.
+      let after: ArtifactPointer | undefined;
+      try {
+        after = await readPointer(root);
+      } catch (error: unknown) {
+        await rename(doomed, entry.directory);
+        throw error;
+      }
+      if (after === undefined || after.manifestSha256 === entry.digest) {
+        await rename(doomed, entry.directory);
+        skipped.push(entry.name);
+        continue;
+      }
       await rm(doomed, { recursive: true, force: true });
     }
     removed.push({ entry, bytes });
@@ -490,7 +529,14 @@ async function pointerState(
     const pointer = await readPointer(root);
     return pointer === undefined ? {} : { pointer };
   } catch (error: unknown) {
-    if (error instanceof ReleaseError) return { pointerError: error.message };
+    if (error instanceof ReleaseError) {
+      const prefix = `${error.code}: `;
+      return {
+        pointerError: error.message.startsWith(prefix)
+          ? error.message.slice(prefix.length)
+          : error.message,
+      };
+    }
     throw error;
   }
 }
@@ -645,8 +691,12 @@ function previousRelease(
 /**
  * Check a release the way the runtime will load it: the manifest hashes to the
  * directory name, every resource is a regular non-symlink file inside the
- * release with its recorded size and digest, and every function passed
- * verification (the runtime refuses anything else).
+ * release with its recorded size and digest, every function passed
+ * verification, and then the runtime's own loader checks (`checkSemaArtifact`
+ * from `@semantscript/core` with its default options: manifest schema, runtime
+ * and model ABI compatibility, tensor names and shapes, opsets and the
+ * encoder-adapter-head chain) accept it. Only ONNX session start-up and the
+ * application's fallback registrations are left unchecked.
  */
 async function verifyRelease(entry: ReleaseEntry): Promise<void> {
   if (
@@ -712,6 +762,20 @@ async function verifyRelease(entry: ReleaseEntry): Promise<void> {
     throw new ReleaseError(
       "RELEASE_UNVERIFIED",
       `${entry.name}: ${unverified.map((fn) => `${fn.id} is ${fn.status}`).join(", ")}; the runtime refuses a release whose functions did not pass verification`,
+    );
+  }
+  const { checkSemaArtifact } = await import("@semantscript/core");
+  try {
+    await checkSemaArtifact(entry.directory);
+  } catch (error: unknown) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : undefined;
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new ReleaseError(
+      "RELEASE_REJECTED",
+      `${entry.name}: the runtime refuses to load it (${code === undefined ? detail : `${code}: ${detail}`})`,
     );
   }
 }

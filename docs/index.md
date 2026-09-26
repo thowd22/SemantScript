@@ -127,8 +127,8 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   and build cache, quantization, teacher backends.
 - [Model](../model/README.md): the encoder, adapter and head modules and the
   ONNX export with parity checks.
-- [CLI](../cli/README.md): `semantscript init | doctor | build | train | dev |
-test | run`, the zero-config defaults, the environment checks, the dev loop
+- [CLI](../cli/README.md): `semantscript init | doctor | build | train | teacher probe |
+dev | test | run | releases`, the zero-config defaults, the environment checks, the dev loop
   and the build cache rules.
 - [Framework](../framework/README.md): decorated controllers for Express, Nest
   and Next.js handlers, one sema request scope per request, and deterministic

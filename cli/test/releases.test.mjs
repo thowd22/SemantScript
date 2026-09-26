@@ -70,11 +70,13 @@ async function threeReleases(root, options = {}) {
     });
   const oldest = await make("0.0.1", "2020-01-01T00:00:00Z", options.oldest);
   const middle = await make("0.0.2", "2020-01-02T00:00:00Z", options.middle);
-  const newest = await make("0.0.3", recent(), options.newest);
+  const newestAt = recent();
+  const newest = await make("0.0.3", newestAt, options.newest);
   return {
     oldest: oldest.manifestSha256,
     middle: middle.manifestSha256,
     newest: newest.manifestSha256,
+    newestAt,
   };
 }
 
@@ -94,7 +96,7 @@ async function currentDigest(root) {
 
 test("releases lists every release newest first with its date, digest, verification and the current marker", async (t) => {
   const root = await scratch(t, "semantscript-releases-list-");
-  const { oldest, middle, newest } = await threeReleases(root);
+  const { oldest, middle, newest, newestAt } = await threeReleases(root);
   // Not releases: an in-progress export, a pruning leftover, a stray file.
   await mkdir(join(root, "releases", ".staging-abc"), { recursive: true });
   await writeFile(join(root, "releases", "notes.txt"), "x");
@@ -115,7 +117,7 @@ test("releases lists every release newest first with its date, digest, verificat
   assert.match(
     rows[0],
     new RegExp(
-      `^\\* +2026-.*${newest.slice(0, 12)} +runtime-fixture@0\\.0\\.3 +1/1 passed +1\\.0000 +0\\.0000 +0$`,
+      `^\\* +${newestAt} +${newest.slice(0, 12)} +runtime-fixture@0\\.0\\.3 +1/1 passed +1\\.0000 +0\\.0000 +0$`,
       "u",
     ),
   );
@@ -364,11 +366,45 @@ test("releases rollback refuses ambiguous, tampered, symlinked and unverified ta
   await writeFile(join(root, "current.json"), "{ not json\n");
   const guess = await run(root, ["rollback"]);
   assert.equal(guess.code, 1);
-  assert.match(guess.stderr, /^POINTER_INVALID/u);
+  assert.match(
+    guess.stderr,
+    /^POINTER_INVALID: (?!POINTER_INVALID).*name the release to switch to/u,
+  );
   const repaired = await run(root, ["rollback", middle]);
   assert.equal(repaired.code, 0, repaired.stderr);
   assert.match(repaired.stdout, /from \(no valid pointer\)/u);
   assert.equal(await currentDigest(root), middle);
+});
+
+test("releases rollback and promote refuse a release the runtime's loader would refuse", async (t) => {
+  const root = await scratch(t, "semantscript-releases-incompatible-");
+  const { oldest, middle, newest } = await threeReleases(root, {
+    // Hashes and verification are fine; only the runtime compatibility check fails.
+    middle: (manifest) => {
+      manifest.compatibility.minimumRuntimeVersion = "99.0.0";
+    },
+  });
+
+  const rollback = await run(root, ["rollback"]);
+  assert.equal(rollback.code, 1);
+  assert.match(
+    rollback.stderr,
+    new RegExp(
+      `^RELEASE_REJECTED: sha256-${middle}: the runtime refuses to load it \\(SEMA_ARTIFACT_INCOMPATIBLE: artifact requires runtime 99\\.0\\.0`,
+      "u",
+    ),
+  );
+  assert.equal(await currentDigest(root), newest);
+
+  const promote = await run(root, ["promote", middle]);
+  assert.equal(promote.code, 1);
+  assert.match(promote.stderr, /^RELEASE_REJECTED: /u);
+  assert.equal(await currentDigest(root), newest);
+
+  // A compatible release still switches.
+  const named = await run(root, ["rollback", oldest]);
+  assert.equal(named.code, 0, named.stderr);
+  assert.equal(await currentDigest(root), oldest);
 });
 
 test("releases prune removes by count or age and never the current release, invalid ones or staging directories", async (t) => {
@@ -451,11 +487,38 @@ test("releases prune removes by count or age and never the current release, inva
   ]) {
     assert.equal((await run(root, args)).code, 2, args.join(" "));
   }
+  // A well-formed pointer naming a release that is not on disk.
+  const pointerFile = join(root, "current.json");
+  const saved = await readFile(pointerFile);
+  await writeFile(pointerFile, pointerBytes("d".repeat(64)));
+  const dangling = await run(root, ["prune", "--keep", "0"]);
+  assert.equal(dangling.code, 1);
+  assert.match(
+    dangling.stderr,
+    /^POINTER_INVALID: .*names releases\/sha256-d{64}, which is missing or invalid/u,
+  );
+  assert.ok(exists(newest));
+  await writeFile(pointerFile, saved);
+
   await rm(join(root, "current.json"));
   const noPointer = await run(root, ["prune", "--keep", "0"]);
   assert.equal(noPointer.code, 1);
   assert.match(noPointer.stderr, /^POINTER_INVALID: .*prune never guesses/u);
   assert.ok(exists(newest));
+});
+
+test("releases finds the subcommand after leading flags", async (t) => {
+  const root = await scratch(t, "semantscript-releases-flags-");
+  const { middle } = await threeReleases(root);
+  for (const args of [
+    ["--artifact", root, "show", middle.slice(0, 12)],
+    ["--json", "list", "--artifact", root],
+    ["--artifact", root, "rollback", "--dry-run"],
+  ]) {
+    const output = capture(root);
+    const code = await runCli(["releases", ...args], output.io);
+    assert.equal(code, 0, `${args.join(" ")}: ${output.stderr()}`);
+  }
 });
 
 test("a running process with watch enabled swaps to the release a rollback points at", async (t) => {

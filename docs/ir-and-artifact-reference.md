@@ -129,7 +129,8 @@ service.
 Releases accumulate: nothing removes an old one on publication, so switching
 back is a pointer rewrite. `semantscript releases` lists them, `releases
 rollback` and `releases promote` rewrite `current.json` atomically after
-checking the target release the same way, and `releases prune` deletes old
+checking the target release the same way (every check above except ONNX
+session start-up), and `releases prune` deletes old
 releases other than the current one (see the
 [CLI reference](cli-reference.md#releases)).
 

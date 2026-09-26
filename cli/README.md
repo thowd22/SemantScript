@@ -15,7 +15,8 @@ semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
-semantscript releases [list | show <release> | rollback [<release>] | promote <release> | prune --keep <n> | --older-than <30d>] [--artifact <root>] [--dry-run] [--json]
+semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
+semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
 ```
 
 ## init
@@ -67,7 +68,7 @@ Every command works without flags once the project is initialised:
 - the bundle is the build's `semantscript.ir.v1.json` under the tsconfig
   `outDir`, then `.`, `dist`, `out` or `build`;
 - the artifact root is `SEMANTSCRIPT_ARTIFACT` when set, else
-  `.semantscript/artifact`, for `train`, `test`, `run` and the runtime's
+  `.semantscript/artifact`, for `train`, `test`, `run`, `releases` and the runtime's
   `loadSemaArtifact()` with no argument;
 - the teacher is the first of `semantscript.teacher.toml`, `teacher.toml` and
   `.semantscript/teacher.toml`; when none exists and `ANTHROPIC_API_KEY` is
@@ -295,9 +296,10 @@ characters.
 
 `releases rollback` points `current.json` back at the release created before
 the current one (or at a named one; `releases promote <release>` rolls
-forward). It first checks the target the way the runtime will, the manifest
-and every resource hash and no symlinks, and refuses a release whose functions
-did not all pass verification. The pointer is rewritten atomically (temporary
+forward). It first checks the target the way the runtime will: the manifest
+and every resource hash, no symlinks, every function passed verification, and
+the runtime's own loader checks (ABI compatibility, tensors, opsets and the
+model chain) accept it; only ONNX session start-up is left out. The pointer is rewritten atomically (temporary
 file, fsync, rename) and no release is removed, so a running process loaded
 with `watch: true` swaps to the target and a later rollback can swap back.
 

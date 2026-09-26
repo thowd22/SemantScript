@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 05:01'
+updated_date: '2026-09-26 05:12'
 labels:
   - dx
   - install
@@ -28,7 +28,7 @@ All four Node packages (@semantscript/core, @semantscript/compiler, @semantscrip
 - [ ] #1 npm install semantscript @semantscript/core @semantscript/compiler @semantscript/framework and pip install semantscript-trainer (or the chosen name) succeed from the public registries in an empty directory
 - [ ] #2 npx semantscript init, build, train, test and run work in that directory against the installed packages with no repository checkout
 - [ ] #3 Versions are shared across the packages, recorded in the artifact manifest, and a tagged release workflow publishes all of them from CI
-- [ ] #4 The getting-started page and the tutorial use the published packages instead of file: links
+- [x] #4 The getting-started page and the tutorial use the published packages instead of file: links
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -92,4 +92,12 @@ FIX round 3 (2026-09-26):
   - getting-started step 3 build-script sentence is clarified.
   - cli-reference and releasing.md are updated.
 - Still gated on the user (re-checked): npm view semantscript E404, PyPI 404, no LICENSE, gh secret list empty, no v* tag. AC1, AC2 and the publish half of AC3 stay unchecked.
+
+FINALIZE (2026-09-26): npm run build 0; lint:node 0; test:node 89/121/44/9/85 pass, 0 fail; pytest trainer/tests 572 passed 2 skipped; ruff check clean; prettier --check docs README.md clean; version.mjs check: 0.1.0 consistent. AC4 checked: getting-started step 2 and the tutorial published route use npm install semantscript @semantscript/core @semantscript/compiler @semantscript/framework and pip install semantscript-trainer[training] with a first-publish-pending note; the route was executed against local packs/verdaccio in rounds 1-3 (tutorial route under a parent package.json: dist has the IR bundle). AC3 left unchecked: shared version and manifest recording proven (version.mjs check, smoke manifest compilerVersion/trainerVersion 0.1.0 and 0.2.0-rc.1), dry-run Release 36219677827 green, but the workflow has never published. AC1/AC2 unchecked: npm view semantscript E404, PyPI semantscript-trainer 404, no LICENSE, gh secret list empty, no v* tag. User must: add LICENSE and license fields (4 package.json + pyproject), create npm org semantscript + unscoped name and NPM_TOKEN secret, add PyPI trusted publisher (env pypi) or PYPI_TOKEN, then after merge push tag v0.1.0 and re-verify AC1-3 with npm view / pip index versions / release-smoke --registry https://registry.npmjs.org/ --version 0.1.0.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Release plumbing for npm + PyPI: one shared version (scripts/version.mjs, root package.json source) across semantscript, @semantscript/core, compiler, framework and semantscript-trainer, recorded in manifest build.compilerVersion/trainerVersion (pre-releases in semver spelling); publishable package metadata; .github/workflows/release.yml (verify, test, pack, smoke, npm/PyPI publish on v* tags, dry run on branches); scripts/release-smoke.mjs; init starts a TS project in an empty dir; docs moved to published names with a first-publish-pending note plus new docs/releasing.md. Verified with build/lint/test:node, pytest 572 passed, local verdaccio/tarball + wheel smoke outside the repo (train acc 1.0, test/run pass), CI and Release dry runs green. AC1, AC2 and the publish half of AC3 await the user's first publish (LICENSE, npm scope + NPM_TOKEN, PyPI publisher, v0.1.0 tag); task stays In Progress.
+<!-- SECTION:FINAL_SUMMARY:END -->

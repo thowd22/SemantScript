@@ -57,7 +57,7 @@ against 54% for a 7B generative model reading the same policy. See the
 - [Getting started](docs/getting-started.md): add one expression to an
   existing Express or Next.js app and take it through `init`, `build`,
   `train`, `test` and `run`; or start
-  [from a fresh clone](docs/tutorial-refund-decision.md) with the refund
+  [from an empty directory](docs/tutorial-refund-decision.md) with the refund
   decision itself. `semantscript doctor` checks the environment first
   ([environment guide](docs/environment.md)), and
   `semantscript train --estimate` says what the teacher will cost before a

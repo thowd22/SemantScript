@@ -30,18 +30,19 @@ in the clone.
 
 ```sh
 mkdir refund-decision && cd refund-decision
-npm init -y && npm pkg set type=module scripts.build="tspc -p tsconfig.json"
-npm install -D typescript@6   # 5.9 to 6.x; the tsc route needs 6
 npm install semantscript @semantscript/core @semantscript/compiler @semantscript/framework
 python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install "semantscript-trainer[training]"   # trainer, model, torch, transformers, onnx, onnxruntime
 export SEMANTSCRIPT_PYTHON="$PWD/.venv/bin/python"
-printf '%s\n' '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","target":"ES2022","strict":true,"skipLibCheck":true,"rootDir":"src","outDir":"dist"},"include":["src"]}' > tsconfig.json
-npx semantscript init --tool tsc --no-example   # wires the transformer, adds ts-patch, runs doctor
+npx semantscript init --no-example   # new project: tsconfig.json, type module, build script, transformer, ts-patch; runs doctor
 npm install                                     # runs the prepare script: ts-patch install
 ```
 
-The four npm packages and the trainer share one version, and every artifact
+In a directory with no `tsconfig.json` and no other build tool, `init` starts
+a TypeScript project: it writes `tsconfig.json` (NodeNext modules, `src/`
+compiled to `dist/`), sets `"type": "module"` and a `build` script that runs
+`tspc`, and adds TypeScript (5.9 to 6.x; 7 is not supported yet) to
+`devDependencies`. The four npm packages and the trainer share one version, and every artifact
 records the compiler and trainer versions that built it. For a GPU, install
 the CUDA or ROCm PyTorch build into the venv first
 ([pytorch.org](https://pytorch.org/get-started/locally/)).

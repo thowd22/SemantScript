@@ -107,7 +107,9 @@ Every artifact records the compiler and trainer versions that built it
 npx semantscript init
 ```
 
-`init` finds `tsconfig.json`, adds the transformer entry and the editor
+`init` finds `tsconfig.json` (in a directory without one it starts a
+TypeScript project first: `tsconfig.json`, `"type": "module"` and a `tspc`
+build script, see [cli-reference](cli-reference.md#init)), adds the transformer entry and the editor
 plugin entry to its `plugins`, adds `@semantscript/core` and
 `@semantscript/compiler` to `package.json` if step 2 did not (at the CLI's
 own version) with `ts-patch` and a `prepare` script, reserves `.semantscript/` in a `.gitignore`, and writes a starter

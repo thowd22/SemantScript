@@ -1070,9 +1070,19 @@ def _dump(value: Any) -> str:
     return json.dumps(value, allow_nan=False, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def _program_name() -> str:
+    """The console script's own name when run as one, else the module invocation."""
+    invoked = os.path.basename(sys.argv[0]) if sys.argv else ""
+    return (
+        "semantscript-trainer"
+        if invoked == "semantscript-trainer"
+        else "python -m semantscript_trainer.cli"
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m semantscript_trainer.cli",
+        prog=_program_name(),
         description="Train, verify and export every function of a SemantScript IR bundle.",
     )
     parser.add_argument(

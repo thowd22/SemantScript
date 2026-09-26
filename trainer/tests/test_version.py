@@ -110,3 +110,10 @@ def test_git_commit_handles_a_checkout_path_with_spaces(tmp_path: Path) -> None:
         ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
     )
     assert cli._git_commit(package) == head.stdout.strip()
+
+
+def test_the_console_script_names_itself_in_the_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.argv", ["/venv/bin/semantscript-trainer", "--help"])
+    assert cli._build_parser().prog == "semantscript-trainer"
+    monkeypatch.setattr("sys.argv", ["/repo/trainer/src/semantscript_trainer/cli.py"])
+    assert cli._build_parser().prog == "python -m semantscript_trainer.cli"

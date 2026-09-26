@@ -62,7 +62,8 @@ The tag starts [`.github/workflows/release.yml`](../.github/workflows/release.ym
 
 ## Dry runs
 
-Every run that is not a pushed `v*` tag is a dry run: the same `verify`,
+Every run is a dry run except a pushed `v*` tag and a manual run on a `v*`
+tag with `dry_run=false` (below): the same `verify`,
 `test`, `pack` and `smoke` jobs, `npm publish --dry-run` for each tarball and
 no PyPI upload. A push on any branch that changes the release machinery
 (`release.yml`, `scripts/version.mjs`, `scripts/release-smoke.mjs`,
@@ -130,10 +131,22 @@ release-smoke: passed
 "manifestBuild":{"compilerVersion":"0.1.0","trainerVersion":"0.1.0",…}
 ```
 
-The tutorial's published-packages route (its `npm pkg set`, `tsconfig.json`,
-`init --tool tsc --no-example`, `npm install`, the refund expression and
-`npm run build`, then `npx semantscript build` and `train --estimate`) ran the
-same way against that registry.
+The tutorial's published-packages route (then with its `npm pkg set`,
+`tsconfig.json`, `init --tool tsc --no-example`, `npm install`, the refund
+expression and `npm run build`, then `npx semantscript build` and `train
+--estimate`) ran the same way against that registry.
+
+Since 2026-09-26 `init` starts the TypeScript project itself, and the smoke
+script no longer writes `package.json` or `tsconfig.json`: the directory is
+empty until `npm install` of the four packages, then `npx semantscript init
+--no-example --teacher constraints` (no `--tool`) writes `tsconfig.json`,
+`"type": "module"` and the `tspc` build script. That run, from the four
+tarballs with the wheel installed outside the checkout and `--device cuda`,
+passed the same way (`train` 1.0000 with 0 violations, `run` answering `true`
+and `false`, `compilerVersion` and `trainerVersion` 0.1.0). In a second empty
+directory, `npm install` of the tarballs, `npx semantscript init`, `npm
+install` and `npm run build` wrote `dist/hello.sem.js` and
+`dist/semantscript.ir.v1.json` with no other file created by hand.
 
 ## First publish
 

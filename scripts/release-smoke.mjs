@@ -40,25 +40,7 @@ import { parseArgs } from "node:util";
 
 import { PUBLISHED_WORKSPACES, pythonVersion } from "./version.mjs";
 
-const { values } = parseArgs({
-  options: {
-    help: { type: "boolean", short: "h", default: false },
-    tarballs: { type: "string" },
-    registry: { type: "string" },
-    version: { type: "string" },
-    python: { type: "string" },
-    device: { type: "string", default: "cpu" },
-    cases: { type: "string", default: "96" },
-    epochs: { type: "string", default: "3" },
-    "train-arg": { type: "string", multiple: true, default: [] },
-    "no-train": { type: "boolean", default: false },
-    workdir: { type: "string" },
-    keep: { type: "boolean", default: false },
-  },
-  allowPositionals: false,
-});
-
-if (values.help) {
+function usage() {
   // The usage is the header comment of this file, minus the comment markers.
   const source = readFileSync(new URL(import.meta.url), "utf8").split("\n");
   const header = [];
@@ -66,7 +48,35 @@ if (values.help) {
     if (!line.startsWith("//")) break;
     header.push(line.replace(/^\/\/ ?/u, ""));
   }
-  console.log(header.join("\n"));
+  return header.join("\n");
+}
+
+let values;
+try {
+  ({ values } = parseArgs({
+    options: {
+      help: { type: "boolean", short: "h", default: false },
+      tarballs: { type: "string" },
+      registry: { type: "string" },
+      version: { type: "string" },
+      python: { type: "string" },
+      device: { type: "string", default: "cpu" },
+      cases: { type: "string", default: "96" },
+      epochs: { type: "string", default: "3" },
+      "train-arg": { type: "string", multiple: true, default: [] },
+      "no-train": { type: "boolean", default: false },
+      workdir: { type: "string" },
+      keep: { type: "boolean", default: false },
+    },
+    allowPositionals: false,
+  }));
+} catch (error) {
+  console.error(`release-smoke: ${error.message}\n\n${usage()}`);
+  process.exit(2);
+}
+
+if (values.help) {
+  console.log(usage());
   process.exit(0);
 }
 
@@ -143,39 +153,8 @@ function expect(condition, message) {
 }
 
 console.log(`release-smoke: working in ${directory} with ${python}`);
-writeFileSync(
-  join(directory, "package.json"),
-  `${JSON.stringify(
-    {
-      name: "semantscript-smoke",
-      private: true,
-      type: "module",
-      scripts: { build: "tspc -p tsconfig.json" },
-    },
-    null,
-    2,
-  )}\n`,
-);
-writeFileSync(
-  join(directory, "tsconfig.json"),
-  `${JSON.stringify(
-    {
-      compilerOptions: {
-        module: "NodeNext",
-        moduleResolution: "NodeNext",
-        target: "ES2022",
-        strict: true,
-        rootDir: "src",
-        outDir: "dist",
-        skipLibCheck: true,
-      },
-      include: ["src"],
-    },
-    null,
-    2,
-  )}\n`,
-);
-
+// The directory starts empty: `npm install` writes package.json and `init`
+// starts the TypeScript project (tsconfig.json, type module, build script).
 // 1. The four packages, the way the getting-started page installs them.
 let specs;
 if (values.tarballs !== undefined) {
@@ -231,8 +210,6 @@ step("semantscript init", npx, [
   "--no-install",
   "semantscript",
   "init",
-  "--tool",
-  "tsc",
   "--no-example",
   "--teacher",
   "constraints",
@@ -247,6 +224,14 @@ expect(
     "@semantscript/compiler/transformer",
   ),
   "init did not add the transformer to tsconfig.json",
+);
+const scaffolded = JSON.parse(
+  readFileSync(join(directory, "package.json"), "utf8"),
+);
+expect(
+  scaffolded.type === "module" &&
+    scaffolded.scripts?.build === "tspc -p tsconfig.json",
+  "init did not set type module and the tspc build script in package.json",
 );
 step("npm install (after init)", npm, ["install"]);
 

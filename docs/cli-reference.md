@@ -62,11 +62,19 @@ Every command runs without flags in an initialised project:
 ## `init`
 
 Wires the compiler into an existing project and adds a starter expression.
+In a new project (no `tsconfig.json` and no other build tool detected, for
+example a directory holding only the `package.json` that `npm install`
+wrote, or `--tool tsc` with no `tsconfig.json`), it first starts a
+TypeScript project: `tsconfig.json` (NodeNext modules, `src/` compiled to
+`dist/`), `src/`, a `build` script `tspc -p tsconfig.json` and `typescript`
+in `devDependencies` (each only when absent), and `"type": "module"` when the
+`package.json` has no `type`, no existing `main` file and no scripts beyond
+`npm init`'s placeholder.
 
-| Flag           | Value                            | Effect                                                                                                                                                                                  |
-| -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--tool`       | `next`, `vite`, `esbuild`, `tsc` | Overrides detection. Detection order: a `next.config.*` or `next` dependency; a `vite.config.*` or `vite` dependency; `esbuild` in the dependencies or a build script; `tsconfig.json`. |
-| `--no-example` |                                  | Do not write the starter `.sem.ts` (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). A project that already has a `.sem.ts` file gets none either.                               |
+| Flag           | Value                            | Effect                                                                                                                                                                                                          |
+| -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--tool`       | `next`, `vite`, `esbuild`, `tsc` | Overrides detection. Detection order: a `next.config.*` or `next` dependency; a `vite.config.*` or `vite` dependency; `esbuild` in the dependencies or a build script; `tsconfig.json`; else a new tsc project. |
+| `--no-example` |                                  | Do not write the starter `.sem.ts` (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). A project that already has a `.sem.ts` file gets none either.                                                       |
 
 What it writes: the adapter entry for the detected tool (see the
 [build tool pages](build-tools/tsc.md)), the editor plugin entry

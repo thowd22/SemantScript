@@ -781,12 +781,81 @@ test("init wires Vite, Next.js and esbuild projects and leaves conflicting confi
     script,
     /await build\(\{\n {2}plugins: \[semantscript\(\)\],\n {2}entryPoints/u,
   );
+});
 
+test("init starts a TypeScript project in a directory that has only the package.json npm install wrote", async (t) => {
   const bare = await scratch(t, "semantscript-cli-init-bare-");
-  await writeFile(join(bare, "package.json"), '{ "name": "b" }\n');
+  await writeFile(
+    join(bare, "package.json"),
+    '{\n  "dependencies": {\n    "semantscript": "^0.1.0"\n  }\n}\n',
+  );
   const bareRun = capture(bare);
-  assert.equal(await runCli(["init", "--no-doctor"], bareRun.io), 2);
-  assert.match(bareRun.stderr(), /no build tool detected/u);
+  assert.equal(
+    await runCli(["init", "--no-doctor"], bareRun.io),
+    0,
+    bareRun.stderr(),
+  );
+  assert.match(bareRun.stdout(), /started a TypeScript project built by tspc/u);
+  assert.doesNotMatch(bareRun.stdout(), /manual/u);
+  const tsconfig = JSON.parse(
+    await readFile(join(bare, "tsconfig.json"), "utf8"),
+  );
+  assert.equal(tsconfig.compilerOptions.module, "NodeNext");
+  assert.equal(tsconfig.compilerOptions.outDir, "dist");
+  assert.deepEqual(tsconfig.include, ["src"]);
+  assert.deepEqual(tsconfig.compilerOptions.plugins, [
+    { name: "@semantscript/compiler/ts-plugin" },
+    { transform: "@semantscript/compiler/transformer" },
+  ]);
+  const pkg = JSON.parse(await readFile(join(bare, "package.json"), "utf8"));
+  assert.equal(pkg.type, "module");
+  assert.equal(pkg.scripts.build, "tspc -p tsconfig.json");
+  assert.equal(pkg.scripts.prepare, "ts-patch install");
+  assert.equal(pkg.dependencies.semantscript, "^0.1.0");
+  assert.ok("@semantscript/core" in pkg.dependencies);
+  assert.ok("typescript" in pkg.devDependencies);
+  assert.ok("ts-patch" in pkg.devDependencies);
+  assert.ok(existsSync(join(bare, "src", "hello.sem.ts")));
+
+  // A second run changes nothing.
+  const again = capture(bare);
+  assert.equal(await runCli(["init", "--no-doctor"], again.io), 0);
+  assert.match(again.stdout(), /detected tsc/u);
+  assert.doesNotMatch(again.stdout(), /^ {2}changed/mu);
+
+  // npm init -y's package.json counts as new; an existing CommonJS entry keeps its module type.
+  const npmInit = await scratch(t, "semantscript-cli-init-npm-init-");
+  await writeFile(
+    join(npmInit, "package.json"),
+    JSON.stringify({
+      name: "x",
+      main: "index.js",
+      scripts: { test: 'echo "Error: no test specified" && exit 1' },
+    }),
+  );
+  assert.equal(await runCli(["init", "--no-doctor"], capture(npmInit).io), 0);
+  assert.equal(
+    JSON.parse(await readFile(join(npmInit, "package.json"), "utf8")).type,
+    "module",
+  );
+  const commonjs = await scratch(t, "semantscript-cli-init-commonjs-");
+  await writeFile(
+    join(commonjs, "package.json"),
+    JSON.stringify({ name: "y", main: "index.js" }),
+  );
+  await writeFile(join(commonjs, "index.js"), "module.exports = {};\n");
+  assert.equal(
+    await runCli(
+      ["init", "--tool", "tsc", "--no-doctor"],
+      capture(commonjs).io,
+    ),
+    0,
+  );
+  const kept = JSON.parse(
+    await readFile(join(commonjs, "package.json"), "utf8"),
+  );
+  assert.equal(kept.type, undefined);
+  assert.equal(kept.scripts.build, "tspc -p tsconfig.json");
 });
 
 test("train, test and run resolve the bundle, artifact and teacher from documented defaults", async (t) => {

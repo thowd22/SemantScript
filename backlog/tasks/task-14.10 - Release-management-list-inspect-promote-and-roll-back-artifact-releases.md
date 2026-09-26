@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 01:41'
+updated_date: '2026-09-26 01:44'
 labels:
   - dx
   - deploy
@@ -50,4 +50,6 @@ Every train publishes an immutable release under the artifact root and flips cur
 Implemented semantscript releases (list default, show, rollback, promote, prune) in cli/src/releases.ts; strict readPointer and atomic writePointer (wx temp, fsync, rename, dir fsync; bytes identical to the trainer exporter) in cli/src/manifest.ts; shared verification columns in cli/src/table.ts reused by test. New cli/test/releases.test.mjs (6 tests incl. watch-enabled runtime swap on rollback and promote) passes; npm test -w cli 28/28, lint clean.
 
 Docs: cli-reference releases section with flags and error codes, cli/README releases section, build-cache 'Releases, rollback and prune' (cache re-publishes after a rollback), ir-and-artifact-reference note, docs/index, components and architecture command lists. Checks: npm run build ok, lint:node clean, test:node all pass (cli 28/28), prettier --check docs README.md cli/README.md clean; smoke list/show/rollback --dry-run against the main checkout's Express artifact (read-only).
+
+Committed f5db75d and pushed task-14.10; CI run 36209257443 green (all jobs). AC not checked (finalization is a later stage).
 <!-- SECTION:NOTES:END -->

@@ -1,11 +1,11 @@
 ---
 id: TASK-14.10
 title: 'Release management: list, inspect, promote and roll back artifact releases'
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 01:44'
+updated_date: '2026-09-26 02:06'
 labels:
   - dx
   - deploy
@@ -23,9 +23,9 @@ Every train publishes an immutable release under the artifact root and flips cur
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 semantscript releases lists every release under the artifact root with its date, manifest digest, per-function verification summary and which one is current
-- [ ] #2 semantscript releases rollback (to the previous or a named release) rewrites the pointer atomically and a running process with watch enabled swaps to it
-- [ ] #3 semantscript releases prune removes releases older than a count or age while never removing the current one
+- [x] #1 semantscript releases lists every release under the artifact root with its date, manifest digest, per-function verification summary and which one is current
+- [x] #2 semantscript releases rollback (to the previous or a named release) rewrites the pointer atomically and a running process with watch enabled swaps to it
+- [x] #3 semantscript releases prune removes releases older than a count or age while never removing the current one
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -52,4 +52,14 @@ Implemented semantscript releases (list default, show, rollback, promote, prune)
 Docs: cli-reference releases section with flags and error codes, cli/README releases section, build-cache 'Releases, rollback and prune' (cache re-publishes after a rollback), ir-and-artifact-reference note, docs/index, components and architecture command lists. Checks: npm run build ok, lint:node clean, test:node all pass (cli 28/28), prettier --check docs README.md cli/README.md clean; smoke list/show/rollback --dry-run against the main checkout's Express artifact (read-only).
 
 Committed f5db75d and pushed task-14.10; CI run 36209257443 green (all jobs). AC not checked (finalization is a later stage).
+
+Fix round 1 (4632b30, CI 36210081688 green): (1) rollback/promote now run the runtime's own loader checks: @semantscript/core exports checkSemaArtifact(path), which runs loadArtifact (schema, ABI compatibility, tensors, opsets, chain, digests) and the inference plan's ONNX container checks without starting sessions; verifyRelease calls it and refuses with RELEASE_REJECTED carrying the SEMA_ARTIFACT_* code. New test: a release with minimumRuntimeVersion 99.0.0 is refused by rollback and promote and current.json is unchanged. Remaining gap, documented: ONNX session start-up and app fallback registration are not checked, and the check uses the runtime's default load options. (2) The list test asserts the newest release's actual createdAt instead of a hardcoded 2026; passes with the clock shifted to 2027-01-15. Advisories addressed: prune refuses a pointer naming a missing/invalid release; prune re-reads the pointer after renaming and restores a release a concurrent rollback made current; the subcommand may follow flags; POINTER_INVALID no longer repeats its code and says naming a release repairs the pointer; docs: RELEASE_REJECTED, list checks only the manifest digest, --keep after rollback, docs/index.md and cli/README command lists and defaults, diagnostics.md release-management section, runtime README documents checkSemaArtifact. Checks: npm run build, npm run lint:node clean, npm run test:node 89/105/30/8/85 pass, prettier clean.
+
+Finalization validation: npm run build ok; npm run lint:node clean; node --test cli/test/releases.test.mjs 8/8 pass (AC1: test 1 list newest first with dates, digests, per-function verification summary, current marker; list --json carries full per-function summaries; AC2: test 3 atomic pointer rewrite to previous/named release, no temp left, no release removed, test 8 loadSemaArtifact with watch:true swaps to the rolled-back release and calls succeed; AC3: test 6 prune --keep/--older-than never removes the current release, invalid ones or staging dirs); npm run test:node 89/105/30/8/85 pass; prettier --check clean; manual list/show against a scratch copy of the Express artifact.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added semantscript releases (list default, show, rollback, promote, prune) in cli/src/releases.ts with a strict pointer reader and an atomic pointer writer (temp file, fsync, rename) in cli/src/manifest.ts. Rollback/promote verify the target's digests and resources and run the runtime's own load checks (new checkSemaArtifact in @semantscript/core) before rewriting current.json; prune removes by count or age via an atomic rename, never touching the current release, invalid releases or staging dirs, and restores a release a concurrent rollback made current. Documented in cli-reference, diagnostics, build-cache, ir-and-artifact-reference, index, cli/README and runtime/README. Verified with cli/test/releases.test.mjs (8 tests incl. a watch-enabled runtime swap on rollback), npm run test:node all green, lint and prettier clean.
+<!-- SECTION:FINAL_SUMMARY:END -->

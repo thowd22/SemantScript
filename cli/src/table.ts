@@ -34,6 +34,7 @@ export const VERIFICATION_HEADERS: readonly string[] = [
   "pairs",
   "attested",
   "violations",
+  "held-out",
   "seed",
   "heads",
 ];
@@ -50,7 +51,18 @@ export function verificationCells(
     formatRatio(fn.pairConsistency),
     String(fn.attestedCases),
     String(fn.constraintViolations),
+    heldOutCell(fn),
     fn.seed === null ? "-" : String(fn.seed),
     fn.heads.map((head) => formatRatio(head.accuracy)).join("/"),
   ];
+}
+
+/**
+ * `3/512`: held-out inputs that broke a constraint, of the sample; `-` for a
+ * release from before the held-out check or a function without constraints.
+ */
+export function heldOutCell(fn: ManifestFunctionSummary): string {
+  const held = fn.heldOutConstraints;
+  if (held === null || held.sampleSize === 0) return "-";
+  return `${String(held.violations)}/${String(held.sampleSize)}`;
 }

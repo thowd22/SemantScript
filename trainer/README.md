@@ -288,7 +288,19 @@ head_metadata = verification.to_manifest_head_metadata()
 function_verification = verification.to_manifest_function_verification()
 ```
 
-Any gold or external attested-example miss, observed constraint violation beyond the configured `maximum_constraint_violation_rate` (default zero), or ECE
+`evaluate_training_result` also scores every constraint on a held-out sample
+(`semantscript_trainer.held_out.sample_held_out_inputs`): `held_out_samples`
+inputs (default 512) drawn from the input types and constraint predicates
+(boundary pairs, interior draws on both sides of each predicate, uniform
+draws), seeded by `held_out_seed` (default the training seed; the bundle
+driver passes its first `--seed`), disjoint by canonical encoding from every
+corpus row and attested case, and bounded by the constraint evaluation
+budget. `VerificationResult.held_out` (`HeldOutConstraintEvidence`) holds the
+sample size, the inputs that broke a constraint and the seed;
+`to_manifest_function_verification` adds them as `heldOutConstraints`
+([training pipeline](../docs/training-pipeline.md#held-out-constraint-check)).
+
+Any gold or external attested-example miss, observed constraint violation beyond the configured `maximum_constraint_violation_rate` (default zero) on the corpus or on the held-out sample, or ECE
 above the configured threshold raises `VerificationGateError` with the complete
 failed result attached. Malformed, non-finite, or incorrectly shaped classifier
 logits abort measurement with `VerificationExecutionError`; predictions decoded
@@ -496,9 +508,10 @@ renders the report.
 A narrowly failed gate retrains with the next seed (`seed_retry`, a
 `verification.SeedRetryConfig`; flags `--seed-attempts`, default 3, and
 `--seed-retry-margin`, default 2). `verification.seed_retry_decision` retries
-only when every failed gate is the constraint-violation rate or the ECE, with
-the rate at most margin times `maximum_constraint_violation_rate` (measured over
-`VerificationResult.record_count`, which is never serialized) and the ECE at
+only when every failed gate is the corpus or held-out constraint-violation rate
+or the ECE, with each rate at most margin times `maximum_constraint_violation_rate`
+(the corpus rate measured over `VerificationResult.record_count`, which is never
+serialized; the held-out rate over the sample size) and the ECE at
 most margin times `ece_threshold`; a gold or human miss, a type error or
 anything past the margin stops with a reason. The datasets are generated once
 before the first attempt, the joint path trains each attempt from a pristine
@@ -509,7 +522,7 @@ attempt's seed; the release manifest copies it into each function's
 function rebuilds its split from its recorded seed. The report gains `seed`
 (the published seed), `attempts` (per attempt: `attempt`, `seed`, `status` and
 per function `id`, `status`, `accuracy`, `ece`, `constraintViolations`,
-`records`, `violationRate`, `failures`, `suggestions`), `retry` (`attempts`, `margin`,
+`records`, `violationRate`, `heldOutConstraints`, `failures`, `suggestions`), `retry` (`attempts`, `margin`,
 `stopReason`) and a per-function `training.seed`; `reportVersion` stays 1.
 
 Every failure string in the report (`functions[].verification.failures` and

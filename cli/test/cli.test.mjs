@@ -346,14 +346,21 @@ test("test reports shipped verification and replays bundle examples through the 
   );
   assert.match(
     stats.stdout(),
-    /nf_11111111…\s+passed\s+1\.0000\s+0\.0000\s+0\.0000\s+1\.0000\s+1\s+0\s+-\s+1\.0000\s+-/u,
+    /nf_11111111…\s+passed\s+1\.0000\s+0\.0000\s+0\.0000\s+1\.0000\s+1\s+0\s+-\s+-\s+1\.0000\s+-/u,
   );
+  assert.match(stats.stdout(), /\s+violations\s+held-out\s+seed\s+/u);
   assert.match(stats.stdout(), /test passed\n$/u);
 
   const seededRoot = join(root, "seeded");
   await createFixtureArtifact(seededRoot, {
     transformManifest: (manifest) => {
       manifest.functions[0].trainingProvenance.seed = 4;
+      manifest.functions[0].verification.heldOutConstraints = {
+        sampleSize: 512,
+        violations: 3,
+        violationRate: 3 / 512,
+        seed: 4,
+      };
     },
   });
   const seeded = capture(root);
@@ -362,7 +369,8 @@ test("test reports shipped verification and replays bundle examples through the 
     0,
   );
   assert.match(seeded.stdout(), /\s+seed\s+/u);
-  assert.match(seeded.stdout(), /\s1\s+0\s+4\s+1\.0000\s+-/u);
+  // The held-out constraint figure: 3 of 512 sampled inputs broke a constraint.
+  assert.match(seeded.stdout(), /\s1\s+0\s+3\/512\s+4\s+1\.0000\s+-/u);
   const seededJson = capture(root);
   assert.equal(
     await runCli(
@@ -917,6 +925,8 @@ test("train spawns the Python driver with resolved paths and renders its report"
     "--application-id",
     "demo",
     "--full",
+    "--held-out-samples",
+    "256",
   ];
 
   const passed = capture(root, env);
@@ -939,6 +949,7 @@ test("train spawns the Python driver with resolved paths and renders its report"
     ["--cases", "16"],
     ["--epochs", "2"],
     ["--application-id", "demo"],
+    ["--held-out-samples", "256"],
   ]) {
     const index = recorded.argv.indexOf(expectedPair[0]);
     assert.equal(recorded.argv[index + 1], expectedPair[1]);
@@ -954,8 +965,9 @@ test("train spawns the Python driver with resolved paths and renders its report"
   );
   assert.match(
     passed.stdout(),
-    /nf_33333333…\s+src\/app\.sem\.ts\s+trained\s+16\s+4\s+0\.8750\s+passed\s+0\.9000\s+0\.0500\s+1\s+0/u,
+    /nf_33333333…\s+src\/app\.sem\.ts\s+trained\s+16\s+4\s+0\.8750\s+passed\s+0\.9000\s+0\.0500\s+1\s+0\s+0\/512\n/u,
   );
+  assert.match(passed.stdout(), /\s+violations\s+held-out constraints\n/u);
   assert.match(
     passed.stdout(),
     /build cache: 1 reused, 1 trained \(.*\.semantscript\/cache\)/u,
@@ -977,6 +989,7 @@ test("train spawns the Python driver with resolved paths and renders its report"
   const failed = capture(root, { ...env, FAKE_TRAINER_EXIT: "3" });
   assert.equal(await runCli(args, failed.io), 3);
   assert.match(failed.stdout(), /failed\s+0\.9000/u);
+  assert.match(failed.stdout(), /\s+1\s+0\s+3\/512 \(0\.59%\)\n/u);
   assert.match(
     failed.stdout(),
     /verification failures:\n {2}injected failure\n {4}next: rerun with --epochs 5 \(now 3\)\n/u,
@@ -2425,15 +2438,15 @@ test("train passes the seed retry flags through and prints every attempt", async
   assert.match(out, /training attempts:\n/u);
   assert.match(
     out,
-    /attempt\s+seed\s+function\s+status\s+accuracy\s+violations\s+ece\n/u,
+    /attempt\s+seed\s+function\s+status\s+accuracy\s+violations\s+held-out\s+ece\n/u,
   );
   assert.match(
     out,
-    /1\s+3\s+nf_33333333…\s+failed\s+0\.9700\s+4\/394 \(1\.02%\)\s+0\.0400\n/u,
+    /1\s+3\s+nf_33333333…\s+failed\s+0\.9700\s+4\/394 \(1\.02%\)\s+1\/512 \(0\.20%\)\s+0\.0400\n/u,
   );
   assert.match(
     out,
-    /3\s+5\s+nf_33333333…\s+passed\s+0\.9700\s+2\/394 \(0\.51%\)/u,
+    /3\s+5\s+nf_33333333…\s+passed\s+0\.9700\s+2\/394 \(0\.51%\)\s+0\/512\s+0\.0400/u,
   );
   assert.match(out, /seed retry: published seed 5 after 3 attempts\n/u);
   assert.doesNotMatch(out, /seed retry stopped/u);

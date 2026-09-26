@@ -194,13 +194,13 @@ test("releases show prints one release's per-function verification table", async
   assert.match(
     shown.stdout,
     new RegExp(
-      `^release {6}releases/sha256-${middle}\ncreated {6}2020-01-02T00:00:00Z\napplication  runtime-fixture@0\\.0\\.2\nfunction +verification +accuracy +ece +brier +pairs +attested +violations +seed +heads\n`,
+      `^release {6}releases/sha256-${middle}\ncreated {6}2020-01-02T00:00:00Z\napplication  runtime-fixture@0\\.0\\.2\nfunction +verification +accuracy +ece +brier +pairs +attested +violations +held-out +seed +heads\n`,
       "u",
     ),
   );
   assert.match(
     shown.stdout,
-    /nf_11111111… +passed +1\.0000 +0\.0000 +0\.0000 +1\.0000 +1 +0 +- +1\.0000/u,
+    /nf_11111111… +passed +1\.0000 +0\.0000 +0\.0000 +1\.0000 +1 +0 +- +- +1\.0000/u,
   );
 
   const current = await run(root, [

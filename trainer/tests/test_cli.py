@@ -154,16 +154,20 @@ def rule_for(ir: dict[str, Any]) -> Any:
 
 
 def grid() -> list[dict[str, Any]]:
+    # Status, age and tier vary fastest, so even a 20-case prefix covers every
+    # region the refund policy distinguishes: the held-out constraint check
+    # samples all of them, and a corpus that skipped one (a fraudulent order
+    # past 90 days) would rightly fail it.
     return [
         {
             "customer": {"priorRefunds": prior, "tier": tier},
             "order": {"ageDays": age, "status": status, "total": total},
         }
+        for total in (50, 500, 1500)
+        for prior in (0, 3)
         for status in ("paid", "fraudulent")
         for age in (10, 40, 70, 91, 120)
         for tier in ("enterprise", "standard")
-        for prior in (0, 3)
-        for total in (50, 500, 1500)
     ]
 
 
@@ -442,7 +446,19 @@ def test_trains_verifies_and_exports_the_refund_example_bundle(tmp_path: Path) -
     assert entry["verification"]["status"] == "passed"
     assert entry["verification"]["attestedCases"] == 1
     assert entry["verification"]["metrics"]["constraintViolations"] == 0
+    # The held-out constraint sample: drawn from the first --seed, none broken.
+    held_out = entry["verification"]["heldOutConstraints"]
+    assert held_out["sampleSize"] == 512 and held_out["seed"] == 3
+    assert held_out["violations"] == 0 and held_out["violationRate"] == 0
+    assert held_out["coverageShortfalls"] == []
+    assert any("held-out constraints 0 of 512 broken" in m for m in messages)
     manifest = result.exported.manifest
+    assert manifest["functions"][0]["verification"]["heldOutConstraints"] == {
+        "sampleSize": 512,
+        "violations": 0,
+        "violationRate": 0.0,
+        "seed": 3,
+    }
     assert report["artifact"]["manifestSha256"] == result.exported.manifest_sha256
     assert [fn["id"] for fn in manifest["functions"]] == [entry["id"]]
     assert manifest["application"] == {"id": "refund-example", "version": "0.0.0"}
@@ -922,6 +938,12 @@ def test_rebuild_without_changes_performs_no_training_and_keeps_the_release(
     assert second.exported.manifest_sha256 == first.exported.manifest_sha256
     assert second.report["functions"][0]["cache"] == "reused"
     assert second.report["functions"][0]["verification"]["status"] == "passed"
+    # The cache record keeps the held-out figure (coverage is measured evidence only).
+    first_held_out = first.report["functions"][0]["verification"]["heldOutConstraints"]
+    assert second.report["functions"][0]["verification"]["heldOutConstraints"] == {
+        **first_held_out,
+        "coverageShortfalls": [],
+    }
     assert second.report["trainingKeySha256"] == first.report["trainingKeySha256"]
     assert teacher.calls == 0
     assert json.loads((tmp_path / "artifact" / "current.json").read_text())["manifestSha256"] == (

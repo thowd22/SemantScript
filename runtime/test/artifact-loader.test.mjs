@@ -668,3 +668,36 @@ test("reuses exact standalone file buffers and copies only non-standalone views"
     });
   });
 });
+
+test("accepts the optional held-out constraint figure and rejects a malformed one", async (context) => {
+  const valid = { sampleSize: 512, violations: 3, violationRate: 3 / 512, seed: 5 };
+  await context.test("accepts a release without it and one with it", async () => {
+    await withArtifact(async (artifact) => {
+      const loaded = await loadArtifact(artifact.root);
+      assert.equal(loaded.manifest.functions[0].verification.heldOutConstraints, undefined);
+    });
+    await withArtifact(async (artifact) => {
+      await republish(artifact, (manifest) => {
+        manifest.functions[0].verification.heldOutConstraints = valid;
+      });
+      const loaded = await loadArtifact(artifact.root);
+      assert.deepEqual(loaded.manifest.functions[0].verification.heldOutConstraints, valid);
+    });
+  });
+  for (const [name, value] of [
+    ["an extra key", { ...valid, violatedChecks: 3 }],
+    ["a missing seed", { sampleSize: 512, violations: 3, violationRate: 3 / 512 }],
+    ["more violations than inputs", { ...valid, violations: 600, violationRate: 1 }],
+    ["a rate that disagrees with the counts", { ...valid, violationRate: 0.5 }],
+    ["a negative seed", { ...valid, seed: -1 }],
+  ]) {
+    await context.test(`rejects ${name}`, async () => {
+      await withArtifact(async (artifact) => {
+        await republish(artifact, (manifest) => {
+          manifest.functions[0].verification.heldOutConstraints = value;
+        });
+        await assert.rejects(loadArtifact(artifact.root), hasCode("SEMA_ARTIFACT_INVALID_MANIFEST"));
+      });
+    });
+  }
+});

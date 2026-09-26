@@ -40,6 +40,7 @@ from semantscript_trainer.training import EpochMetrics, TrainingConfig, Training
 from semantscript_trainer.verification import (
     CalibrationRecordV1,
     HeadVerificationV1,
+    HeldOutConstraintEvidence,
     VerificationConfig,
     VerificationMetricsV1,
     VerificationResult,
@@ -450,6 +451,9 @@ def _verification_record(verification: VerificationResult) -> dict[str, Any]:
         "pairCount": verification.pair_count,
         "failures": list(verification.failures),
         "metrics": verification.metrics.to_ir_document(),
+        "heldOutConstraints": (
+            None if verification.held_out is None else verification.held_out.to_record()
+        ),
     }
 
 
@@ -471,6 +475,7 @@ def _verification_from_record(record: Mapping[str, Any]) -> VerificationResult:
         )
         for head in metrics["heads"]
     )
+    held_out = record.get("heldOutConstraints")
     return VerificationResult(
         function_id=str(record["functionId"]),
         semantic_sha256=str(record["semanticSha256"]),
@@ -491,6 +496,12 @@ def _verification_from_record(record: Mapping[str, Any]) -> VerificationResult:
         attested_cases=int(record["attestedCases"]),
         pair_count=int(record["pairCount"]),
         failures=tuple(str(item) for item in record["failures"]),
+        # Optional: a record written before the held-out check has none.
+        held_out=(
+            None
+            if not isinstance(held_out, Mapping)
+            else HeldOutConstraintEvidence.from_record(held_out)
+        ),
     )
 
 

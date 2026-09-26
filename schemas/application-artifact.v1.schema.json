@@ -945,6 +945,29 @@
         },
         "typeErrors": {
           "const": 0
+        },
+        "heldOutConstraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sampleSize", "violations", "violationRate", "seed"],
+          "$comment": "The held-out constraint check: violations of sampleSize inputs drawn from the input types and constraint predicates with seed (never a training input) broke at least one constraint under the raw model. Absent in releases from before the check; sampleSize 0 for a function without constraints.",
+          "properties": {
+            "sampleSize": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "violations": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "violationRate": {
+              "$ref": "#/$defs/unitInterval"
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       }
     },

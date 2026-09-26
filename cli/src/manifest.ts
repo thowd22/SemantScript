@@ -25,6 +25,8 @@ export interface ManifestFunctionSummary {
   readonly constraintViolations: number;
   /** The training seed the release was published at; null before seeds were recorded. */
   readonly seed: number | null;
+  /** The held-out constraint check; null for a release from before it. */
+  readonly heldOutConstraints: HeldOutConstraintsSummary | null;
   readonly heads: readonly ManifestHeadSummary[];
 }
 
@@ -47,6 +49,14 @@ export interface ReleaseDerivation {
   readonly decisionChanges: number | null;
   readonly attestedDecisionChanges: number | null;
   readonly quantizedEce: number | null;
+}
+
+/** `violations` of `sampleSize` held-out inputs broke a constraint (drawn with `seed`). */
+export interface HeldOutConstraintsSummary {
+  readonly sampleSize: number;
+  readonly violations: number;
+  readonly violationRate: number;
+  readonly seed: number;
 }
 
 export interface ArtifactSummary {
@@ -346,6 +356,13 @@ function summarizeFunction(
     provenance["seed"] === undefined
       ? null
       : numberOf(provenance["seed"], `${path}.trainingProvenance.seed`);
+  const heldOutConstraints =
+    verification["heldOutConstraints"] === undefined
+      ? null
+      : summarizeHeldOut(
+          verification["heldOutConstraints"],
+          `${path}.verification.heldOutConstraints`,
+        );
   const heads = listOf(fn["heads"], `${path}.heads`).map((entry, index) => {
     const headPath = `${path}.heads[${String(index)}]`;
     const head = objectOf(entry, headPath);
@@ -400,7 +417,21 @@ function summarizeFunction(
       `${path}.verification.constraintViolations`,
     ),
     seed,
+    heldOutConstraints,
     heads,
+  };
+}
+
+function summarizeHeldOut(
+  value: unknown,
+  path: string,
+): HeldOutConstraintsSummary {
+  const held = objectOf(value, path);
+  return {
+    sampleSize: numberOf(held["sampleSize"], `${path}.sampleSize`),
+    violations: numberOf(held["violations"], `${path}.violations`),
+    violationRate: numberOf(held["violationRate"], `${path}.violationRate`),
+    seed: numberOf(held["seed"], `${path}.seed`),
   };
 }
 

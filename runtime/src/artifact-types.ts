@@ -202,6 +202,17 @@ export interface ArtifactFunctionV1 {
     readonly exampleFailures: 0;
     readonly constraintViolations: number;
     readonly typeErrors: 0;
+    /**
+     * The held-out constraint check: `violations` of `sampleSize` inputs drawn
+     * from the input types and constraint predicates (never a training input)
+     * broke a constraint, sampled with `seed`. Absent in older releases.
+     */
+    readonly heldOutConstraints?: {
+      readonly sampleSize: number;
+      readonly violations: number;
+      readonly violationRate: number;
+      readonly seed: number;
+    };
   };
   readonly trainingProvenance: {
     readonly datasetSha256: string;

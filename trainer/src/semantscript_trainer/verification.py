@@ -23,12 +23,20 @@ from semantscript_trainer.constraints import (
     compile_constraints,
 )
 from semantscript_trainer.dataset import TrainingDataset
+from semantscript_trainer.held_out import (
+    DEFAULT_HELD_OUT_SAMPLES,
+    MAXIMUM_HELD_OUT_SAMPLES,
+    ConstraintCoverage,
+    HeldOutSampleError,
+    sample_held_out_inputs,
+)
 from semantscript_trainer.strict_json import StrictJsonError, StrictJsonLimits, loads_strict_json
 from semantscript_trainer.suggestions import (
     LabelledCase,
     Violation,
     calibration_suggestion,
     gold_miss_suggestion,
+    held_out_suggestion,
     type_error_suggestion,
     underfit_suggestion,
     violation_suggestion,
@@ -128,6 +136,10 @@ class VerificationConfig:
     # prediction may violate an active constraint before the gate fails. Zero keeps
     # the strict contract; a build that relaxes it must record the value it used.
     maximum_constraint_violation_rate: float = 0.0
+    # Inputs of the held-out constraint sample (see ``held_out.py``): drawn from the
+    # input types and constraint predicates, never from the training corpus, and
+    # held to the same tolerance as the corpus rate.
+    held_out_samples: int = DEFAULT_HELD_OUT_SAMPLES
     minimum_temperature: float = DEFAULT_MINIMUM_TEMPERATURE
     maximum_temperature: float = DEFAULT_MAXIMUM_TEMPERATURE
     maximum_temperature_iterations: int = DEFAULT_TEMPERATURE_ITERATIONS
@@ -137,6 +149,12 @@ class VerificationConfig:
         _unit_interval("maximum_constraint_violation_rate", self.maximum_constraint_violation_rate)
         _bounded_integer("ece_bins", self.ece_bins, minimum=2, maximum=MAXIMUM_ECE_BIN_COUNT)
         _bounded_integer("batch_size", self.batch_size, minimum=1, maximum=MAXIMUM_BATCH_SIZE)
+        _bounded_integer(
+            "held_out_samples",
+            self.held_out_samples,
+            minimum=1,
+            maximum=MAXIMUM_HELD_OUT_SAMPLES,
+        )
         _positive_finite("minimum_temperature", self.minimum_temperature)
         _positive_finite("maximum_temperature", self.maximum_temperature)
         if (
@@ -162,8 +180,8 @@ class SeedRetryConfig:
 
     ``attempts`` counts every training run, the first included, so 1 turns the
     retry off. ``margin`` bounds "narrowly": a failure retries only when the
-    constraint-violation rate is at most ``margin`` times the configured
-    tolerance and the ECE at most ``margin`` times the configured threshold, and
+    corpus and held-out constraint-violation rates are each at most ``margin``
+    times the configured tolerance and the ECE at most ``margin`` times the configured threshold, and
     nothing else failed. The retry settings are not part of the build-cache
     recipe: they decide how many seeds a build may try, not what a head is.
     """
@@ -258,6 +276,28 @@ def seed_retry_decision(
                     f"{name}: violation rate {rate:.4%} ({metrics.constraint_violations} of "
                     f"{result.record_count}) within {retry.margin:g} x tolerance {tolerance:.4g}"
                 )
+        held_out = result.held_out
+        if held_out is not None and held_out.violating_inputs and held_out.rate > tolerance:
+            seen = True
+            rate = held_out.rate
+            counted = f"{held_out.violating_inputs} of {held_out.sample_size} held-out inputs"
+            if tolerance == 0:
+                return SeedRetryDecision(
+                    False,
+                    f"{name}: {counted} broke a constraint under a zero tolerance; the "
+                    "margin only widens a nonzero --max-constraint-violation-rate",
+                )
+            if rate > retry.margin * tolerance:
+                return SeedRetryDecision(
+                    False,
+                    f"{name}: held-out violation rate {rate:.4%} ({counted}) is outside the "
+                    f"retry margin {retry.margin:g} x {tolerance:.4g} = "
+                    f"{retry.margin * tolerance:.4%}",
+                )
+            narrow.append(
+                f"{name}: held-out violation rate {rate:.4%} ({counted}) within "
+                f"{retry.margin:g} x tolerance {tolerance:.4g}"
+            )
         if metrics.ece > threshold:
             seen = True
             if metrics.ece > retry.margin * threshold:
@@ -430,6 +470,78 @@ class VerificationMetricsV1:
 
 
 @dataclass(frozen=True, slots=True)
+class HeldOutConstraintEvidence:
+    """The held-out constraint check: inputs outside the corpus that broke a rule.
+
+    ``violating_inputs`` counts sampled inputs whose raw prediction broke at
+    least one active constraint (``violations`` counts the broken checks), so
+    the rate ``violating_inputs / sample_size`` is at most 1. ``seed`` is the
+    seed the sample was drawn with (the build's first ``--seed``, so every seed
+    retry faces the same sample). A function without constraints records an
+    empty sample.
+    """
+
+    sample_size: int
+    violating_inputs: int
+    violations: int
+    seed: int
+    coverage: tuple[ConstraintCoverage, ...] = field(default=(), compare=False)
+    # (constraint index, held-out inputs that broke it), for the failure text; like
+    # coverage, measured evidence only and not serialized.
+    broken: tuple[tuple[int, int], ...] = field(default=(), compare=False)
+
+    def __post_init__(self) -> None:
+        _bounded_integer(
+            "held-out sample_size", self.sample_size, minimum=0, maximum=MAXIMUM_HELD_OUT_SAMPLES
+        )
+        _bounded_integer(
+            "held-out violating_inputs",
+            self.violating_inputs,
+            minimum=0,
+            maximum=self.sample_size,
+        )
+        _bounded_integer(
+            "held-out violations",
+            self.violations,
+            minimum=self.violating_inputs,
+            maximum=MAXIMUM_CONSTRAINT_EVALUATION_STEPS,
+        )
+        if self.violations and not self.violating_inputs:
+            raise VerificationConfigurationError(
+                "held-out violations require at least one violating input"
+            )
+        _bounded_integer("held-out seed", self.seed, minimum=0, maximum=2**63 - 1)
+
+    @property
+    def rate(self) -> float:
+        return self.violating_inputs / self.sample_size if self.sample_size else 0.0
+
+    def to_document(self) -> dict[str, JsonValue]:
+        """The manifest's ``verification.heldOutConstraints`` object."""
+
+        return {
+            "sampleSize": self.sample_size,
+            "violations": self.violating_inputs,
+            "violationRate": self.rate,
+            "seed": self.seed,
+        }
+
+    def to_record(self) -> dict[str, JsonValue]:
+        """The build cache's and the train report's form: the manifest's plus checks."""
+
+        return {**self.to_document(), "violatedChecks": self.violations}
+
+    @classmethod
+    def from_record(cls, record: Mapping[str, Any]) -> HeldOutConstraintEvidence:
+        return cls(
+            sample_size=int(record["sampleSize"]),
+            violating_inputs=int(record["violations"]),
+            violations=int(record.get("violatedChecks", record["violations"])),
+            seed=int(record["seed"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class VerificationResult:
     """Measured verification evidence, including failed-build diagnostics."""
 
@@ -443,6 +555,9 @@ class VerificationResult:
     attested_cases: int
     pair_count: int
     failures: tuple[str, ...]
+    # The held-out constraint check; None for a result from before the check (a
+    # cache record or IR restored from an older build).
+    held_out: HeldOutConstraintEvidence | None = None
     # Verification records (corpus rows plus external attested cases) the
     # constraint-violation rate is measured over. Measured evidence only: it is
     # not serialized, so a result restored from IR or the build cache has None.
@@ -501,6 +616,8 @@ class VerificationResult:
                 minimum=1,
                 maximum=MAXIMUM_HUMAN_VERIFICATION_CASE_COUNT,
             )
+        if self.held_out is not None and not isinstance(self.held_out, HeldOutConstraintEvidence):
+            raise VerificationConfigurationError("verification held-out evidence is invalid")
         if not isinstance(self.failures, tuple) or any(
             not isinstance(failure, str) or not failure for failure in self.failures
         ):
@@ -545,6 +662,9 @@ class VerificationResult:
             "exampleFailures": self.metrics.example_failures,
             "constraintViolations": self.metrics.constraint_violations,
             "typeErrors": self.metrics.type_errors,
+            **(
+                {} if self.held_out is None else {"heldOutConstraints": self.held_out.to_document()}
+            ),
         }
 
     def _require_passed(self) -> None:
@@ -575,8 +695,14 @@ def evaluate_training_result(
     attested_verification: Sequence[GeneratedCase] = (),
     config: VerificationConfig | None = None,
     verified_at: str | None = None,
+    held_out_seed: int | None = None,
 ) -> VerificationResult:
-    """Measure calibration and all release gates without discarding failed evidence."""
+    """Measure calibration and all release gates without discarding failed evidence.
+
+    ``held_out_seed`` seeds the held-out constraint sample (default: the training
+    seed); a build passes its first ``--seed`` so every seed retry is scored on
+    the same held-out inputs.
+    """
 
     resolved = VerificationConfig() if config is None else config
     if not isinstance(resolved, VerificationConfig):
@@ -627,13 +753,17 @@ def evaluate_training_result(
         )
 
     records = _case_records(corpus, external_human)
+    sample_seed = training.config.seed if held_out_seed is None else held_out_seed
+    held_out_records, coverage = _held_out_records(
+        ir, records, resolved, sample_seed, training.config.canonical_input_version
+    )
     resolved_tokenizer = _load_tokenizer(training) if tokenizer is None else tokenizer
     tokenizer_sha256 = hashlib.sha256(tokenizer_json_bytes(resolved_tokenizer)).hexdigest()
     model_sha256 = model_state_sha256(training.model)
     predictions, calibration_logits = _collect_predictions(
         ir,
         training,
-        records,
+        records + held_out_records,
         calibration_rows,
         resolved_tokenizer,
         resolved,
@@ -653,6 +783,9 @@ def evaluate_training_result(
         adversarial,
         records,
         predictions,
+    )
+    held_out, held_out_details, held_out_evidence = _held_out_violations(
+        ir, heads, held_out_records, predictions, sample_seed, coverage
     )
     pair_consistencies, pair_count = _pair_consistency(corpus, adversarial, predictions)
     head_records: list[HeadVerificationV1] = []
@@ -709,7 +842,15 @@ def evaluate_training_result(
         raise VerificationExecutionError("classifier state changed during verification")
     if hashlib.sha256(tokenizer_json_bytes(resolved_tokenizer)).hexdigest() != tokenizer_sha256:
         raise VerificationExecutionError("tokenizer JSON changed during verification")
-    gates = _failed_gates(metrics, resolved, len(records), example_details, constraint_details)
+    gates = _failed_gates(
+        metrics,
+        resolved,
+        len(records),
+        example_details,
+        constraint_details,
+        held_out,
+        held_out_details,
+    )
     failures = tuple(text for _gate, text in gates)
     suggestions: tuple[str, ...] = ()
     if gates:
@@ -721,6 +862,8 @@ def evaluate_training_result(
             external_human=external_human,
             predictions=predictions,
             violations=violation_evidence,
+            held_out=held_out,
+            held_out_violations=held_out_evidence,
             metrics=metrics,
             calibration_rows=len(calibration_rows),
             current_cases=len(base.cases),
@@ -737,6 +880,7 @@ def evaluate_training_result(
         attested_cases=human_count,
         pair_count=pair_count,
         failures=failures,
+        held_out=held_out,
         record_count=len(records),
         suggestions=suggestions,
     )
@@ -1468,6 +1612,139 @@ def _constraint_violations(
     return violations, tuple(details), tuple(evidence)
 
 
+def _held_out_records(
+    ir: NeuralFunctionIr,
+    records: tuple[_CaseRecord, ...],
+    config: VerificationConfig,
+    seed: int,
+    version: int,
+) -> tuple[tuple[_CaseRecord, ...], tuple[ConstraintCoverage, ...]]:
+    """The held-out constraint sample as unlabelled records outside every training input."""
+
+    try:
+        constraints = compile_constraints(ir)
+    except (RuntimeError, TypeError, ValueError) as error:
+        raise VerificationConfigurationError(f"IR constraints are invalid: {error}") from error
+    if len(constraints) == 0:
+        return (), ()
+    schema = ir.get("inputs")
+    if not isinstance(schema, list):
+        raise VerificationConfigurationError("IR inputs must be an array")
+    exclude = frozenset(
+        _canonical_input(schema, record.inputs, record.case_id, version) for record in records
+    )
+    try:
+        sample = sample_held_out_inputs(
+            ir,
+            constraints,
+            size=config.held_out_samples,
+            seed=seed,
+            exclude=exclude,
+            canonical_input_version=version,
+        )
+    except HeldOutSampleError as error:
+        raise VerificationConfigurationError(f"held-out constraint sample: {error}") from error
+    held_out = tuple(
+        _CaseRecord(
+            case_id=f"held-out:{index}",
+            inputs=inputs,
+            label_indices=(),
+            human_authored=False,
+        )
+        for index, inputs in enumerate(sample.inputs)
+    )
+    return held_out, sample.coverage
+
+
+def _held_out_violations(
+    ir: NeuralFunctionIr,
+    heads: Sequence[OutputHead],
+    records: tuple[_CaseRecord, ...],
+    predictions: Mapping[str, tuple[int, ...]],
+    seed: int,
+    coverage: tuple[ConstraintCoverage, ...],
+) -> tuple[HeldOutConstraintEvidence, tuple[str, ...], tuple[Violation, ...]]:
+    """Score every constraint on the held-out sample under the raw model."""
+
+    if not records:
+        return HeldOutConstraintEvidence(0, 0, 0, seed, coverage), (), ()
+    constraints = compile_constraints(ir)
+    sources = _constraint_sources(ir)
+    required = _required_outputs(ir)
+    budget = ConstraintEvaluationBudget()
+    violating = 0
+    checks = 0
+    by_constraint: dict[int, list[tuple[str, Violation]]] = {}
+    for record in records:
+        predicted_output = predicted_output_value(heads, predictions[record.case_id])
+        try:
+            _active, broken = constraints.evaluate_output_contract(
+                record.inputs, predicted_output, budget=budget
+            )
+        except ConstraintEvaluationError as error:
+            raise VerificationExecutionError(
+                f"constraint evaluation failed for {record.case_id}: {error}"
+            ) from error
+        if not broken:
+            continue
+        violating += 1
+        checks += len(broken)
+        allowed = required(record.inputs)
+        expected = allowed[0] if len(set(map(_json_key, allowed))) == 1 else None
+        for index in broken:
+            # One line per input: a multi-line constraint source is collapsed.
+            source = " ".join(sources[index].split()) if index < len(sources) else ""
+            by_constraint.setdefault(index, []).append(
+                (
+                    f"constraint {index}{f' ({source})' if source else ''} violated by held-out "
+                    f"input {_brief_json(record.inputs)}: predicted {_brief_json(predicted_output)}",
+                    Violation(
+                        index,
+                        source,
+                        LabelledCase(
+                            record.case_id, record.inputs, expected, predicted_output, True
+                        ),
+                    ),
+                )
+            )
+    # Round-robin over the broken constraints, so the first lines of the failure
+    # name every constraint before a second input of any one.
+    details: list[str] = []
+    evidence: list[Violation] = []
+    queues = [list(items) for _index, items in sorted(by_constraint.items())]
+    while any(queues):
+        for queue in queues:
+            if queue:
+                text, violation = queue.pop(0)
+                details.append(text)
+                evidence.append(violation)
+    return (
+        HeldOutConstraintEvidence(
+            len(records),
+            violating,
+            checks,
+            seed,
+            coverage,
+            tuple((index, len(items)) for index, items in sorted(by_constraint.items())),
+        ),
+        tuple(details),
+        tuple(evidence),
+    )
+
+
+def _constraint_sources(ir: NeuralFunctionIr) -> list[str]:
+    definition = ir.get("definition")
+    raw_constraints = definition.get("constraints") if isinstance(definition, Mapping) else None
+    return [
+        str(item.get("source", "")) if isinstance(item, Mapping) else ""
+        for item in (raw_constraints if isinstance(raw_constraints, list) else [])
+    ]
+
+
+def _json_key(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
 def _pair_consistency(
     corpus: TrainingCorpus,
     adversarial: AdversarialDataset | None,
@@ -1506,7 +1783,7 @@ def predicted_output_value(heads: Sequence[OutputHead], indices: Sequence[int]) 
     return value
 
 
-type _Gate = Literal["examples", "constraints", "types", "ece"]
+type _Gate = Literal["examples", "constraints", "held-out", "types", "ece"]
 
 
 def _gate_failures(
@@ -1515,11 +1792,19 @@ def _gate_failures(
     record_count: int,
     example_details: Sequence[str] = (),
     constraint_details: Sequence[str] = (),
+    held_out: HeldOutConstraintEvidence | None = None,
+    held_out_details: Sequence[str] = (),
 ) -> tuple[str, ...]:
     return tuple(
         text
         for _gate, text in _failed_gates(
-            metrics, config, record_count, example_details, constraint_details
+            metrics,
+            config,
+            record_count,
+            example_details,
+            constraint_details,
+            held_out,
+            held_out_details,
         )
     )
 
@@ -1530,6 +1815,8 @@ def _failed_gates(
     record_count: int,
     example_details: Sequence[str] = (),
     constraint_details: Sequence[str] = (),
+    held_out: HeldOutConstraintEvidence | None = None,
+    held_out_details: Sequence[str] = (),
 ) -> list[tuple[_Gate, str]]:
     failures: list[tuple[_Gate, str]] = []
     if metrics.example_failures:
@@ -1552,6 +1839,25 @@ def _failed_gates(
                     + _detail_suffix(constraint_details),
                 )
             )
+    if (
+        held_out is not None
+        and held_out.violating_inputs
+        and held_out.rate > config.maximum_constraint_violation_rate
+    ):
+        per_constraint = ", ".join(
+            f"constraint {index} on {count}" for index, count in held_out.broken
+        )
+        failures.append(
+            (
+                "held-out",
+                f"held-out constraint check failed on {held_out.violating_inputs} of "
+                f"{held_out.sample_size} sampled inputs ({held_out.rate:.6g} exceeds the "
+                f"configured tolerance {config.maximum_constraint_violation_rate:.6g}; "
+                f"seed {held_out.seed}; broken: {per_constraint or 'none named'}; the inputs "
+                "come from the input types and constraint predicates, none of them a "
+                "training input)" + _detail_suffix(held_out_details),
+            )
+        )
     if metrics.type_errors:
         failures.append(("types", f"{metrics.type_errors} output type check(s) failed"))
     if metrics.ece > config.ece_threshold:
@@ -1575,6 +1881,8 @@ def _gate_suggestions(
     violations: Sequence[Violation],
     metrics: VerificationMetricsV1,
     calibration_rows: int,
+    held_out: HeldOutConstraintEvidence | None = None,
+    held_out_violations: Sequence[Violation] = (),
     current_cases: int,
     epochs: int,
 ) -> tuple[str, ...]:
@@ -1597,7 +1905,7 @@ def _gate_suggestions(
     underfit = underfit_suggestion(rows, current_cases=current_cases, epochs=epochs)
     suggestions: list[str] = []
     for gate in gates:
-        if underfit is not None and gate in ("examples", "constraints"):
+        if underfit is not None and gate in ("examples", "constraints", "held-out"):
             suggestions.append(underfit)
         elif gate == "examples":
             misses = [
@@ -1621,6 +1929,16 @@ def _gate_suggestions(
             )
         elif gate == "constraints":
             suggestions.append(violation_suggestion(violations, current_cases))
+        elif gate == "held-out":
+            assert held_out is not None
+            suggestions.append(
+                held_out_suggestion(
+                    held_out_violations,
+                    current_cases,
+                    seed=held_out.seed,
+                    sample_size=held_out.sample_size,
+                )
+            )
         elif gate == "types":
             suggestions.append(type_error_suggestion())
         else:
@@ -1774,6 +2092,7 @@ __all__ = [
     "MAXIMUM_VERIFICATION_CASE_COUNT",
     "CalibrationRecordV1",
     "HeadVerificationV1",
+    "HeldOutConstraintEvidence",
     "SeedRetryConfig",
     "SeedRetryDecision",
     "VerificationConfig",

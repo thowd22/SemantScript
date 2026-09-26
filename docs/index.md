@@ -55,6 +55,10 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   the Lambda and Cloud Run size targets, the depth, int8 and
   smaller-encoder levers with their measured sizes, and deriving a gated int8
   release with `releases derive --int8`.
+- [Training pipeline and release gates](training-pipeline.md): the stages
+  from datasets to the published release, every verification gate, and the
+  held-out constraint check that scores each constraint on sampled inputs the
+  model never trained on (sample, seed, budget, tolerance and retry).
 - [Build cache](build-cache.md): what is content-addressed, when retraining
   happens, where the caches live (including the teacher response journal) and
   how to clear them, and how the cache interacts with a release rollback.

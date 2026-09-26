@@ -432,7 +432,9 @@ export function renderEstimate(document: unknown): string {
       ),
       `${cost.toFixed(2)} (max ${maximumCost.toFixed(2)})`,
       formatDuration(numberOf(entry["seconds"], `${path}.seconds`)) +
-        (batch > 0 ? ` + batch of ${String(batch)}` : ""),
+        (batch > 0 && typeof entry["maximumSeconds"] === "number"
+          ? ` (max ${formatDuration(entry["maximumSeconds"])})`
+          : ""),
     ];
   };
   const functions = listOf(estimate["functions"], "estimate.functions").map(
@@ -481,6 +483,16 @@ export function renderEstimate(document: unknown): string {
     ),
     `time per request: ${String(numberOf(estimate["secondsPerRequest"], "estimate.secondsPerRequest"))} s (${stringOf(estimate["secondsSource"], "estimate.secondsSource")}); tokens are characters / ${String(numberOf(estimate["charactersPerToken"], "estimate.charactersPerToken"))}; no teacher request was sent\n`,
   ];
+  const totals = objectOf(estimate["total"], "estimate.total");
+  const batched = numberOf(
+    totals["batchRequests"],
+    "estimate.total.batchRequests",
+  );
+  if (batched > 0) {
+    lines.push(
+      `${String(batched)} request${batched === 1 ? " goes" : "s go"} through the Message Batches API at half price; the time counts about 1 h per batch (most batches finish within an hour) and the maximum counts the full poll_timeout_seconds (24 h by default) per batch the run can submit\n`,
+    );
+  }
   const cap = estimate["maxCostUsd"];
   if (typeof cap === "number") {
     const total = objectOf(estimate["total"], "estimate.total");

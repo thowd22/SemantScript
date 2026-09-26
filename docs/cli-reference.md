@@ -193,7 +193,9 @@ printing that input and the outputs the constraints admit (see
 `--estimate` prints, per expression and in total, the teacher requests the
 run would send (the expected count and the maximum the generators allow), the
 input tokens (and how many of them the prompt cache serves), the output
-tokens, the USD cost at the configured backend's price and the wall time. An
+tokens, the USD cost at the configured backend's price and the wall time
+(for a Message Batch, one hour per batch, with the maximum the run can wait in
+parentheses). An
 expression whose datasets are cached costs nothing; the constraints teacher
 and Ollama cost nothing. Tokens are the characters of the exact prompts
 divided by a calibrated ratio (2.1 characters per token), and the price comes

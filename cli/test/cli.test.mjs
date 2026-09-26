@@ -1380,6 +1380,19 @@ test("train --estimate renders the teacher's cost without the preflight or a run
   );
   assert.match(run.stdout(), /\ntotal\s+90 \(max 300\)/u);
   assert.match(run.stdout(), /no teacher request was sent\n$/u);
+  assert.doesNotMatch(run.stdout(), /Message Batches/u);
+
+  // A Message Batches run shows the batch's expected time and its maximum.
+  const batched = capture(root, { ...env, FAKE_ESTIMATE_BATCH: "1" });
+  assert.equal(await runCli(args, batched.io), 0, batched.stderr());
+  assert.match(
+    batched.stdout(),
+    /nf_33333333…\s+src\/app\.sem\.ts\s+90 \(max 300\).*62 min \(max 97\.2 h\)/u,
+  );
+  assert.match(
+    batched.stdout(),
+    /60 requests go through the Message Batches API at half price; the time counts about 1 h per batch/u,
+  );
 
   const capped = capture(root, env);
   assert.equal(

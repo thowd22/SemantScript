@@ -284,7 +284,7 @@ class AnthropicTeacher:
             except TeacherTransportError as error:
                 # A recorded batch the provider no longer has (results are kept for a
                 # limited time): forget it and submit the request once more.
-                if resumed and attempt == 1 and _status_code(error) == 404:
+                if resumed and attempt == 1 and _batch_gone(error):
                     if journal is not None and key is not None:
                         journal.discard_batch(key)
                     handle = None
@@ -331,48 +331,60 @@ class AnthropicTeacher:
             raise _transport_error("failed to retrieve Anthropic batch results", error) from error
 
         cases: dict[str, GeneratedCase] = {}
+        seen: set[str] = set()
         aggregate_response_bytes = [0]
+        # The provider bills every succeeded item, so the whole stream is read and
+        # charged even after an item is rejected; the first rejection is raised at
+        # the end, after the meter holds the batch's real cost.
+        failure: TeacherBatchError | TeacherResponseError | None = None
         try:
             for entry in result_stream:
                 custom_id = _field(entry, "custom_id")
-                if not isinstance(custom_id, str) or custom_id not in expected:
-                    raise TeacherBatchError(
-                        f"Anthropic batch returned unexpected custom_id {custom_id!r}"
-                    )
-                if custom_id in cases:
-                    raise TeacherBatchError(
-                        f"Anthropic batch returned duplicate custom_id {custom_id!r}"
-                    )
-
                 outcome = _field(entry, "result")
                 outcome_type = _field(outcome, "type")
-                if outcome_type == "succeeded":
-                    if self._meter is not None and replay:
+                if outcome_type == "succeeded" and self._meter is not None:
+                    if replay:
                         self._meter.replay()
-                    elif self._meter is not None:
+                    else:
                         self._meter.charge(_field(_field(outcome, "message"), "usage"), batch=True)
-                    cases[custom_id] = self._decode_message(
-                        ir,
-                        _field(outcome, "message"),
-                        custom_id=custom_id,
-                        aggregate_response_bytes=aggregate_response_bytes,
-                    )
+                if failure is not None:
                     continue
-                if outcome_type == "errored":
-                    raise TeacherBatchError(_batch_item_error(custom_id, outcome))
-                if outcome_type in ("canceled", "expired"):
+                try:
+                    if not isinstance(custom_id, str) or custom_id not in expected:
+                        raise TeacherBatchError(
+                            f"Anthropic batch returned unexpected custom_id {custom_id!r}"
+                        )
+                    if custom_id in seen:
+                        raise TeacherBatchError(
+                            f"Anthropic batch returned duplicate custom_id {custom_id!r}"
+                        )
+                    seen.add(custom_id)
+                    if outcome_type == "succeeded":
+                        cases[custom_id] = self._decode_message(
+                            ir,
+                            _field(outcome, "message"),
+                            custom_id=custom_id,
+                            aggregate_response_bytes=aggregate_response_bytes,
+                        )
+                        continue
+                    if outcome_type == "errored":
+                        raise TeacherBatchError(_batch_item_error(custom_id, outcome))
+                    if outcome_type in ("canceled", "expired"):
+                        raise TeacherBatchError(
+                            f"Anthropic batch item {custom_id!r} was {outcome_type}"
+                        )
                     raise TeacherBatchError(
-                        f"Anthropic batch item {custom_id!r} was {outcome_type}"
+                        f"Anthropic batch item {custom_id!r} has unknown result type "
+                        f"{outcome_type!r}"
                     )
-                raise TeacherBatchError(
-                    f"Anthropic batch item {custom_id!r} has unknown result type {outcome_type!r}"
-                )
-        except (TeacherBatchError, TeacherResponseError):
-            raise
+                except (TeacherBatchError, TeacherResponseError) as error:
+                    failure = error
         except Exception as error:
             raise _transport_error(
                 "failed while streaming Anthropic batch results", error
             ) from error
+        if failure is not None:
+            raise failure
 
         missing = [custom_id for custom_id in handle.custom_ids if custom_id not in cases]
         if missing:
@@ -462,9 +474,15 @@ class AnthropicTeacher:
 
             remaining = deadline - self._clock()
             if remaining <= 0:
+                resume = (
+                    "; the batch is recorded in the response journal, so rerunning the "
+                    "same command collects it without submitting or paying for a new one"
+                    if self._journal is not None
+                    else ""
+                )
                 raise TeacherBatchTimeout(
                     f"Anthropic batch {batch_id!r} did not finish within "
-                    f"{self._config.poll_timeout_seconds:g} seconds"
+                    f"{self._config.poll_timeout_seconds:g} seconds{resume}"
                 )
             self._sleeper(min(self._config.poll_interval_seconds, remaining))
 
@@ -875,6 +893,14 @@ def _status_code(error: BaseException) -> int | None:
     cause = error.__cause__
     status = getattr(cause, "status_code", None)
     return status if isinstance(status, int) else None
+
+
+def _batch_gone(error: BaseException) -> bool:
+    """Whether a recorded batch can no longer be collected: the provider no longer
+    knows it (404), or it still knows it but its results have expired (the SDK raises
+    a status-less error naming the missing ``results_url``)."""
+
+    return _status_code(error) == 404 or "results_url" in str(error.__cause__ or "")
 
 
 def _transport_error(message: str, error: Exception) -> TeacherTransportError:

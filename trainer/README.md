@@ -449,7 +449,9 @@ renders the report.
 `--estimate` writes a `semantscript.train-estimate` (`estimateVersion` 1) JSON
 document to stdout and exits 0 without creating a teacher client, loading
 PyTorch or training: per function the planned, expected and maximum requests,
-input, cache-read and output tokens, USD and seconds, and their total, with the
+input, cache-read and output tokens, USD, expected seconds (`seconds`, which
+includes `batchSeconds`, one hour per Message Batch) and `maximumSeconds`, and
+their total, with the
 price and its source (`semantscript_trainer.teacher_estimate.estimate_bundle`).
 `--max-cost-usd <x>` gives the run a `teacher_spend.SpendMeter` with that cap:
 the teacher reserves each request before sending it and raises

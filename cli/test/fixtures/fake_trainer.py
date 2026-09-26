@@ -82,7 +82,13 @@ def estimate(values: dict[str, str | bool]) -> int:
         "costUsd": 0.2,
         "maximumCostUsd": 0.66,
         "seconds": 360.0,
+        "batchSeconds": 0.0,
+        "maximumSeconds": 1200.0,
     }
+    if os.environ.get("FAKE_ESTIMATE_BATCH"):
+        row.update(
+            batchRequests=60, seconds=3720.0, batchSeconds=3600.0, maximumSeconds=350000.0
+        )
     cached = {
         **row,
         "id": "nf_" + "4" * 64,
@@ -97,6 +103,8 @@ def estimate(values: dict[str, str | bool]) -> int:
         "costUsd": 0.0,
         "maximumCostUsd": 0.0,
         "seconds": 0.0,
+        "batchSeconds": 0.0,
+        "maximumSeconds": 0.0,
     }
     document = {
         "kind": "semantscript.train-estimate",

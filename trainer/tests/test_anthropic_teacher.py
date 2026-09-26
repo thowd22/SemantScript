@@ -307,6 +307,43 @@ def test_journal_resubmits_a_recorded_batch_the_provider_no_longer_has(tmp_path:
     assert len(second.messages.batches.create_calls) == 1
 
 
+def test_journal_resubmits_a_recorded_batch_whose_results_expired(tmp_path: Any) -> None:
+    expected_ids[:] = list(_batch_teacher(FakeClient(), tmp_path)._custom_ids(ir(), 2))
+    with pytest.raises(TeacherBatchTimeout, match="rerunning the same command collects it"):
+        _batch_teacher(_batch_client(results=False, status="in_progress"), tmp_path).generate(
+            ir(), 2
+        )
+
+    second = _batch_client(results=True)
+    original_results = second.messages.batches.results
+    calls = [0]
+
+    def results(batch_id: str) -> Any:
+        calls[0] += 1
+        if calls[0] == 1:
+            # What SDK 1.7 raises for a batch past its 29-day results window.
+            raise RuntimeError("No `results_url` for the given batch; Has it finished processing?")
+        return original_results(batch_id)
+
+    second.messages.batches.results = results
+    assert len(_batch_teacher(second, tmp_path).generate(ir(), 2)) == 2
+    assert len(second.messages.batches.create_calls) == 1
+
+
+def test_a_rejected_batch_is_charged_for_every_item_the_provider_billed(tmp_path: Any) -> None:
+    expected_ids[:] = list(_batch_teacher(FakeClient(), tmp_path)._custom_ids(ir(), 3))
+    client = FakeClient()
+    client.messages.batches.result_values = [
+        batch_success(expected_ids[0], "not json"),
+        batch_success(expected_ids[1], case_text("1", True)),
+        batch_success(expected_ids[2], case_text("2", False)),
+    ]
+    meter = SpendMeter(SONNET)
+    with pytest.raises(TeacherResponseError):
+        _batch_teacher(client, tmp_path, meter).generate(ir(), 3)
+    assert meter.requests == 3
+
+
 def test_direct_adversarial_requests_return_boundary_pair_and_reasoned_twin() -> None:
     contract = ir()
     contract["definition"]["constraints"] = [

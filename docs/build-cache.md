@@ -50,9 +50,10 @@ network error or the poll timeout) therefore collects that same batch on the
 rerun instead of submitting and paying for a new one; the batch is charged
 when it is collected. A collected batch stays recorded, so a rerun that sends
 the identical batch request again re-reads its results at no cost for as long
-as Anthropic keeps them (29 days); a recorded batch the provider no longer has
-is submitted once more. A batch whose results are rejected is forgotten like a
-rejected direct response. The one gap is a stop in the moment between the
+as Anthropic keeps them (29 days); a recorded batch the provider no longer has,
+or whose results have expired, is submitted once more. A batch whose results
+are rejected is forgotten like a rejected direct response; every item the
+provider billed is still charged to the run's meter first. The one gap is a stop in the moment between the
 provider accepting a batch and the handle reaching the disk: that batch is not
 found again.
 

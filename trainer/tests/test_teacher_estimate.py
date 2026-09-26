@@ -16,6 +16,7 @@ from semantscript_trainer.teacher_config import (
     create_teacher,
 )
 from semantscript_trainer.teacher_estimate import (
+    BATCH_EXPECTED_SECONDS,
     ESTIMATE_KIND,
     EXPECTED_RETRY_FACTOR,
     estimate_bundle,
@@ -108,7 +109,14 @@ def test_batch_mode_prices_synthetic_requests_at_the_batch_rate(tmp_path: Path) 
         cases=64,
     )["functions"][0]
     assert batch["batchRequests"] == math.ceil(63 * EXPECTED_RETRY_FACTOR)
-    assert batch["seconds"] < direct["seconds"]
+    # A batch has an expected wall time (an hour) and a maximum (the poll timeout
+    # for the first batch and each replacement round), not a per-request figure.
+    direct_requests = batch["expectedRequests"] - batch["batchRequests"]
+    assert batch["batchSeconds"] == BATCH_EXPECTED_SECONDS
+    assert batch["seconds"] == pytest.approx(direct_requests * 4.0 + BATCH_EXPECTED_SECONDS)
+    assert batch["maximumSeconds"] > 4 * 86_400
+    assert direct["batchSeconds"] == 0
+    assert direct["maximumSeconds"] == pytest.approx(direct["maximumRequests"] * 4.0)
 
 
 def test_the_constraints_teacher_and_cached_datasets_cost_nothing(tmp_path: Path) -> None:

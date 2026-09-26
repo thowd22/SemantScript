@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-25 23:50'
+updated_date: '2026-09-26 00:05'
 labels:
   - dx
   - train
@@ -83,4 +83,9 @@ FIX round 2 (2026-09-25):
 - Advisory fixes: probe prints no price source when no request was sent; constraints probe latencySeconds null; Ollama price source 'local Ollama, free' (no doubled parentheses); duplicate --max-cost-usd row removed from cli-reference.md.
 - AC4 still open (blocking, needs user): equal verification on the Express example not measured; comparison estimated USD 1.02 expected / 2.88 max + GPU retrain, above the USD 0.50 budget. No OpenRouter spend this round.
 - Gates: npm run build ok; lint:node ok; test:node 89/105/22/8/85 pass; test:python 637 passed 4 skipped; pytest trainer/tests 491 passed 2 skipped; ruff check/format ok; prettier ok.
+
+FIX round 3 (2026-09-25):
+- Blocking (batch wall time, AC1): the estimate now gives Message Batches a wall time. teacher_estimate adds batchSeconds (BATCH_EXPECTED_SECONDS = 3600 per batch; Anthropic docs: most batches finish within an hour) into seconds, and maximumSeconds (poll_timeout_seconds per batch the run can submit: the first synthetic batch plus 3 label-replacement rounds on a constrained expression; direct rows: maximum requests x seconds per request). The Node table shows 'time (max ...)' on batch rows and a line under the table explaining the batch. Measured on examples/express-app with the default Anthropic teacher (mode auto, --cases 192, cfr 0.5): 'nf_957c2b2b... 69 min (max 97.3 h)', 'nf_bcbf93e1... 60 min (max 24.0 h)', 'total ... 2.2 h (max 121.3 h)', plus '454 requests go through the Message Batches API at half price; ...'. Documented in teachers.md, cli-reference.md, trainer/README.md.
+- Advisory fixed: a rejected batch now charges every succeeded item before raising (meter matches the provider bill); a recorded batch whose results expired (SDK error naming results_url, no status) is resubmitted like a 404; the batch poll timeout message says a rerun collects the recorded batch at no new cost. Tests added (2 in test_anthropic_teacher, batch time asserts in test_teacher_estimate, a batch rendering case in cli.test.mjs).
+- AC4 still open (blocking, needs user): equal verification on the Express example with the reduced prompt is not measured. The comparison costs about USD 1.02 expected (USD 2.88 max) through OpenRouter plus a GPU retrain, above the USD 0.50 budget. No OpenRouter money spent this round.
 <!-- SECTION:NOTES:END -->

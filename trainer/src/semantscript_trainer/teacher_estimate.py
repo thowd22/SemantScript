@@ -27,8 +27,12 @@ request and loads no tokenizer or encoder.
   kind when they reach the model's minimum cacheable length.
 * **Time.** Requests times ``seconds_per_request``: the ``[teacher.pricing]``
   figure, else the mean the last metered run of this teacher recorded, else a
-  pinned default. Message Batches requests are listed apart (a batch usually
-  ends within an hour and at most within 24).
+  pinned default. Message Batches requests do not run one after another: each
+  batch adds ``BATCH_EXPECTED_SECONDS`` (one hour; Anthropic's documentation says
+  most batches finish within an hour) to the expected time, and the maximum time
+  adds ``poll_timeout_seconds`` (24 hours by default, the longest the run waits)
+  for every batch the run can submit: the first synthetic batch and, for a
+  constrained expression, one per label-replacement round.
 """
 
 from __future__ import annotations
@@ -76,6 +80,7 @@ ESTIMATE_KIND = "semantscript.train-estimate"
 ESTIMATE_VERSION = 1
 EXPECTED_RETRY_FACTOR = 1.4
 TWIN_REASON_CHARACTERS = 200
+BATCH_EXPECTED_SECONDS = 3600.0
 
 
 def estimate_bundle(
@@ -121,9 +126,11 @@ def estimate_bundle(
         "costUsd",
         "maximumCostUsd",
         "seconds",
+        "batchSeconds",
+        "maximumSeconds",
     )
     total = {key: sum(row[key] for row in rows) for key in total_keys}
-    for key in ("costUsd", "maximumCostUsd", "seconds"):
+    for key in ("costUsd", "maximumCostUsd", "seconds", "batchSeconds", "maximumSeconds"):
         total[key] = round(total[key], 4)
     return {
         "kind": ESTIMATE_KIND,
@@ -222,6 +229,8 @@ def _estimate_function(
         "costUsd": 0.0,
         "maximumCostUsd": 0.0,
         "seconds": 0.0,
+        "batchSeconds": 0.0,
+        "maximumSeconds": 0.0,
     }
     if planned_total == 0 or model_config is None:
         return {**row, **zero}
@@ -298,6 +307,15 @@ def _estimate_function(
             batch=batch,
         )
     direct = expected_requests - batch_requests
+    direct_seconds = direct * seconds
+    batch_seconds = BATCH_EXPECTED_SECONDS if batch_requests else 0.0
+    if batch_requests:
+        batches = 1 + MAXIMUM_REPLACEMENT_ROUNDS if constraints else 1
+        # The maximum direct time: every request past the synthetic ones is direct.
+        maximum_direct = (maximum - planned["synthetic"]) * seconds
+        maximum_seconds = maximum_direct + batches * model_config.poll_timeout_seconds
+    else:
+        maximum_seconds = maximum * seconds
     return {
         **row,
         "expectedRequests": expected_requests,
@@ -308,7 +326,9 @@ def _estimate_function(
         "outputTokens": output_tokens,
         "costUsd": round(cost, 4),
         "maximumCostUsd": round(cost * maximum / expected_requests, 4),
-        "seconds": round(direct * seconds, 1),
+        "seconds": round(direct_seconds + batch_seconds, 1),
+        "batchSeconds": batch_seconds,
+        "maximumSeconds": round(maximum_seconds, 1),
     }
 
 
@@ -323,4 +343,10 @@ def _compact(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
-__all__ = ["ESTIMATE_KIND", "ESTIMATE_VERSION", "EXPECTED_RETRY_FACTOR", "estimate_bundle"]
+__all__ = [
+    "BATCH_EXPECTED_SECONDS",
+    "ESTIMATE_KIND",
+    "ESTIMATE_VERSION",
+    "EXPECTED_RETRY_FACTOR",
+    "estimate_bundle",
+]

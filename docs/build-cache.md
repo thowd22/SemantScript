@@ -140,14 +140,20 @@ The cache reuses a published release only while `current.json` still names
 the release it last published. After a rollback, the next `train` therefore
 exports the cached state again as a new release (its manifest carries a new
 `build.createdAt`) and makes it current: roll back to keep an older release in
-service, and train again only once the regression is fixed.
+service, and train again only once the regression is fixed. The same holds
+after promoting a derived int8 release (`releases derive --int8`): the next
+`train` makes its float32 release current again, so derive and promote again
+after it.
 
 ## Clearing it
 
 Deleting `.semantscript/cache` (or the `--cache-dir` you passed) is always
-safe; the next `train` regenerates datasets through the teacher (paying for
-them again: run `semantscript train --estimate` first to see how much) and
-trains from scratch. Deleting `teacher-responses/` alone is always safe:
+safe for training; the next `train` regenerates datasets through the teacher
+(paying for them again: run `semantscript train --estimate` first to see how
+much) and trains from scratch. It does remove the records
+`semantscript releases derive --int8` verifies on, so no existing release can
+be derived to int8 afterwards; derive before clearing, or derive from the
+release the next `train` publishes. Deleting `teacher-responses/` alone is always safe:
 the only cost is that a stopped run pays again for the responses it had. Deleting one `functions/<function-id>` directory retrains that
 function's head on the cached shared state. Deleting the artifact root without
 the cache makes the next `train` re-export from cached weights without

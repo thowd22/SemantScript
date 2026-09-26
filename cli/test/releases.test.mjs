@@ -601,7 +601,7 @@ async function derive(root, args, env = {}) {
 
 test("releases derive --int8 runs the trainer on the current or named release and publishes beside it", async (t) => {
   const root = await scratch(t, "semantscript-releases-derive-");
-  const { middle, newest } = await threeReleases(root);
+  const { oldest, middle, newest } = await threeReleases(root);
   const argvPath = join(root, "argv.json");
 
   const published = await derive(
@@ -638,6 +638,8 @@ test("releases derive --int8 runs the trainer on the current or named release an
     "--ece-threshold",
     "0.2",
     "--per-channel",
+    "--command-flags",
+    `--artifact ${root} --cache-dir ${join(root, "cache")} --python ${python} --trainer-module fake_trainer`,
   ]);
   const report = JSON.parse(
     await readFile(`${root}.derive-report.json`, "utf8"),
@@ -719,6 +721,18 @@ test("releases derive --int8 runs the trainer on the current or named release an
     (resource) => resource.role === "encoder",
   );
   assert.equal(encoder.onnx.quantization.sourceManifestSha256, middle);
+  // --promote --json prints one JSON document: the report, promote's under `promoted`.
+  const promotedJson = await derive(root, [
+    "--int8",
+    oldest.slice(0, 10),
+    "--promote",
+    "--json",
+  ]);
+  assert.equal(promotedJson.code, 0, promotedJson.stderr);
+  const both = JSON.parse(promotedJson.stdout);
+  assert.equal(both.status, "published");
+  assert.equal(typeof both.promoted, "object");
+  assert.notEqual(both.promoted, null);
   // And back: the float32 release is one promote away.
   assert.equal((await run(root, ["promote", newest])).code, 0);
   assert.equal(await currentDigest(root), newest);
@@ -736,7 +750,14 @@ test("releases derive --int8 exits 2 with the figures and the next command when 
   assert.equal(refused.code, 2, refused.stderr);
   assert.match(
     refused.stdout,
-    /^derive refused: nothing was published and current\.json is unchanged\n {2}1 attested record\(s\) changed decision \(tolerance 0\)\nnext: keep serving the float32 release/mu,
+    /^derive refused: nothing was published and current\.json is unchanged\n {2}1 attested record\(s\) changed decision \(tolerance 0\)\nnext: keep serving the current release/mu,
+  );
+  // The command it names repeats the source release and the location flags.
+  assert.ok(
+    refused.stdout.includes(
+      `semantscript releases derive --int8 ${newest.slice(0, 12)} --artifact ${root} --python ${python} --trainer-module fake_trainer --max-attested-disagreements 1`,
+    ),
+    refused.stdout,
   );
   assert.match(refused.stdout, /^nf_11111111… +10 +2 +1 +1 /mu);
   assert.doesNotMatch(refused.stdout, /pointed/u);

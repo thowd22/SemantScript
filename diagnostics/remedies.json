@@ -693,9 +693,9 @@
     {
       "id": "int8-gate-refused",
       "family": "cli",
-      "failure": "`semantscript releases derive --int8`: `derive refused: N attested record(s) changed decision (tolerance 0)`, `N of M records changed decision (…)` or `quantized ECE … exceeds threshold …`",
+      "failure": "`semantscript releases derive --int8`: `derive refused: nothing was published and current.json is unchanged`, then the checks that failed: `N attested record(s) changed decision (tolerance T)`, `N of M records changed decision (…)` or `quantized ECE … for <function> exceeds threshold …`",
       "cause": "The int8 encoder answered differently from the float32 one on the release's own records (or its calibration drifted) beyond the tolerance, which by default admits no change at all; nothing was published and current.json is unchanged.",
-      "fix": "keep serving the float32 release (current.json is unchanged){alternative}; to publish anyway, record a tolerance that admits these figures with semantscript releases derive --int8 {tolerance}, which the manifest keeps and semantscript releases show prints"
+      "fix": "keep serving the current release (current.json is unchanged){alternative}; to publish anyway, record a tolerance that admits these figures with {command} {tolerance}, which the manifest keeps and semantscript releases show prints"
     },
     {
       "id": "int8-records-missing",

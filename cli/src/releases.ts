@@ -273,7 +273,10 @@ async function showRelease(
       `application  ${summary.applicationId}@${summary.applicationVersion}`,
       ...(summary.derivation === undefined
         ? []
-        : [`derived      ${derivationLine(summary.derivation)}`]),
+        : [
+            `derived      ${derivationLine(summary.derivation)}`,
+            "verification the table is the float32 source's; the derived line has the int8 figures",
+          ]),
       renderTable(
         VERIFICATION_HEADERS,
         summary.functions.map(verificationCells),

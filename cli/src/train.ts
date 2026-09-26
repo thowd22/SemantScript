@@ -563,7 +563,7 @@ export function trainerDoctorCommand(
   return parts.join(" ");
 }
 
-function shellWord(value: string): string {
+export function shellWord(value: string): string {
   return /^[\w@%+=:,./\\-]+$/u.test(value)
     ? value
     : `"${value.replaceAll('"', '\\"')}"`;

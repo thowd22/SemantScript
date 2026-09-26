@@ -25,7 +25,7 @@ semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
-semantscript releases derive --int8 [<release>] [--artifact <root>] [--cache-dir <dir>] [--per-channel] [--max-attested-disagreements <n>] [--max-decision-change-rate <x>] [--ece-threshold <x>] [--promote] [--json]
+semantscript releases derive --int8 [<release>] [--artifact <root>] [--cache-dir <dir>] [--python <exe>] [--weight-type int8|uint8] [--per-channel] [--reduce-range] [--max-attested-disagreements <n>] [--max-decision-change-rate <x>] [--ece-threshold <x>] [--promote] [--json]
 semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json] <module.js> --call <export> [--input <json> | --input-file <path>]
 semantscript package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>] [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
 ```

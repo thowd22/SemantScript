@@ -107,7 +107,7 @@ model, or complete constraints); inference needs neither.
 [CONTRIBUTING](docs/CONTRIBUTING.md) covers the layout, toolchains and
 checks. GitHub Actions runs the lint and test gates, a fresh-clone install of
 both examples, the Express Docker build and a `semantscript package` bundle
-of the Express example (its Lambda handler invoked and a Docker image built
-from it) on every push and pull request; a
+of the Express example (an int8 release derived and promoted first, then its
+Lambda handler invoked and a Docker image built from it) on every push and pull request; a
 fresh clone to a running image takes about a minute and a half on a hosted
 runner with no npm cache ([measured](docs/CONTRIBUTING.md#continuous-integration)).

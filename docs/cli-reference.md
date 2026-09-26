@@ -544,7 +544,11 @@ than `--max-attested-disagreements` allows (default 0), when the share of all
 records that changed is above `--max-decision-change-rate` (default 0), or
 when a head's int8 ECE is above `--ece-threshold` (default 0.1). A refusal
 publishes nothing, prints the figures and the tolerance flags that would
-admit them (remedy `int8-gate-refused`) and exits 2. A release that passes
+admit them (remedy `int8-gate-refused`) and exits 2. The command it names
+repeats the source release's digest and the `--artifact`, `--cache-dir`,
+`--python` and `--trainer-module` flags you gave, so it runs as printed
+whichever release is current; it suggests `--per-channel` only when decisions
+changed, not for a calibration-only refusal. A release that passes
 is published as `releases/sha256-<digest>/` beside its source, and each
 quantized encoder's `onnx.quantization` records the source manifest digest,
 the settings, the tolerances and a `verification` block: records checked,
@@ -553,14 +557,16 @@ the worst head's float32 and int8 ECE, the datasets checked (kind, function,
 SHA-256, count) and the same figures per function. The runtime loads it like
 any release. `current.json` does not move: `next:` names
 `releases promote <digest>`, and promoting the float32 release again goes
-back.
+back. A later `train` publishes its float32 release again and makes it
+current (the build cache reuses a release only while `current.json` names
+it), so derive and promote again after each train.
 
 | Flag                           | Value     | Effect                                                                                                                   |
 | ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `--int8`                       |           | Required: int8 dynamic quantization is the one derivation.                                                               |
 | `--cache-dir`                  | path      | The build cache the release was trained with (default `.semantscript/cache`).                                            |
 | `--report`                     | path      | Where the trainer writes the JSON report (`kind` `semantscript.derive-report`; default `<artifact>.derive-report.json`). |
-| `--weight-type`                | `int8`    | `int8` (default) or `uint8` weights.                                                                                     |
+| `--weight-type`                | type      | `int8` (default) or `uint8` weights.                                                                                     |
 | `--per-channel`                |           | One scale per output channel instead of one per tensor.                                                                  |
 | `--reduce-range`               |           | 7-bit weights, for CPUs without VNNI.                                                                                    |
 | `--max-attested-disagreements` | count     | Attested records allowed to change decision (default 0). The manifest records the value.                                 |
@@ -568,7 +574,7 @@ back.
 | `--ece-threshold`              | 0 to 1    | Largest int8 ECE any head may have (default 0.1). The manifest records the value.                                        |
 | `--promote`                    |           | After publishing, run `releases promote` on the new release.                                                             |
 | `--python`, `--trainer-module` | exe, name | As for `train`.                                                                                                          |
-| `--json`                       |           | Print the derive report instead of the table.                                                                            |
+| `--json`                       |           | Print the derive report instead of the table; with `--promote`, promote's JSON is its `promoted` field (one document).   |
 
 Exit status: 0 published (and promoted with `--promote`), 2 refused by the
 gate or a usage error, 1 when the release or its records cannot be found or

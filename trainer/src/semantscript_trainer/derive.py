@@ -241,11 +241,16 @@ def derive_int8_release(
     created_at: str | None = None,
     held_out: HeldOutProvider = held_out_records,
     log: Callable[[str], None] = lambda message: None,
+    command_flags: str = "",
 ) -> DeriveResult:
     """Derive, verify and publish an int8 release; refusals return a ``refused`` report.
 
     Raises :class:`DeriveError` when the release or its records cannot be
-    found; the error's ``fix`` names the next command.
+    found; the error's ``fix`` names the next command. ``command_flags`` are
+    the location flags the caller was given (``--artifact``, ``--cache-dir``,
+    ``--python`` ...), already shell-quoted with a leading space; every
+    ``semantscript releases derive`` command the report names repeats them
+    after the source release, so the command runs as printed.
     """
 
     started = time.monotonic()
@@ -253,6 +258,7 @@ def derive_int8_release(
     cache = Path(os.path.abspath(cache_directory))
     settings = QuantizationConfig() if quantization is None else quantization
     source_sha256 = resolve_release(root, release)
+    command = f"semantscript releases derive --int8 {source_sha256[:12]}{command_flags}"
     source_directory = root / "releases" / f"sha256-{source_sha256}"
     try:
         manifest = json.loads((source_directory / "manifest.json").read_bytes())
@@ -266,10 +272,18 @@ def derive_int8_release(
     for resource in cast(list[Any], manifest.get("resources") or []):
         onnx = resource.get("onnx") if isinstance(resource, dict) else None
         if isinstance(onnx, dict) and onnx.get("precision", "float32") != "float32":
+            origin = (onnx.get("quantization") or {}).get("sourceManifestSha256")
+            known = isinstance(origin, str) and _DIGEST.fullmatch(origin) is not None
             raise DeriveError(
-                f"releases/sha256-{source_sha256} is already {onnx['precision']}; derive from "
-                "the float32 release it was derived from "
-                f"(releases/sha256-{onnx.get('quantization', {}).get('sourceManifestSha256')})"
+                f"releases/sha256-{source_sha256[:12]} is already {onnx['precision']}; derive "
+                "from the float32 release it was derived from"
+                + (f" (releases/sha256-{origin[:12]})" if known else ""),
+                (
+                    f"semantscript releases derive --int8 {origin[:12]}{command_flags}"
+                    if known
+                    else "semantscript releases to find the float32 release, then "
+                    f"semantscript releases derive --int8 <release>{command_flags}"
+                ),
             )
     records, sources = verification_records(manifest, cache, held_out=held_out)
     held_out_count = sum(source.records for source in sources if source.kind == "held-out")
@@ -277,7 +291,7 @@ def derive_int8_release(
         f"verifying the int8 graph of releases/sha256-{source_sha256[:12]} on {len(records)} "
         f"records ({sum(1 for record in records if record.attested)} attested) from "
         f"{len(sources)} cached file(s); weight type {settings.weight_type}, per-channel "
-        f"{settings.per_channel}, reduce-range {settings.reduce_range}"
+        f"{_yes(settings.per_channel)}, reduce-range {_yes(settings.reduce_range)}"
     )
     report: dict[str, Any] = {
         "kind": DERIVE_REPORT_KIND,
@@ -321,11 +335,12 @@ def derive_int8_release(
             next=remedy(
                 "int8-gate-refused",
                 alternative=(
-                    ""
-                    if settings.per_channel
-                    else ", or try semantscript releases derive --int8 --per-channel, which "
+                    f", or try {command} {_settings_flags(settings, per_channel=True)}, which "
                     "changes fewer decisions on most encoders"
+                    if not settings.per_channel and _decisions_failed(error.report, settings)
+                    else ""
                 ),
+                command=command,
                 tolerance=_tolerance_flags(error.report, settings),
             ),
         )
@@ -345,24 +360,64 @@ def derive_int8_release(
     return DeriveResult("published", report)
 
 
-def _tolerance_flags(report: QuantizationReport, settings: QuantizationConfig) -> str:
-    """The flags that repeat these settings under a tolerance admitting exactly these figures."""
+def _yes(value: bool) -> str:
+    return "yes" if value else "no"
 
-    flags = [
+
+def _decisions_failed(report: QuantizationReport, settings: QuantizationConfig) -> bool:
+    """Whether the refusal involved changed decisions (not only calibration)."""
+
+    return (
+        report.attested_disagreements > settings.maximum_attested_disagreements
+        or report.argmax_disagreement_rate > settings.maximum_argmax_disagreement_rate
+    )
+
+
+def _quantization_flags(settings: QuantizationConfig, *, per_channel: bool) -> list[str]:
+    return [
         flag
         for flag, used in (
             (f"--weight-type {settings.weight_type}", settings.weight_type != "int8"),
-            ("--per-channel", settings.per_channel),
+            ("--per-channel", per_channel),
             ("--reduce-range", settings.reduce_range),
         )
         if used
     ]
+
+
+def _settings_flags(settings: QuantizationConfig, *, per_channel: bool) -> str:
+    """The flags that repeat these settings, with ``per_channel`` in place of the given one."""
+
+    defaults = QuantizationConfig()
+    flags = _quantization_flags(settings, per_channel=per_channel)
+    if settings.maximum_attested_disagreements != defaults.maximum_attested_disagreements:
+        flags.append(f"--max-attested-disagreements {settings.maximum_attested_disagreements}")
+    if settings.maximum_argmax_disagreement_rate != defaults.maximum_argmax_disagreement_rate:
+        flags.append(f"--max-decision-change-rate {settings.maximum_argmax_disagreement_rate:g}")
+    if settings.ece_threshold != defaults.ece_threshold:
+        flags.append(f"--ece-threshold {settings.ece_threshold:g}")
+    return " ".join(flags)
+
+
+def _tolerance_flags(report: QuantizationReport, settings: QuantizationConfig) -> str:
+    """The flags that repeat these settings under a tolerance admitting exactly these figures.
+
+    A tolerance the caller already widened is kept when it is wider than the
+    figures need, so the suggested command does not refuse on a check that
+    passed.
+    """
+
+    flags = _quantization_flags(settings, per_channel=settings.per_channel)
     flags += [
-        f"--max-attested-disagreements {max(report.attested_disagreements, 0)}",
-        f"--max-decision-change-rate {_ceil(report.argmax_disagreement_rate)}",
+        "--max-attested-disagreements "
+        f"{max(report.attested_disagreements, settings.maximum_attested_disagreements, 0)}",
+        "--max-decision-change-rate "
+        f"{_ceil(max(report.argmax_disagreement_rate, settings.maximum_argmax_disagreement_rate))}",
     ]
     if report.quantized_ece > settings.ece_threshold:
         flags.append(f"--ece-threshold {_ceil(report.quantized_ece)}")
+    elif settings.ece_threshold != QuantizationConfig().ece_threshold:
+        flags.append(f"--ece-threshold {settings.ece_threshold:g}")
     return " ".join(flags)
 
 

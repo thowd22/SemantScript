@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -18,6 +18,7 @@ pytest.importorskip("onnxruntime")
 pytest.importorskip("tokenizers")
 
 from semantscript_trainer import cli
+from semantscript_trainer import derive as derive_module
 from semantscript_trainer import quantization as quantization_module
 from semantscript_trainer.artifact import ArtifactConfigurationError
 from semantscript_trainer.derive import (
@@ -32,6 +33,7 @@ from semantscript_trainer.derive import (
 from semantscript_trainer.quantization import (
     QuantizationConfig,
     QuantizationRecord,
+    QuantizationReport,
     quantize_release_artifact,
 )
 
@@ -326,9 +328,13 @@ def test_refuses_an_attested_disagreement_with_the_figures_and_the_remedy(
     assert report["quantization"]["argmaxDisagreements"] == 46
     assert report["failures"][0] == "5 attested record(s) changed decision (tolerance 0)"
     assert report["failures"][1].startswith("46 of 46 records changed decision")
-    assert report["next"].startswith("keep serving the float32 release")
-    assert "--max-attested-disagreements 5 --max-decision-change-rate 1" in report["next"]
-    assert "or try semantscript releases derive --int8 --per-channel" in report["next"]
+    assert report["next"].startswith("keep serving the current release")
+    command = f"semantscript releases derive --int8 {application.digest[:12]}"
+    assert (
+        f"{command} --max-attested-disagreements 5 --max-decision-change-rate 1 "
+        "--ece-threshold 1," in report["next"]
+    )
+    assert f"or try {command} --per-channel --ece-threshold 1, which" in report["next"]
     assert json.loads(capsys.readouterr().out)["status"] == "refused"
     # Nothing was published and the staging directory is gone.
     assert releases(application.root) == before
@@ -355,7 +361,23 @@ def test_refuses_an_attested_disagreement_with_the_figures_and_the_remedy(
     assert per_channel.status == "refused"
     assert "or try" not in per_channel.report["next"]
     assert (
-        "derive --int8 --per-channel --max-attested-disagreements 5" in (per_channel.report["next"])
+        f"derive --int8 {application.digest[:12]} --per-channel --max-attested-disagreements 5"
+        in (per_channel.report["next"])
+    )
+
+    # A named release and the caller's location flags are repeated, so the
+    # command runs as printed whichever release is current.
+    flagged = derive_int8_release(
+        application.root,
+        cache_directory=application.cache,
+        release=application.digest[:9],
+        quantization=QuantizationConfig(ece_threshold=1.0),
+        command_flags=" --artifact /a --cache-dir /c",
+    )
+    assert flagged.status == "refused"
+    assert (
+        f"semantscript releases derive --int8 {application.digest[:12]} --artifact /a "
+        "--cache-dir /c --max-attested-disagreements 5" in flagged.report["next"]
     )
     derived = admitted.report["derived"]["manifestSha256"]
     manifest = json.loads(
@@ -458,8 +480,16 @@ def test_resolves_the_named_release_and_refuses_an_int8_source(
 
     derived = derive_int8_release(application.root, cache_directory=application.cache)
     digest = derived.report["derived"]["manifestSha256"]
-    with pytest.raises(DeriveError, match="already int8-dynamic"):
-        derive_int8_release(application.root, cache_directory=application.cache, release=digest)
+    with pytest.raises(DeriveError, match="already int8-dynamic") as refused:
+        derive_int8_release(
+            application.root,
+            cache_directory=application.cache,
+            release=digest,
+            command_flags=" --artifact /a",
+        )
+    assert refused.value.fix == (
+        f"semantscript releases derive --int8 {application.digest[:12]} --artifact /a"
+    )
 
 
 def test_multi_function_records_must_name_their_function(application: SimpleNamespace) -> None:
@@ -543,3 +573,23 @@ def test_the_validator_checks_the_recorded_verification_figures() -> None:
     ):
         with pytest.raises(ArtifactConfigurationError, match=match):
             _validate_onnx_precision(onnx(**changes), "encoder")
+
+
+def test_a_calibration_only_refusal_suggests_no_per_channel_and_keeps_wider_tolerances() -> None:
+    report = cast(
+        QuantizationReport,
+        SimpleNamespace(attested_disagreements=0, argmax_disagreement_rate=0.0, quantized_ece=0.3),
+    )
+    settings = QuantizationConfig(maximum_argmax_disagreement_rate=0.01, ece_threshold=0.2)
+    assert not derive_module._decisions_failed(report, settings)
+    assert derive_module._tolerance_flags(report, settings) == (
+        "--max-attested-disagreements 0 --max-decision-change-rate 0.01 --ece-threshold 0.3"
+    )
+    calibrated = cast(
+        QuantizationReport,
+        SimpleNamespace(attested_disagreements=1, argmax_disagreement_rate=0.0, quantized_ece=0.1),
+    )
+    assert derive_module._decisions_failed(calibrated, settings)
+    assert derive_module._tolerance_flags(calibrated, settings) == (
+        "--max-attested-disagreements 1 --max-decision-change-rate 0.01 --ece-threshold 0.2"
+    )

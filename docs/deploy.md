@@ -117,7 +117,10 @@ switch to it and back. The check covers the training, gold and adversarial
 records only: a held-out set joins it once the release gate records one for
 the release. The records are in the build cache, so a release trained on
 another machine, or after `.semantscript/cache` was cleared, cannot be
-derived until it is retrained where its cache is. The
+derived until it is retrained where its cache is. A later `semantscript train`
+or `dev` publishes the float32 release again and makes it current, even with
+no source change, so run the derive and promote steps again after each train
+before packaging. The
 [CLI reference](cli-reference.md#releases-derive---int8) lists the flags.
 
 The Express example's trained release is the worked case: its bundle is

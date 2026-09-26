@@ -188,7 +188,9 @@ def derive_int8(argv: list[str]) -> int:
     index = 0
     while index < len(argv):
         item = argv[index]
-        if index + 1 < len(argv) and not argv[index + 1].startswith("--"):
+        if index + 1 < len(argv) and (
+            not argv[index + 1].startswith("--") or item == "--command-flags"
+        ):
             values[item[2:]] = argv[index + 1]
             index += 2
             continue
@@ -217,6 +219,8 @@ def derive_int8(argv: list[str]) -> int:
         "sourceManifestSha256": source,
     }
     refused = bool(os.environ.get("FAKE_DERIVE_REFUSE"))
+    command_flags = str(values.get("command-flags", "")).strip()
+    flags = f" {command_flags}" if command_flags else ""
     function = {
         "id": "nf_" + "1" * 64,
         "recordsChecked": 10,
@@ -270,8 +274,9 @@ def derive_int8(argv: list[str]) -> int:
             status="refused",
             derived=None,
             failures=["1 attested record(s) changed decision (tolerance 0)"],
-            next="keep serving the float32 release (current.json is unchanged), or try "
-            "semantscript releases derive --int8 --per-channel",
+            next="keep serving the current release (current.json is unchanged); to publish "
+            "anyway, record a tolerance that admits these figures with semantscript releases "
+            f"derive --int8 {source[:12]}{flags} --max-attested-disagreements 1",
         )
         status = 2
     else:
@@ -334,7 +339,9 @@ def main(argv: list[str]) -> int:
     while index < len(argv):
         item = argv[index]
         if item.startswith("--"):
-            if index + 1 < len(argv) and not argv[index + 1].startswith("--"):
+            if index + 1 < len(argv) and (
+                not argv[index + 1].startswith("--") or item == "--command-flags"
+            ):
                 values[item[2:]] = argv[index + 1]
                 index += 2
                 continue

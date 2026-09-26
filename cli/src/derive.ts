@@ -26,6 +26,7 @@ import { formatRatio, renderTable, shortId } from "./table.js";
 import {
   fileStamp,
   runProcess,
+  shellWord,
   trainerDoctorCommand,
   trainerFailureLine,
   TrainerStderr,
@@ -166,6 +167,26 @@ export async function deriveRelease(
   for (const name of ["per-channel", "reduce-range"] as const) {
     if (values[name] === true) commandArgs.push(`--${name}`);
   }
+  // The location flags the developer gave, repeated in every derive command
+  // the trainer names (a refusal's tolerance, an int8 source's float32
+  // release), so the command runs as printed from the same directory.
+  const locationFlags: string[] = [];
+  if (stringOption(values, "artifact") !== undefined) {
+    locationFlags.push(`--artifact ${shellWord(root)}`);
+  }
+  if (stringOption(values, "cache-dir") !== undefined) {
+    locationFlags.push(`--cache-dir ${shellWord(cacheDir)}`);
+  }
+  const pythonOption = stringOption(values, "python");
+  if (pythonOption !== undefined) {
+    locationFlags.push(`--python ${shellWord(pythonOption)}`);
+  }
+  if (trainerModule !== DEFAULT_TRAINER_MODULE) {
+    locationFlags.push(`--trainer-module ${shellWord(trainerModule)}`);
+  }
+  if (locationFlags.length > 0) {
+    commandArgs.push("--command-flags", locationFlags.join(" "));
+  }
 
   io.stderr(
     `semantscript releases derive: ${python} ${commandArgs.join(" ")}\n`,
@@ -229,7 +250,31 @@ export async function deriveRelease(
       )
     : undefined;
   const artifactFlag =
-    stringOption(values, "artifact") === undefined ? "" : ` --artifact ${root}`;
+    stringOption(values, "artifact") === undefined
+      ? ""
+      : ` --artifact ${shellWord(root)}`;
+  if (values.json === true && published && values.promote === true) {
+    // One JSON document on stdout: the derive report with promote's under
+    // `promoted`, so a script can parse the output of --promote --json.
+    let captured = "";
+    const status = await releasesCommand(
+      ["promote", derived ?? "", "--artifact", root, "--json"],
+      {
+        ...io,
+        stdout: (text: string) => {
+          captured += text;
+        },
+      },
+    );
+    let promoted: unknown;
+    try {
+      promoted = captured.trim() === "" ? null : JSON.parse(captured);
+    } catch {
+      promoted = captured;
+    }
+    io.stdout(`${JSON.stringify({ ...document, promoted }, null, 2)}\n`);
+    return status;
+  }
   if (values.json === true) {
     io.stdout(`${JSON.stringify(document, null, 2)}\n`);
   } else {
@@ -244,16 +289,7 @@ export async function deriveRelease(
     return outcome.status === 0 ? 1 : outcome.status;
   }
   if (values.promote === true) {
-    return releasesCommand(
-      [
-        "promote",
-        derived,
-        "--artifact",
-        root,
-        ...(values.json === true ? ["--json"] : []),
-      ],
-      io,
-    );
+    return releasesCommand(["promote", derived, "--artifact", root], io);
   }
   return outcome.status;
 }

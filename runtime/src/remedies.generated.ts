@@ -495,8 +495,8 @@ export const REMEDY_TEMPLATES = {
   },
   "int8-gate-refused": {
     family: "cli",
-    fix: "keep serving the float32 release (current.json is unchanged){alternative}; to publish anyway, record a tolerance that admits these figures with semantscript releases derive --int8 {tolerance}, which the manifest keeps and semantscript releases show prints",
-    params: ["alternative", "tolerance"],
+    fix: "keep serving the current release (current.json is unchanged){alternative}; to publish anyway, record a tolerance that admits these figures with {command} {tolerance}, which the manifest keeps and semantscript releases show prints",
+    params: ["alternative", "command", "tolerance"],
   },
   "int8-records-missing": {
     family: "cli",

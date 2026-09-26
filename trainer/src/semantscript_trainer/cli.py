@@ -1269,6 +1269,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help=f"largest quantized ECE a head may have (default {DEFAULT_QUANTIZED_ECE_THRESHOLD})",
     )
+    derive.add_argument(
+        "--command-flags",
+        default="",
+        help="shell-quoted location flags (--artifact, --cache-dir, --python ...) that every "
+        "semantscript releases derive command the report names repeats; the CLI passes them",
+    )
     return parser
 
 
@@ -1304,6 +1310,9 @@ def run_derive_int8(arguments: argparse.Namespace) -> int:
             release=arguments.release,
             quantization=settings,
             log=log,
+            command_flags=f" {arguments.command_flags.strip()}"
+            if arguments.command_flags.strip()
+            else "",
         )
     except DeriveError as error:
         log(with_remedy(f"error: {error}", error.fix))

@@ -124,36 +124,36 @@ no source change, so run the derive and promote steps again after each train
 before packaging. The
 [CLI reference](cli-reference.md#releases-derive---int8) lists the flags.
 
-The Express example's trained release `217d386c` is the worked case (on the
+The Express example's trained release `0fd67142` is the worked case (on the
 development machine only: `examples/*/.semantscript/` is git-ignored, so a
-clone has no trained release). It was trained at seed 5 (inferred from the name of the report that
-records its manifest, `train-report-reduced-seed5.json`; neither the report
-nor the manifest has a seed field) and verified
-`decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus violations
-(`triage` 1.0000, ECE 0.0000); its held-out figure is not recorded, and
-`semantscript releases list` prints `217d386c9852`, `2/2 passed`, `0.9241`,
-`0.0719`, `0`. Its bundle measured 685,635,429 bytes (653.9 MiB) on 2026-09-26, 403.9 MiB over
-`lambda-zip`. (That release predates the
-[held-out constraint check](training-pipeline.md#held-out-constraint-check)
-and answers `approve` or `review` for orders past 90 days that its policy
-denies; no retrain from its cached datasets passes the check, so the example
-still ships it for the wiring only, as its
-[README](../examples/express-app/README.md#the-release-on-disk-breaks-the-90-day-rule)
-records.) Depth routing
-alone leaves it over (the dependencies stay). `releases derive --int8`
-measured it on 2026-09-26 on 586 records (6 attested), on CPU:
+clone has no trained release). It was trained at seed 1 by a constraints
+teacher with Sonnet 5 through OpenRouter as its fallback (`--cases 384
+--epochs 16 --select-best-epoch`, USD 0.96) and verified `decideRefund` at
+accuracy 0.9872, ECE 0.0087, 0 of 778 corpus violations and 4 of 512
+held-out inputs (`triage` 1.0000, ECE 0.0000); `semantscript releases list`
+prints `0fd67142d16f`, `2/2 passed`, `0.9872`, `0.0087`, `0`, and its
+[README](../examples/express-app/README.md#the-release-on-disk) has the
+recipe. Its bundle measured 685,637,515 bytes (653.9 MiB) on 2026-09-26,
+403.9 MiB over `lambda-zip`. Depth routing alone leaves it over (the
+dependencies stay). `releases derive --int8` measured it on 2026-09-26 on
+1,162 records (6 attested), on CPU, next to the release it replaced,
+`217d386c` (586 records; it predates the held-out check and denied none of
+the stale orders the policy denies):
 
-| Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                                        |
-| ------------------------------------------------- | ----------------- | ---------------- | -------------- | ----------------------------------------------------------------------------- |
-| default                                           | 6 (1.02%)         | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                                   |
-| `--per-channel`                                   | 3 (0.51%)         | 0                | 0.0914         | refused: decisions changed                                                    |
-| `--per-channel --max-decision-change-rate 0.0052` | 3 (0.51%)         | 0                | 0.0914         | published as `f8e22cae`; bundle 239,708,539 B (228.6 MiB), fits with 21.4 MiB |
+| Release    | Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                                        |
+| ---------- | ------------------------------------------------- | ----------------- | ---------------- | -------------- | ----------------------------------------------------------------------------- |
+| `0fd67142` | `--per-channel`                                   | 0 of 1,162        | 0                | 0.0047         | published as `c7534774`; bundle 239,712,504 B (228.6 MiB), fits with 21.4 MiB |
+| `217d386c` | default                                           | 6 of 586 (1.02%)  | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                                   |
+| `217d386c` | `--per-channel`                                   | 3 of 586 (0.51%)  | 0                | 0.0914         | refused: decisions changed                                                    |
+| `217d386c` | `--per-channel --max-decision-change-rate 0.0052` | 3 of 586 (0.51%)  | 0                | 0.0914         | published as `f8e22cae`; bundle 239,708,539 B (228.6 MiB), fits with 21.4 MiB |
 
-So the strict gate refuses the Express int8 release, and it fits `lambda-zip`
-only under a recorded tolerance of 0.52% changed decisions (none attested),
-which is the application owner's call; the packaged Lambda handler answered
-from that bundle. Without it, the release ships as a container unless a
-smaller encoder is trained
+So the Express int8 release passes the strict gate with `--per-channel` and
+fits `lambda-zip` with no recorded tolerance; the packaged Lambda handler
+answered from that bundle, and `semantscript explain` on it denied the same
+16 stale orders as the float32 release. The previous release fitted only
+under a recorded tolerance of 0.52% changed decisions, which would have been
+the application owner's call. Without int8, the release ships as a container
+unless a smaller encoder is trained
 ([example README](../examples/express-app/README.md#deploying-with-the-artifact)).
 
 ## Containers

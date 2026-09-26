@@ -35,7 +35,7 @@ npm install && npm run build  # at the repository root, once
 cd examples/refund-service
 npm install                   # links ../../compiler, ../../runtime, ../../framework, ../../cli
 npm run build                 # tspc: dist/*.js and dist/semantscript.ir.v1.json
-npm test                      # bundle shape and fixture-artifact handlers, no training needed
+npm test                      # bundle shape and stub-artifact handlers, no training needed
 npm run train                 # semantscript train --teacher constraints on the GPU (the Python training extra in the active python3; activate .venv first), ~11 min: .semantscript/artifact, train-report.json, then heldout.json
 npm test                      # again: now the trained-artifact handlers run too
 npm run measure               # held-out accuracy, ECE and latency per expression
@@ -376,9 +376,12 @@ Training: 2026-09-25, `npm run train` (the built-in constraints teacher, `semant
 
 `npm test` runs three tests. The first reads the bundle and checks the three
 domains, the depth binding, the two flag dependencies and the two stages. The
-second drives the refund controller over PGlite with the runtime's fixture
-artifact re-keyed to this app's refund functions: the fixture answers
-`review`, so the gate rolls back and no row is written, which exercises the
-framework path without a trained model. The third needs `npm run train` first
+second drives the refund controller over PGlite with a stub artifact from
+`@semantscript/core/testing`, built from the bundle and keyed by the compiled
+refund functions: the decision answers `review` for order `o1` (so the gate
+rolls back and no row is written) and `approve` otherwise (so `o3` writes its
+row, with a payout method computed from the payment), and the test checks
+`x-sema-passes` for both. It exercises the framework path without a trained
+model. The third needs `npm run train` first
 and drives all three controllers against the seeded rows through the trained
 artifact; it is skipped with a message when the artifact is absent.

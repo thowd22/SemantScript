@@ -1,18 +1,15 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { closeSemaArtifact, loadSemaArtifact } from "@semantscript/core";
+import { loadSemaStubArtifact } from "@semantscript/core/testing";
 
-import {
-  createFixtureArtifact,
-  semanticSha,
-} from "../../../runtime/test/fixtures/artifact.mjs";
+import { decideRefund, refundMethod, refundRisk } from "../dist/refunds.sem.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -47,7 +44,11 @@ async function serve(t) {
     const response = await fetch(`http://127.0.0.1:${port}${path}`, {
       method: "POST",
     });
-    return { status: response.status, body: await response.json() };
+    return {
+      status: response.status,
+      passes: response.headers.get("x-sema-passes"),
+      body: await response.json(),
+    };
   };
 }
 
@@ -126,59 +127,72 @@ test("the bundle routes three domains at depth 6 and stages the fraud chain", as
   }
 });
 
-test("the refund handler rolls back a non-approval over PGlite with the fixture artifact", async (t) => {
-  // The fixture artifact answers the third support value for every function.
-  // Re-keyed to this app's refund functions and input shapes, that is "review"
-  // for the decision and "medium" for the risk, so the gate rolls back and
-  // nothing is written. The framework path runs end to end without a trained
-  // model.
-  const ir = await bundle();
-  const refunds = ir.functions.filter(
-    (fn) => fn.source.path === "src/refunds.sem.ts",
-  );
-  assert.equal(refunds.length, 3);
-  const fixtureRoot = await mkdtemp(join(tmpdir(), "refund-service-fixture-"));
-  await createFixtureArtifact(fixtureRoot, {
-    extraFunctions: refunds
-      .slice(1)
-      .map((fn) => ({
-        id: fn.id,
-        headRef: `head.${fn.id.slice(3, 11)}.value`,
-      })),
-    transformManifest: (manifest) => {
-      manifest.functions = manifest.functions.map((entry, index) => {
-        const fn = refunds[index];
-        return {
-          ...entry,
-          id: fn.id,
-          inputs: fn.inputs,
-          inputSchemaSha256: semanticSha(fn.inputs),
-          heads: [
-            {
-              ...entry.heads[0],
-              type: { kind: "nominal-string", support: fn.output.head.support },
-            },
-          ],
-        };
-      });
+test("the refund handler rolls back or writes a refund over PGlite with a stub artifact", async (t) => {
+  // A stub artifact built from the app's IR bundle answers what the test
+  // says, keyed by the compiled functions: a per-input decision (o1 is
+  // reviewed, every other order approved), a fixed risk, and a payout method
+  // computed from the inputs. The framework path, request scopes and pass
+  // counts run for real; no model is trained.
+  const o1 = {
+    customer: { tier: "standard", priorRefunds: 1 },
+    order: { total: 88.5, ageDays: 12, status: "paid" },
+  };
+  const stub = await loadSemaStubArtifact(bundlePath, {
+    answers: [
+      [
+        decideRefund,
+        { byInput: [{ inputs: o1, value: "review" }], otherwise: "approve" },
+      ],
+      [refundRisk, { value: "medium", confidence: 0.9 }],
+      [
+        refundMethod,
+        {
+          compute: ({ payment }) =>
+            payment.method === "card" ? "original-payment" : "manual",
+        },
+      ],
+    ],
+  });
+  t.after(() => stub.close());
+  const post = await serve(t);
+  const { db } = await import("../dist/app.js");
+  const count = async (orderId) =>
+    (
+      await db.query(
+        "SELECT count(*)::int AS n FROM refunds WHERE order_id = $1",
+        [orderId],
+      )
+    ).rows[0].n;
+
+  // Review: the gate rolls back and nothing is written. The decision and the
+  // risk read the same inputs through one adapter: one encoder pass, two heads.
+  const reviewed = await post("/refunds/o1");
+  assert.equal(reviewed.status, 200);
+  assert.equal(reviewed.body.committed, false);
+  assert.match(reviewed.body.reason, /^decision review \(risk medium\)/);
+  assert.equal(reviewed.passes, "1/1/2");
+  assert.equal(await count("o1"), 0);
+
+  // Approve: the payout method runs over its own inputs and a row is written.
+  const approved = await post("/refunds/o3");
+  assert.deepEqual(approved.body, {
+    committed: true,
+    value: {
+      orderId: "o3",
+      decision: "approve",
+      method: "original-payment",
+      risk: "medium",
+      refunded: true,
     },
   });
-  await loadSemaArtifact(fixtureRoot);
-  t.after(async () => {
-    await closeSemaArtifact();
-    await rm(fixtureRoot, { recursive: true, force: true });
-  });
-  const post = await serve(t);
-  const { status, body } = await post("/refunds/o1");
-  assert.equal(status, 200);
-  assert.equal(body.committed, false);
-  assert.match(body.reason, /^decision review \(risk medium\)/);
-  const { db } = await import("../dist/app.js");
-  const { rows } = await db.query("SELECT count(*)::int AS n FROM refunds");
-  assert.equal(rows[0].n, 0);
+  assert.equal(approved.passes, "2/2/3");
+  assert.equal(await count("o3"), 1);
+  await db.query("DELETE FROM refunds WHERE order_id = 'o3'");
+
   const missing = await post("/refunds/nope");
   assert.equal(missing.status, 200);
   assert.deepEqual(missing.body, { committed: false, reason: "no such order" });
+  assert.equal(missing.passes, "0/0/0");
 });
 
 test(

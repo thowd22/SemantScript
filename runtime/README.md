@@ -123,6 +123,74 @@ produces (at most 64 per kind) and drops them when `fn` settles;
 `semaScopePasses()` reports the passes performed so far in the current scope.
 Scopes are what the framework opens per HTTP request.
 
+## Testing without a trained model
+
+`@semantscript/core/testing` builds a stub artifact from the IR bundle
+`semantscript build` writes, so application code that calls sema expressions
+can be tested with no training and no model files. The stub is an ordinary
+artifact: a manifest derived from the bundle (function ids, inputs, heads,
+adapters, depth-routed encoders and each function's `@confidence` policy) and
+tiny generated ONNX graphs, loaded by `loadSemaArtifact`. The real inference
+worker runs every call, so request scopes, stage and scope pass counts, input
+validation, confidence thresholds and fallbacks behave as with a trained
+artifact; only the value each function answers comes from the test.
+
+```js
+import { loadSemaStubArtifact } from "@semantscript/core/testing";
+import { decideRefund, refundMethod, refundRisk } from "./dist/refunds.sem.js";
+
+const o1 = {
+  customer: { tier: "standard", priorRefunds: 1 },
+  order: { total: 88.5, ageDays: 12, status: "paid" },
+};
+const stub = await loadSemaStubArtifact("dist/semantscript.ir.v1.json", {
+  answers: [
+    // One value per input, and a default.
+    [
+      decideRefund,
+      { byInput: [{ inputs: o1, value: "review" }], otherwise: "approve" },
+    ],
+    // A fixed value with its confidence.
+    [refundRisk, { value: "high", confidence: 0.6 }],
+    // A function of the call's inputs.
+    [
+      refundMethod,
+      {
+        compute: ({ payment }) =>
+          payment.method === "card" ? "original-payment" : "manual",
+      },
+    ],
+  ],
+  fallbacks: new Map(), // any loadSemaArtifact option passes through
+});
+// ... exercise the application ...
+await stub.close(); // closes the artifact and removes the stub
+```
+
+- `answers` is a `Map`, a list of `[key, answer]` pairs or an object keyed by
+  function id. A key is a function id or the compiled function that calls one
+  sema expression (its id is read from the compiled source; `semaFunctionId`
+  shows which).
+- An answer is a fixed value, `{ value, confidence }`,
+  `{ byInput: [{ inputs, value, confidence? }], otherwise? }` (inputs matched
+  on their canonical serialization, so key order does not matter) or
+  `{ compute: (inputs) => value | { value, confidence } }`. A flat object
+  output's value is `{ value: { ...fields } }` and its confidence one number
+  or one per field. Confidence defaults to 1 and must be above one over the
+  number of possible values, so the answer stays the top value; the
+  diagnostic result (`sema.withConfidence`, a fallback's diagnostic) carries
+  that confidence on the answer and the rest spread evenly over the others.
+- Values and confidences are checked against the bundle when the stub is
+  created; a call to a function without an answer, or an input no `byInput`
+  case matches without `otherwise`, throws `SemaStubError` (`unanswered`,
+  `unmatched-input`).
+- `createSemaStubArtifact(bundle, { answers, directory? })` writes the
+  artifact without loading it and returns its `root` and `dispose()`, for
+  loading with your own `loadSemaArtifact` call. The answers live in the
+  process that created the stub: a stub release loaded anywhere else is
+  refused with `SemaStubError` (`unregistered`), so it cannot serve in
+  production.
+
 ## Packaging for deployment
 
 The runtime's native dependencies ship prebuilt: `onnxruntime-node` carries

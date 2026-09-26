@@ -16,3 +16,15 @@ test("runtime package loads", async () => {
   );
   assert.throws(() => runtime.sema`uncompiled`, /must be compiled/);
 });
+
+test("runtime testing subpath loads", async () => {
+  const testing = await import("../dist/testing.js");
+
+  assert.equal(typeof testing.createSemaStubArtifact, "function");
+  assert.equal(typeof testing.loadSemaStubArtifact, "function");
+  assert.equal(typeof testing.semaFunctionId, "function");
+  assert.equal(
+    new testing.SemaStubError("unanswered", "x").code,
+    "SEMA_STUB_INVALID",
+  );
+});

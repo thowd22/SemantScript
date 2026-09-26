@@ -138,7 +138,9 @@ await handle.close();
 ```
 
 Tests: `npm test -w runtime` (a fixture artifact under `runtime/test/fixtures`
-exercises the whole path without a trained model).
+exercises the whole path without a trained model). Applications test their own
+code the same way through `@semantscript/core/testing`, which builds a stub
+artifact from the IR bundle whose expressions answer what the test says.
 [Runtime README](../runtime/README.md).
 
 ## The two that tie them together

@@ -31,8 +31,9 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
   the cost estimate and spend cap, prompt size and caching, measured costs,
   and the local-versus-reference result.
 - [Framework guide](framework-guide.md): controllers, guards before and
-  after the model, request scopes, Express, Nest and Next.js mounting, and
-  transactions gated by decisions.
+  after the model, request scopes, Express, Nest and Next.js mounting,
+  transactions gated by decisions, and testing handlers against a stub
+  artifact from `@semantscript/core/testing` without training.
 - [The reference application](reference-application.md): the refund service
   with one expression shown as source, compiled JavaScript, IR record and
   artifact entry, its domains and stages, and what stayed deterministic.

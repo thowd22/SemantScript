@@ -1539,6 +1539,11 @@ def test_a_real_gold_miss_does_not_retry(tmp_path: Path) -> None:
         train_cached(bundle, tmp_path, teacher=ContradictingTeacher())
 
     assert len(raised.value.report["attempts"]) == 1
+    # One piece of advice: the stop reason carries none, the generated next: does.
+    message = str(raised.value)
+    reason = message.split("; not retrying: ", 1)[1].split("; next: ", 1)[0]
+    assert reason.endswith("a gold miss is not a seed effect")
+    assert message.count("; next: ") == 1 and "check" not in reason
 
 
 def test_retries_stop_after_the_configured_attempts_or_when_turned_off(

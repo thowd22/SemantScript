@@ -981,7 +981,12 @@ test("train names the signal and the fix when the trainer is killed", async (t) 
     FAKE_TRAINER_RAISE: "signal:SIGKILL",
   });
   assert.equal(await runCli([...args, "--estimate"], estimate.io), 128 + 9);
-  assert.match(estimate.stderr(), /the trainer was killed by SIGKILL; next: /u);
+  // Its fix names no training-only flag: --estimate trains nothing.
+  assert.equal(
+    estimate.stderr().split("\n").at(-2),
+    `semantscript train: the trainer was killed by SIGKILL; next: run ${doctor} and fix its checks, then rerun semantscript train --estimate (it trains nothing and sends no teacher request); if it is killed again, report it as a bug with the signal`,
+  );
+  assert.doesNotMatch(estimate.stderr(), /--batch-size|--device/u);
 });
 
 test("helpers canonicalize JSON, extend PYTHONPATH and render reports", () => {
@@ -1036,7 +1041,7 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   );
   assert.match(
     await readFile(join(root, ".semantscript", ".gitignore"), "utf8"),
-    /artifact\/\ncache\/\npackage\/\n\.package-staging-\*\/\n/u,
+    /artifact\/\ncache\/\npackage\/\n\.package-staging-\*\/\n\*\.traceback\.txt\n/u,
   );
 
   const second = capture(root);
@@ -1049,7 +1054,7 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   assert.equal(await readFile(join(root, "tsconfig.json"), "utf8"), tsconfig);
 
   // A project initialised before `package` existed gets the new entries
-  // appended, and its own lines kept.
+  // appended (the train traceback included), and its own lines kept.
   await writeFile(
     join(root, ".semantscript", ".gitignore"),
     "# mine\nartifact/\ncache/",
@@ -1062,9 +1067,10 @@ test("init wires a tsc project through ts-patch, keeps tsconfig comments and is 
   );
   assert.equal(
     await readFile(join(root, ".semantscript", ".gitignore"), "utf8"),
-    "# mine\nartifact/\ncache/\npackage/\n.package-staging-*/\n",
+    "# mine\nartifact/\ncache/\npackage/\n.package-staging-*/\n*.traceback.txt\n",
   );
   assert.match(third.stdout(), /also reserves \.semantscript\/package\//u);
+  assert.match(third.stdout(), /\.semantscript\/\*\.traceback\.txt/u);
 });
 
 test("init wires Vite, Next.js and esbuild projects and leaves conflicting configs to the user", async (t) => {

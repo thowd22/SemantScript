@@ -88,8 +88,9 @@ What it writes: the adapter entry for the detected tool (see the
 [build tool pages](build-tools/tsc.md)), the editor plugin entry
 `{ "name": "@semantscript/compiler/ts-plugin" }` in `tsconfig.json`,
 `@semantscript/core` and `@semantscript/compiler` in `package.json`,
-`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/` and
-`.package-staging-*/` (on a project initialised earlier it appends whichever
+`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/`,
+`.package-staging-*/` and `*.traceback.txt` (the traceback `train` keeps next
+to its report, `artifact.report.traceback.txt` by default; on a project initialised earlier it appends whichever
 are missing), and the starter
 expression. A config it cannot edit safely (missing, unparsable,
 `require()`-based, or a `next.config` that already sets `turbopack`,

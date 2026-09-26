@@ -224,8 +224,7 @@ def seed_retry_decision(
             return SeedRetryDecision(
                 False,
                 f"{name}: {metrics.example_failures} gold/human example prediction(s) "
-                "failed; a gold miss is not a seed effect (check the example against "
-                "the teacher's labels and the constraints)",
+                "failed; a gold miss is not a seed effect",
             )
         if metrics.type_errors:
             return SeedRetryDecision(

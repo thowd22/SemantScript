@@ -64,8 +64,13 @@ ordering (a failing pre-guard performs no pass; a post-guard reads the neural
 value), the Express round trip over HTTP, the middleware and the Next handlers,
 and a controller driven through `handle()` over a stub artifact from
 `@semantscript/core/testing`. To test your own handlers without a trained
-model, see "Testing handlers" in the
+model, load a stub with `loadSemaStubArtifact()` from
+`@semantscript/core/testing`; see "Testing handlers" in the
 [framework guide](https://github.com/thowd22/SemantScript/blob/main/docs/framework-guide.md#testing-handlers).
+When a test over the trained artifact gets a wrong answer,
+`semantscript explain <module.js> --call <export> --input <json>` shows why
+(the
+[wrong-answer workflow](https://github.com/thowd22/SemantScript/blob/main/docs/diagnostics.md#wrong-answer-workflow)).
 
 ## Persistence and transactions
 

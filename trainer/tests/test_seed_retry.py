@@ -124,7 +124,10 @@ def test_gold_misses_type_errors_and_zero_tolerance_never_retry() -> None:
         [result(violations=4, example_failures=1)], TOLERANCE, SeedRetryConfig(margin=10)
     )
     assert not gold.retry and "1 gold/human example prediction(s) failed" in gold.reason
-    assert "not a seed effect" in gold.reason
+    # The reason says why it stops and nothing else: the failure's generated
+    # next: line is the one piece of advice.
+    assert gold.reason.endswith("a gold miss is not a seed effect")
+    assert "check" not in gold.reason
     typed = seed_retry_decision([result(type_errors=2)], TOLERANCE, SeedRetryConfig())
     assert not typed.retry and "2 output type check(s) failed" in typed.reason
     zero = seed_retry_decision(

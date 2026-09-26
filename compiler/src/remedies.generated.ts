@@ -12,7 +12,7 @@ export const REMEDY_TEMPLATES = {
   },
   "gold-check-example": {
     family: "verifier",
-    fix: "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}): if it is right, add examples near it or a constraint for its rule; if not, correct it",
+    fix: "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}); when a release is already published, semantscript explain <module.js> --call <export> with the example's inputs lists it beside the nearest cached teacher-labelled cases (this run's when the expression changed since that release; a --no-cache run caches none). If the example is right, add examples near it or a constraint for its rule; if not, correct it",
     params: ["case", "expected", "predicted"],
   },
   "violation-example": {
@@ -141,6 +141,11 @@ export const REMEDY_TEMPLATES = {
     fix: "run {doctor} and fix its torch and device checks, then rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached, so the rerun asks the teacher only for the rest",
     params: ["doctor"],
   },
+  "estimate-killed": {
+    family: "trainer-process",
+    fix: "run {doctor} and fix its checks, then rerun semantscript train --estimate (it trains nothing and sends no teacher request); if it is killed again, report it as a bug with the signal",
+    params: ["doctor"],
+  },
   "train-out-of-memory": {
     family: "trainer-process",
     fix: "rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached",
@@ -248,12 +253,12 @@ export const REMEDY_TEMPLATES = {
   },
   "runtime-not-loaded": {
     family: "runtime",
-    fix: "await loadSemaArtifact() once at startup, before the first sema call (semantscript run does this for a script); if no artifact exists yet, run semantscript train",
+    fix: "await loadSemaArtifact() once at startup, before the first sema call (semantscript run does this for a script); if no artifact exists yet, run semantscript train, or in a test load a stub with loadSemaStubArtifact() from @semantscript/core/testing",
     params: [],
   },
   "artifact-missing": {
     family: "runtime",
-    fix: "run semantscript train to publish an artifact at {path}, or point loadSemaArtifact(), --artifact or SEMANTSCRIPT_ARTIFACT at the root train published",
+    fix: "run semantscript train to publish an artifact at {path}, or point loadSemaArtifact(), --artifact or SEMANTSCRIPT_ARTIFACT at the root train published; a test that needs no training can load a stub with loadSemaStubArtifact() from @semantscript/core/testing",
     params: ["path"],
   },
   "artifact-path": {
@@ -283,7 +288,7 @@ export const REMEDY_TEMPLATES = {
   },
   "unknown-function": {
     family: "runtime",
-    fix: "the program changed after the artifact was trained: run semantscript build, then semantscript train, and reload; or load the artifact trained from this bundle",
+    fix: "the program changed after the artifact was trained: run semantscript build, then semantscript train, and reload; or load the artifact trained from this bundle (semantscript explain lists the artifact functions the bundle no longer has)",
     params: [],
   },
   "test-no-artifact": {
@@ -293,7 +298,7 @@ export const REMEDY_TEMPLATES = {
   },
   "test-example-mismatch": {
     family: "cli",
-    fix: "run semantscript build, then semantscript train, and rerun semantscript test; if it still fails, the train report's next: lines say what to change",
+    fix: "run semantscript build, then semantscript train, and rerun semantscript test; if it still fails, run semantscript explain <module.js> --call <export> with that example's inputs to see the nearest training cases and constraints, and follow the train report's next: lines",
     params: [],
   },
   "test-function-absent": {
@@ -503,7 +508,7 @@ export const REMEDY_TEMPLATES = {
   },
   "editor-no-artifact": {
     family: "editor",
-    fix: "run semantscript train (or semantscript dev) to publish an artifact at {root}",
+    fix: "run semantscript train (or semantscript dev) to publish an artifact at {root}; tests can use loadSemaStubArtifact() from @semantscript/core/testing without one",
     params: ["root"],
   },
   "editor-unreadable": {

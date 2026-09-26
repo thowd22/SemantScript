@@ -58,7 +58,8 @@ provider accepting a batch and the handle reaching the disk: that batch is not
 found again.
 
 `--cache-dir` moves the whole tree; `init` writes `.semantscript/.gitignore`
-so neither the artifact nor the cache is committed. The weights are stored as
+so neither the artifact, the cache nor the traceback `train` keeps next to its
+report (`artifact.report.traceback.txt`) is committed. The weights are stored as
 safetensors, so a cache is roughly the size of the application's encoder.
 
 ## What is content-addressed
@@ -159,3 +160,18 @@ function's head on the cached shared state. Deleting the artifact root without
 the cache makes the next `train` re-export from cached weights without
 training. `--no-cache` is the way to ignore the cache for one run without
 deleting it.
+
+`semantscript explain` reads the cache too: the training cases it lists
+beside a wrong answer come from the dataset the current release was trained
+on, the `datasets/v1` file whose SHA-256 is the manifest's
+`trainingProvenance.datasetSha256`, plus its adversarial sidecar. After the
+cache is deleted, or for a release trained with `--no-cache` (which writes no
+dataset), explain shows the newest cached dataset for the function marked as
+not the release's, or no training cases at all; the answer, the constraints
+and the gold examples still show. Keep the cache while you work through a
+wrong answer: explain it, add the example or constraint the
+[wrong-answer workflow](diagnostics.md#wrong-answer-workflow) names, and the
+next `train` retrains only that function's head from the cached shared state.
+The new example or constraint changes that function's dataset key, so the
+teacher labels its cases again: run `semantscript train --estimate` first to
+see the cost.

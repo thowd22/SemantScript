@@ -113,8 +113,8 @@ build script, see [cli-reference](cli-reference.md#init)), adds the transformer 
 plugin entry to its `plugins`, adds `@semantscript/core` and
 `@semantscript/compiler` to `package.json` if step 2 did not (at the CLI's
 own version) with `ts-patch` and a `prepare` script, reserves the build
-outputs under `.semantscript/` (the artifact, the cache and the `package`
-bundle) in a `.gitignore`, and writes a starter
+outputs under `.semantscript/` (the artifact, the cache, the `package`
+bundle and the traceback `train` keeps after a crash) in a `.gitignore`, and writes a starter
 `src/hello.sem.ts` (pass `--no-example` to skip it). It ends with the
 `doctor` checks under `environment (semantscript doctor):`, so a missing
 Python package, GPU or teacher shows now; they send no billed request and

@@ -200,7 +200,7 @@ export async function runTrain(
     if (outcome.signal !== undefined && io.signal?.aborted !== true) {
       io.stderr(outcome.stderr);
       io.stderr(
-        `semantscript train: the trainer was killed by ${outcome.signal}; next: ${remedyText("trainer-killed", { doctor })}\n`,
+        `semantscript train: the trainer was killed by ${outcome.signal}; next: ${remedyText("estimate-killed", { doctor })}\n`,
       );
       // The shell's convention, as for a training run: 128 plus the signal number.
       return (

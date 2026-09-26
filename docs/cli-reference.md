@@ -93,8 +93,9 @@ What it writes: the adapter entry for the detected tool (see the
 [build tool pages](build-tools/tsc.md)), the editor plugin entry
 `{ "name": "@semantscript/compiler/ts-plugin" }` in `tsconfig.json`,
 `@semantscript/core` and `@semantscript/compiler` in `package.json`,
-`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/` and
-`.package-staging-*/` (on a project initialised earlier it appends whichever
+`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/`,
+`.package-staging-*/` and `*.traceback.txt` (the traceback `train` keeps next
+to its report, `artifact.report.traceback.txt` by default; on a project initialised earlier it appends whichever
 are missing), and the starter
 expression. A config it cannot edit safely (missing, unparsable,
 `require()`-based, or a `next.config` that already sets `turbopack`,
@@ -464,7 +465,8 @@ runtime, comparing by value (diagnostic functions by `value`).
 Exit 1 when any function's status is not `passed`, any bundle function is
 absent from the artifact, any artifact function is not in the bundle (the
 program changed since training), or any example mismatches. Each adds a
-`next:` line (retrain on this bundle; rebuild, retrain and rerun; retrain or
+`next:` line (retrain on this bundle; rebuild, retrain and rerun, then
+`semantscript explain` on the example's inputs if it still fails; retrain or
 roll back), which `--json` lists as `next`; ids missing both ways get the one
 rebuild-and-retrain line. A `--bundle` path that does not read, or a file that
 is not a `semantscript.ir-bundle`, exits 1 with the no-build `next:` line. Without
@@ -705,7 +707,11 @@ if the bundle has the id, the expression changed since the artifact was
 trained; if neither has it, the build or the artifact is stale. It still shows
 the bundle's constraints and examples, lists the artifact functions the bundle
 no longer has (the likely earlier version), and exits 1; retrain with
-`semantscript train`. Exit 0 when every call was explained, even when an
+`semantscript train`. When the training cache already holds a dataset for the
+new id, a train already labelled the changed expression; if that train failed
+verification, the `missing` line says to apply the example or constraint its
+`next:` line names first, because training the same expression again reuses
+the dataset and misses the same way. Exit 0 when every call was explained, even when an
 answer violates a constraint or falls below its threshold; exit 1 for a
 missing export, a missing function id or any other error from the call.
 

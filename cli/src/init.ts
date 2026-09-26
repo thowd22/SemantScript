@@ -758,13 +758,15 @@ function addPackages(
 /**
  * The `.semantscript/` paths that are build outputs, never sources: the
  * trained artifact, the build cache, the `package` bundle and its staging
- * directories.
+ * directories, and the traceback `train` keeps next to its report
+ * (`artifact.report.traceback.txt` by default).
  */
 const RESERVED_OUTPUTS = [
   "artifact/",
   "cache/",
   "package/",
   ".package-staging-*/",
+  "*.traceback.txt",
 ] as const;
 
 function reserveArtifactDirectory(root: string): Outcome {
@@ -779,7 +781,7 @@ function reserveArtifactDirectory(root: string): Outcome {
       return {
         kind: "unchanged",
         file,
-        what: "artifact, cache and package directories already reserved",
+        what: "artifact, cache, package and traceback outputs already reserved",
       };
     }
     const separator =
@@ -794,12 +796,12 @@ function reserveArtifactDirectory(root: string): Outcome {
   mkdirSync(directory, { recursive: true });
   writeFileSync(
     ignorePath,
-    `# SemantScript build outputs: the trained artifact, the build cache and the package bundle\n${RESERVED_OUTPUTS.join("\n")}\n`,
+    `# SemantScript build outputs: the trained artifact, the build cache, the package bundle and the train traceback\n${RESERVED_OUTPUTS.join("\n")}\n`,
   );
   return {
     kind: "changed",
     file,
-    what: "reserves .semantscript/artifact, cache and package",
+    what: "reserves .semantscript/artifact, cache, package and train tracebacks",
   };
 }
 

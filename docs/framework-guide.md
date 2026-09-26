@@ -240,3 +240,11 @@ value }` (synchronous). A flat object output answers
   no artifact active. The
   [reference application](reference-application.md) tests its refund
   controller this way and its other controllers over the trained artifact.
+
+The stub checks your handler's logic, not the model. When a test over the
+trained artifact gets a wrong answer, run `semantscript explain` on the
+compiled module with that call's inputs (`--call <export> --input <json>`):
+it shows the answer's distribution, the constraints active for the input and
+the nearest gold examples and training cases, and the
+[wrong-answer workflow](diagnostics.md#wrong-answer-workflow) turns that into
+the example or constraint to add.

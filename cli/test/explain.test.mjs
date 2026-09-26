@@ -125,12 +125,12 @@ async function writeCached(cacheDir, family, document) {
   return { path, sha256 };
 }
 
-function dataset(cases) {
+function dataset(cases, functionId = fixtureFunctionId) {
   return {
     kind: "semantscript.training-dataset",
     datasetVersion: 1,
     payload: {
-      function: { id: fixtureFunctionId, semanticSha256: "2".repeat(64) },
+      function: { id: functionId, semanticSha256: "2".repeat(64) },
       teacher: {
         provider: "anthropic",
         model: "claude-sonnet-5",
@@ -501,6 +501,55 @@ test("explain says when the compiled function id is missing from the loaded arti
     1,
   );
   assert.match(stale.stdout(), /neither the artifact nor the bundle knows it/u);
+
+  // A train of the changed expression that failed verification cached its
+  // dataset: explain shows those cases and says to act on the train's next:
+  // line instead of rerunning the train that just failed.
+  const failedRunCache = join(root, "failed-run-cache");
+  await writeCached(
+    failedRunCache,
+    "datasets",
+    dataset(
+      [
+        { origin: "gold", inputs: facts(1, 2), output: "approve" },
+        { origin: "synthetic", inputs: facts(1, 3), output: "deny" },
+      ],
+      changedFunctionId,
+    ),
+  );
+  const failed = capture(root);
+  assert.equal(
+    await runCli(
+      explainArgs(
+        artifactRoot,
+        bundle,
+        failedRunCache,
+        "--call",
+        "decideChanged",
+        "--input",
+        "[1, 2]",
+      ),
+      failed.io,
+    ),
+    1,
+  );
+  const failedOut = failed.stdout();
+  assert.match(
+    failedOut,
+    /missing {6}the loaded artifact has no function nf_99999999…: the expression changed since the artifact was trained, and a train already labelled it \(the cached dataset below\); if that train failed verification, training the same expression again reuses that dataset and misses the same way, so first act on its next: line/u,
+  );
+  assert.doesNotMatch(
+    failedOut,
+    /run semantscript build and semantscript train, then explain again/u,
+  );
+  assert.match(
+    failedOut,
+    /training cases nearest the input \(2 of 2; NOT the release's dataset \(it is not cached\)/u,
+  );
+  assert.match(
+    failedOut,
+    /"deny" {2}synthetic \(anthropic\/claude-sonnet-5\)/u,
+  );
   assert.match(
     stale.stdout(),
     /constraints {2}not shown: the bundle does not describe this function/u,

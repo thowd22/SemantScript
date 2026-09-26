@@ -55,8 +55,9 @@ A config it cannot edit safely (missing, unparsable, `require()`-based, or a
 `next.config` that already sets one of the three keys) is reported as `manual`
 with the snippet to add, and nothing is written to it. `init` also adds
 `@semantscript/core` and `@semantscript/compiler` to `package.json`, writes
-`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/` and
-`.package-staging-*/` (appending any that are missing on a re-run), and, unless
+`.semantscript/.gitignore` reserving `artifact/`, `cache/`, `package/`,
+`.package-staging-*/` and `*.traceback.txt` (the traceback `train` keeps next
+to its report; appending any that are missing on a re-run), and, unless
 `--no-example` is passed or a `.sem.ts` file already exists, one starter
 expression (`src/hello.sem.ts`, or `lib/hello.sem.ts` for Next.js). It ends
 with the next steps (`npm install`, the tool's build, `semantscript train`,

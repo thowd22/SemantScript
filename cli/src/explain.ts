@@ -544,6 +544,22 @@ function renderExplanation(
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * What to do about a call the loaded artifact cannot answer. A cached dataset
+ * for the new id means a train already labelled this expression; when that
+ * train failed verification, training again reuses the same dataset and fails
+ * the same way, so the cases shown are the evidence to act on first.
+ */
+function missingAdvice(call: ExplainedCall): string {
+  if (!call.inBundle) {
+    return "neither the artifact nor the bundle knows it (a stale build or a different artifact); run semantscript build and semantscript train, then explain again";
+  }
+  if (call.training !== null && call.training.datasetSha256 !== null) {
+    return "the expression changed since the artifact was trained, and a train already labelled it (the cached dataset below); if that train failed verification, training the same expression again reuses that dataset and misses the same way, so first act on its next: line using the gold examples and training cases below (correct the example, or add examples near it or a constraint for its rule), then train; if it did not fail, run semantscript train, then explain again";
+  }
+  return "the expression changed since the artifact was trained; run semantscript build and semantscript train, then explain again";
+}
+
 function renderCall(
   call: ExplainedCall,
   index: number,
@@ -555,11 +571,7 @@ function renderCall(
   ];
   if (!call.inArtifact) {
     lines.push(
-      `  missing      the loaded artifact has no function ${shortId(call.functionId)}: ${
-        call.inBundle
-          ? "the expression changed since the artifact was trained"
-          : "neither the artifact nor the bundle knows it (a stale build or a different artifact)"
-      }; run semantscript build and semantscript train, then explain again`,
+      `  missing      the loaded artifact has no function ${shortId(call.functionId)}: ${missingAdvice(call)}`,
     );
   }
   if (call.answer !== null) {

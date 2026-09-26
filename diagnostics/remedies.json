@@ -30,7 +30,7 @@
       "family": "verifier",
       "failure": "`N gold/human example prediction(s) failed`, and no teacher-labelled case repeats the miss",
       "cause": "The example disagrees with what the model learned from the teacher's labels: the example, the labels or a constraint is wrong.",
-      "fix": "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}): if it is right, add examples near it or a constraint for its rule; if not, correct it"
+      "fix": "check the example {case} against the teacher's labels (it expects {expected}, the model predicts {predicted}); when a release is already published, semantscript explain <module.js> --call <export> with the example's inputs lists it beside the nearest cached teacher-labelled cases (this run's when the expression changed since that release; a --no-cache run caches none). If the example is right, add examples near it or a constraint for its rule; if not, correct it"
     },
     {
       "id": "violation-example",
@@ -171,6 +171,13 @@
       "failure": "`semantscript train: the trainer was killed by <signal>`",
       "cause": "The operating system stopped the trainer: SIGKILL is usually the out-of-memory killer, SIGSEGV, SIGBUS or SIGABRT a native crash in PyTorch, ONNX Runtime or the GPU driver.",
       "fix": "run {doctor} and fix its torch and device checks, then rerun with a smaller --batch-size or with --device cpu: the datasets that finished stay cached, so the rerun asks the teacher only for the rest"
+    },
+    {
+      "id": "estimate-killed",
+      "family": "trainer-process",
+      "failure": "`semantscript train: the trainer was killed by <signal>` under `--estimate`",
+      "cause": "The operating system stopped the trainer while it only estimated the run: --estimate trains nothing and sends no teacher request, so the training flags do not apply: a kill is a crash in the interpreter or a native library, or the host was out of memory.",
+      "fix": "run {doctor} and fix its checks, then rerun semantscript train --estimate (it trains nothing and sends no teacher request); if it is killed again, report it as a bug with the signal"
     },
     {
       "id": "train-out-of-memory",
@@ -324,14 +331,14 @@
       "family": "runtime",
       "failure": "`SemaRuntimeNotLoadedError` (`SEMA_RUNTIME_NOT_LOADED`)",
       "cause": "A `sema` call before `loadSemaArtifact()` resolved.",
-      "fix": "await loadSemaArtifact() once at startup, before the first sema call (semantscript run does this for a script); if no artifact exists yet, run semantscript train"
+      "fix": "await loadSemaArtifact() once at startup, before the first sema call (semantscript run does this for a script); if no artifact exists yet, run semantscript train, or in a test load a stub with loadSemaStubArtifact() from @semantscript/core/testing"
     },
     {
       "id": "artifact-missing",
       "family": "runtime",
       "failure": "`ArtifactLoadError` (`SEMA_ARTIFACT_PATH`): nothing at the path, or a directory without `current.json`",
       "cause": "No artifact was published at the path: `train` has not run, or the path points elsewhere.",
-      "fix": "run semantscript train to publish an artifact at {path}, or point loadSemaArtifact(), --artifact or SEMANTSCRIPT_ARTIFACT at the root train published"
+      "fix": "run semantscript train to publish an artifact at {path}, or point loadSemaArtifact(), --artifact or SEMANTSCRIPT_ARTIFACT at the root train published; a test that needs no training can load a stub with loadSemaStubArtifact() from @semantscript/core/testing"
     },
     {
       "id": "artifact-path",
@@ -373,7 +380,7 @@
       "family": "runtime",
       "failure": "`SemaUnknownFunctionError` (`unknown-function`)",
       "cause": "The compiled call's id is not in the loaded artifact: the program was rebuilt after training, or the wrong artifact is loaded.",
-      "fix": "the program changed after the artifact was trained: run semantscript build, then semantscript train, and reload; or load the artifact trained from this bundle"
+      "fix": "the program changed after the artifact was trained: run semantscript build, then semantscript train, and reload; or load the artifact trained from this bundle (semantscript explain lists the artifact functions the bundle no longer has)"
     },
     {
       "id": "test-no-artifact",
@@ -387,7 +394,7 @@
       "family": "cli",
       "failure": "`semantscript test --bundle`: `<id> example <n>: expected …, got …`",
       "cause": "The loaded artifact answers a bundle example differently: it was trained before the example changed, or from another bundle.",
-      "fix": "run semantscript build, then semantscript train, and rerun semantscript test; if it still fails, the train report's next: lines say what to change"
+      "fix": "run semantscript build, then semantscript train, and rerun semantscript test; if it still fails, run semantscript explain <module.js> --call <export> with that example's inputs to see the nearest training cases and constraints, and follow the train report's next: lines"
     },
     {
       "id": "test-function-absent",
@@ -681,7 +688,7 @@
       "family": "editor",
       "failure": "`9150`: `sema expression is unverified: no trained artifact at <root>`",
       "cause": "No trained artifact under `.semantscript/artifact` (or the `artifact` option).",
-      "fix": "run semantscript train (or semantscript dev) to publish an artifact at {root}"
+      "fix": "run semantscript train (or semantscript dev) to publish an artifact at {root}; tests can use loadSemaStubArtifact() from @semantscript/core/testing without one"
     },
     {
       "id": "editor-unreadable",

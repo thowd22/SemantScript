@@ -205,7 +205,17 @@ trains ModernBERT-base plus one head, fits the calibration temperature,
 verifies the gold example and the constraints, and publishes
 `.semantscript/artifact`. Expect the encoder download the first time (600 MB),
 then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
-The report table names any verification failure with the failing cases.
+The report table names any verification failure with the failing cases,
+each followed by a `next:` line with the fix
+([diagnostics](diagnostics.md#verification-failures)). A failed
+verification publishes nothing, so on this first train there is no release
+for `semantscript explain` (step 5) to load yet: follow the `next:` line and
+rerun `train`. On a later retrain that fails, the earlier release is still
+published and the run's dataset is cached, so explain on a call with the
+example's inputs shows the example beside the teacher's nearest labels. It
+also reports the changed function missing from the release; apply the
+`next:` line's fix before training again, since the unchanged expression
+retrains on the same cached dataset.
 
 To see the whole flow without any key on the clone route, run the reference
 application instead, whose expressions are labeled by their own constraints
@@ -230,6 +240,29 @@ imports the compiled module and calls the export with the JSON arguments. That
 is the end of the published route: import `decideRefund` from
 `dist/refunds.sem.js` in your own code, after one `await loadSemaArtifact()` at
 startup.
+
+When `test` fails or a call answers wrongly, ask the release why:
+
+```sh
+npx semantscript explain dist/refunds.sem.js --call decideRefund \
+  --input '[{"tier":"standard","priorRefunds":1},{"total":88.5,"ageDays":12,"status":"paid"}]'
+```
+
+It prints the answer's distribution, the constraints active for that input,
+and the gold examples and teacher-labelled training cases nearest it, from
+the dataset the release was trained on. The
+[wrong-answer workflow](diagnostics.md#wrong-answer-workflow) goes from that
+report to the example or constraint to add. The next `train` retrains only
+that expression's head, but a changed example or constraint changes the
+expression's dataset, so the teacher labels its cases again (a paid run on
+the OpenRouter route): run `npx semantscript train --estimate` first to see
+the cost.
+
+Tests of your own code that calls `decideRefund` need no training: load a
+stub artifact with `loadSemaStubArtifact()` from `@semantscript/core/testing`
+in place of `loadSemaArtifact()`, and each expression answers what the test
+says ([runtime guide](../runtime/README.md#testing-without-a-trained-model),
+[framework guide](framework-guide.md#testing-handlers)).
 
 On the clone route, the Express example also has a server:
 

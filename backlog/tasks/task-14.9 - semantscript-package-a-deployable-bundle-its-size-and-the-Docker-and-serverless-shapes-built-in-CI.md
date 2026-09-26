@@ -3,11 +3,11 @@ id: TASK-14.9
 title: >-
   semantscript package: a deployable bundle, its size, and the Docker and
   serverless shapes built in CI
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 04:05'
+updated_date: '2026-09-26 04:12'
 labels:
   - dx
   - deploy
@@ -26,9 +26,9 @@ Deploying is copying dist/, production node_modules and a 275 to 600 MB artifact
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 semantscript package writes a self-contained directory or tarball (compiled output, production dependencies with the platform's native bindings, the current artifact release, a manifest of digests) and prints its size and the size of each part
-- [ ] #2 package reports when the bundle exceeds a named target (a Lambda or Cloud Run limit passed as an option) and which lever would fit it: depth routing, int8 with its recorded tolerance, or a smaller encoder
-- [ ] #3 CI builds the Express example's Docker image from the package output and runs one request against it; the serverless example is packaged within its platform's limit or the docs state the exact size and why
+- [x] #1 semantscript package writes a self-contained directory or tarball (compiled output, production dependencies with the platform's native bindings, the current artifact release, a manifest of digests) and prints its size and the size of each part
+- [x] #2 package reports when the bundle exceeds a named target (a Lambda or Cloud Run limit passed as an option) and which lever would fit it: depth routing, int8 with its recorded tolerance, or a smaller encoder
+- [x] #3 CI builds the Express example's Docker image from the package output and runs one request against it; the serverless example is packaged within its platform's limit or the docs state the exact size and why
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -60,4 +60,12 @@ Fix round 1: init's .semantscript/.gitignore now reserves package/ and .package-
 FIX round 2 (e492763): package now detects a fully routed release (model.encoderRef or an encoder ref/path naming depth-NNN, not only a function encoderRef) through the exported isDepthRouted, with tests for the fully routed manifest and the helper. The refund depth-004 sweep release now reports depthRouted true and offers only int8 and a smaller encoder. The depth levers and docs/deploy.md and cli-reference say every domain must be routed (a full-depth domain keeps the full encoder), and deploy.md mentions domainDepths in a tspc plugin entry. Dockerfile.package and the Express README now say to package for the image's platform and arch (linux/arm64 on Apple silicon). The Express README cold-start paragraph no longer calls int8 a lever. Checks: build ok, lint 0 warnings, cli 41/41, test:node all pass, prettier clean, CI run 36215989456 green on all 7 jobs.
 
 FIX round 3: (1) --dist output now keeps its project-relative path in the bundle (build/ stays build/), so the deployed package.json main and scripts resolve; a --dist outside the project exits 2, and the dist directory is reserved against --include. Reproduced the reviewer case: --dist build bundle now runs with npm start. (2) New depthRouting(manifest) separates none/mixed/full routing; a mixed release (prefix plus full-depth encoder) gets a route-remaining lever that drops the full encoder (reviewer case: 323,118,960 B, fits cloud-run-functions); --json encoder gains routing and fullDepthEncoderBytes. The old test that locked in the defect now asserts the route-remaining lever. (3) Express README Dockerfile.package bullet says --platform linux --arch x64. Advisory also fixed: levers carry actionable (int8 rows read 'fits (measurement only)'); depth levers for an int8 encoder project the float32 prefix; when the bundle without its encoder is over, only the smaller-encoder row is shown; --include validation runs before anything is written and refuses one containing --out; cli-reference reserved paths and npm error lines corrected. npm run build ok, lint 0 warnings, npm test -w cli 43/43, test:node all pass.
+
+FINALIZE validation: CI run 36216805628 on 3b3a37f green (7/7 jobs). Its package job: package --include deploy/lambda.mjs --target lambda-zip wrote an 86,641,760 B bundle (dist 12.5 KiB, node_modules 82.3 MiB, artifact 12.1 KiB, manifest), fits with 167.4 MiB spare; the packaged Lambda handler returned 201 urgent; docker build -f deploy/Dockerfile.package from .semantscript/package and POST /tickets returned priority urgent. Locally: the same package run exits 0; semantscript-package.json lists 1442 files whose sha256 and bytes match the files on disk (the one symlink is recorded as a link), with only the current release sha256-1514bea2... copied. Packaging against the trained release 217d386c with --target lambda-zip exits 1 PACKAGE_OVER_TARGET at 685,309,690 B (653.6 MiB, over by 403.6 MiB) and lists the depth routing, int8 (measurement only, with recorded tolerance), depth+int8 and smaller-encoder (<=165.5 MiB) levers; the Express README and docs/deploy.md state that size and why. npm run build ok, lint:node 0 warnings, npm test -w cli 43/43, test:node 89/106/43/8/85 pass 0 fail, prettier clean.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added semantscript package (cli/src/package.ts). It writes a self-contained deploy directory: dist without the IR bundle, production node_modules pruned to the target platform's onnxruntime-node and tokenizers bindings, only the current verified release, any --include files, and semantscript-package.json with the sha256 and size of every file. It prints the size of each part and the total. With --target lambda-zip, lambda-image or cloud-run-functions, or with --max-bytes, an over-target bundle exits 1 with PACKAGE_OVER_TARGET. The report lists depth routing, a route-remaining lever for mixed releases, int8 under its recorded tolerance (a measurement only) and a smaller encoder, each with its projected bundle size. The Express example gets deploy/Dockerfile.package, and a new CI package job builds the Docker image from the bundle and sends one POST /tickets request. The fixture-release Lambda bundle (82.6 MiB) fits lambda-zip and its handler answers. docs/deploy.md and the example README record the trained release at 653.6 MiB and explain why it is over. Verified with CI run 36216805628 (all jobs green), local package runs against the fixture and trained releases, a manifest digest check, cli tests 43/43 and test:node all passing.
+<!-- SECTION:FINAL_SUMMARY:END -->

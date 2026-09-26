@@ -620,5 +620,38 @@ REMEDY_TEMPLATES_JSON = r"""{
   "family": "editor",
   "fix": "train with more cases (--cases), or set a confidence threshold with a fallback so low-confidence answers are caught",
   "params": []
+ },
+ "int8-gate-refused": {
+  "family": "cli",
+  "fix": "keep serving the current release (current.json is unchanged){alternative}; to publish anyway, record a tolerance that admits these figures with {command} {tolerance}, which the manifest keeps and semantscript releases show prints",
+  "params": [
+   "alternative",
+   "command",
+   "tolerance"
+  ]
+ },
+ "int8-records-missing": {
+  "family": "cli",
+  "fix": "pass --cache-dir the build cache the release was trained with (it needs dataset {dataset} for {function}, not found under {cache}); when that cache is gone, retrain with semantscript train so the new release's records are cached, then derive from it",
+  "params": [
+   "dataset",
+   "function",
+   "cache"
+  ]
+ },
+ "int8-no-release": {
+  "family": "cli",
+  "fix": "run semantscript train to publish a release at {root}, then derive from it; or pass --artifact for an artifact root published elsewhere",
+  "params": [
+   "root"
+  ]
+ },
+ "int8-release-not-named": {
+  "family": "cli",
+  "fix": "{list} lists the releases on disk; name one of them, as in {command}",
+  "params": [
+   "list",
+   "command"
+  ]
  }
 }"""

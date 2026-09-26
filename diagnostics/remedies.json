@@ -703,6 +703,34 @@
       "failure": "`9153`: `expected calibration error <e> is above <t>`",
       "cause": "Verified ECE above `eceThreshold` (default 0.1).",
       "fix": "train with more cases (--cases), or set a confidence threshold with a fallback so low-confidence answers are caught"
+    },
+    {
+      "id": "int8-gate-refused",
+      "family": "cli",
+      "failure": "`semantscript releases derive --int8`: `derive refused: nothing was published and current.json is unchanged`, then the checks that failed: `N attested record(s) changed decision (tolerance T)`, `N of M records changed decision (…)` or `quantized ECE … for <function> exceeds threshold …`",
+      "cause": "The int8 encoder answered differently from the float32 one on the release's own records (or its calibration drifted) beyond the tolerance, which by default admits no change at all; nothing was published and current.json is unchanged.",
+      "fix": "keep serving the current release (current.json is unchanged){alternative}; to publish anyway, record a tolerance that admits these figures with {command} {tolerance}, which the manifest keeps and semantscript releases show prints"
+    },
+    {
+      "id": "int8-records-missing",
+      "family": "cli",
+      "failure": "`semantscript releases derive --int8`: `the build cache <dir> has no training dataset <digest> for <function>` or an adversarial dataset it cannot find or pick",
+      "cause": "The derivation verifies the int8 graph on the records the release was trained on, found in the build cache by the digests the manifest and the cache record; a release trained elsewhere, or whose cache was cleared, has none.",
+      "fix": "pass --cache-dir the build cache the release was trained with (it needs dataset {dataset} for {function}, not found under {cache}); when that cache is gone, retrain with semantscript train so the new release's records are cached, then derive from it"
+    },
+    {
+      "id": "int8-no-release",
+      "family": "cli",
+      "failure": "`semantscript releases derive --int8`: `POINTER_INVALID: no release to derive from at <root> (current.json and releases/ are missing)`",
+      "cause": "Nothing was published at the artifact root: the derivation runs before semantscript train, or from another directory than the application's.",
+      "fix": "run semantscript train to publish a release at {root}, then derive from it; or pass --artifact for an artifact root published elsewhere"
+    },
+    {
+      "id": "int8-release-not-named",
+      "family": "cli",
+      "failure": "`semantscript releases derive --int8`: `POINTER_INVALID: <root>/current.json does not exist` while releases are on disk, or `RELEASE_NOT_FOUND: no release under releases/ matches <name>`",
+      "cause": "No release is current and none was named, or the name matches no release under releases/.",
+      "fix": "{list} lists the releases on disk; name one of them, as in {command}"
     }
   ]
 }

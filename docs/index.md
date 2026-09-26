@@ -48,11 +48,13 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [CLI reference](cli-reference.md): every command, flag, default,
   environment variable and exit code of `semantscript`, including `explain`,
   which shows for one input why an expression answered as it did, and
-  `semantscript releases` to list, inspect, roll back, promote and prune
-  artifact releases and `semantscript package` to write a deployable bundle.
+  `semantscript releases` to list, inspect, roll back, promote, prune and
+  derive int8 artifact releases and `semantscript package` to write a
+  deployable bundle.
 - [Deploying](deploy.md): `semantscript package` and what the bundle holds,
-  the Lambda and Cloud Run size targets, and the depth, int8 and
-  smaller-encoder levers with their measured sizes.
+  the Lambda and Cloud Run size targets, the depth, int8 and
+  smaller-encoder levers with their measured sizes, and deriving a gated int8
+  release with `releases derive --int8`.
 - [Build cache](build-cache.md): what is content-addressed, when retraining
   happens, where the caches live (including the teacher response journal) and
   how to clear them, and how the cache interacts with a release rollback.

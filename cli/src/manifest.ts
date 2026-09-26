@@ -28,6 +28,27 @@ export interface ManifestFunctionSummary {
   readonly heads: readonly ManifestHeadSummary[];
 }
 
+/**
+ * How an int8 release was derived, from its first quantized encoder's
+ * `onnx.quantization` block; the figures are null on a release derived
+ * before the manifest recorded them.
+ */
+export interface ReleaseDerivation {
+  readonly precision: string;
+  readonly sourceManifestSha256: string;
+  readonly weightType: string;
+  readonly perChannel: boolean;
+  readonly reduceRange: boolean;
+  readonly attestedDisagreementTolerance: number;
+  readonly argmaxDisagreementTolerance: number;
+  readonly eceThreshold: number;
+  readonly recordsChecked: number | null;
+  readonly attestedRecords: number | null;
+  readonly decisionChanges: number | null;
+  readonly attestedDecisionChanges: number | null;
+  readonly quantizedEce: number | null;
+}
+
 export interface ArtifactSummary {
   readonly root: string;
   readonly release: string;
@@ -37,6 +58,8 @@ export interface ArtifactSummary {
   readonly applicationId: string;
   readonly applicationVersion: string;
   readonly functions: readonly ManifestFunctionSummary[];
+  /** Present for a release derived by `releases derive --int8`. */
+  readonly derivation?: ReleaseDerivation;
 }
 
 /**
@@ -92,7 +115,68 @@ export function summarizeManifest(
       "manifest.application.version",
     ),
     functions,
+    ...derivationOf(manifest),
   };
+}
+
+/** The derivation record of a release with a quantized encoder; empty otherwise. */
+function derivationOf(manifest: Readonly<Record<string, unknown>>): {
+  derivation?: ReleaseDerivation;
+} {
+  const resources = Array.isArray(manifest["resources"])
+    ? (manifest["resources"] as readonly unknown[])
+    : [];
+  for (const resource of resources) {
+    const record = recordOf(resource);
+    const onnx = recordOf(record["onnx"]);
+    const precision = onnx["precision"];
+    if (
+      record["role"] !== "encoder" ||
+      typeof precision !== "string" ||
+      precision === "float32"
+    ) {
+      continue;
+    }
+    const quantization = recordOf(onnx["quantization"]);
+    const verification = recordOf(quantization["verification"]);
+    const count = (value: unknown): number | null =>
+      typeof value === "number" ? value : null;
+    return {
+      derivation: {
+        precision,
+        sourceManifestSha256: String(quantization["sourceManifestSha256"]),
+        weightType: String(quantization["weightType"]),
+        perChannel: quantization["perChannel"] === true,
+        reduceRange: quantization["reduceRange"] === true,
+        attestedDisagreementTolerance:
+          count(quantization["attestedDisagreementTolerance"]) ?? 0,
+        argmaxDisagreementTolerance:
+          count(quantization["argmaxDisagreementTolerance"]) ?? 0,
+        eceThreshold: count(quantization["eceThreshold"]) ?? 0,
+        recordsChecked: count(verification["recordsChecked"]),
+        attestedRecords: count(verification["attestedRecords"]),
+        decisionChanges: count(verification["decisionChanges"]),
+        attestedDecisionChanges: count(verification["attestedDecisionChanges"]),
+        quantizedEce: count(verification["quantizedEce"]),
+      },
+    };
+  }
+  return {};
+}
+
+function recordOf(value: unknown): Readonly<Record<string, unknown>> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : {};
+}
+
+/** `int8-dynamic from sha256-<12>: 0 of 128 decisions changed (0 of 6 attested)`. */
+export function derivationLine(derivation: ReleaseDerivation): string {
+  const figures =
+    derivation.recordsChecked === null
+      ? "figures not recorded"
+      : `${String(derivation.decisionChanges)} of ${String(derivation.recordsChecked)} decisions changed (${String(derivation.attestedDecisionChanges)} of ${String(derivation.attestedRecords)} attested)`;
+  return `${derivation.precision} from sha256-${derivation.sourceManifestSha256.slice(0, 12)}: ${figures}; tolerance ${String(derivation.attestedDisagreementTolerance)} attested, rate ${String(derivation.argmaxDisagreementTolerance)}, ECE ${String(derivation.eceThreshold)}`;
 }
 
 export const POINTER_KIND = "semantscript.artifact-pointer";

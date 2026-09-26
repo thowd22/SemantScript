@@ -67,6 +67,15 @@ export const USAGE = `usage: semantscript <command> [options]
          [--dry-run] [--json]
          remove releases beyond the n newest and/or older than the age; never
          the current one
+  releases derive --int8 [<release>] [--artifact <root>] [--cache-dir <dir>]
+         [--per-channel] [--reduce-range] [--weight-type int8|uint8]
+         [--max-attested-disagreements <n>] [--max-decision-change-rate <x>]
+         [--ece-threshold <x>] [--promote] [--python <exe>] [--json]
+         derive an int8 release from the current (or named) one: quantize the
+         encoder, check it against the float32 chain on the release's cached
+         training, gold and adversarial records (by default no decision may
+         change) and publish it beside it; --promote also points current.json
+         at it
   explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json]
          <module.js> --call <export> [--input <json> | --input-file <path>]
          call an export and show, for each sema call, the answer's calibrated

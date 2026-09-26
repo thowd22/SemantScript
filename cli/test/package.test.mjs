@@ -295,9 +295,11 @@ test("package over its target still writes the bundle, exits 1 with PACKAGE_OVER
   const text = await run(project, ["--max-bytes", String(limit), "--force"]);
   assert.equal(text.code, 1);
   assert.match(text.stdout, /^depth routing to 4 layers +~/mu);
+  assert.match(text.stdout, /^int8 dynamic quantization +~.* fits$/mu);
+  assert.doesNotMatch(text.stdout, /measurement only/u);
   assert.match(
     text.stdout,
-    /^int8 dynamic quantization +~.* fits \(measurement only\)$/mu,
+    /^int8 dynamic quantization: semantscript releases derive --int8 derives the int8 release from the current one .*then semantscript releases promote <release>/mu,
   );
   assert.match(text.stdout, /^a smaller encoder +/mu);
   assert.match(text.stdout, /recorded tolerance/u);
@@ -320,9 +322,9 @@ test("package over its target still writes the bundle, exits 1 with PACKAGE_OVER
       ["depth", true],
       ["depth", true],
       ["depth", true],
-      ["int8", false],
-      ["depth+int8", false],
-      ["depth+int8", false],
+      ["int8", true],
+      ["depth+int8", true],
+      ["depth+int8", true],
       ["smaller-encoder", true],
     ],
   );
@@ -359,7 +361,12 @@ test("packageLevers projects the measured depth and int8 sizes and skips levers 
   );
   assert.match(
     byLabel.get("int8 dynamic quantization").how,
-    /no int8 derivation exists for applications yet/u,
+    /^semantscript releases derive --int8 .* semantscript releases promote <release>/u,
+  );
+  assert.equal(byLabel.get("int8 dynamic quantization").actionable, true);
+  assert.match(
+    byLabel.get("depth 4 and int8").how,
+    /then train, then semantscript releases derive --int8 and semantscript releases promote/u,
   );
   assert.match(
     byLabel.get("int8 dynamic quantization").how,

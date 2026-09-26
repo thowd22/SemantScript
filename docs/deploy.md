@@ -64,20 +64,18 @@ dependencies and a few hundred kilobytes of adapter and heads. When a bundle
 is over its target, `package` lists each lever with the bundle it would give
 and whether that fits, scaling the release's encoder by these measurements:
 
-| Lever                      | Encoder (ModernBERT-base) | Condition                                                                                                                                                                                             | Source                           |
-| -------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Depth routing to 12 layers | 395,833,756 B             | every domain at 12 (`build --domain-depth <domain>=12` once per domain), then train; the refund policy kept 160/160 on its final set                                                                  | `results-depth-sweep-2026-09-24` |
-| Depth routing to 6 layers  | 275,297,443 B             | the same at 6                                                                                                                                                                                         | same                             |
-| Depth routing to 4 layers  | 235,118,960 B             | the same at 4                                                                                                                                                                                         | same                             |
-| Int8 dynamic quantization  | 150,073,785 B             | a measurement only: no int8 derivation exists for applications yet, and the measured int8 refund release changed 1 of 80 attested cases and 0.105 percent of decisions, which the strict gate refused | `results-int8-2026-09-24`        |
-| Depth and int8             | depth size × 0.2515       | depth routing, with the int8 half a measurement only                                                                                                                                                  | both                             |
-| A smaller encoder          | the budget left           | `train --encoder-name <model>`; the report gives the largest encoder graph that fits                                                                                                                  | —                                |
+| Lever                      | Encoder (ModernBERT-base) | Condition                                                                                                                            | Source                           |
+| -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| Depth routing to 12 layers | 395,833,756 B             | every domain at 12 (`build --domain-depth <domain>=12` once per domain), then train; the refund policy kept 160/160 on its final set | `results-depth-sweep-2026-09-24` |
+| Depth routing to 6 layers  | 275,297,443 B             | the same at 6                                                                                                                        | same                             |
+| Depth routing to 4 layers  | 235,118,960 B             | the same at 4                                                                                                                        | same                             |
+| Int8 dynamic quantization  | 150,073,785 B             | `releases derive --int8`, then `releases promote <release>`; the derivation publishes only what its gate admits (below)              | `results-int8-2026-09-24`        |
+| Depth and int8             | depth size × 0.2515       | depth routing, then train, then `releases derive --int8`                                                                             | both                             |
+| A smaller encoder          | the budget left           | `train --encoder-name <model>`; the report gives the largest encoder graph that fits                                                 | —                                |
 
-The int8 rows are there so the report shows how far quantization would go,
-not as a step to take: the int8 derivation has only been run on the refund
-benchmark, through a refund-specific driver that replays that benchmark's
-release pipeline, and no `semantscript` command derives an int8 release for an
-application. For another encoder the projections are estimates. A lever the release
+The int8 rows project the refund benchmark's measured ratio (the int8 encoder
+is 25.15% of the float32 one).
+For another encoder the projections are estimates. A lever the release
 already uses is not offered again: depth routing when the release ships a
 routed encoder prefix (a function `encoderRef`, or a `depth-NNN` encoder named
 by `model.encoderRef` when every domain is routed), int8 when an encoder's `onnx.precision` is not
@@ -93,11 +91,54 @@ of several makes the bundle larger. A tspc project such as the Express example
 sets `domainDepths` in its tsconfig plugin entry instead, since a later
 `npm run build` rewrites the IR bundle.
 
+### Deriving an int8 release
+
+`semantscript releases derive --int8` derives an int8 release from the
+current release (or a named one) and publishes it beside it:
+
+```sh
+npx semantscript releases derive --int8            # strict: no decision may change
+npx semantscript releases promote <digest>         # the digest its next: line names
+npx semantscript package --target lambda-zip
+```
+
+It quantizes the encoder graph (every one, for a depth-routed release) with
+ONNX Runtime's dynamic int8 quantization and runs the int8 chain against the
+float32 chain on the release's own records, found in the build cache by the
+digests the manifest records: each function's training dataset (its gold
+examples are the attested records) and its adversarial dataset. With no
+tolerance flags it refuses to publish when any decision changed, attested or
+not, or when a head's int8 ECE is above 0.1, and it exits 2 with the figures
+and the flags that would admit them. A derived release records its source
+manifest digest, the quantization settings, the tolerances and the figures in
+each quantized encoder's `onnx.quantization` (`releases show` prints them),
+the runtime loads it like any release, and `releases promote` or `rollback`
+switch to it and back. The check covers the training, gold and adversarial
+records only: a held-out set joins it once the release gate records one for
+the release. The records are in the build cache, so a release trained on
+another machine, or after `.semantscript/cache` was cleared, cannot be
+derived until it is retrained where its cache is. A later `semantscript train`
+or `dev` publishes the float32 release again and makes it current, even with
+no source change, so run the derive and promote steps again after each train
+before packaging. The
+[CLI reference](cli-reference.md#releases-derive---int8) lists the flags.
+
 The Express example's trained release is the worked case: its bundle is
 685,309,690 bytes (653.6 MiB), 403.6 MiB over `lambda-zip`. Depth routing
-alone leaves it over (the dependencies stay); int8, or depth 6 or 4 with
-int8, would fit, but no int8 derivation exists for applications yet, so today
-it ships as a container unless a smaller encoder is trained
+alone leaves it over (the dependencies stay). `releases derive --int8`
+measured it on 2026-09-26 on 586 records (6 attested), on CPU:
+
+| Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                          |
+| ------------------------------------------------- | ----------------- | ---------------- | -------------- | --------------------------------------------------------------- |
+| default                                           | 6 (1.02%)         | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                     |
+| `--per-channel`                                   | 3 (0.51%)         | 0                | 0.0914         | refused: decisions changed                                      |
+| `--per-channel --max-decision-change-rate 0.0052` | 3 (0.51%)         | 0                | 0.0914         | published; bundle 239,697,592 B (228.6 MiB), fits with 21.4 MiB |
+
+So the strict gate refuses the Express int8 release, and it fits `lambda-zip`
+only under a recorded tolerance of 0.52% changed decisions (none attested),
+which is the application owner's call; the packaged Lambda handler answered
+from that bundle. Without it, the release ships as a container unless a
+smaller encoder is trained
 ([example README](../examples/express-app/README.md#deploying-with-the-artifact)).
 
 ## Containers

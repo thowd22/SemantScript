@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 import { resolveArtifactRoot } from "./defaults.js";
+import { deriveRelease } from "./derive.js";
 import {
   CliUsageError,
   listOf,
@@ -14,6 +15,7 @@ import {
   type CliIo,
 } from "./io.js";
 import {
+  derivationLine,
   isEnoent,
   readPointer,
   ReleaseError,
@@ -89,15 +91,30 @@ export async function releasesCommand(
       return switchRelease(rest, io, "promote");
     case "prune":
       return pruneReleases(rest, io);
+    case "derive":
+      return deriveRelease(rest, io);
     default:
       throw new CliUsageError(
-        `unknown releases subcommand ${first}: expected list, show, rollback, promote or prune`,
+        `unknown releases subcommand ${first}: expected list, show, rollback, promote, prune or derive`,
       );
   }
 }
 
 /** Options of any releases subcommand that take a value. */
-const VALUE_OPTIONS = new Set(["--artifact", "--keep", "--older-than"]);
+const VALUE_OPTIONS = new Set([
+  "--artifact",
+  "--keep",
+  "--older-than",
+  // releases derive (derive.ts DERIVE_OPTIONS)
+  "--cache-dir",
+  "--report",
+  "--python",
+  "--trainer-module",
+  "--weight-type",
+  "--max-attested-disagreements",
+  "--max-decision-change-rate",
+  "--ece-threshold",
+]);
 
 /**
  * The position of the subcommand, which may follow flags
@@ -203,6 +220,12 @@ async function listReleases(
       lines.push(`${entry.name}: invalid: ${entry.error}`);
     }
   }
+  for (const entry of entries) {
+    const derivation = entry.summary?.derivation;
+    if (entry.error === undefined && derivation !== undefined) {
+      lines.push(`${shortDigest(entry.digest)}: ${derivationLine(derivation)}`);
+    }
+  }
   if (
     currentDigest !== undefined &&
     !entries.some((entry) => entry.digest === currentDigest)
@@ -248,6 +271,12 @@ async function showRelease(
       `release      releases/${entry.name}${current ? " (current)" : ""}`,
       `created      ${summary.createdAt}`,
       `application  ${summary.applicationId}@${summary.applicationVersion}`,
+      ...(summary.derivation === undefined
+        ? []
+        : [
+            `derived      ${derivationLine(summary.derivation)}`,
+            "verification the table is the float32 source's; the derived line has the int8 figures",
+          ]),
       renderTable(
         VERIFICATION_HEADERS,
         summary.functions.map(verificationCells),
@@ -836,6 +865,7 @@ function releaseJson(entry: ReleaseEntry, current: boolean): unknown {
     verification:
       summary === undefined ? null : releaseTotals(summary.functions),
     functions: summary?.functions ?? null,
+    derivation: summary?.derivation ?? null,
   };
 }
 

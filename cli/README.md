@@ -25,6 +25,7 @@ semantscript test  [--artifact <root>] [--bundle <path> | --no-bundle] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
+semantscript releases derive --int8 [<release>] [--artifact <root>] [--cache-dir <dir>] [--python <exe>] [--weight-type int8|uint8] [--per-channel] [--reduce-range] [--max-attested-disagreements <n>] [--max-decision-change-rate <x>] [--ece-threshold <x>] [--promote] [--json]
 semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json] <module.js> --call <export> [--input <json> | --input-file <path>]
 semantscript package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>] [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
 ```
@@ -355,6 +356,19 @@ age, and neither are invalid releases or an export in progress. `--dry-run`
 shows what would go. See the [CLI reference](https://github.com/thowd22/SemantScript/blob/main/docs/cli-reference.md#releases)
 for the error codes.
 
+`releases derive --int8 [<release>]` derives an int8 release from the
+current release (or a named one) through the trainer: it quantizes the
+encoder, runs the int8 chain against the float32 chain on the release's own
+training, gold and adversarial records from the build cache (`--cache-dir`),
+and publishes the result beside its source only when no decision changed
+(or as many as `--max-attested-disagreements` and
+`--max-decision-change-rate` allow, which the manifest then records with the
+figures). A refusal exits 2 with the figures and the next command; a
+published release leaves `current.json` alone and prints `next: semantscript
+releases promote <digest>` (`--promote` does that step too). `releases list`
+and `show` name the derivation, its source and its recorded figures. See the
+[CLI reference](https://github.com/thowd22/SemantScript/blob/main/docs/cli-reference.md#releases-derive---int8).
+
 ## explain
 
 Answers "why did this expression say that?" for one input. It calls the export
@@ -405,6 +419,6 @@ tokenizer, included files) and the total.
 checks the total. Over it, the bundle is still written, the command exits 1
 with `PACKAGE_OVER_TARGET`, and it lists the levers with the bundle each
 would give: depth routing (or, for a release with some domains already
-routed, routing the rest), int8 quantization (a measurement only: no int8
-derivation exists for applications yet), both, or a smaller encoder. See [Deploying](../docs/deploy.md) and the
+routed, routing the rest), int8 quantization (`releases derive --int8`, then
+`releases promote`), both, or a smaller encoder. See [Deploying](../docs/deploy.md) and the
 [CLI reference](../docs/cli-reference.md#package).

@@ -73,6 +73,7 @@ from semantscript_trainer.lifecycle import (
     VerifiedIrProvenance,
     build_verified_ir,
 )
+from semantscript_trainer.quantization import DEFAULT_QUANTIZED_ECE_THRESHOLD
 from semantscript_trainer.remedies import remedy
 from semantscript_trainer.semantic_json import semantic_json_sha256
 from semantscript_trainer.suggestions import seed_retry_suggestion
@@ -1237,7 +1238,102 @@ def _build_parser() -> argparse.ArgumentParser:
         "doctor", help="check the interpreter, packages, device and teacher before a run"
     )
     add_doctor_arguments(doctor)
+    derive = commands.add_parser(
+        "derive-int8",
+        help="derive an int8 release from a published one, verify it on the release's "
+        "records and publish it beside it (current.json is left alone)",
+    )
+    derive.add_argument("--artifact", required=True, type=Path, help="artifact root")
+    derive.add_argument(
+        "--release", help="release to derive from (digest or prefix); the current one if omitted"
+    )
+    derive.add_argument("--cache-dir", type=Path, default=Path(".semantscript/cache"))
+    derive.add_argument("--report", type=Path, help="where to write the JSON derive report")
+    derive.add_argument("--weight-type", choices=("int8", "uint8"), default="int8")
+    derive.add_argument("--per-channel", action="store_true")
+    derive.add_argument("--reduce-range", action="store_true")
+    derive.add_argument(
+        "--max-attested-disagreements",
+        type=int,
+        default=0,
+        help="attested (gold) records allowed to change decision (default 0)",
+    )
+    derive.add_argument(
+        "--max-decision-change-rate",
+        type=float,
+        default=0.0,
+        help="share of all records allowed to change decision (default 0)",
+    )
+    derive.add_argument(
+        "--ece-threshold",
+        type=float,
+        help=f"largest quantized ECE a head may have (default {DEFAULT_QUANTIZED_ECE_THRESHOLD})",
+    )
+    derive.add_argument(
+        "--command-flags",
+        default="",
+        help="shell-quoted location flags (--artifact, --cache-dir, --python ...) that every "
+        "semantscript releases derive command the report names repeats; the CLI passes them",
+    )
     return parser
+
+
+def run_derive_int8(arguments: argparse.Namespace) -> int:
+    """``derive-int8``: 0 published, 2 refused by the gate (the report says why), 1 error."""
+
+    from semantscript_trainer.derive import DeriveError, derive_int8_release
+    from semantscript_trainer.quantization import QuantizationConfig
+
+    def log(message: str) -> None:
+        print(message, file=sys.stderr, flush=True)
+
+    try:
+        settings = QuantizationConfig(
+            weight_type=arguments.weight_type,
+            per_channel=arguments.per_channel,
+            reduce_range=arguments.reduce_range,
+            maximum_argmax_disagreement_rate=arguments.max_decision_change_rate,
+            maximum_attested_disagreements=arguments.max_attested_disagreements,
+            **(
+                {"ece_threshold": arguments.ece_threshold}
+                if arguments.ece_threshold is not None
+                else {}
+            ),
+        )
+    except ValueError as error:
+        log(with_remedy(f"error: {error}", remedy("train-option-invalid")))
+        return 1
+    try:
+        result = derive_int8_release(
+            arguments.artifact,
+            cache_directory=arguments.cache_dir,
+            release=arguments.release,
+            quantization=settings,
+            log=log,
+            command_flags=f" {arguments.command_flags.strip()}"
+            if arguments.command_flags.strip()
+            else "",
+        )
+    except DeriveError as error:
+        log(with_remedy(f"error: {error}", error.fix))
+        return 1
+    except (OSError, ValueError, RuntimeError, TypeError, ImportError) as error:
+        fix = failure_remedy(
+            error,
+            stage="run",
+            bundle="",
+            teacher="",
+            cache=str(arguments.cache_dir),
+            artifact=str(arguments.artifact),
+        )
+        log(with_remedy(f"error: {error}", fix))
+        return 1
+    text = _dump(result.report)
+    if arguments.report is not None:
+        Path(arguments.report).parent.mkdir(parents=True, exist_ok=True)
+        Path(arguments.report).write_text(text, encoding="utf-8")
+    sys.stdout.write(text)
+    return 0 if result.status == "published" else 2
 
 
 def _training_config(arguments: argparse.Namespace) -> TrainingConfig:
@@ -1296,6 +1392,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_doctor_from_arguments(arguments)
     if arguments.command == "teacher":
         return run_teacher_probe(arguments)
+    if arguments.command == "derive-int8":
+        return run_derive_int8(arguments)
     if arguments.command != "train":  # pragma: no cover - argparse enforces the choice
         return 2
 
@@ -1588,6 +1686,7 @@ __all__ = [
     "TrainBundleResult",
     "TrainedFunction",
     "main",
+    "run_derive_int8",
     "run_teacher_probe",
     "train_bundle",
 ]

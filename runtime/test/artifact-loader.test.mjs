@@ -252,6 +252,33 @@ function quantizationBlock(overrides = {}) {
   };
 }
 
+function verificationBlock(overrides = {}) {
+  return {
+    recordsChecked: 10,
+    attestedRecords: 2,
+    decisionChanges: 1,
+    attestedDecisionChanges: 0,
+    decisionChangeRate: 0.1,
+    sourceEce: 0.02,
+    quantizedEce: 0.03,
+    recordSources: [
+      { kind: "training-dataset", functionId: "nf_fixture", sha256: "d".repeat(64), records: 10 },
+    ],
+    functions: [
+      {
+        id: "nf_fixture",
+        recordsChecked: 10,
+        attestedRecords: 2,
+        decisionChanges: 1,
+        attestedDecisionChanges: 0,
+        sourceEce: 0.02,
+        quantizedEce: null,
+      },
+    ],
+    ...overrides,
+  };
+}
+
 test("validates encoder precision and quantization metadata", async (context) => {
   await context.test("float32 without precision is the historical default", async () => {
     await withArtifact(async (artifact) => {
@@ -282,7 +309,43 @@ test("validates encoder precision and quantization metadata", async (context) =>
     });
   });
 
+  await context.test("an int8 quantization block with its verification figures loads", async () => {
+    await withArtifact(async (artifact) => {
+      const block = quantizationBlock({ verification: verificationBlock() });
+      await republish(artifact, (manifest) => {
+        manifest.resources[1].onnx.precision = "int8-dynamic";
+        manifest.resources[1].onnx.quantization = block;
+      });
+      const loaded = await loadArtifact(artifact.root);
+      assert.deepEqual(loaded.manifest.resources[1].onnx.quantization, block);
+    });
+  });
+
   const rejected = [
+    ["verification missing a field", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      const verification = verificationBlock();
+      delete verification.decisionChanges;
+      onnx.quantization = quantizationBlock({ verification });
+    }],
+    ["verification with more attested changes than attested records", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      onnx.quantization = quantizationBlock({
+        verification: verificationBlock({ attestedDecisionChanges: 7 }),
+      });
+    }],
+    ["verification with an unknown record source kind", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      const verification = verificationBlock();
+      verification.recordSources[0].kind = "teacher";
+      onnx.quantization = quantizationBlock({ verification });
+    }],
+    ["verification with an ECE outside the unit interval", (onnx) => {
+      onnx.precision = "int8-dynamic";
+      onnx.quantization = quantizationBlock({
+        verification: verificationBlock({ quantizedEce: 2 }),
+      });
+    }],
     ["unknown precision", (onnx) => { onnx.precision = "int4"; }],
     ["quantized precision without quantization", (onnx) => { onnx.precision = "int8-dynamic"; }],
     ["quantization on float32", (onnx) => { onnx.quantization = quantizationBlock(); }],

@@ -183,7 +183,7 @@ targets and the [deploy guide](../../docs/deploy.md) the size levers.
 - [`deploy/Dockerfile.package`](deploy/Dockerfile.package): a single-stage
   image whose build context is the bundle
   (`docker build -f deploy/Dockerfile.package -t ticket-api .semantscript/package`);
-  it copies the directory, runs as the `node` user and starts
+  it copies the directory owned by the `node` user (the trainer publishes releases owner-only), runs as that user and starts
   `dist/server.js`. The bundle carries native bindings for one platform and
   arch, so package for the image's: on macOS or another non-Linux host pass
   `--platform linux --arch arm64` (Apple silicon, whose Docker builds
@@ -215,6 +215,11 @@ Bundle sizes, measured 2026-09-25 on linux/x64 (Node 22.22):
 | ------------------------------------------------ | ------------ | --------- | --------- | -------------------- |
 | Fixture (`npm run fixture-artifact`)             | 82.3 MiB     | 12.1 KiB  | 82.6 MiB  | fits                 |
 | Trained release `217d386c…` (22 layers, float32) | 82.3 MiB     | 570.9 MiB | 653.6 MiB | over by 403.6 MiB    |
+| Int8 release `7f982976…` derived from it (below) | 82.6 MiB     | 145.7 MiB | 228.6 MiB | fits, 21.4 MiB spare |
+
+The int8 row was measured on 2026-09-26 on the same machine: 239,697,592
+bytes in total, with an encoder of 150,750,065 bytes (143.8 MiB), and the
+packaged Lambda handler answered `POST /tickets` from it.
 
 The trained release does not fit a Lambda .zip package: its encoder alone is
 596,679,464 bytes (569.0 MiB), a full-depth float32 ModernBERT-base, and AWS
@@ -224,12 +229,32 @@ each lever from the measured encoder sizes: depth routing alone does not fit
 (about 462, 347 and 309 MiB at 12, 6 and 4 layers, because the 82 MiB of
 dependencies stay), depth 6 or 4 with int8 would (about 151 and 141 MiB), int8
 alone would (about 228 MiB), and so would an encoder whose graph is at most
-165.5 MiB. The int8 figures are measurements, not a step you can run: no int8
-derivation exists for applications yet (it has only been measured on the
-refund benchmark, where it changed 1 of 80 attested cases and the strict gate
-refused it). The levers you can act on today are a smaller encoder
-(`train --encoder-name`) and depth routing, which alone is not enough here.
-Until one of those fits, ship the trained release as a container:
+165.5 MiB.
+
+`semantscript releases derive --int8` is the int8 step. It checks the int8
+chain against the float32 one on the release's own records from the build
+cache: 586 records, 394 for `decideRefund` (192 training cases, 3 of them gold,
+and 202 adversarial ones) and 192 for `triage` (3 gold). On this release the
+strict default gate refuses both settings, so nothing is published:
+
+| Settings                                          | Decisions changed | Attested changed | Worst int8 ECE (float32) | Encoder   | Time on CPU | Gate                                          |
+| ------------------------------------------------- | ----------------- | ---------------- | ------------------------ | --------- | ----------- | --------------------------------------------- |
+| default                                           | 6 of 586 (1.02%)  | 0 of 6           | 0.1049 (0.0391)          | 143.1 MiB | 2 min 25 s  | refused: decisions changed, ECE over 0.1      |
+| `--per-channel`                                   | 3 of 586 (0.51%)  | 0 of 6           | 0.0914 (0.0391)          | 143.8 MiB | 5 min 26 s  | refused: decisions changed                    |
+| `--per-channel --max-decision-change-rate 0.0052` | 3 of 586          | 0 of 6           | 0.0914                   | 143.8 MiB | 4 min 6 s   | published, with the tolerance in the manifest |
+
+Times are wall clock on the development machine (Ryzen 9 9900X, WSL2, CPU
+only, about 3 GB resident); the second and third runs shared it with test
+runs. The int8 row in the size table is that last derivation. Publishing it means
+accepting that 3 of the 586 records the release was trained and verified on
+(1 `decideRefund`, 2 `triage`; none of the gold examples) get a different
+answer than from the float32 release. That is a decision for the application
+owner, and the manifest records it (`releases show` prints it). The check has
+no held-out set yet: one joins once the release gate records a held-out set
+for the release. Then `semantscript releases promote <digest>` and
+`semantscript package` again ship it; promoting `217d386c` goes back.
+
+Without that tolerance, ship the trained release as a container:
 [`deploy/Dockerfile.package`](deploy/Dockerfile.package) runs the bundle as
 the Express server on Cloud Run or any container host, which has no size
 limit near 654 MiB. The bundle is also well under Lambda's container image
@@ -256,5 +281,6 @@ worker) and one request round trip through the loaded runtime, but not the
 first encoder pass, which the refund benchmark measures at 28 ms p50 on this
 CPU (`results-compact-2026-09-24`). The resident set is dominated by the
 float32 encoder; the int8 release under `results-int8-2026-09-24` measured how
-far quantization would cut it, but that is a measurement on the refund
-benchmark, not a step an application can run yet.
+far quantization cuts it on the refund benchmark, and `semantscript releases
+derive --int8` derives such a release for an application (above); its memory
+has not been measured on this example.

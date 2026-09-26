@@ -95,6 +95,7 @@ from semantscript_trainer.lifecycle import (
 )
 from semantscript_trainer.quantization import (
     QuantizationConfig,
+    QuantizationFunctionReport,
     QuantizationGateError,
     QuantizationRecord,
     QuantizationReport,
@@ -299,6 +300,7 @@ __all__ = [
     "OutputHead",
     "PairRole",
     "QuantizationConfig",
+    "QuantizationFunctionReport",
     "QuantizationGateError",
     "QuantizationRecord",
     "QuantizationReport",

@@ -242,31 +242,59 @@ jobs:
 
   package:
     # docs/deploy.md: `semantscript package` writes the deployable directory;
-    # this job builds the Express example's image from that directory alone
-    # and invokes its serverless handler, both on the fixture artifact.
-    name: semantscript package, Docker image and Lambda handler from the bundle
+    # this job derives an int8 release from the fixture artifact, promotes it,
+    # then builds the Express example's image from the bundle alone and
+    # invokes its serverless handler, both on that int8 release.
+    name: releases derive --int8, semantscript package, Docker image and Lambda handler from the bundle
     env:
       ONNXRUNTIME_NODE_INSTALL: skip
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
+      # The int8 derivation runs in the trainer: CPU PyTorch and the training extra.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install '.[training]' into .venv (CPU PyTorch)
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          torch=$(grep -o '"torch==[^"]*"' pyproject.toml | tr -d '"')
+          .venv/bin/python -m pip install "$torch" --index-url https://download.pytorch.org/whl/cpu
+          .venv/bin/python -m pip install -e '.[training]'
       - run: npm ci
       - run: npm run build
-      - name: Build the Express example with the fixture artifact
+      # --quantizable: the fixture encoder with a constant MatMul, plus the
+      # fixture training datasets the derivation verifies on in .semantscript/cache.
+      - name: Build the Express example with the quantizable fixture artifact
         working-directory: examples/express-app
         run: |
           npm install
           npm run build
-          npm run fixture-artifact
+          npm run fixture-artifact -- --quantizable
+      # The strict default gate: no decision may change. --promote points
+      # current.json at the int8 release, so every step below runs on it.
+      - name: semantscript releases derive --int8 --promote
+        working-directory: examples/express-app
+        run: |
+          npx --no-install semantscript releases derive --int8 --promote --python ../../.venv/bin/python
+          shown=$(npx --no-install semantscript releases show "$(node -p 'require("./.semantscript/artifact/current.json").manifestSha256')")
+          echo "$shown"
+          grep -q '^derived      int8-dynamic from sha256-' <<<"$shown"
       # Must fit AWS Lambda's 250 MB unzipped limit: exit 1 otherwise.
       - name: semantscript package --target lambda-zip
         working-directory: examples/express-app
         run: npx --no-install semantscript package --include deploy/lambda.mjs --target lambda-zip
+      - name: The bundle carries the int8 release
+        working-directory: examples/express-app/.semantscript/package
+        run: grep -rlq '"int8-dynamic"' --include=manifest.json .
       - name: Invoke the packaged Lambda handler once
         working-directory: examples/express-app/.semantscript/package
         run: |

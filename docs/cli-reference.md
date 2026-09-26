@@ -25,6 +25,9 @@ semantscript releases show <release> [--artifact <root>] [--json]
 semantscript releases rollback [<release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases promote <release> [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <duration>] [--artifact <root>] [--dry-run] [--json]
+semantscript releases derive --int8 [<release>] [--artifact <root>] [--cache-dir <dir>] [--per-channel]
+                     [--reduce-range] [--weight-type int8|uint8] [--max-attested-disagreements <n>]
+                     [--max-decision-change-rate <x>] [--ece-threshold <x>] [--promote] [--json]
 semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json]
                      <module.js> --call <export> [--input <json> | --input-file <path>]
 semantscript package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>] [--include <path>]...
@@ -45,7 +48,9 @@ console script answers the same way: `semantscript-trainer --version`.
 | 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, a refused `releases` switch or prune, a `package` that failed or exceeds its target (the message starts with its code, below), an `explain` whose call reached a function id the artifact lacks or failed with anything but a missing id or a below-threshold confidence, or any other error while working. |
 | 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`, or `test --bundle` with `--no-bundle`), and `explain` without `--call`.                                                                                                                                                                                                                                                                                                                                     |
 
-Usage errors print the message and the usage text to stderr. Every other
+`releases derive --int8` also exits 2 when its gate refuses the int8
+release ([below](#releases-derive---int8)): the run worked and published
+nothing. Usage errors print the message and the usage text to stderr. Every other
 failure prints its message to stderr; compile diagnostics carry the file, line,
 column, code and site text.
 
@@ -482,13 +487,14 @@ and anything else are ignored. "Newest" and "previous" order releases by the
 manifest's `build.createdAt` (then by digest), since the exporter keeps no
 deployment history.
 
-| Subcommand             | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list` (the default)   | One row per release, newest first: `*` on the one `current.json` names, `build.createdAt`, the first 12 characters of the manifest digest, `application@version`, functions passed out of total, the lowest accuracy, the highest ECE and the summed constraint violations. A release whose manifest does not hash to its name is listed as `invalid` with the reason. `list` and `show` check only the manifest's digest; `rollback` and `promote` check the rest before switching.                                                                                                                                                                                                                        |
-| `show <release>`       | That release's per-function verification table, the same columns as `test`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `rollback [<release>]` | Points `current.json` at the named release or, without one, at the newest release created before the current one. The target is checked first the way the runtime loads it: the manifest hashes to the directory name, every resource is a regular non-symlink file inside the release with its recorded size and SHA-256, every function's verification is `passed`, and the runtime's own loader (`checkSemaArtifact` from `@semantscript/core`, with its default options) accepts it: manifest schema, runtime and model ABI compatibility, tensor names and shapes, opsets and the encoder-adapter-head chain. Only ONNX session start-up and the application's fallback registrations are not checked. |
-| `promote <release>`    | The same operation with a required name, for rolling forward again.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `prune`                | Removes releases that are neither current nor kept: with `--keep <n>`, the ones beyond the `n` newest valid releases; with `--older-than <duration>` (`30d`, `12h`, `90m`), the ones created before that; with both, only those matching both. Needs at least one of them. Newest means by `build.createdAt`, not by deployment: after a rollback, `--keep` still counts the newer releases you rolled back from.                                                                                                                                                                                                                                                                                           |
+| Subcommand                  | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list` (the default)        | One row per release, newest first: `*` on the one `current.json` names, `build.createdAt`, the first 12 characters of the manifest digest, `application@version`, functions passed out of total, the lowest accuracy, the highest ECE and the summed constraint violations. A release whose manifest does not hash to its name is listed as `invalid` with the reason. `list` and `show` check only the manifest's digest; `rollback` and `promote` check the rest before switching.                                                                                                                                                                                                                        |
+| `show <release>`            | That release's per-function verification table, the same columns as `test`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `rollback [<release>]`      | Points `current.json` at the named release or, without one, at the newest release created before the current one. The target is checked first the way the runtime loads it: the manifest hashes to the directory name, every resource is a regular non-symlink file inside the release with its recorded size and SHA-256, every function's verification is `passed`, and the runtime's own loader (`checkSemaArtifact` from `@semantscript/core`, with its default options) accepts it: manifest schema, runtime and model ABI compatibility, tensor names and shapes, opsets and the encoder-adapter-head chain. Only ONNX session start-up and the application's fallback registrations are not checked. |
+| `promote <release>`         | The same operation with a required name, for rolling forward again.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `derive --int8 [<release>]` | Derives an int8 release from the current release or the named one and publishes it beside it without moving `current.json` ([below](#releases-derive---int8)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `prune`                     | Removes releases that are neither current nor kept: with `--keep <n>`, the ones beyond the `n` newest valid releases; with `--older-than <duration>` (`30d`, `12h`, `90m`), the ones created before that; with both, only those matching both. Needs at least one of them. Newest means by `build.createdAt`, not by deployment: after a rollback, `--keep` still counts the newer releases you rolled back from.                                                                                                                                                                                                                                                                                           |
 
 | Flag           | Value    | Effect                                                                                                                     |
 | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -516,17 +522,97 @@ it reads the pointer again and puts the release back if a `rollback` made it
 current meanwhile. It refuses to run when `current.json` is missing or invalid
 or names a release that is missing or invalid.
 
-| Code                      | Cause                                                                                                                                                                                                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POINTER_INVALID`         | `current.json` is missing (for `prune` or an unnamed `rollback`), not a regular file, or not a v1 pointer whose release is `releases/sha256-<manifestSha256>`, or (for `prune`) names a release that is missing or invalid. A named `rollback` or `promote` repairs it. |
-| `RELEASE_NOT_FOUND`       | No release matches the name or prefix.                                                                                                                                                                                                                                  |
-| `RELEASE_AMBIGUOUS`       | The prefix matches more than one release.                                                                                                                                                                                                                               |
-| `RELEASE_ALREADY_CURRENT` | The target is the current release.                                                                                                                                                                                                                                      |
-| `RELEASE_NO_PREVIOUS`     | An unnamed `rollback` found no valid release created before the current one, or the current one is missing or invalid.                                                                                                                                                  |
-| `RELEASE_INTEGRITY`       | The target is a symlink, its manifest does not hash to its name, or a resource is missing, crosses a symlink or has the wrong size or digest.                                                                                                                           |
-| `RELEASE_UNVERIFIED`      | A function in the target did not pass verification; the runtime refuses such a release.                                                                                                                                                                                 |
-| `RELEASE_REJECTED`        | The runtime's loader refuses the target; the message carries its `SEMA_ARTIFACT_*` code, for example `SEMA_ARTIFACT_INCOMPATIBLE` for a release built for another runtime or model ABI.                                                                                 |
-| `RELEASE_INVALID`         | `show` named a release whose manifest cannot be read.                                                                                                                                                                                                                   |
+| Code                      | Cause                                                                                                                                                                                                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POINTER_INVALID`         | `current.json` is missing (for `prune`, an unnamed `rollback` or an unnamed `derive --int8`), not a regular file, or not a v1 pointer whose release is `releases/sha256-<manifestSha256>`, or (for `prune`) names a release that is missing or invalid. A named `rollback` or `promote` repairs it. |
+| `RELEASE_NOT_FOUND`       | No release matches the name or prefix.                                                                                                                                                                                                                                                              |
+| `RELEASE_AMBIGUOUS`       | The prefix matches more than one release.                                                                                                                                                                                                                                                           |
+| `RELEASE_ALREADY_CURRENT` | The target is the current release.                                                                                                                                                                                                                                                                  |
+| `RELEASE_NO_PREVIOUS`     | An unnamed `rollback` found no valid release created before the current one, or the current one is missing or invalid.                                                                                                                                                                              |
+| `RELEASE_INTEGRITY`       | The target is a symlink, its manifest does not hash to its name, or a resource is missing, crosses a symlink or has the wrong size or digest.                                                                                                                                                       |
+| `RELEASE_UNVERIFIED`      | A function in the target did not pass verification; the runtime refuses such a release.                                                                                                                                                                                                             |
+| `RELEASE_REJECTED`        | The runtime's loader refuses the target; the message carries its `SEMA_ARTIFACT_*` code, for example `SEMA_ARTIFACT_INCOMPATIBLE` for a release built for another runtime or model ABI.                                                                                                             |
+| `RELEASE_INVALID`         | `show` named a release whose manifest cannot be read.                                                                                                                                                                                                                                               |
+
+`list` adds a line under the table for each release `derive --int8` produced
+(`<digest>: int8-dynamic from sha256-<source>: 0 of 586 decisions changed (0
+of 6 attested); tolerance …`), `show` prints the same as its `derived` line,
+and `--json` gives every release a `derivation` object (`null` for a trained
+one): precision, source digest, quantization settings, tolerances and the
+recorded figures, which are `null` for an int8 release derived before the
+manifest recorded them.
+
+### `releases derive --int8`
+
+Runs `python -m semantscript_trainer.cli derive-int8` (the interpreter and
+module resolve as for `train`). It quantizes every encoder graph of the
+release (a depth-routed release has one per depth) with ONNX Runtime's
+dynamic int8 quantization, copies every other resource unchanged, and then
+runs each record through the float32 chain and the int8 chain of its
+function: encoder, adapter and heads. A decision is the tuple of the heads'
+answers (their argmax: a function's `@confidence` threshold is not applied,
+so a record whose top answer stays the same but crosses the threshold is not
+counted as changed). Each record's output is its label for the ECE check, by
+the head's `support`, or by `supportDecimal` for a bounded number. The records
+are the release's own, taken from the build cache by digest:
+
+- the training dataset whose file SHA-256 is the function's
+  `trainingProvenance.datasetSha256` (its gold cases, the sema call's
+  examples, are the attested records);
+- the adversarial dataset the build cache's `function.json` pins, or, with no
+  such record, the only one built on that training dataset.
+
+A missing dataset, or two adversarial datasets that could both be the one,
+stops the derivation with `int8-records-missing` in the
+[diagnostics catalogue](diagnostics.md) instead of verifying on other
+records. A held-out set joins the check once the release gate records one;
+until then the report says the check ran on the training, gold and
+adversarial records only.
+
+The gate refuses the release when more attested records changed decision
+than `--max-attested-disagreements` allows (default 0), when the share of all
+records that changed is above `--max-decision-change-rate` (default 0), or
+when a head's int8 ECE is above `--ece-threshold` (default 0.1). A refusal
+publishes nothing, prints the figures and the tolerance flags that would
+admit them (remedy `int8-gate-refused`) and exits 2. The command it names
+repeats the source release's digest and the `--artifact`, `--cache-dir`,
+`--python` and `--trainer-module` flags you gave, so it runs as printed
+whichever release is current; it suggests `--per-channel` only when decisions
+changed, not for a calibration-only refusal. A release that passes
+is published as `releases/sha256-<digest>/` beside its source, and each
+quantized encoder's `onnx.quantization` records the source manifest digest,
+the settings, the tolerances and a `verification` block: records checked,
+attested records, decisions and attested decisions changed, the change rate,
+the worst head's float32 and int8 ECE, the datasets checked (kind, function,
+SHA-256, count) and the same figures per function. The runtime loads it like
+any release. `current.json` does not move: `next:` names
+`releases promote <digest>`, and promoting the float32 release again goes
+back. A later `train` publishes its float32 release again and makes it
+current (the build cache reuses a release only while `current.json` names
+it), so derive and promote again after each train.
+
+| Flag                           | Value     | Effect                                                                                                                   |
+| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--int8`                       |           | Required: int8 dynamic quantization is the one derivation.                                                               |
+| `--cache-dir`                  | path      | The build cache the release was trained with (default `.semantscript/cache`).                                            |
+| `--report`                     | path      | Where the trainer writes the JSON report (`kind` `semantscript.derive-report`; default `<artifact>.derive-report.json`). |
+| `--weight-type`                | type      | `int8` (default) or `uint8` weights.                                                                                     |
+| `--per-channel`                |           | One scale per output channel instead of one per tensor.                                                                  |
+| `--reduce-range`               |           | 7-bit weights, for CPUs without VNNI.                                                                                    |
+| `--max-attested-disagreements` | count     | Attested records allowed to change decision (default 0). The manifest records the value.                                 |
+| `--max-decision-change-rate`   | 0 to 1    | Share of all records allowed to change decision (default 0). The manifest records the value.                             |
+| `--ece-threshold`              | 0 to 1    | Largest int8 ECE any head may have (default 0.1). The manifest records the value.                                        |
+| `--promote`                    |           | After publishing, run `releases promote` on the new release.                                                             |
+| `--python`, `--trainer-module` | exe, name | As for `train`.                                                                                                          |
+| `--json`                       |           | Print the derive report instead of the table; with `--promote`, promote's JSON is its `promoted` field (one document).   |
+
+Exit status: 0 published (and promoted with `--promote`), 2 refused by the
+gate or a usage error, 1 when the release or its records cannot be found or
+the trainer fails (the message ends with a `next:` clause). With no release
+at the artifact root, the `POINTER_INVALID` or `RELEASE_NOT_FOUND` message
+says to run `train` first (remedy `int8-no-release`); with releases on disk
+but none current or none matching the name, it names `releases list` and a
+derive command for the newest release (remedy `int8-release-not-named`).
 
 A malformed `<release>` (not hex, shorter than 7 characters) or `prune`
 without `--keep` or `--older-than` exits 2. After a rollback, the next `train`
@@ -659,10 +745,10 @@ levers with the bundle each would give and whether it fits, and the command
 exits 1 with `PACKAGE_OVER_TARGET`. The levers scale the release's encoder by
 sizes measured on ModernBERT-base, so for another encoder they are estimates
 ([Deploying](deploy.md) explains them): depth routing to 12, 6 and 4 layers
-(`build --domain-depth`, given to every domain), int8 dynamic quantization (a measurement from the
-refund benchmark under a recorded tolerance; no int8 derivation exists for
-applications yet, so it is not a step to run and its rows read
-`fits (measurement only)`, with `actionable: false` in `--json`), both together, and a smaller encoder (`train --encoder-name`,
+(`build --domain-depth`, given to every domain), int8 dynamic quantization (`releases derive --int8`,
+then `releases promote`; its projection is the refund benchmark's measured
+int8 ratio, and the derivation's gate decides whether a given release
+publishes), both together, and a smaller encoder (`train --encoder-name`,
 reported as the largest encoder graph that fits). A lever the release already
 uses is not suggested again: depth routing when the release ships a routed
 encoder prefix (a function `encoderRef` other than the default encoder, or a

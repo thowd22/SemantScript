@@ -3,8 +3,9 @@
 `semantscript` is the single entry point over the compiler, trainer, verifier
 and runtime packages. It coordinates them without owning their core
 implementations: `build` is the compiler, `train` is the Python trainer's
-bundle driver, `test` and `run` are the runtime, and `releases` manages the
-published releases under the artifact root.
+bundle driver, `test` and `run` are the runtime, `releases` manages the
+published releases under the artifact root, and `package` writes the
+deployable bundle.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>] [--python <exe>] [--trainer-module <module>]
@@ -17,6 +18,7 @@ semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
+semantscript package [--project <dir>] [--artifact <root>] [--out <dir>] [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
 ```
 
 ## init
@@ -319,3 +321,24 @@ releases to free disk. The current release is never removed, whatever its
 age, and neither are invalid releases or an export in progress. `--dry-run`
 shows what would go. See the [CLI reference](../docs/cli-reference.md#releases)
 for the error codes.
+
+## package
+
+`semantscript package` writes `.semantscript/package/`, a directory that runs
+on its own: `dist/` without the IR bundle (it holds the prompt text), the
+production `node_modules` pruned to the target platform's ONNX Runtime and
+tokenizers binaries (no CUDA or TensorRT provider; the runtime runs on the
+CPU), `.semantscript/artifact` with only the current release, any
+`--include` files, and `semantscript-package.json` with the SHA-256 and size
+of every file. The current release is checked first the way `releases
+promote` checks a target, and on the host platform the pruned bindings are
+loaded from the bundle before it is kept. The output is a size table by part
+(dist, node_modules with its largest packages, encoder, adapter, heads,
+tokenizer, included files) and the total.
+
+`--target lambda-zip|lambda-image|cloud-run-functions` or `--max-bytes <n>`
+checks the total. Over it, the bundle is still written, the command exits 1
+with `PACKAGE_OVER_TARGET`, and it lists the levers with the bundle each
+would give: depth routing, int8 quantization under its recorded tolerance,
+both, or a smaller encoder. See [Deploying](../docs/deploy.md) and the
+[CLI reference](../docs/cli-reference.md#package).

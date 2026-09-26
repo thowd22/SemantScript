@@ -260,7 +260,9 @@ searches for `.semantscript/artifact` upward from the compiled entry and from
 the working directory. A `sema` call before the load resolves throws
 `SemaRuntimeNotLoadedError`, so the await matters. Deploying is shipping
 `dist/`, `node_modules/` (installed on the target platform; the ONNX and
-tokenizer bindings are prebuilt) and `.semantscript/artifact/` together; the
+tokenizer bindings are prebuilt) and `.semantscript/artifact/` together, and
+`npx semantscript package` writes exactly that directory with its size
+([Deploying](deploy.md)); the
 [runtime guide](../runtime/README.md#packaging-for-deployment) has the
 container and serverless shapes.
 

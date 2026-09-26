@@ -698,7 +698,7 @@ function previousRelease(
  * encoder-adapter-head chain) accept it. Only ONNX session start-up and the
  * application's fallback registrations are left unchecked.
  */
-async function verifyRelease(entry: ReleaseEntry): Promise<void> {
+export async function verifyRelease(entry: ReleaseEntry): Promise<void> {
   if (
     entry.error !== undefined ||
     entry.manifest === undefined ||
@@ -780,7 +780,7 @@ async function verifyRelease(entry: ReleaseEntry): Promise<void> {
   }
 }
 
-async function fileSha256(file: string): Promise<string> {
+export async function fileSha256(file: string): Promise<string> {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(file)) {
     hash.update(chunk as Uint8Array);
@@ -788,7 +788,7 @@ async function fileSha256(file: string): Promise<string> {
   return hash.digest("hex");
 }
 
-async function treeSize(path: string): Promise<number> {
+export async function treeSize(path: string): Promise<number> {
   const stats = await lstat(path);
   if (!stats.isDirectory()) return stats.isFile() ? stats.size : 0;
   let total = 0;
@@ -882,7 +882,7 @@ function parseDuration(text: string): number {
   return Number(match[1]) * (DURATION_UNIT_MS[unit] ?? 0);
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${String(bytes)} B`;
   const units = ["KiB", "MiB", "GiB", "TiB"];
   let value = bytes / 1024;

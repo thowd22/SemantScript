@@ -1,6 +1,9 @@
 // A serverless handler over the same compiled sema function. Deploy dist/,
-// node_modules/ and .semantscript/artifact together (a zip or container image);
-// the runtime finds the artifact by searching upward from this file.
+// node_modules/ and .semantscript/artifact together (a zip or container image):
+// `npx semantscript package --include deploy/lambda.mjs` writes that directory
+// with this file at deploy/lambda.mjs (handler deploy/lambda.handler). The
+// runtime finds the artifact by searching upward from the entry and the
+// working directory, which is the bundle root on Lambda.
 //
 // The event shape follows API Gateway's HTTP API (v2): a JSON body with
 // `subject` and `body`. The artifact loads once per execution environment, on

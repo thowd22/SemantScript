@@ -8,6 +8,7 @@ import { devCommand } from "./dev.js";
 import { doctorCommand } from "./doctor.js";
 import { initCommand } from "./init.js";
 import { CliUsageError, processIo, type CliIo } from "./io.js";
+import { packageCommand } from "./package.js";
 import { releasesCommand } from "./releases.js";
 import { runCommand } from "./run.js";
 import { teacherCommand } from "./teacher.js";
@@ -61,6 +62,13 @@ export const USAGE = `usage: semantscript <command> [options]
          [--dry-run] [--json]
          remove releases beyond the n newest and/or older than the age; never
          the current one
+  package [--project <dir>] [--dist <dir>] [--artifact <root>] [--out <dir>]
+         [--include <path>]... [--target lambda-zip|lambda-image|cloud-run-functions
+         | --max-bytes <n>] [--platform <os>] [--arch <cpu>] [--force] [--json]
+         write a deployable directory: dist/ without the IR bundle, production
+         node_modules pruned to the platform's native bindings, the current
+         release only and a manifest of digests; print its size by part and,
+         over the target, which size lever would fit it
 
   defaults: the bundle is the build's semantscript.ir.v1.json, the artifact is
   .semantscript/artifact (or SEMANTSCRIPT_ARTIFACT), the teacher is teacher.toml
@@ -75,6 +83,7 @@ export {
   devCommand,
   doctorCommand,
   initCommand,
+  packageCommand,
   releasesCommand,
   runCommand,
   teacherCommand,
@@ -119,6 +128,17 @@ export {
   type ArtifactPointer,
 } from "./manifest.js";
 export { resolveRelease, scanReleases, type ReleaseEntry } from "./releases.js";
+export {
+  MEASURED_ENCODER,
+  PACKAGE_KIND,
+  PACKAGE_MANIFEST,
+  PACKAGE_TARGETS,
+  PackageError,
+  packageLevers,
+  pruneNativeBindings,
+  type PackageLever,
+  type PackageTarget,
+} from "./package.js";
 export type { CliIo } from "./io.js";
 
 const COMMANDS: Readonly<
@@ -133,6 +153,7 @@ const COMMANDS: Readonly<
   run: runCommand,
   teacher: teacherCommand,
   releases: releasesCommand,
+  package: packageCommand,
 };
 
 /** Dispatch one invocation; returns the process exit status. */

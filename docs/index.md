@@ -45,7 +45,10 @@ trainer or runtime, and CONTRIBUTING if you change the repository.
 - [CLI reference](cli-reference.md): every command, flag, default,
   environment variable and exit code of `semantscript`, including
   `semantscript releases` to list, inspect, roll back, promote and prune
-  artifact releases.
+  artifact releases and `semantscript package` to write a deployable bundle.
+- [Deploying](deploy.md): `semantscript package` and what the bundle holds,
+  the Lambda and Cloud Run size targets, and the depth, int8 and
+  smaller-encoder levers with their measured sizes.
 - [Build cache](build-cache.md): what is content-addressed, when retraining
   happens, where the caches live (including the teacher response journal) and
   how to clear them, and how the cache interacts with a release rollback.

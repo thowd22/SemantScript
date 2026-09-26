@@ -223,6 +223,32 @@ function isDirectory(path: string): boolean {
   }
 }
 
+/** What {@link checkSemaArtifact} found: the release it checked. */
+export interface SemaArtifactCheck {
+  readonly releaseDirectory: string;
+  readonly manifestSha256: string;
+}
+
+/**
+ * Runs every check `loadSemaArtifact()` makes before it starts ONNX sessions,
+ * without activating anything: pointer or release selection, manifest digest
+ * and schema, runtime and model ABI compatibility, tensor relationships,
+ * resource paths, sizes and digests, and the ONNX container opsets. Throws the
+ * same `ArtifactLoadError` a load would. Fallback registration is not checked,
+ * because fallbacks belong to the application.
+ */
+export async function checkSemaArtifact(
+  artifactPath: string,
+  options: Omit<ArtifactLoadOptions, "backend"> = {},
+): Promise<SemaArtifactCheck> {
+  const staged = await loadArtifact(artifactPath, options);
+  buildInferencePlan(staged);
+  return Object.freeze({
+    releaseDirectory: staged.releaseDirectory,
+    manifestSha256: staged.manifestSha256,
+  });
+}
+
 /**
  * Stages and initializes a complete immutable artifact, then atomically makes it
  * visible to the compiler ABI. A failed load never replaces the active artifact.

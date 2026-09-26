@@ -3,7 +3,8 @@
 `semantscript` is the single entry point over the compiler, trainer, verifier
 and runtime packages. It coordinates them without owning their core
 implementations: `build` is the compiler, `train` is the Python trainer's
-bundle driver, `test` and `run` are the runtime.
+bundle driver, `test` and `run` are the runtime, and `releases` manages the
+published releases under the artifact root.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>] [--python <exe>] [--trainer-module <module>]
@@ -14,6 +15,8 @@ semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
+semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
+semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
 ```
 
 ## init
@@ -65,7 +68,7 @@ Every command works without flags once the project is initialised:
 - the bundle is the build's `semantscript.ir.v1.json` under the tsconfig
   `outDir`, then `.`, `dist`, `out` or `build`;
 - the artifact root is `SEMANTSCRIPT_ARTIFACT` when set, else
-  `.semantscript/artifact`, for `train`, `test`, `run` and the runtime's
+  `.semantscript/artifact`, for `train`, `test`, `run`, `releases` and the runtime's
   `loadSemaArtifact()` with no argument;
 - the teacher is the first of `semantscript.teacher.toml`, `teacher.toml` and
   `.semantscript/teacher.toml`; when none exists and `ANTHROPIC_API_KEY` is
@@ -289,3 +292,30 @@ the same from a file), awaits a returned promise and prints the JSON result.
 The module resolves `@semantscript/core` from its own location, and that must
 be the same installation the CLI uses. The artifact is closed when the command
 returns, so nothing stays loaded in the process.
+
+## releases
+
+Every `train` publishes an immutable `releases/sha256-<manifest digest>/`
+under the artifact root and points `current.json` at it. `semantscript
+releases` (or `releases list`) shows every release newest first by its
+manifest's `build.createdAt`, with the digest, the application version, how
+many functions passed verification, the lowest accuracy, the highest ECE and
+the constraint violations, and marks the current one; `releases show
+<release>` prints one release's per-function table, the same columns as
+`test`. A release is named by its digest or a unique prefix of at least 7
+characters.
+
+`releases rollback` points `current.json` back at the release created before
+the current one (or at a named one; `releases promote <release>` rolls
+forward). It first checks the target the way the runtime will: the manifest
+and every resource hash, no symlinks, every function passed verification, and
+the runtime's own loader checks (ABI compatibility, tensors, opsets and the
+model chain) accept it; only ONNX session start-up is left out. The pointer is rewritten atomically (temporary
+file, fsync, rename) and no release is removed, so a running process loaded
+with `watch: true` swaps to the target and a later rollback can swap back.
+
+`releases prune --keep <n>` and/or `--older-than <30d|12h|90m>` delete old
+releases to free disk. The current release is never removed, whatever its
+age, and neither are invalid releases or an export in progress. `--dry-run`
+shows what would go. See the [CLI reference](../docs/cli-reference.md#releases)
+for the error codes.

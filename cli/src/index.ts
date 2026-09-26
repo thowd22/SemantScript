@@ -8,6 +8,7 @@ import { devCommand } from "./dev.js";
 import { doctorCommand } from "./doctor.js";
 import { initCommand } from "./init.js";
 import { CliUsageError, processIo, type CliIo } from "./io.js";
+import { releasesCommand } from "./releases.js";
 import { runCommand } from "./run.js";
 import { teacherCommand } from "./teacher.js";
 import { testCommand } from "./test-command.js";
@@ -46,6 +47,20 @@ export const USAGE = `usage: semantscript <command> [options]
          report each function's verification and replay the bundle's examples
   run    [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
          load the artifact, import the compiled module and call an export
+  releases [list] [--artifact <root>] [--json]
+         list every release under the artifact root: date, digest, per-function
+         verification and which one current.json names
+  releases show <release> [--artifact <root>] [--json]
+         one release's per-function verification
+  releases rollback [<release>] [--artifact <root>] [--dry-run] [--json]
+  releases promote <release> [--artifact <root>] [--dry-run] [--json]
+         verify a release and point current.json at it atomically (rollback
+         without a name picks the release created before the current one);
+         a process loaded with watch: true swaps to it
+  releases prune [--keep <n>] [--older-than <30d|12h|90m>] [--artifact <root>]
+         [--dry-run] [--json]
+         remove releases beyond the n newest and/or older than the age; never
+         the current one
 
   defaults: the bundle is the build's semantscript.ir.v1.json, the artifact is
   .semantscript/artifact (or SEMANTSCRIPT_ARTIFACT), the teacher is teacher.toml
@@ -60,6 +75,7 @@ export {
   devCommand,
   doctorCommand,
   initCommand,
+  releasesCommand,
   runCommand,
   teacherCommand,
   testCommand,
@@ -94,7 +110,15 @@ export {
   renderTeacherProbe,
   type TeacherProbeResult,
 } from "./teacher.js";
-export { readArtifactSummary } from "./manifest.js";
+export {
+  pointerBytes,
+  readArtifactSummary,
+  readPointer,
+  ReleaseError,
+  writePointer,
+  type ArtifactPointer,
+} from "./manifest.js";
+export { resolveRelease, scanReleases, type ReleaseEntry } from "./releases.js";
 export type { CliIo } from "./io.js";
 
 const COMMANDS: Readonly<
@@ -108,6 +132,7 @@ const COMMANDS: Readonly<
   test: testCommand,
   run: runCommand,
   teacher: teacherCommand,
+  releases: releasesCommand,
 };
 
 /** Dispatch one invocation; returns the process exit status. */

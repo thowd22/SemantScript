@@ -20,15 +20,20 @@ semantscript teacher probe [--teacher <teacher.toml>|constraints] [--python <exe
 semantscript dev   [build and train options] [--debounce <ms>] [--once]
 semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
+semantscript releases [list] [--artifact <root>] [--json]
+semantscript releases show <release> [--artifact <root>] [--json]
+semantscript releases rollback [<release>] [--artifact <root>] [--dry-run] [--json]
+semantscript releases promote <release> [--artifact <root>] [--dry-run] [--json]
+semantscript releases prune [--keep <n>] [--older-than <duration>] [--artifact <root>] [--dry-run] [--json]
 ```
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                                                                                                                                                                           |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                              |
-| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, or any other error while working. |
-| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).                                                                                                                                  |
+| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                           |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | The command succeeded. `semantscript help`, `--help` and `-h` (also after a command, as in `semantscript doctor --help`) print the usage and exit 0.                                                                                                                                                                                                                              |
+| 1    | The command ran and failed: compile diagnostics, a failed training or verification, a failed `test`, a failed `doctor` check or `train` preflight, a `train` stopped by its `--max-cost-usd` cap, a failed `teacher probe` request, an unknown `--call` export, a refused `releases` switch or prune (the message starts with its code, below), or any other error while working. |
+| 2    | Usage: no command, an unknown command, an unknown or malformed option, a missing required value, or an inconsistent combination (`--input` with `--input-file`).                                                                                                                                                                                                                  |
 
 Usage errors print the message and the usage text to stderr. Every other
 failure prints its message to stderr; compile diagnostics carry the file, line,
@@ -353,3 +358,68 @@ Exactly one module path is required. The module resolves `@semantscript/core`
 from its own location, and that must be the installation the CLI uses. Exit 1
 when the export is missing or not a function; exit 2 for a missing module
 path, both input flags, or input that is not JSON.
+
+## `releases`
+
+Manages the immutable releases under the artifact root without loading any
+model. Every `train` publishes `releases/sha256-<manifest digest>/` and points
+`current.json` at it; these subcommands show what is there, point
+`current.json` at another release, and remove old ones. A `<release>` is a
+full manifest digest, `sha256-<digest>`, `releases/sha256-<digest>` or a
+unique prefix of at least 7 hex characters. Only directories named
+`sha256-<64 hex>` count as releases; the exporter's `.staging-*` directories
+and anything else are ignored. "Newest" and "previous" order releases by the
+manifest's `build.createdAt` (then by digest), since the exporter keeps no
+deployment history.
+
+| Subcommand             | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list` (the default)   | One row per release, newest first: `*` on the one `current.json` names, `build.createdAt`, the first 12 characters of the manifest digest, `application@version`, functions passed out of total, the lowest accuracy, the highest ECE and the summed constraint violations. A release whose manifest does not hash to its name is listed as `invalid` with the reason. `list` and `show` check only the manifest's digest; `rollback` and `promote` check the rest before switching.                                                                                                                                                                                                                        |
+| `show <release>`       | That release's per-function verification table, the same columns as `test`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `rollback [<release>]` | Points `current.json` at the named release or, without one, at the newest release created before the current one. The target is checked first the way the runtime loads it: the manifest hashes to the directory name, every resource is a regular non-symlink file inside the release with its recorded size and SHA-256, every function's verification is `passed`, and the runtime's own loader (`checkSemaArtifact` from `@semantscript/core`, with its default options) accepts it: manifest schema, runtime and model ABI compatibility, tensor names and shapes, opsets and the encoder-adapter-head chain. Only ONNX session start-up and the application's fallback registrations are not checked. |
+| `promote <release>`    | The same operation with a required name, for rolling forward again.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `prune`                | Removes releases that are neither current nor kept: with `--keep <n>`, the ones beyond the `n` newest valid releases; with `--older-than <duration>` (`30d`, `12h`, `90m`), the ones created before that; with both, only those matching both. Needs at least one of them. Newest means by `build.createdAt`, not by deployment: after a rollback, `--keep` still counts the newer releases you rolled back from.                                                                                                                                                                                                                                                                                           |
+
+| Flag           | Value    | Effect                                                                                                                     |
+| -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `--artifact`   | path     | The artifact root (default above).                                                                                         |
+| `--json`       |          | Print one JSON document (`kind` `semantscript.releases`, version 1, and `.rollback`, `.promote`, `.prune` for the others). |
+| `--dry-run`    |          | `rollback`, `promote`, `prune`: check and report, change nothing.                                                          |
+| `--keep`       | count    | `prune`: keep the `n` newest valid releases (`0` keeps only the current one).                                              |
+| `--older-than` | duration | `prune`: remove only releases whose `build.createdAt` is older than this.                                                  |
+
+The pointer rewrite is atomic: the new `current.json` (the exact bytes the
+trainer's exporter writes) goes to an exclusive temporary file beside it, is
+fsynced and renamed over the old one, and the directory is fsynced, so a
+reader sees the old pointer or the new one. No release is removed or modified.
+A process that loaded the root with `loadSemaArtifact(root, { watch: true })`
+swaps to the new release as soon as it loads whole (and keeps the old one in
+service if it does not); other processes load it on their next start.
+
+`prune` never removes the release `current.json` names, re-reads the pointer
+before each removal (a `train` or `rollback` running at the same time can make
+a candidate current), never removes an invalid release or a `.staging-*`
+directory, and renames each release to `releases/.pruning-<random>` before
+deleting it, so an interrupted prune never leaves a half-deleted directory that
+looks like a release (the next prune deletes such leftovers). After the rename
+it reads the pointer again and puts the release back if a `rollback` made it
+current meanwhile. It refuses to run when `current.json` is missing or invalid
+or names a release that is missing or invalid.
+
+| Code                      | Cause                                                                                                                                                                                                                                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POINTER_INVALID`         | `current.json` is missing (for `prune` or an unnamed `rollback`), not a regular file, or not a v1 pointer whose release is `releases/sha256-<manifestSha256>`, or (for `prune`) names a release that is missing or invalid. A named `rollback` or `promote` repairs it. |
+| `RELEASE_NOT_FOUND`       | No release matches the name or prefix.                                                                                                                                                                                                                                  |
+| `RELEASE_AMBIGUOUS`       | The prefix matches more than one release.                                                                                                                                                                                                                               |
+| `RELEASE_ALREADY_CURRENT` | The target is the current release.                                                                                                                                                                                                                                      |
+| `RELEASE_NO_PREVIOUS`     | An unnamed `rollback` found no valid release created before the current one, or the current one is missing or invalid.                                                                                                                                                  |
+| `RELEASE_INTEGRITY`       | The target is a symlink, its manifest does not hash to its name, or a resource is missing, crosses a symlink or has the wrong size or digest.                                                                                                                           |
+| `RELEASE_UNVERIFIED`      | A function in the target did not pass verification; the runtime refuses such a release.                                                                                                                                                                                 |
+| `RELEASE_REJECTED`        | The runtime's loader refuses the target; the message carries its `SEMA_ARTIFACT_*` code, for example `SEMA_ARTIFACT_INCOMPATIBLE` for a release built for another runtime or model ABI.                                                                                 |
+| `RELEASE_INVALID`         | `show` named a release whose manifest cannot be read.                                                                                                                                                                                                                   |
+
+A malformed `<release>` (not hex, shorter than 7 characters) or `prune`
+without `--keep` or `--older-than` exits 2. After a rollback, the next `train`
+publishes its own release again and makes it current: the build cache reuses a
+published release only while `current.json` still names it (see
+[Build cache](build-cache.md#releases-rollback-and-prune)).

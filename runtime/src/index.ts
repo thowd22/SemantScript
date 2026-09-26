@@ -2,6 +2,7 @@ import { dispatchSemaCall, dispatchSemaStage } from "./artifact-runtime.js";
 import type { SemaStageEntry, SemaStageOutcome } from "./artifact-runtime.js";
 
 export {
+  checkSemaArtifact,
   closeSemaArtifact,
   executeSemaPlan,
   DEFAULT_SEMA_ARTIFACT_PATH,
@@ -14,6 +15,7 @@ export {
   SemaArtifactInactiveError,
   SemaRuntimeNotLoadedError,
   type LoadSemaArtifactOptions,
+  type SemaArtifactCheck,
   type SemaArtifactHandle,
   type SemaExecutionPlan,
   type SemaExecutionPlanDependency,

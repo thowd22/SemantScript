@@ -8,7 +8,12 @@ import {
   readJson,
   type ArtifactSummary,
 } from "./manifest.js";
-import { formatRatio, renderTable, shortId } from "./table.js";
+import {
+  renderTable,
+  shortId,
+  VERIFICATION_HEADERS,
+  verificationCells,
+} from "./table.js";
 
 interface ExampleFailure {
   readonly index: number;
@@ -83,16 +88,7 @@ export async function testCommand(
   const rows = summary.functions.map((fn) => {
     const replay = examples?.find((entry) => entry.functionId === fn.id);
     return [
-      shortId(fn.id),
-      fn.status,
-      formatRatio(fn.accuracy),
-      formatRatio(fn.ece),
-      formatRatio(fn.brier),
-      formatRatio(fn.pairConsistency),
-      String(fn.attestedCases),
-      String(fn.constraintViolations),
-      fn.seed === null ? "-" : String(fn.seed),
-      fn.heads.map((head) => formatRatio(head.accuracy)).join("/"),
+      ...verificationCells(fn),
       replay === undefined
         ? "-"
         : `${String(replay.passed)}/${String(replay.total)}`,
@@ -100,22 +96,7 @@ export async function testCommand(
   });
   const lines = [
     `artifact ${summary.manifestSha256} (${summary.applicationId}@${summary.applicationVersion})`,
-    renderTable(
-      [
-        "function",
-        "verification",
-        "accuracy",
-        "ece",
-        "brier",
-        "pairs",
-        "attested",
-        "violations",
-        "seed",
-        "heads",
-        "examples",
-      ],
-      rows,
-    ).trimEnd(),
+    renderTable([...VERIFICATION_HEADERS, "examples"], rows).trimEnd(),
   ];
   for (const entry of examples ?? []) {
     if (!entry.present) {

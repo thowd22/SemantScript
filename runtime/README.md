@@ -31,6 +31,11 @@ head into a running process: a release that fails to load leaves the previous
 artifact active (`onReloadError`), a successful one retires the previous
 handle and calls `onReload` with the new one; compiled code always goes
 through the active artifact. `closeSemaArtifact()` stops the watcher.
+`checkSemaArtifact(path)` runs every check a load makes before it starts ONNX
+sessions (pointer, digests, schema, ABI compatibility, tensors, opsets and the
+model chain) without activating anything, and throws the same
+`ArtifactLoadError`; `semantscript releases rollback` uses it to refuse a
+release the runtime would not load.
 
 The compiler ABI remains synchronous. ONNX Runtime's JavaScript API is asynchronous,
 so the package owns a dedicated worker thread and uses a bounded shared-memory

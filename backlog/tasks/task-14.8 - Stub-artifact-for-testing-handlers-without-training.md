@@ -1,11 +1,11 @@
 ---
 id: TASK-14.8
 title: Stub artifact for testing handlers without training
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 02:31'
+updated_date: '2026-09-26 02:48'
 labels:
   - dx
   - debug
@@ -23,9 +23,9 @@ Application code that calls sema expressions cannot be unit-tested without a tra
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 @semantscript/core/testing exports a way to create and load a stub artifact from the project's IR bundle in which each function answers a fixed value, a value per input, or a function of its inputs, with a confidence, without any model files
-- [ ] #2 The framework's request scopes, pass counts, confidence policy and fallbacks behave with the stub exactly as with a real artifact, and the reference application's tests use it instead of the internal fixture
-- [ ] #3 The framework guide documents testing a handler with the stub in under twenty lines
+- [x] #1 @semantscript/core/testing exports a way to create and load a stub artifact from the project's IR bundle in which each function answers a fixed value, a value per input, or a function of its inputs, with a confidence, without any model files
+- [x] #2 The framework's request scopes, pass counts, confidence policy and fallbacks behave with the stub exactly as with a real artifact, and the reference application's tests use it instead of the internal fixture
+- [x] #3 The framework guide documents testing a handler with the stub in under twenty lines
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -73,4 +73,12 @@ Fix round 2 (commit 9df0b29, CI run 36211784784 green on all 6 jobs).
 - Checks: npm run build ok; npm run lint:node clean; runtime/test/testing.test.mjs 12/12; npm run test:node 89/117/22/9/85 pass 0 fail; refund-service npm test 2 pass 1 skipped; guide example (17 lines) passes; prettier check on docs clean.
 
 Correction to the fix round 2 note: runtime/test/testing.test.mjs is 11/11 pass (10 earlier tests plus the new async-compute test; the multi-expression and crashed-stub checks extend existing tests).
+
+Finalization validation (2026-09-25): npm run build ok; npm run lint:node clean (0 warnings); node --test runtime/test/testing.test.mjs 11/11 pass (fixed/per-input/compute answers, confidence policy and fallbacks, pass counts equal to a real fixture artifact over scopes/stages/plans, typed errors); npm run test:node 89/117/22/9/85 pass 0 fail; framework stub handle() test pass; examples/refund-service npm run build && npm test 2 pass 1 skipped (trained), app.test.mjs imports @semantscript/core/testing and no longer references runtime/test/fixtures or transformManifest; framework-guide Testing handlers example is 17 lines and passes node --test when run inside refund-service; npx prettier --check docs README.md runtime/README.md clean.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added @semantscript/core/testing (createSemaStubArtifact, loadSemaStubArtifact, semaFunctionId, SemaStubError): a stub artifact built from the project's IR bundle with generated tokenizer and tiny ONNX graphs, loaded through the ordinary loadSemaArtifact path, whose functions answer a fixed value, a per-input value or a synchronous function of the inputs with a confidence. The real worker runs every call and the stubbed answer is substituted before the confidence policy, so request scopes, pass counts, thresholds and fallbacks behave as with a trained artifact; a stub release without registered answers is refused, and a directory holding a trained artifact is never touched. The refund-service tests now use the stub instead of the internal fixture; the framework guide documents it in a 17-line example, with runtime README, docs/index.md, diagnostics and components updated. Verified with build, lint, test:node (all pass), runtime testing tests 11/11, framework stub handler test, refund-service tests, the guide example run for real, prettier, and green CI on task-14.8.
+<!-- SECTION:FINAL_SUMMARY:END -->

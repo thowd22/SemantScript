@@ -16,6 +16,8 @@ export {
   SemaRuntimeNotLoadedError,
   type LoadSemaArtifactOptions,
   type SemaArtifactCheck,
+  type SemaCallObservation,
+  type SemaCallObserver,
   type SemaArtifactHandle,
   type SemaExecutionPlan,
   type SemaExecutionPlanDependency,

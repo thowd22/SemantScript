@@ -54,6 +54,9 @@ interface ActiveArtifact {
   readonly fallbackInvocationStack: Set<string>;
   /** A test stub's answers (TASK-14.8): replace the worker's value after it ran. */
   readonly stub: StubAnswerer | undefined;
+  /** `diagnostics: "always"`: every function computes its distribution. */
+  readonly diagnosticsAlways: boolean;
+  readonly observe: SemaCallObserver | undefined;
 }
 
 interface ActiveFunction {
@@ -82,7 +85,44 @@ export interface LoadSemaArtifactOptions {
   readonly onReload?: (handle: SemaArtifactHandle) => void;
   /** Called when a watched reload fails; the previous artifact stays active. */
   readonly onReloadError?: (error: unknown) => void;
+  /**
+   * `"always"` computes the calibrated distribution for every function, not
+   * only for `sema.withConfidence` sites and `@confidence` thresholds. Program
+   * code still receives exactly what it would otherwise (the plain value from a
+   * value-mode site); the distribution reaches `observe`. Meant for debugging
+   * (`semantscript explain`): it costs the distribution's response bytes on
+   * every call.
+   */
+  readonly diagnostics?: "always";
+  /**
+   * Called synchronously for every dispatched sema call (single calls and
+   * stage entries) with the function id, the inputs and, when the function
+   * computes one, its diagnostic result, before the confidence policy runs; a
+   * call whose id the artifact lacks is reported with `kind: "missing"` just
+   * before `SemaUnknownFunctionError` is thrown. An observer that throws makes
+   * the call throw.
+   */
+  readonly observe?: SemaCallObserver;
 }
+
+/** What `LoadSemaArtifactOptions.observe` receives for one dispatched call. */
+export type SemaCallObservation =
+  | {
+      readonly kind: "answered";
+      readonly functionId: string;
+      readonly inputs: Readonly<Record<string, unknown>>;
+      readonly resultMode: "value" | "diagnostic";
+      readonly confidenceThreshold: number | null;
+      /** The calibrated result; undefined when the function computed no distribution. */
+      readonly diagnostic: SemaDiagnosticResult | undefined;
+    }
+  | {
+      readonly kind: "missing";
+      readonly functionId: string;
+      readonly inputs: Readonly<Record<string, unknown>>;
+    };
+
+export type SemaCallObserver = (observation: SemaCallObservation) => void;
 
 export interface SemaStageEntry {
   readonly functionId: string;
@@ -248,7 +288,7 @@ export async function checkSemaArtifact(
   options: Omit<ArtifactLoadOptions, "backend"> = {},
 ): Promise<SemaArtifactCheck> {
   const staged = await loadArtifact(artifactPath, options);
-  buildInferencePlan(staged);
+  buildInferencePlan(staged, false);
   return Object.freeze({
     releaseDirectory: staged.releaseDirectory,
     manifestSha256: staged.manifestSha256,
@@ -341,12 +381,14 @@ function activateArtifact(
   const fallbackSnapshot = snapshotFallbacks(options.fallbacks);
   const artifactOptions = options.artifact;
   const inferenceOptions = options.inference;
+  const diagnosticsAlways = diagnosticsOption(options.diagnostics);
+  const observe = observerOption(options.observe);
 
   return enqueueLifecycle(async () => {
     const staged = await loadArtifact(artifactPath, artifactOptions);
     const stub = stubAnswererFor(staged.manifest, staged.manifestSha256);
     const functions = bindFunctions(staged.functions, fallbackSnapshot);
-    const plan = buildInferencePlan(staged);
+    const plan = buildInferencePlan(staged, diagnosticsAlways);
     const runtime = await createInferenceRuntime(
       plan,
       inferenceOptionsForPlan(plan, inferenceOptions),
@@ -363,6 +405,8 @@ function activateArtifact(
       functions,
       fallbackInvocationStack: new Set(),
       stub,
+      diagnosticsAlways,
+      observe,
     };
     const previous = activeArtifact;
     activeArtifact = next;
@@ -587,6 +631,11 @@ function dispatchArtifactStage(
   const resolved = entries.map((entry) => {
     const activeFunction = artifact.functions.get(entry.functionId);
     if (activeFunction === undefined) {
+      artifact.observe?.({
+        kind: "missing",
+        functionId: entry.functionId,
+        inputs: entry.inputs,
+      });
       throw new SemaUnknownFunctionError(entry.functionId);
     }
     return {
@@ -634,6 +683,7 @@ function dispatchArtifactCall(
 ): unknown {
   const activeFunction = artifact.functions.get(functionId);
   if (activeFunction === undefined) {
+    artifact.observe?.({ kind: "missing", functionId, inputs });
     throw new SemaUnknownFunctionError(functionId);
   }
   const semanticFunction = activeFunction.artifact;
@@ -706,9 +756,25 @@ function applyConfidencePolicy(
   const semanticFunction = activeFunction.artifact;
   const functionId = semanticFunction.id;
   const { confidenceThreshold, resultMode } = semanticFunction.runtime;
+  const computesDiagnostic =
+    artifact.diagnosticsAlways ||
+    resultMode === "diagnostic" ||
+    confidenceThreshold !== null;
+  artifact.observe?.({
+    kind: "answered",
+    functionId,
+    inputs,
+    resultMode,
+    confidenceThreshold,
+    diagnostic: computesDiagnostic
+      ? (inferenceResult as SemaDiagnosticResult)
+      : undefined,
+  });
 
   if (resultMode === "value" && confidenceThreshold === null) {
-    return inferenceResult;
+    return artifact.diagnosticsAlways
+      ? (inferenceResult as SemaDiagnosticResult).value
+      : inferenceResult;
   }
 
   const diagnostic = inferenceResult as SemaDiagnosticResult;
@@ -805,8 +871,23 @@ function enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
+function diagnosticsOption(value: unknown): boolean {
+  if (value === undefined) return false;
+  if (value === "always") return true;
+  throw new TypeError('diagnostics must be "always" when set');
+}
+
+function observerOption(value: unknown): SemaCallObserver | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "function") {
+    throw new TypeError("observe must be a function when set");
+  }
+  return value as SemaCallObserver;
+}
+
 function buildInferencePlan(
   staged: StagedArtifactDescriptor<Uint8Array>,
+  diagnosticsAlways: boolean,
 ): StagedInferencePlan {
   const resources = new Map(
     staged.resources.map(({ metadata, prepared }) => [
@@ -855,7 +936,7 @@ function buildInferencePlan(
     entry.encoderRef === staged.manifest.model.encoderRef
       ? {}
       : { encoderRef: entry.encoderRef }),
-    diagnosticsRequired: diagnosticsRequired(entry),
+    diagnosticsRequired: diagnosticsAlways || diagnosticsRequired(entry),
     heads: entry.heads.map((head) => buildHeadPlan(resources, head)),
   }));
 

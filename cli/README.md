@@ -3,8 +3,8 @@
 `semantscript` is the single entry point over the compiler, trainer, verifier
 and runtime packages. It coordinates them without owning their core
 implementations: `build` is the compiler, `train` is the Python trainer's
-bundle driver, `test` and `run` are the runtime, and `releases` manages the
-published releases under the artifact root.
+bundle driver, `test`, `run` and `explain` are the runtime, and `releases`
+manages the published releases under the artifact root.
 
 ```text
 semantscript init  [--tool next|vite|esbuild|tsc] [--no-example] [--no-doctor] [--teacher anthropic|openrouter|ollama|constraints] [--teacher-model <id>] [--python <exe>] [--trainer-module <module>]
@@ -17,6 +17,7 @@ semantscript test  [--artifact <root>] [--bundle <path>] [--json]
 semantscript run   [--artifact <root>] <module.js> [--call <export>] [--input <json> | --input-file <path>]
 semantscript releases [list | show <release> | rollback [<release>] | promote <release>] [--artifact <root>] [--dry-run] [--json]
 semantscript releases prune [--keep <n>] [--older-than <30d>] [--artifact <root>] [--dry-run] [--json]
+semantscript explain [--artifact <root>] [--bundle <path>] [--cache-dir <dir>] [--neighbors <n>] [--json] <module.js> --call <export> [--input <json> | --input-file <path>]
 ```
 
 ## init
@@ -68,7 +69,7 @@ Every command works without flags once the project is initialised:
 - the bundle is the build's `semantscript.ir.v1.json` under the tsconfig
   `outDir`, then `.`, `dist`, `out` or `build`;
 - the artifact root is `SEMANTSCRIPT_ARTIFACT` when set, else
-  `.semantscript/artifact`, for `train`, `test`, `run`, `releases` and the runtime's
+  `.semantscript/artifact`, for `train`, `test`, `run`, `explain`, `releases` and the runtime's
   `loadSemaArtifact()` with no argument;
 - the teacher is the first of `semantscript.teacher.toml`, `teacher.toml` and
   `.semantscript/teacher.toml`; when none exists and `ANTHROPIC_API_KEY` is
@@ -319,3 +320,35 @@ releases to free disk. The current release is never removed, whatever its
 age, and neither are invalid releases or an export in progress. `--dry-run`
 shows what would go. See the [CLI reference](../docs/cli-reference.md#releases)
 for the error codes.
+
+## explain
+
+Answers "why did this expression say that?" for one input. It calls the export
+the way `run` does, but loads the artifact with the runtime's
+`diagnostics: "always"` and `observe` options, so every sema call the export
+makes is recorded with its calibrated distribution while the program still
+receives what it would in production (except below a `@confidence` threshold
+on a function with a fallback: explain never runs the application's fallback
+and returns the model's top answer instead). For each call it prints the value,
+confidence, uncertainty and distribution; every constraint whose predicate
+holds for the input, with whether the answer satisfies it (predicates are
+evaluated with the trainer's semantics, pinned by
+[`examples/constraints/predicate-vectors.v1.json`](../examples/constraints/predicate-vectors.v1.json));
+the nearest gold examples from the bundle; the nearest training cases with
+their labels and origins (gold, synthetic with the teacher, adversarial
+constraint-boundary or counterfactual) from the cached dataset whose digest the
+manifest records as the release's `datasetSha256`, plus its adversarial
+sidecar; and the function's shipped verification, teacher and base model.
+Above the calls it names the release (directory, application, build time and
+manifest digest). "Nearest" is a typed distance over the JSON inputs, stated
+in the output.
+
+A call whose compiled id the artifact lacks is reported as missing (the
+expression changed since training when the bundle still has the id), with the
+bundle's constraints and examples and the artifact functions the bundle no
+longer has; the command then exits 1. A `@confidence` answer below its
+threshold is reported, and explain never runs the application's fallbacks. The
+bundle is optional (`--bundle`, else the build's); `--cache-dir` defaults to
+`.semantscript/cache`, `--neighbors` to 5, and `--json` prints one document.
+The [wrong-answer workflow](../docs/diagnostics.md#wrong-answer-workflow)
+explains how to read the output.

@@ -119,7 +119,8 @@ missing artifact, an unknown function, invalid inputs, inference failure,
 low confidence and bad fallbacks.
 
 **Configuration.** `loadSemaArtifact(path?, { artifact, inference, fallbacks,
-watch, onReload, onReloadError })`; `SEMANTSCRIPT_ARTIFACT`; fallbacks are a
+watch, onReload, onReloadError, diagnostics, observe })` (the last two trace
+calls for `semantscript explain`); `SEMANTSCRIPT_ARTIFACT`; fallbacks are a
 map of ref to synchronous function.
 
 **Run it alone.**
@@ -146,7 +147,7 @@ artifact from the IR bundle whose expressions answer what the test says.
 
 ## The two that tie them together
 
-The **CLI** (`semantscript init | doctor | build | train | dev | test | run | teacher probe | releases`) drives
+The **CLI** (`semantscript init | doctor | build | train | dev | test | run | explain | teacher probe | releases`) drives
 the four with zero-config defaults ([CLI reference](cli-reference.md)); the
 **framework** (`@semantscript/framework`) puts request scopes, guards and
 decision-gated transactions around compiled calls in Express, Nest and

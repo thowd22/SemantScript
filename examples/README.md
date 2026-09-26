@@ -1,7 +1,10 @@
 # Examples
 
 This directory contains source fixtures, schema-valid IR and artifact examples,
-canonical serialization vectors, and runnable reference applications.
+canonical serialization vectors, constraint predicate vectors
+([`constraints/predicate-vectors.v1.json`](constraints/predicate-vectors.v1.json),
+evaluated by both the trainer and `semantscript explain`), and runnable
+reference applications.
 
 Checked-in artifact metadata is illustrative unless its directory explicitly
 contains the referenced model resources.

@@ -93,6 +93,30 @@ propagate unchanged. Recursive fallback invocation is rejected with
 `SemaFallbackError` reason `cycle`, while non-recursive calls to other semantic
 functions remain valid.
 
+## Tracing calls
+
+Two `loadSemaArtifact` options exist for debugging tools such as
+`semantscript explain`, and change nothing when absent:
+
+```ts
+await loadSemaArtifact(artifactPath, {
+  diagnostics: "always",
+  observe: (observation) => {
+    // { kind: "answered", functionId, inputs, resultMode, confidenceThreshold, diagnostic }
+    // or { kind: "missing", functionId, inputs }
+  },
+});
+```
+
+`diagnostics: "always"` makes every function compute its calibrated result, not
+only `sema.withConfidence` sites and `@confidence` thresholds; program code still
+receives exactly what it would otherwise (the plain value from a value-mode site),
+at the cost of the distribution's response bytes on every call. `observe` is
+called synchronously for every dispatched call, single or stage entry, before the
+confidence policy runs, with the diagnostic result when the function computes one;
+a call whose id the artifact lacks is reported as `kind: "missing"` just before
+`SemaUnknownFunctionError` is thrown. An observer that throws makes the call throw.
+
 ## Routed domains and encoder prefixes
 
 A manifest may carry several adapter resources and several encoder resources.

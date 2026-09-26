@@ -42,14 +42,8 @@ export async function runCommand(
   const { loadSemaArtifact } = await import("@semantscript/core");
   const handle = await loadSemaArtifact(root);
   try {
-    const imported: unknown = await import(
-      pathToFileURL(resolve(io.cwd, modulePath)).href
-    );
+    const namespace = await importModule(modulePath, io.cwd);
     if (values.call === undefined) return 0;
-    const namespace =
-      imported !== null && typeof imported === "object"
-        ? (imported as Readonly<Record<string, unknown>>)
-        : {};
     const target = namespace[values.call];
     if (typeof target !== "function") {
       io.stderr(`${modulePath} has no function export named ${values.call}\n`);
@@ -67,7 +61,21 @@ export async function runCommand(
   }
 }
 
-async function resolveArguments(
+/** Import the program module the way `run` and `explain` do, as its export namespace. */
+export async function importModule(
+  modulePath: string,
+  cwd: string,
+): Promise<Readonly<Record<string, unknown>>> {
+  const imported: unknown = await import(
+    pathToFileURL(resolve(cwd, modulePath)).href
+  );
+  return imported !== null && typeof imported === "object"
+    ? (imported as Readonly<Record<string, unknown>>)
+    : {};
+}
+
+/** `--input` or `--input-file` as the export's argument list: a JSON array spreads, anything else is one argument. */
+export async function resolveArguments(
   inline: string | undefined,
   file: string | undefined,
   cwd: string,

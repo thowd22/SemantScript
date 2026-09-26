@@ -38,7 +38,7 @@ import { join, resolve } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
 
-import { PUBLISHED_WORKSPACES, pythonVersion } from "./version.mjs";
+import { PUBLISHED_WORKSPACES } from "./version.mjs";
 
 function usage() {
   // The usage is the header comment of this file, minus the comment markers.
@@ -353,8 +353,8 @@ if (!values["no-train"]) {
     `manifest build.compilerVersion is ${manifest.build.compilerVersion}, expected ${version}`,
   );
   expect(
-    manifest.build.trainerVersion === pythonVersion(version),
-    `manifest build.trainerVersion is ${manifest.build.trainerVersion}, expected ${pythonVersion(version)} (install the matching semantscript-trainer)`,
+    manifest.build.trainerVersion === version,
+    `manifest build.trainerVersion is ${manifest.build.trainerVersion}, expected ${version} (install the matching semantscript-trainer)`,
   );
 }
 

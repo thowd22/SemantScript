@@ -114,8 +114,27 @@ BUNDLE_KIND = "semantscript.ir-bundle"
 REPORT_KIND = "semantscript.train-report"
 REPORT_VERSION = 1
 DEFAULT_CASES = 64
-# The release version of this package, shared with the npm packages.
-TRAINER_VERSION = __version__
+_PEP440_PRERELEASE = re.compile(r"^(\d+\.\d+\.\d+)(a|b|rc)(\d+)$")
+_SEMVER_PRERELEASE_TAG = {"a": "alpha", "b": "beta", "rc": "rc"}
+
+
+def release_semver(version: str) -> str:
+    """The semver spelling of a PEP 440 release version (0.2.0rc1 -> 0.2.0-rc.1).
+
+    scripts/version.mjs writes pre-releases into _version.py the PEP 440 way for
+    PyPI, but the artifact manifest records semantic versions, the spelling the
+    npm packages use, so both halves of a release record the same string.
+    """
+    match = _PEP440_PRERELEASE.fullmatch(version)
+    if match is None:
+        return version
+    base, tag, number = match.groups()
+    return f"{base}-{_SEMVER_PRERELEASE_TAG[tag]}.{number}"
+
+
+# The release version of this package, shared with the npm packages, in the
+# semver spelling the artifact manifest records.
+TRAINER_VERSION = release_semver(__version__)
 _TRAINING_KEY_KIND = "semantscript.training-key"
 
 
@@ -1104,7 +1123,7 @@ def _build_parser() -> argparse.ArgumentParser:
     train.add_argument("--cases", type=int, default=DEFAULT_CASES)
     train.add_argument("--application-id")
     train.add_argument("--application-version", default="0.0.0")
-    train.add_argument("--compiler-version", default=__version__)
+    train.add_argument("--compiler-version", default=TRAINER_VERSION)
     train.add_argument("--encoder-name")
     train.add_argument("--encoder-revision")
     train.add_argument("--local-files-only", action="store_true")

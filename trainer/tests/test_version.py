@@ -14,6 +14,7 @@ import pytest
 import semantscript_trainer
 from semantscript_trainer import cli
 from semantscript_trainer._version import __version__
+from semantscript_trainer.artifact import ArtifactProvenance
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -25,7 +26,8 @@ def test_the_trainer_version_is_the_root_package_version() -> None:
     python_spelling = python_spelling.replace("alpha", "a").replace("beta", "b")
     assert __version__ == python_spelling
     assert semantscript_trainer.__version__ == __version__
-    assert cli.TRAINER_VERSION == __version__
+    # The manifest records the semver spelling, the same string as the npm packages.
+    assert cli.TRAINER_VERSION == root_version
 
 
 def test_pyproject_reads_the_version_from_the_package() -> None:
@@ -94,7 +96,33 @@ def test_compiler_version_defaults_to_the_shared_version() -> None:
     arguments = cli._build_parser().parse_args(
         ["train", "--bundle", "b.json", "--artifact", "a", "--teacher", "constraints"]
     )
-    assert arguments.compiler_version == __version__
+    assert arguments.compiler_version == cli.TRAINER_VERSION
+
+
+@pytest.mark.parametrize(
+    ("python_spelling", "semver"),
+    [
+        ("0.1.0", "0.1.0"),
+        ("0.2.0a1", "0.2.0-alpha.1"),
+        ("0.2.0b2", "0.2.0-beta.2"),
+        ("0.2.0rc1", "0.2.0-rc.1"),
+        ("10.20.30rc12", "10.20.30-rc.12"),
+    ],
+)
+def test_a_pre_release_is_recorded_in_the_semver_spelling(
+    python_spelling: str, semver: str
+) -> None:
+    assert cli.release_semver(python_spelling) == semver
+    # The artifact provenance accepts what a pre-release trainer records.
+    provenance = ArtifactProvenance(
+        application_id="app1",
+        application_version="0.0.0",
+        compiler_version=semver,
+        trainer_version=cli.release_semver(python_spelling),
+        created_at="2026-09-26T00:00:00Z",
+        training_key_sha256="a" * 64,
+    )
+    assert provenance.trainer_version == semver
 
 
 def test_git_commit_handles_a_checkout_path_with_spaces(tmp_path: Path) -> None:

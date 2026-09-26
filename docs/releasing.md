@@ -38,9 +38,12 @@ It keeps in step: the four published workspaces' `version`; every
 entries; `trainer/src/semantscript_trainer/_version.py`, which `pyproject.toml`
 reads (`dynamic = ["version"]`); and `runtime/src/version.ts` and
 `compiler/src/version.ts`, the `VERSION` each package exports. A pre-release is
-`X.Y.Z-alpha.N`, `-beta.N` or `-rc.N`; the Python spelling follows PEP 440
-(`0.2.0-rc.1` becomes `0.2.0rc1`) and npm publishes it under the `next`
-dist-tag. `cli/test/version.test.mjs` runs `check` in CI on every push.
+`X.Y.Z-alpha.N`, `-beta.N` or `-rc.N`; the Python package version follows
+PEP 440 (`0.2.0-rc.1` becomes `0.2.0rc1`, the name on PyPI), npm publishes it
+under the `next` dist-tag, and the trainer converts back to the semver
+spelling for the artifact manifest, so `build.trainerVersion` and
+`build.compilerVersion` both read `0.2.0-rc.1` (the manifest accepts only
+semantic versions). `cli/test/version.test.mjs` runs `check` in CI on every push.
 
 ## Cutting a release
 

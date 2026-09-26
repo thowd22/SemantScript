@@ -131,8 +131,9 @@ npm install
 ]
 ```
 
-and the build runs through ts-patch's `tspc` instead of `tsc`; change the
-`build` script to `tspc -p tsconfig.json`. That is the whole adoption cost
+and the build runs through ts-patch's `tspc` instead of `tsc`. In a new
+project `init` wrote that `build` script; in an existing one whose `build`
+script runs `tsc`, change it to `tspc -p tsconfig.json`. That is the whole adoption cost
 for a tsc project; the [build tool pages](build-tools/tsc.md) cover the other
 tools.
 

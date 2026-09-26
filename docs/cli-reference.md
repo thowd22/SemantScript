@@ -67,9 +67,13 @@ example a directory holding only the `package.json` that `npm install`
 wrote, or `--tool tsc` with no `tsconfig.json`), it first starts a
 TypeScript project: `tsconfig.json` (NodeNext modules, `src/` compiled to
 `dist/`), `src/`, a `build` script `tspc -p tsconfig.json` and `typescript`
-in `devDependencies` (each only when absent), and `"type": "module"` when the
-`package.json` has no `type`, no existing `main` file and no scripts beyond
-`npm init`'s placeholder.
+in `devDependencies` (each only when absent), and `"type": "module"` when no
+code depends on the module type yet: no existing `main` file, no scripts
+beyond `npm init`'s placeholder and no `.js` or `.cjs` file in the root or
+`src/`. In that case a `type` of `"commonjs"` (which npm 11's `npm init -y`
+writes) becomes `"module"` too, and init says so; otherwise `type` is left
+alone. Run in a directory without `package.json`, `init` exits 1 and asks
+for `npm init -y` first.
 
 | Flag           | Value                            | Effect                                                                                                                                                                                                          |
 | -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

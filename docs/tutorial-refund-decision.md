@@ -30,6 +30,7 @@ in the clone.
 
 ```sh
 mkdir refund-decision && cd refund-decision
+npm init -y                                     # this directory's own package.json
 npm install semantscript @semantscript/core @semantscript/compiler @semantscript/framework
 python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install "semantscript-trainer[training]"   # trainer, model, torch, transformers, onnx, onnxruntime
@@ -38,7 +39,9 @@ npx semantscript init --no-example   # new project: tsconfig.json, type module, 
 npm install                                     # runs the prepare script: ts-patch install
 ```
 
-In a directory with no `tsconfig.json` and no other build tool, `init` starts
+`npm init -y` comes first so that `npm install` installs here: in a directory
+with no `package.json`, npm installs into the nearest parent directory that
+has one. In a directory with no `tsconfig.json` and no other build tool, `init` starts
 a TypeScript project: it writes `tsconfig.json` (NodeNext modules, `src/`
 compiled to `dist/`), sets `"type": "module"` and a `build` script that runs
 `tspc`, and adds TypeScript (5.9 to 6.x; 7 is not supported yet) to

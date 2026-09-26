@@ -856,6 +856,53 @@ test("init starts a TypeScript project in a directory that has only the package.
   );
   assert.equal(kept.type, undefined);
   assert.equal(kept.scripts.build, "tspc -p tsconfig.json");
+
+  // npm 11's npm init -y writes "type": "commonjs"; with no code yet that is a placeholder too.
+  const npm11 = await scratch(t, "semantscript-cli-init-npm11-");
+  await writeFile(
+    join(npm11, "package.json"),
+    JSON.stringify({
+      name: "z",
+      main: "index.js",
+      type: "commonjs",
+      scripts: { test: 'echo "Error: no test specified" && exit 1' },
+    }),
+  );
+  const npm11Run = capture(npm11);
+  assert.equal(await runCli(["init", "--no-doctor"], npm11Run.io), 0);
+  assert.match(
+    npm11Run.stdout(),
+    /type: module \(was npm init's commonjs default\)/u,
+  );
+  assert.equal(
+    JSON.parse(await readFile(join(npm11, "package.json"), "utf8")).type,
+    "module",
+  );
+
+  // A plain CommonJS script with no main or scripts (npm install wrote the package.json) keeps working.
+  const script = await scratch(t, "semantscript-cli-init-cjs-script-");
+  await writeFile(
+    join(script, "package.json"),
+    '{ "dependencies": { "semantscript": "^0.1.0" } }\n',
+  );
+  await writeFile(
+    join(script, "server.js"),
+    'const path = require("node:path");\n',
+  );
+  assert.equal(await runCli(["init", "--no-doctor"], capture(script).io), 0);
+  assert.equal(
+    JSON.parse(await readFile(join(script, "package.json"), "utf8")).type,
+    undefined,
+  );
+});
+
+test("init in a directory without package.json names npm init -y", async (t) => {
+  const empty = await scratch(t, "semantscript-cli-init-empty-");
+  const run = capture(empty);
+  assert.equal(await runCli(["init", "--no-doctor"], run.io), 1);
+  assert.match(run.stderr(), /no package\.json in .*`npm init -y`/u);
+  assert.doesNotMatch(run.stderr(), /usage/iu);
+  assert.equal(existsSync(join(empty, "tsconfig.json")), false);
 });
 
 test("train, test and run resolve the bundle, artifact and teacher from documented defaults", async (t) => {

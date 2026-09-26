@@ -146,8 +146,8 @@ export async function initCommand(
   const root = io.cwd;
   const packagePath = join(root, "package.json");
   if (!existsSync(packagePath)) {
-    throw new CliUsageError(
-      `no package.json in ${root}; run init at the project root`,
+    throw new Error(
+      `no package.json in ${root}. Run init at the project root; in a new directory, create one first with \`npm init -y\` (npm install run here, with no package.json, installs into the nearest parent project instead).`,
     );
   }
   const pkg = readPackageJson(packagePath);
@@ -377,15 +377,25 @@ const NPM_INIT_TEST_SCRIPT = 'echo "Error: no test specified" && exit 1';
 function scaffoldPackageJson(root: string, pkg: PackageJson): Outcome {
   const added: string[] = [];
   const main = pkg["main"];
+  // No code relies on the module type yet: no entry point on disk, no
+  // scripts beyond npm init's placeholder and no JavaScript files in the root
+  // or src/. Only then does init choose ES modules.
   const untouched =
     (main === undefined ||
       (typeof main === "string" && !existsSync(join(root, main)))) &&
     Object.values(pkg.scripts ?? {}).every(
       (script) => script === NPM_INIT_TEST_SCRIPT,
-    );
-  if (pkg["type"] === undefined && untouched) {
+    ) &&
+    !hasJavaScriptFiles(root) &&
+    !hasJavaScriptFiles(join(root, "src"));
+  const type = pkg["type"];
+  if (untouched && type === undefined) {
     pkg["type"] = "module";
     added.push("type: module");
+  } else if (untouched && type === "commonjs") {
+    // npm 11's `npm init -y` writes "type": "commonjs" into its placeholder.
+    pkg["type"] = "module";
+    added.push("type: module (was npm init's commonjs default)");
   }
   const scripts = pkg.scripts ?? {};
   if (typeof scripts["build"] !== "string" || scripts["build"].length === 0) {
@@ -412,6 +422,16 @@ function scaffoldPackageJson(root: string, pkg: PackageJson): Outcome {
         file: "package.json",
         what: `new project: ${added.join(", ")}`,
       };
+}
+
+/** Whether `directory` holds .js or .cjs files, whose meaning depends on the module type. */
+function hasJavaScriptFiles(directory: string): boolean {
+  if (!existsSync(directory)) return false;
+  return readdirSync(directory, { withFileTypes: true }).some(
+    (entry) =>
+      entry.isFile() &&
+      (entry.name.endsWith(".js") || entry.name.endsWith(".cjs")),
+  );
 }
 
 function parseTool(value: string): BuildTool {
@@ -880,8 +900,8 @@ function render(
     "next steps:",
     "  1. npm install",
     `  2. ${buildInstructions(tool)}   (writes the IR bundle next to the build output)`,
-    "  3. semantscript teacher probe, then semantscript train --estimate   (one small request to the teacher; then the cost and time of the run, without calling it)",
-    "  4. semantscript train   (the teacher file init wrote, ANTHROPIC_API_KEY with the default teacher, --teacher <toml>, or --teacher constraints when the constraints decide every input; --max-cost-usd <x> caps the spend)",
+    "  3. npx semantscript teacher probe, then npx semantscript train --estimate   (one small request to the teacher; then the cost and time of the run, without calling it)",
+    "  4. npx semantscript train   (the teacher file init wrote, ANTHROPIC_API_KEY with the default teacher, --teacher <toml>, or --teacher constraints when the constraints decide every input; --max-cost-usd <x> caps the spend)",
     `  5. call loadSemaArtifact() once at startup; it reads ${DEFAULT_ARTIFACT_PATH} unless ${ARTIFACT_ENVIRONMENT_VARIABLE} is set`,
     "  editor: after npm install, hover a sema expression for its verified accuracy (VS Code loads the plugin from node_modules; no extension needed)",
     "",

@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 15:21'
-updated_date: '2026-09-26 04:33'
+updated_date: '2026-09-26 05:01'
 labels:
   - dx
   - install
@@ -81,4 +81,15 @@ FIX round 2 (commit b7ab927):
 - Advisory fixes: release-smoke unknown option prints one line plus usage (rc 2); semantscript-trainer console script names itself in --help; releasing.md dry-run wording names the manual-dispatch exception; README tutorial link says 'from an empty directory'.
 - Checks: npm run build 0, lint:node 0, test:node 89/121/43/9/85 0 failures, trainer pytest 567 passed 2 skipped, ruff check and format clean, prettier clean, version.mjs check consistent. CI 36217891869 success; Release dry run 36217891874 success (smoke log shows 'started a TypeScript project built by tspc' and 'release-smoke: passed').
 - Still user-gated (re-verified today): npm view semantscript -> E404; PyPI semantscript-trainer -> 404; no LICENSE; gh secret list empty; no v* tag. AC1, AC2 and the publish half of AC3 stay unchecked.
+
+FIX round 3 (2026-09-26):
+- Pre-releases fixed. The trainer records the semver spelling in the manifest: cli.release_semver maps 0.2.0rc1 to 0.2.0-rc.1, and TRAINER_VERSION and the --compiler-version default use it. release-smoke now expects trainerVersion === version. Proof: a scratch copy set to 0.2.0-rc.1 (version.mjs set), npm pack of 4 workspaces, and the wheel semantscript_trainer-0.2.0rc1 installed with --target. Then release-smoke --tarballs --device cuda from /tmp: train 1.0000 with 0 violations, test passed, run true/false, 'release-smoke: passed', manifestBuild compilerVersion and trainerVersion 0.2.0-rc.1. A parametrised test in trainer/tests/test_version.py covers the a, b and rc spellings and checks that ArtifactProvenance accepts them.
+- Tutorial published route: npm init -y is back before npm install, with a note that npm otherwise installs into the nearest parent project. init with no package.json now exits 1 with a one-line message naming npm init -y, with no usage dump; a test covers it. Proof: parent/package.json, then parent/refund-decision: npm init -y, npm install of the packs, init, npm install, npm run build. The parent package.json is unchanged, type is module, and dist has the IR bundle.
+- Advisory items fixed:
+  - init keeps the module type when the root or src/ holds .js/.cjs files (CommonJS server.js case, tested).
+  - init treats npm 11's placeholder type commonjs as new and switches it to module, saying so (tested).
+  - init's next steps use npx semantscript.
+  - getting-started step 3 build-script sentence is clarified.
+  - cli-reference and releasing.md are updated.
+- Still gated on the user (re-checked): npm view semantscript E404, PyPI 404, no LICENSE, gh secret list empty, no v* tag. AC1, AC2 and the publish half of AC3 stay unchecked.
 <!-- SECTION:NOTES:END -->

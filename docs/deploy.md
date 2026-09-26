@@ -126,7 +126,8 @@ before packaging. The
 
 The Express example's trained release `217d386c` is the worked case (on the
 development machine only: `examples/*/.semantscript/` is git-ignored, so a
-clone has no trained release). It was trained at seed 5 and verified
+clone has no trained release). It was trained at seed 5 (by its train report; the manifest has no seed
+field) and verified
 `decideRefund` at accuracy 0.9241, ECE 0.0719 and 0 of 394 corpus violations
 (`triage` 1.0000, ECE 0.0000); its held-out figure is not recorded, and
 `semantscript releases list` prints `217d386c9852`, `2/2 passed`, `0.9241`,
@@ -141,11 +142,11 @@ records.) Depth routing
 alone leaves it over (the dependencies stay). `releases derive --int8`
 measured it on 2026-09-26 on 586 records (6 attested), on CPU:
 
-| Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                          |
-| ------------------------------------------------- | ----------------- | ---------------- | -------------- | --------------------------------------------------------------- |
-| default                                           | 6 (1.02%)         | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                     |
-| `--per-channel`                                   | 3 (0.51%)         | 0                | 0.0914         | refused: decisions changed                                      |
-| `--per-channel --max-decision-change-rate 0.0052` | 3 (0.51%)         | 0                | 0.0914         | published; bundle 239,697,592 B (228.6 MiB), fits with 21.4 MiB |
+| Settings                                          | Decisions changed | Attested changed | Worst int8 ECE | Result                                                                        |
+| ------------------------------------------------- | ----------------- | ---------------- | -------------- | ----------------------------------------------------------------------------- |
+| default                                           | 6 (1.02%)         | 0                | 0.1049         | refused: decisions changed and ECE over 0.1                                   |
+| `--per-channel`                                   | 3 (0.51%)         | 0                | 0.0914         | refused: decisions changed                                                    |
+| `--per-channel --max-decision-change-rate 0.0052` | 3 (0.51%)         | 0                | 0.0914         | published as `f8e22cae`; bundle 239,708,539 B (228.6 MiB), fits with 21.4 MiB |
 
 So the strict gate refuses the Express int8 release, and it fits `lambda-zip`
 only under a recorded tolerance of 0.52% changed decisions (none attested),

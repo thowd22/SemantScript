@@ -113,7 +113,8 @@ mkdir -p src && curl -fsSLo src/refunds.sem.ts \
   https://raw.githubusercontent.com/thowd22/SemantScript/main/examples/express-app/src/refunds.sem.ts
 ```
 
-Its core (the full file carries all six policy rules as constraints):
+Its core (the full file carries three gold examples and all six policy rules
+as constraints):
 
 ```ts
 // examples/express-app/src/refunds.sem.ts
@@ -124,25 +125,32 @@ export function decideRefund(customer: Customer, order: Order): RefundDecision {
     examples: [
       {
         inputs: {
-          customer: { priorRefunds: 0, tier: "enterprise" },
-          order: { ageDays: 45, status: "paid", total: 129 },
+          customer: { tier: "standard", priorRefunds: 1 },
+          order: { total: 88.5, ageDays: 12, status: "paid" },
         },
         output: "approve",
       },
+      // two more gold examples: a stale-window deny and a fraudulent review
     ],
     constraints: [
-      never(() => order.status === "fraudulent", "approve"),
       always(() => order.ageDays > 90, "deny"),
+      never(() => order.status === "fraudulent", "approve"),
+      // four more: fraudulent within 90 days, and the tier windows for paid orders
     ],
-  })`Apply our refund policy. Enterprise customers get 60 days; everyone else gets 30. Suspicious circumstances go to review.
-Customer: ${customer}
-Order: ${order}`;
+  })`
+    Decide a refund request. Deny orders older than 90 days. Never approve a
+    fraudulent order; review it unless it is stale. Deny paid orders outside
+    the tier window (60 days enterprise, 30 days standard). Inside the window,
+    review when the customer has more than two prior refunds, else approve.
+    Customer: ${customer}
+    Order: ${order}
+  `;
 }
 ```
 
 The output type is the support (`"approve" | "deny" | "review"`), the
-interpolations are the inputs, the example is an attested case the verifier
-must reproduce, and the two constraints are rules the release gate checks.
+interpolations are the inputs, the examples are attested cases the verifier
+must reproduce, and the constraints are rules the release gate checks.
 The text is what a teacher reads to generate the corpus.
 
 ## 3. Compile
@@ -208,7 +216,7 @@ no billed request; a missing key or package stops it there with the fix),
 finds the bundle under `dist/`, writes `.semantscript/teacher.toml`
 when `ANTHROPIC_API_KEY` is set (or takes `--teacher`), generates the cases,
 trains ModernBERT-base plus one head, fits the calibration temperature,
-verifies the gold example and the constraints, and publishes
+verifies the gold examples and the constraints, and publishes
 `.semantscript/artifact`. Expect the encoder download the first time (600 MB),
 then roughly a minute on the GPU or half an hour on a CPU (`--device cpu`).
 The report table names any verification failure with the failing cases.
@@ -226,8 +234,13 @@ retrain from its cached datasets passes that check today: seeds 1 to 10 broke
 28 to 109 of 512 held-out inputs (5.5% to 21.3%) and the best training-only
 variant 20 of 512 (3.9%), against a 1% tolerance
 ([example README](../examples/express-app/README.md#no-retrain-from-the-cached-datasets-passes-the-held-out-check)).
-If your run fails there, add the `examples` entry the failure suggests or
-raise `--cases`; both call the teacher again, so check `--estimate` first.
+If your run fails there, the failure's `next:` line names one `examples`
+entry for one broken constraint, but the example's failures spread over
+several constraints, so one entry is unlikely to be enough; more gold examples
+across the broken constraints or a larger `--cases` are the routes, both call
+the teacher again, and neither is yet known to pass, so check `--estimate`
+and pass `--max-cost-usd`. To walk steps 4 and 5 without a key or a paid
+run, use the reference application below.
 
 To see the whole flow without any key on the clone route, run the reference
 application instead, whose expressions are labeled by their own constraints

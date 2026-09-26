@@ -28,6 +28,7 @@ npm run build               # tspc: dist/*.js, dist/*.js.map and dist/semantscri
 npm test                    # the bundle and both routes over a fixture artifact, no training needed
 npm run fixture-artifact    # optional: a fixture artifact in .semantscript/artifact, to run without training
 npx semantscript train      # or train: bundle from dist/, artifact to .semantscript/artifact, teacher from ANTHROPIC_API_KEY or --teacher
+                            # (calls a paid teacher, and has not yet passed the held-out check for decideRefund: see below)
 npm start                   # POST /tickets {"subject": "...", "body": "..."}
 ```
 
@@ -53,7 +54,10 @@ Both expressions carry three gold examples, and `decideRefund` carries the
 policy's six rules as constraints (`src/refunds.sem.ts`), which is what makes
 a numeric policy learnable from a few hundred teacher cases: the trainer
 labels boundary pairs and counterfactual twins against them and the release
-gate refuses a model that breaks one. The teacher is Sonnet 5 through
+gate refuses a model that breaks one, on its corpus and on a held-out sample.
+The release on disk predates the held-out part of that gate and breaks the
+90-day rule (next section), and no retrain from the cached datasets passes it
+yet. The teacher is Sonnet 5 through
 OpenRouter's Anthropic-format route (`.semantscript/teacher.toml`,
 git-ignored: `backend = "anthropic"`, `model = "anthropic/claude-sonnet-5"`,
 `base_url = "https://openrouter.ai/api"`, `mode = "direct"`, with
@@ -67,6 +71,11 @@ from the reduced-prompt datasets (below) at seed 5, before the
 existed. `.semantscript` is git-ignored (`examples/*/.semantscript/`), so a
 clone has no trained release: this one exists on the development machine, and
 the figures below describe it, not what a clone's own `train` will publish.
+Its manifest has no seed field (`releases show` prints `-`); the seed comes
+from the run that published it, whose report
+`.semantscript/train-report-reduced-seed5.json` records manifest
+`217d386c985212c5…`. Its held-out figure does not exist: the release was
+never checked on held-out inputs.
 
 ```sh
 semantscript train --teacher .semantscript/teacher.toml --cases 192 --epochs 8 --seed 5 \
@@ -83,11 +92,24 @@ semantscript train --teacher .semantscript/teacher.toml --cases 192 --epochs 8 -
 `releases show 217d386c` prints `-` in its `held-out` and `seed` columns,
 because the manifest predates both fields. The gate it passed checked only
 the corpus, and the corpus has few orders past 90 days away from the
-boundary: on 2026-09-26, `semantscript run dist/refunds.sem.js --call
+boundary: on 2026-09-26, `semantscript explain dist/refunds.sem.js --call
 decideRefund` with `priorRefunds` 0 and a total of 100 answered `approve` for
 every paid order and `review` for every fraudulent one at 100, 120, 150 and
 200 days, for both tiers. None of the 16 answers is the `deny` that
-`always(() => order.ageDays > 90, "deny")` requires. Treat it as a wiring
+`always(() => order.ageDays > 90, "deny")` requires, and `explain` says so
+on each one:
+
+```sh
+npx semantscript explain dist/refunds.sem.js --call decideRefund \
+  --input '[{"tier":"standard","priorRefunds":0},{"total":100,"ageDays":150,"status":"fraudulent"}]'
+#  value        "review"
+#  constraints  2 active of 6 (4 inactive)
+#    always "deny" when order.ageDays > 90: VIOLATED by the answer
+```
+
+Its closing `verification passed` line and `semantscript test`'s
+`test passed` describe the corpus gate the release passed in 2026-09; the `-`
+in their `held-out` column means it was never checked on held-out inputs. Treat it as a wiring
 demonstration, not as the refund policy.
 
 ### No retrain from the cached datasets passes the held-out check
@@ -263,13 +285,17 @@ the trained release 2026-09-26:
 | ------------------------------------------------ | ------------ | --------- | --------- | -------------------- |
 | Fixture (`npm run fixture-artifact`)             | 82.3 MiB     | 12.1 KiB  | 82.6 MiB  | fits                 |
 | Trained release `217d386c…` (22 layers, float32) | 82.7 MiB     | 570.9 MiB | 653.9 MiB | over by 403.9 MiB    |
-| Int8 release `7f982976…` derived from it (below) | 82.6 MiB     | 145.7 MiB | 228.6 MiB | fits, 21.4 MiB spare |
+| Int8 release `f8e22cae…` derived from it (below) | 82.7 MiB     | 145.7 MiB | 228.6 MiB | fits, 21.4 MiB spare |
 
-The int8 row was measured on 2026-09-26 on the same machine: 239,697,592
-bytes in total, with an encoder of 150,750,065 bytes (143.8 MiB), and the
-packaged Lambda handler answered `POST /tickets` from it. It was derived in
-another checkout and is not kept beside `217d386c` here, and like
-`217d386c` it was never checked on held-out inputs.
+The int8 row was derived and measured on 2026-09-26 on the same machine, and
+the release sits beside `217d386c` under `.semantscript/artifact/releases`
+(`releases list` prints it, not current): 239,708,539 bytes in total, with an
+encoder of 150,750,065 bytes (143.8 MiB), and the packaged Lambda handler
+answered `POST /tickets` from it with `201` and `"urgent"`. An earlier
+derivation of the same release in another checkout (`7f982976…`, 239,697,592
+bytes) gave the same figures. Like `217d386c` it was never checked on
+held-out inputs (`derive` verifies on the release's training, gold and
+adversarial records).
 
 The trained release does not fit a Lambda .zip package: its encoder alone is
 596,679,464 bytes (569.0 MiB), a full-depth float32 ModernBERT-base, and AWS
@@ -295,7 +321,8 @@ strict default gate refuses both settings, so nothing is published:
 
 Times are wall clock on the development machine (Ryzen 9 9900X, WSL2, CPU
 only, about 3 GB resident); the second and third runs shared it with test
-runs. The int8 row in the size table is that last derivation. Publishing it means
+runs. The int8 row in the size table is a derivation with those last settings
+(re-run 2026-09-26 in 57 s on an idle CPU, same figures). Publishing it means
 accepting that 3 of the 586 records the release was trained and verified on
 (1 `decideRefund`, 2 `triage`; none of the gold examples) get a different
 answer than from the float32 release. That is a decision for the application
